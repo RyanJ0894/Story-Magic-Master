@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # Director Agent - Python/FastAPI
+  director:
+    build:
+      context: ./packages/director
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DIRECTOR_MODEL=${DIRECTOR_MODEL:-openai/gpt-4.1}
+      - AUDIO_DIRECTOR_MODEL=${AUDIO_DIRECTOR_MODEL:-openai/gpt-4.1}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    volumes:
+      - ./packages/director:/app
+      - director-cache:/root/.cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Orchestrator - Node.js/Express
+  orchestrator:
+    build:
+      context: ./packages/orchestrator
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - DIRECTOR_URL=http://director:8000
+    volumes:
+      - ./packages/orchestrator:/app
+      - /app/node_modules
+      - orchestrator-output:/app/output
+    depends_on:
+      director:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  director-cache:
+  orchestrator-output:
+
+networks:
+  default:
+    name: story-magic-network

@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment files (NEVER COMMIT)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+secrets.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.Python
+*.egg-info/
+dist/
+build/
+
+# Next.js
+packages/web/.next/
+packages/web/out/
+packages/web/.vercel
+
+# Build outputs
+*.tsbuildinfo
+next-env.d.ts
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temp files
+tmp/
+temp/
+*.tmp
+
+# Audio output (generated files)
+output/
+*.mp3
+*.wav
+*.m4a
+
+# Uploads
+uploads/

@@ -1,0 +1,34 @@
+{
+  "name": "story-magic",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-powered audio production platform for screenplays",
+  "scripts": {
+    "dev": "pnpm run --parallel dev",
+    "dev:web": "pnpm --filter @story-magic/web dev",
+    "dev:director": "pnpm --filter @story-magic/director dev",
+    "dev:orchestrator": "pnpm --filter @story-magic/orchestrator dev",
+    "build": "pnpm run --parallel build",
+    "build:web": "pnpm --filter @story-magic/web build",
+    "lint": "pnpm run --parallel lint",
+    "test": "pnpm run --parallel test",
+    "clean": "rm -rf node_modules packages/*/node_modules packages/*/.next packages/*/dist",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
+  },
+  "keywords": [
+    "ai",
+    "audio",
+    "screenplay",
+    "tts",
+    "production"
+  ],
+  "author": "Story Magic",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@9.1.0"
+}
