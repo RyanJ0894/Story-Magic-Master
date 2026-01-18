@@ -50,22 +50,32 @@ cd packages/director
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python main.py            # Starts on port 8000
+python main.py            # Starts on port 22001
 ```
 
 ### Orchestrator (Node.js)
 ```bash
 cd packages/orchestrator
 pnpm install
-pnpm dev                  # Starts on port 3001
+pnpm dev                  # Starts on port 22002
 ```
 
 ### Web (Next.js)
 ```bash
 cd packages/web
 pnpm install
-pnpm dev                  # Starts on port 3000
+pnpm dev                  # Starts on port 22000
 ```
+
+## Port Assignments
+
+This project uses ports 22000-22100 to avoid conflicts:
+
+| Service | Port |
+|---------|------|
+| Web (Next.js) | 22000 |
+| Director (FastAPI) | 22001 |
+| Orchestrator (Express) | 22002 |
 
 ## Environment Variables
 
@@ -94,15 +104,15 @@ Copy `.env.local` to each package as needed:
 
 ## API Endpoints
 
-### Director Agent (port 8000)
+### Director Agent (port 22001)
 - `GET /` - Health check
 - `POST /generate-scenes` - Parse script into director JSON
 
-### Orchestrator (port 3001)
+### Orchestrator (port 22002)
 - `GET /health` - Health check
 - `POST /orchestrate` - Generate audio from director JSON
 
-### Web (port 3000)
+### Web (port 22000)
 - Next.js App Router routes
 
 ## Database Schema

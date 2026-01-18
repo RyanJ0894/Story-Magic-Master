@@ -63,3 +63,4 @@ output/
 
 # Uploads
 uploads/
+packages/web/supabase/.temp/

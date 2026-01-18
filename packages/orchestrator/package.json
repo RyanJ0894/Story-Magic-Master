@@ -5,8 +5,8 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
+    "start": "PORT=22002 node server.js",
+    "dev": "PORT=22002 node --watch server.js",
     "test": "node tests/test-orchestrator.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"

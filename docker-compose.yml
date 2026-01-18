@@ -7,7 +7,7 @@ services:
       context: ./packages/director
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "22001:22001"
     environment:
       - DIRECTOR_MODEL=${DIRECTOR_MODEL:-openai/gpt-4.1}
       - AUDIO_DIRECTOR_MODEL=${AUDIO_DIRECTOR_MODEL:-openai/gpt-4.1}
@@ -19,7 +19,7 @@ services:
       - ./packages/director:/app
       - director-cache:/root/.cache
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      test: ["CMD", "curl", "-f", "http://localhost:22001/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -30,14 +30,14 @@ services:
       context: ./packages/orchestrator
       dockerfile: Dockerfile
     ports:
-      - "3001:3001"
+      - "22002:22002"
     environment:
-      - PORT=3001
+      - PORT=22002
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - DIRECTOR_URL=http://director:8000
+      - DIRECTOR_URL=http://director:22001
     volumes:
       - ./packages/orchestrator:/app
       - /app/node_modules
@@ -46,7 +46,7 @@ services:
       director:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:22002/health"]
       interval: 30s
       timeout: 10s
       retries: 3
