@@ -1,0 +1,164 @@
+# Render Blueprint for Story Magic
+# Deploy with: https://render.com/docs/infrastructure-as-code
+#
+# This blueprint defines two services:
+# 1. Web (Next.js frontend) - User-facing application
+# 2. Orchestrator (Node.js backend) - Audio generation pipeline
+
+services:
+  # =============================================================================
+  # WEB SERVICE (Next.js)
+  # =============================================================================
+  - type: web
+    name: story-magic-web
+    runtime: node
+    region: oregon  # or nearest to your users
+    plan: starter   # $7/mo - 512MB RAM, 0.5 CPU
+
+    # Build settings
+    rootDir: packages/web
+    buildCommand: cd ../.. && pnpm install && pnpm --filter @story-magic/web build
+    startCommand: pnpm start
+
+    # Health check
+    healthCheckPath: /api/auth/signout  # Any valid route
+
+    # Environment variables
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Supabase
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false  # Set manually in Render dashboard
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+
+      # Stripe
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+        sync: false
+
+      # Sentry
+      - key: NEXT_PUBLIC_SENTRY_DSN
+        value: https://b06f55eedd1ad8fdedc4cabc42c48c12@o4510606462550016.ingest.us.sentry.io/4510733770948608
+      - key: SENTRY_AUTH_TOKEN
+        sync: false  # For source map uploads
+
+      # Orchestrator URL (set after orchestrator deploys)
+      - key: ORCHESTRATOR_URL
+        sync: false
+
+  # =============================================================================
+  # ORCHESTRATOR SERVICE (Node.js/Express)
+  # =============================================================================
+  - type: web
+    name: story-magic-orchestrator
+    runtime: node
+    region: oregon
+    plan: starter   # $7/mo - 512MB RAM, 0.5 CPU
+                    # Consider 'standard' ($25/mo) for production workloads
+
+    # Build settings
+    rootDir: packages/orchestrator
+    buildCommand: cd ../.. && pnpm install && pnpm --filter @story-magic/orchestrator build
+    startCommand: pnpm start
+
+    # Health check
+    healthCheckPath: /health
+
+    # Environment variables
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000  # Render's default port
+
+      # Supabase
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+      # AI Services
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+
+      # Sentry
+      - key: SENTRY_DSN
+        value: https://b06f55eedd1ad8fdedc4cabc42c48c12@o4510606462550016.ingest.us.sentry.io/4510733770948608
+
+      # Rate Limiting (Upstash)
+      - key: UPSTASH_REDIS_REST_URL
+        value: https://huge-finch-40198.upstash.io
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+
+      # Monitoring (Checkly)
+      - key: CHECKLY_PING_URL
+        value: https://ping.checklyhq.com/a1a3f468-b4d8-4328-968c-548962424c1d
+
+      # Logging
+      - key: LOG_LEVEL
+        value: info
+
+      # Auth (set to 'true' only for testing)
+      - key: AUTH_DISABLED
+        value: "false"
+
+# =============================================================================
+# DEPLOYMENT NOTES
+# =============================================================================
+#
+# PLAN OPTIONS:
+# -------------
+# starter:  $7/mo  - 512MB RAM, 0.5 CPU  (good for staging/low traffic)
+# standard: $25/mo - 2GB RAM, 1 CPU      (recommended for production)
+# pro:      $85/mo - 4GB RAM, 2 CPU      (for high traffic)
+#
+# For audio generation workloads, the orchestrator may need 'standard' plan
+# due to FFmpeg memory requirements during mixing.
+#
+# AFTER DEPLOYMENT:
+# -----------------
+# 1. Copy the orchestrator URL from Render dashboard
+# 2. Set ORCHESTRATOR_URL in the web service environment
+# 3. Verify both health endpoints respond:
+#    - https://story-magic-web.onrender.com/
+#    - https://story-magic-orchestrator.onrender.com/health
+#
+# SECRETS TO SET MANUALLY (sync: false):
+# --------------------------------------
+# Web:
+#   - NEXT_PUBLIC_SUPABASE_URL
+#   - NEXT_PUBLIC_SUPABASE_ANON_KEY
+#   - STRIPE_SECRET_KEY
+#   - STRIPE_WEBHOOK_SECRET
+#   - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+#   - SENTRY_AUTH_TOKEN
+#   - ORCHESTRATOR_URL
+#
+# Orchestrator:
+#   - SUPABASE_URL
+#   - SUPABASE_ANON_KEY
+#   - SUPABASE_SERVICE_ROLE_KEY
+#   - OPENAI_API_KEY
+#   - GROQ_API_KEY
+#   - ELEVENLABS_API_KEY
+#   - UPSTASH_REDIS_REST_TOKEN
+#
+# SCALING:
+# --------
+# To scale, update the 'plan' field and redeploy:
+#   plan: standard  # or 'pro' for heavy workloads
+#
+# For auto-scaling, consider upgrading to Render Teams plan.

@@ -82,7 +82,7 @@ export default async function ProjectPage({
                 </div>
               </div>
             </div>
-            <Badge variant={status.variant} className="flex items-center gap-1">
+            <Badge variant={status.variant} className="flex items-center gap-1" data-testid="project-status-badge">
               <StatusIcon className={`w-3 h-3 ${project.status === 'processing' ? 'animate-spin' : ''}`} />
               {status.label}
             </Badge>
@@ -127,7 +127,7 @@ export default async function ProjectPage({
                   </span>
                 </div>
                 {latestJob?.progress && (
-                  <div className="space-y-2">
+                  <div className="space-y-2" data-testid="generation-progress">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-slate-600 dark:text-slate-400 capitalize">
                         {latestJob.progress.step?.replace(/_/g, ' ')}
@@ -214,6 +214,7 @@ export default async function ProjectPage({
                 <Button
                   type="submit"
                   variant="destructive"
+                  data-testid="delete-project-button"
                   onClick={(e) => {
                     if (!confirm('Are you sure you want to delete this project? This cannot be undone.')) {
                       e.preventDefault();

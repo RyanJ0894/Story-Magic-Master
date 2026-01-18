@@ -93,11 +93,12 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
       />
 
       {/* Player Controls */}
-      <Card className="p-4">
+      <Card className="p-4" data-testid="audio-player">
         <div className="flex items-center gap-4">
           <button
             onClick={togglePlayPause}
             className="w-12 h-12 flex items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600 text-white rounded-full hover:from-violet-600 hover:to-purple-700 transition-all shadow-lg shadow-violet-500/25"
+            data-testid="audio-play-pause-button"
           >
             {isPlaying ? (
               <Pause className="w-5 h-5" />
@@ -138,7 +139,7 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
           <Music className="w-4 h-4" />
           <span>{currentOutput.file_name}</span>
         </div>
-        <Button variant="outline" size="sm" asChild>
+        <Button variant="outline" size="sm" asChild data-testid="download-button">
           <a href={audioUrl} download={currentOutput.file_name}>
             <Download className="w-4 h-4 mr-2" />
             Download

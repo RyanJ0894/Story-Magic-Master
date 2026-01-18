@@ -120,6 +120,7 @@ export default function NewProjectPage() {
                     required
                     placeholder="My Screenplay"
                     className="h-11"
+                    data-testid="project-name-input"
                   />
                 </div>
 
@@ -132,6 +133,7 @@ export default function NewProjectPage() {
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="A short description"
                     className="h-11"
+                    data-testid="project-description-input"
                   />
                 </div>
               </div>
@@ -143,7 +145,7 @@ export default function NewProjectPage() {
                     <span className="text-slate-500">
                       {wordCount.toLocaleString()} words
                     </span>
-                    <span className="px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium">
+                    <span className="px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium" data-testid="page-count-display">
                       ~{pageCount} page{pageCount !== 1 ? 's' : ''}
                     </span>
                   </div>
@@ -155,6 +157,7 @@ export default function NewProjectPage() {
                   required
                   rows={20}
                   className="font-mono text-sm resize-none"
+                  data-testid="script-textarea"
                   placeholder={`Paste your screenplay here...
 
 INT. COFFEE SHOP - DAY
@@ -183,6 +186,7 @@ The door CHIMES. MARCUS (40s, distinguished) enters...`}
                     type="submit"
                     disabled={loading || !name || !scriptText}
                     className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
+                    data-testid="create-project-button"
                   >
                     {loading ? (
                       <>

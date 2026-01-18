@@ -50,6 +50,11 @@ pnpm-debug.log*
 coverage/
 .nyc_output/
 
+# Playwright
+playwright-report/
+test-results/
+packages/web/e2e/.auth/
+
 # Temp files
 tmp/
 temp/

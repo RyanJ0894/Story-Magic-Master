@@ -114,6 +114,7 @@ export default function GenerateButton({
       disabled={loading || status === 'processing'}
       className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
       size="lg"
+      data-testid="generate-button"
     >
       {loading ? (
         <>

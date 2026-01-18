@@ -52,7 +52,7 @@ export default function SignupPage() {
   if (success) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 px-4">
-        <Card className="w-full max-w-md border-slate-200 dark:border-slate-800 shadow-xl">
+        <Card className="w-full max-w-md border-slate-200 dark:border-slate-800 shadow-xl" data-testid="signup-success-card">
           <CardContent className="pt-6 text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 mb-4">
               <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
@@ -106,6 +106,7 @@ export default function SignupPage() {
                   required
                   placeholder="John Doe"
                   className="h-11"
+                  data-testid="signup-fullname-input"
                 />
               </div>
 
@@ -119,6 +120,7 @@ export default function SignupPage() {
                   required
                   placeholder="you@example.com"
                   className="h-11"
+                  data-testid="signup-email-input"
                 />
               </div>
 
@@ -133,6 +135,7 @@ export default function SignupPage() {
                   minLength={6}
                   placeholder="Create a password"
                   className="h-11"
+                  data-testid="signup-password-input"
                 />
                 <p className="text-xs text-slate-500">At least 6 characters</p>
               </div>
@@ -141,6 +144,7 @@ export default function SignupPage() {
                 type="submit"
                 disabled={loading}
                 className="w-full h-11 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
+                data-testid="signup-submit-button"
               >
                 {loading ? (
                   <>

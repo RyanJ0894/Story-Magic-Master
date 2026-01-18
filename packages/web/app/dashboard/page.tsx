@@ -75,9 +75,9 @@ export default async function DashboardPage() {
 
             <div className="flex items-center gap-4">
               {/* Usage indicator */}
-              <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">
+              <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800" data-testid="usage-indicator">
                 <div className="text-right">
-                  <p className="text-xs text-slate-500">{tierNames[tier]} Plan</p>
+                  <p className="text-xs text-slate-500" data-testid="subscription-tier">{tierNames[tier]} Plan</p>
                   <p className="text-sm font-medium text-slate-900 dark:text-white">
                     {remaining} / {limit} pages
                   </p>
@@ -88,7 +88,7 @@ export default async function DashboardPage() {
               </div>
 
               <form action="/api/auth/signout" method="post">
-                <Button variant="ghost" size="sm" type="submit">
+                <Button variant="ghost" size="sm" type="submit" data-testid="signout-button">
                   <LogOut className="w-4 h-4 mr-2" />
                   Sign out
                 </Button>
@@ -111,7 +111,7 @@ export default async function DashboardPage() {
             </p>
           </div>
           <Link href="/projects/new">
-            <Button className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700">
+            <Button className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700" data-testid="new-project-button">
               <Plus className="w-4 h-4 mr-2" />
               New Project
             </Button>
@@ -138,15 +138,15 @@ export default async function DashboardPage() {
               const status = statusConfig[project.status] || statusConfig.draft;
               return (
                 <Link key={project.id} href={`/projects/${project.id}`}>
-                  <Card className="h-full transition-all hover:shadow-md hover:border-violet-300 dark:hover:border-violet-700 cursor-pointer">
+                  <Card className="h-full transition-all hover:shadow-md hover:border-violet-300 dark:hover:border-violet-700 cursor-pointer" data-testid="project-card">
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
                         <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                           <FileText className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                         </div>
-                        <Badge variant={status.variant}>{status.label}</Badge>
+                        <Badge variant={status.variant} data-testid="project-status">{status.label}</Badge>
                       </div>
-                      <CardTitle className="mt-3 text-lg">{project.name}</CardTitle>
+                      <CardTitle className="mt-3 text-lg" data-testid="project-title">{project.name}</CardTitle>
                       <CardDescription className="line-clamp-2">
                         {project.description || 'No description'}
                       </CardDescription>
