@@ -3,6 +3,11 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import GenerateButton from './generate-button';
 import AudioPlayer from './audio-player';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { ArrowLeft, FileText, Sparkles, Trash2, CheckCircle, AlertCircle, Clock, Loader2 } from 'lucide-react';
 
 export default async function ProjectPage({
   params,
@@ -43,121 +48,185 @@ export default async function ProjectPage({
     .eq('project_id', params.id)
     .order('created_at', { ascending: false });
 
+  const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string, icon: typeof CheckCircle }> = {
+    draft: { variant: 'secondary', label: 'Draft', icon: Clock },
+    processing: { variant: 'default', label: 'Processing', icon: Loader2 },
+    completed: { variant: 'outline', label: 'Completed', icon: CheckCircle },
+    failed: { variant: 'destructive', label: 'Failed', icon: AlertCircle },
+  };
+
+  const status = statusConfig[project.status] || statusConfig.draft;
+  const StatusIcon = status.icon;
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/dashboard"
-              className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-            >
-              ← Dashboard
-            </Link>
-            <h1 className="text-xl font-bold">{project.name}</h1>
-            <span className={`px-2 py-1 text-xs rounded-full ${
-              project.status === 'completed'
-                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                : project.status === 'processing'
-                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                : project.status === 'failed'
-                ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-            }`}>
-              {project.status}
-            </span>
+      <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link href="/dashboard">
+                <Button variant="ghost" size="sm">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Dashboard
+                </Button>
+              </Link>
+              <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                  <FileText className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                </div>
+                <div>
+                  <h1 className="font-semibold text-slate-900 dark:text-white leading-none">{project.name}</h1>
+                  <p className="text-xs text-slate-500 mt-0.5">{project.page_count} pages</p>
+                </div>
+              </div>
+            </div>
+            <Badge variant={status.variant} className="flex items-center gap-1">
+              <StatusIcon className={`w-3 h-3 ${project.status === 'processing' ? 'animate-spin' : ''}`} />
+              {status.label}
+            </Badge>
           </div>
-          <span className="text-sm text-gray-500">
-            {project.page_count} pages
-          </span>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {/* Generation Section */}
-        <section className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold mb-4">Generate Audio</h2>
-
-          {project.status === 'completed' && audioOutputs && audioOutputs.length > 0 ? (
-            <div className="space-y-4">
-              <p className="text-green-600 dark:text-green-400">
-                Audio generation complete!
-              </p>
-              <AudioPlayer outputs={audioOutputs} />
-              <GenerateButton
-                projectId={project.id}
-                pageCount={project.page_count}
-                status={project.status}
-                label="Regenerate"
-              />
-            </div>
-          ) : project.status === 'processing' ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="animate-spin w-5 h-5 border-2 border-brand-600 border-t-transparent rounded-full" />
-                <span>Generating audio... This may take a few minutes.</span>
-              </div>
-              {latestJob?.progress && (
-                <div className="text-sm text-gray-600 dark:text-gray-400">
-                  Step: {latestJob.progress.step} ({latestJob.progress.percent}%)
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-violet-500" />
+              Generate Audio
+            </CardTitle>
+            <CardDescription>
+              Transform your script into an immersive audio experience
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {project.status === 'completed' && audioOutputs && audioOutputs.length > 0 ? (
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                  <CheckCircle className="w-5 h-5" />
+                  <span className="font-medium">Audio generation complete!</span>
                 </div>
-              )}
-            </div>
-          ) : project.status === 'failed' ? (
-            <div className="space-y-4">
-              <p className="text-red-600 dark:text-red-400">
-                Generation failed. {latestJob?.error}
-              </p>
-              <GenerateButton
-                projectId={project.id}
-                pageCount={project.page_count}
-                status={project.status}
-                label="Retry"
-              />
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-gray-600 dark:text-gray-400">
-                Ready to generate. This will use {project.page_count} page{project.page_count !== 1 ? 's' : ''} from your quota.
-              </p>
-              <GenerateButton
-                projectId={project.id}
-                pageCount={project.page_count}
-                status={project.status}
-              />
-            </div>
-          )}
-        </section>
+                <AudioPlayer outputs={audioOutputs} />
+                <GenerateButton
+                  projectId={project.id}
+                  pageCount={project.page_count}
+                  status={project.status}
+                  label="Regenerate Audio"
+                />
+              </div>
+            ) : project.status === 'processing' ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="w-5 h-5 text-violet-500 animate-spin" />
+                  <span className="text-slate-700 dark:text-slate-300">
+                    Generating audio... This may take a few minutes.
+                  </span>
+                </div>
+                {latestJob?.progress && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600 dark:text-slate-400 capitalize">
+                        {latestJob.progress.step?.replace(/_/g, ' ')}
+                      </span>
+                      <span className="font-medium text-slate-900 dark:text-white">
+                        {latestJob.progress.percent}%
+                      </span>
+                    </div>
+                    <Progress value={latestJob.progress.percent} className="h-2" />
+                  </div>
+                )}
+              </div>
+            ) : project.status === 'failed' ? (
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                  <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-red-800 dark:text-red-200">Generation failed</p>
+                    {latestJob?.error && (
+                      <p className="text-sm text-red-600 dark:text-red-400 mt-1">{latestJob.error}</p>
+                    )}
+                  </div>
+                </div>
+                <GenerateButton
+                  projectId={project.id}
+                  pageCount={project.page_count}
+                  status={project.status}
+                  label="Retry Generation"
+                />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-slate-600 dark:text-slate-400">
+                  Ready to generate. This will use <strong className="text-slate-900 dark:text-white">{project.page_count}</strong> page{project.page_count !== 1 ? 's' : ''} from your quota.
+                </p>
+                <GenerateButton
+                  projectId={project.id}
+                  pageCount={project.page_count}
+                  status={project.status}
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Script Preview */}
-        <section className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold mb-4">Script</h2>
-          <pre className="whitespace-pre-wrap font-mono text-sm bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-auto max-h-96">
-            {project.script_text}
-          </pre>
-        </section>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              Script
+            </CardTitle>
+            <CardDescription>
+              Your original screenplay text
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <pre className="whitespace-pre-wrap font-mono text-sm bg-slate-50 dark:bg-slate-900 p-4 rounded-lg overflow-auto max-h-96 border border-slate-200 dark:border-slate-700">
+              {project.script_text}
+            </pre>
+          </CardContent>
+        </Card>
 
         {/* Danger Zone */}
-        <section className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-red-200 dark:border-red-900">
-          <h2 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-4">
-            Danger Zone
-          </h2>
-          <form action={`/api/projects/${project.id}/delete`} method="POST">
-            <button
-              type="submit"
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-              onClick={(e) => {
-                if (!confirm('Are you sure you want to delete this project? This cannot be undone.')) {
-                  e.preventDefault();
-                }
-              }}
-            >
-              Delete Project
-            </button>
-          </form>
-        </section>
+        <Card className="border-red-200 dark:border-red-900/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
+              <Trash2 className="w-5 h-5" />
+              Danger Zone
+            </CardTitle>
+            <CardDescription>
+              Irreversible actions for this project
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between p-4 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800">
+              <div>
+                <p className="font-medium text-red-800 dark:text-red-200">Delete this project</p>
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  Once deleted, this project and all its data cannot be recovered.
+                </p>
+              </div>
+              <form action={`/api/projects/${project.id}/delete`} method="POST">
+                <Button
+                  type="submit"
+                  variant="destructive"
+                  onClick={(e) => {
+                    if (!confirm('Are you sure you want to delete this project? This cannot be undone.')) {
+                      e.preventDefault();
+                    }
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </Button>
+              </form>
+            </div>
+          </CardContent>
+        </Card>
       </main>
     </div>
   );

@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Loader2, Sparkles, RefreshCw } from 'lucide-react';
 
 interface GenerateButtonProps {
   projectId: string;
@@ -103,13 +105,27 @@ export default function GenerateButton({
     setLoading(false);
   };
 
+  const isRegenerate = label.toLowerCase().includes('regenerate') || label.toLowerCase().includes('retry');
+  const Icon = isRegenerate ? RefreshCw : Sparkles;
+
   return (
-    <button
+    <Button
       onClick={handleGenerate}
       disabled={loading || status === 'processing'}
-      className="px-6 py-3 bg-brand-600 text-white font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+      className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
+      size="lg"
     >
-      {loading ? 'Starting...' : label}
-    </button>
+      {loading ? (
+        <>
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          Starting...
+        </>
+      ) : (
+        <>
+          <Icon className="w-4 h-4 mr-2" />
+          {label}
+        </>
+      )}
+    </Button>
   );
 }

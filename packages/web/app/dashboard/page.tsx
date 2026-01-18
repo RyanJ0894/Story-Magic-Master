@@ -1,6 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Plus, FileText, Sparkles, LogOut, Folder } from 'lucide-react';
 
 export default async function DashboardPage() {
   const supabase = createClient();
@@ -35,95 +40,150 @@ export default async function DashboardPage() {
     studio: 1000,
   };
 
+  const tierNames: Record<string, string> = {
+    free: 'Free',
+    creator: 'Creator',
+    pro: 'Pro',
+    studio: 'Studio',
+  };
+
   const tier = profile?.subscription_tier || 'free';
   const limit = tierLimits[tier];
+  const remaining = remainingPages ?? limit;
+  const usedPages = limit - remaining;
+  const usagePercent = (usedPages / limit) * 100;
+
+  const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string }> = {
+    draft: { variant: 'secondary', label: 'Draft' },
+    processing: { variant: 'default', label: 'Processing' },
+    completed: { variant: 'outline', label: 'Completed' },
+    failed: { variant: 'destructive', label: 'Failed' },
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/dashboard" className="text-xl font-bold text-brand-600">
-            Story Magic
-          </Link>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              {remainingPages ?? limit} / {limit} pages remaining
-            </span>
-            <form action="/api/auth/signout" method="post">
-              <button
-                type="submit"
-                className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-              >
-                Sign out
-              </button>
-            </form>
+      <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between">
+            <Link href="/dashboard" className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
+              <span className="font-bold text-lg text-slate-900 dark:text-white">Story Magic</span>
+            </Link>
+
+            <div className="flex items-center gap-4">
+              {/* Usage indicator */}
+              <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">
+                <div className="text-right">
+                  <p className="text-xs text-slate-500">{tierNames[tier]} Plan</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-white">
+                    {remaining} / {limit} pages
+                  </p>
+                </div>
+                <div className="w-16">
+                  <Progress value={usagePercent} className="h-2" />
+                </div>
+              </div>
+
+              <form action="/api/auth/signout" method="post">
+                <Button variant="ghost" size="sm" type="submit">
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sign out
+                </Button>
+              </form>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold">Your Projects</h1>
-            <p className="text-gray-600 dark:text-gray-400">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+              Your Projects
+            </h1>
+            <p className="mt-1 text-slate-600 dark:text-slate-400">
               Create and manage your audio productions
             </p>
           </div>
-          <Link
-            href="/projects/new"
-            className="px-4 py-2 bg-brand-600 text-white font-semibold rounded-lg hover:bg-brand-700 transition"
-          >
-            New Project
+          <Link href="/projects/new">
+            <Button className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700">
+              <Plus className="w-4 h-4 mr-2" />
+              New Project
+            </Button>
           </Link>
         </div>
 
+        {/* Mobile usage indicator */}
+        <Card className="mb-6 sm:hidden">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">{tierNames[tier]} Plan</span>
+              <span className="text-sm text-slate-600 dark:text-slate-400">
+                {remaining} / {limit} pages
+              </span>
+            </div>
+            <Progress value={usagePercent} className="h-2" />
+          </CardContent>
+        </Card>
+
         {/* Projects Grid */}
         {projects && projects.length > 0 ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map((project) => (
-              <Link
-                key={project.id}
-                href={`/projects/${project.id}`}
-                className="block p-6 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-brand-500 transition"
-              >
-                <h3 className="font-semibold text-lg mb-2">{project.name}</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  {project.description || 'No description'}
-                </p>
-                <div className="flex items-center justify-between text-sm">
-                  <span className={`px-2 py-1 rounded-full ${
-                    project.status === 'completed'
-                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                      : project.status === 'processing'
-                      ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                      : project.status === 'failed'
-                      ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                      : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                  }`}>
-                    {project.status}
-                  </span>
-                  <span className="text-gray-500">
-                    {project.page_count} pages
-                  </span>
-                </div>
-              </Link>
-            ))}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {projects.map((project) => {
+              const status = statusConfig[project.status] || statusConfig.draft;
+              return (
+                <Link key={project.id} href={`/projects/${project.id}`}>
+                  <Card className="h-full transition-all hover:shadow-md hover:border-violet-300 dark:hover:border-violet-700 cursor-pointer">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                          <FileText className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                        </div>
+                        <Badge variant={status.variant}>{status.label}</Badge>
+                      </div>
+                      <CardTitle className="mt-3 text-lg">{project.name}</CardTitle>
+                      <CardDescription className="line-clamp-2">
+                        {project.description || 'No description'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="flex items-center justify-between text-sm text-slate-500">
+                        <span>{project.page_count || 0} pages</span>
+                        <span>
+                          {new Date(project.updated_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
           </div>
         ) : (
-          <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-lg border border-dashed border-gray-300 dark:border-gray-600">
-            <h3 className="text-lg font-medium mb-2">No projects yet</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Create your first project to get started
-            </p>
-            <Link
-              href="/projects/new"
-              className="inline-block px-4 py-2 bg-brand-600 text-white font-semibold rounded-lg hover:bg-brand-700 transition"
-            >
-              Create Project
-            </Link>
-          </div>
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4">
+                <Folder className="w-8 h-8 text-slate-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
+                No projects yet
+              </h3>
+              <p className="text-slate-600 dark:text-slate-400 text-center mb-6 max-w-sm">
+                Create your first project to start transforming scripts into immersive audio experiences.
+              </p>
+              <Link href="/projects/new">
+                <Button className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Your First Project
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
         )}
       </main>
     </div>

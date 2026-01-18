@@ -5,6 +5,12 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowLeft, FileText, Loader2, Sparkles } from 'lucide-react';
 
 export default function NewProjectPage() {
   const [name, setName] = useState('');
@@ -67,69 +73,89 @@ export default function NewProjectPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-4">
-          <Link
-            href="/dashboard"
-            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            ← Back
-          </Link>
-          <h1 className="text-xl font-bold">New Project</h1>
+      <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center gap-4">
+            <Link href="/dashboard">
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+            </Link>
+            <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
+              <h1 className="font-semibold text-slate-900 dark:text-white">New Project</h1>
+            </div>
+          </div>
         </div>
       </header>
 
       {/* Form */}
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium mb-1">
-              Project Name *
-            </label>
-            <input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition"
-              placeholder="My Screenplay"
-            />
-          </div>
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              Create a New Project
+            </CardTitle>
+            <CardDescription>
+              Paste your screenplay and we&apos;ll transform it into an immersive audio experience.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Project Name *</Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    placeholder="My Screenplay"
+                    className="h-11"
+                  />
+                </div>
 
-          <div>
-            <label htmlFor="description" className="block text-sm font-medium mb-1">
-              Description
-            </label>
-            <input
-              id="description"
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition"
-              placeholder="A short description of your project"
-            />
-          </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Input
+                    id="description"
+                    type="text"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="A short description"
+                    className="h-11"
+                  />
+                </div>
+              </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label htmlFor="script" className="block text-sm font-medium">
-                Script *
-              </label>
-              <span className="text-sm text-gray-500">
-                ~{pageCount} page{pageCount !== 1 ? 's' : ''} ({wordCount} words)
-              </span>
-            </div>
-            <textarea
-              id="script"
-              value={scriptText}
-              onChange={(e) => setScriptText(e.target.value)}
-              required
-              rows={20}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition font-mono text-sm"
-              placeholder="Paste your screenplay here...
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="script">Script *</Label>
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="text-slate-500">
+                      {wordCount.toLocaleString()} words
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium">
+                      ~{pageCount} page{pageCount !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </div>
+                <Textarea
+                  id="script"
+                  value={scriptText}
+                  onChange={(e) => setScriptText(e.target.value)}
+                  required
+                  rows={20}
+                  className="font-mono text-sm resize-none"
+                  placeholder={`Paste your screenplay here...
 
 INT. COFFEE SHOP - DAY
 
@@ -139,31 +165,39 @@ SARAH
 (to herself)
 This is it. Today's the day.
 
-The door CHIMES. MARCUS (40s, distinguished) enters..."
-            />
-          </div>
+The door CHIMES. MARCUS (40s, distinguished) enters...`}
+                />
+              </div>
 
-          <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              This will use <strong>{pageCount}</strong> page{pageCount !== 1 ? 's' : ''} from your quota.
-            </p>
-            <div className="flex gap-4">
-              <Link
-                href="/dashboard"
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"
-              >
-                Cancel
-              </Link>
-              <button
-                type="submit"
-                disabled={loading || !name || !scriptText}
-                className="px-6 py-2 bg-brand-600 text-white font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-              >
-                {loading ? 'Creating...' : 'Create Project'}
-              </button>
-            </div>
-          </div>
-        </form>
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-4 pt-6 border-t border-slate-200 dark:border-slate-700">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  This will use <strong className="text-slate-900 dark:text-white">{pageCount}</strong> page{pageCount !== 1 ? 's' : ''} from your quota.
+                </p>
+                <div className="flex gap-3">
+                  <Link href="/dashboard">
+                    <Button type="button" variant="outline">
+                      Cancel
+                    </Button>
+                  </Link>
+                  <Button
+                    type="submit"
+                    disabled={loading || !name || !scriptText}
+                    className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      'Create Project'
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       </main>
     </div>
   );
