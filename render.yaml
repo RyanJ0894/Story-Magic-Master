@@ -12,27 +12,35 @@ services:
   - type: web
     name: story-magic-web
     runtime: node
-    region: oregon  # or nearest to your users
-    plan: starter   # $7/mo - 512MB RAM, 0.5 CPU
+    region: oregon
+    plan: starter
+    branch: main
+    autoDeploy: true
+    numInstances: 1
 
-    # Build settings
-    rootDir: packages/web
-    buildCommand: cd ../.. && pnpm install && pnpm --filter @story-magic/web build
-    startCommand: pnpm start
+    # Node/pnpm versions
+    buildCommand: |
+      corepack enable &&
+      corepack prepare pnpm@latest --activate &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @story-magic/web build
+    startCommand: pnpm --filter @story-magic/web start
 
     # Health check
-    healthCheckPath: /api/auth/signout  # Any valid route
+    healthCheckPath: /
 
     # Environment variables
     envVars:
+      - key: NODE_VERSION
+        value: "20"
       - key: NODE_ENV
         value: production
 
       # Supabase
       - key: NEXT_PUBLIC_SUPABASE_URL
-        sync: false  # Set manually in Render dashboard
+        value: https://vycfkqkdaszlhvaedxub.supabase.co
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
-        sync: false
+        value: sb_publishable_iC0xz4Fakt9BNb88nDV2iA_2luzdMt4
 
       # Stripe
       - key: STRIPE_SECRET_KEY
@@ -46,11 +54,11 @@ services:
       - key: NEXT_PUBLIC_SENTRY_DSN
         value: https://b06f55eedd1ad8fdedc4cabc42c48c12@o4510606462550016.ingest.us.sentry.io/4510733770948608
       - key: SENTRY_AUTH_TOKEN
-        sync: false  # For source map uploads
-
-      # Orchestrator URL (set after orchestrator deploys)
-      - key: ORCHESTRATOR_URL
         sync: false
+
+      # Orchestrator URL
+      - key: ORCHESTRATOR_URL
+        value: https://story-magic-orchestrator.onrender.com
 
   # =============================================================================
   # ORCHESTRATOR SERVICE (Node.js/Express)
@@ -59,29 +67,42 @@ services:
     name: story-magic-orchestrator
     runtime: node
     region: oregon
-    plan: starter   # $7/mo - 512MB RAM, 0.5 CPU
-                    # Consider 'standard' ($25/mo) for production workloads
+    plan: starter
+    branch: main
+    autoDeploy: true
+    numInstances: 1
 
-    # Build settings
-    rootDir: packages/orchestrator
-    buildCommand: cd ../.. && pnpm install && pnpm --filter @story-magic/orchestrator build
-    startCommand: pnpm start
+    # Node/pnpm versions
+    buildCommand: |
+      corepack enable &&
+      corepack prepare pnpm@latest --activate &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @story-magic/orchestrator build
+    startCommand: pnpm --filter @story-magic/orchestrator start
 
     # Health check
     healthCheckPath: /health
 
+    # Disk for temporary audio files
+    disk:
+      name: audio-storage
+      mountPath: /var/data/audio
+      sizeGB: 1
+
     # Environment variables
     envVars:
+      - key: NODE_VERSION
+        value: "20"
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 10000  # Render's default port
+        value: "10000"
 
       # Supabase
       - key: SUPABASE_URL
-        sync: false
+        value: https://vycfkqkdaszlhvaedxub.supabase.co
       - key: SUPABASE_ANON_KEY
-        sync: false
+        value: sb_publishable_iC0xz4Fakt9BNb88nDV2iA_2luzdMt4
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
 
@@ -111,54 +132,37 @@ services:
       - key: LOG_LEVEL
         value: info
 
-      # Auth (set to 'true' only for testing)
+      # Auth
       - key: AUTH_DISABLED
         value: "false"
 
+      # Audio storage path
+      - key: AUDIO_STORAGE_PATH
+        value: /var/data/audio
+
 # =============================================================================
-# DEPLOYMENT NOTES
+# SECRETS TO SET IN RENDER DASHBOARD (sync: false)
 # =============================================================================
 #
-# PLAN OPTIONS:
-# -------------
-# starter:  $7/mo  - 512MB RAM, 0.5 CPU  (good for staging/low traffic)
-# standard: $25/mo - 2GB RAM, 1 CPU      (recommended for production)
-# pro:      $85/mo - 4GB RAM, 2 CPU      (for high traffic)
-#
-# For audio generation workloads, the orchestrator may need 'standard' plan
-# due to FFmpeg memory requirements during mixing.
-#
-# AFTER DEPLOYMENT:
-# -----------------
-# 1. Copy the orchestrator URL from Render dashboard
-# 2. Set ORCHESTRATOR_URL in the web service environment
-# 3. Verify both health endpoints respond:
-#    - https://story-magic-web.onrender.com/
-#    - https://story-magic-orchestrator.onrender.com/health
-#
-# SECRETS TO SET MANUALLY (sync: false):
-# --------------------------------------
 # Web:
-#   - NEXT_PUBLIC_SUPABASE_URL
-#   - NEXT_PUBLIC_SUPABASE_ANON_KEY
 #   - STRIPE_SECRET_KEY
 #   - STRIPE_WEBHOOK_SECRET
 #   - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 #   - SENTRY_AUTH_TOKEN
-#   - ORCHESTRATOR_URL
 #
 # Orchestrator:
-#   - SUPABASE_URL
-#   - SUPABASE_ANON_KEY
-#   - SUPABASE_SERVICE_ROLE_KEY
-#   - OPENAI_API_KEY
-#   - GROQ_API_KEY
-#   - ELEVENLABS_API_KEY
-#   - UPSTASH_REDIS_REST_TOKEN
+#   - SUPABASE_SERVICE_ROLE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ5Y2ZrcWtkYXN6bGh2YWVkeHViIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODczMTA2MywiZXhwIjoyMDg0MzA3MDYzfQ._7kkfZ4frYA_9N8SEXnmpJjMLuyXqQE_WdUnLAtntuw
+#   - OPENAI_API_KEY = (your key)
+#   - GROQ_API_KEY = (your key)
+#   - ELEVENLABS_API_KEY = sk_c6a70b44da155aaff590b5aa6f2feeed4d3bd80c398b463b
+#   - UPSTASH_REDIS_REST_TOKEN = AZ0GAAIncDExODA3M2QzNDNmNGE0OTI0YjY3MDcwOWJlOGNjMWE4OXAxNDAxOTg
 #
-# SCALING:
-# --------
-# To scale, update the 'plan' field and redeploy:
-#   plan: standard  # or 'pro' for heavy workloads
+# =============================================================================
+# PLAN OPTIONS
+# =============================================================================
 #
-# For auto-scaling, consider upgrading to Render Teams plan.
+# starter:  $7/mo  - 512MB RAM, 0.5 CPU  (staging)
+# standard: $25/mo - 2GB RAM, 1 CPU      (production)
+# pro:      $85/mo - 4GB RAM, 2 CPU      (high traffic)
+#
+# Orchestrator may need 'standard' for FFmpeg memory requirements.
