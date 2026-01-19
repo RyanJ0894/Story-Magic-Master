@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -11,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, Sparkles, Check } from 'lucide-react';
 
 export default function SignupPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -28,7 +30,7 @@ export default function SignupPage() {
     }
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -45,6 +47,14 @@ export default function SignupPage() {
       return;
     }
 
+    // If user is auto-confirmed (email confirmation disabled), redirect to dashboard
+    if (data.session) {
+      toast.success('Account created successfully!');
+      router.push('/dashboard');
+      return;
+    }
+
+    // Otherwise show email confirmation message
     setSuccess(true);
     setLoading(false);
   };
