@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
+// Trim the API key to remove any accidental whitespace/newlines
+const apiKey = process.env.OPENAI_API_KEY?.trim();
+
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey,
 });
 
 export async function POST(request: Request) {
@@ -13,7 +16,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!apiKey) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
     }
 
