@@ -6,7 +6,7 @@
  * for voice selection.
  */
 
-import { runAgentLoop } from '../../lib/llm-client.js';
+import { runAgentLoop, structureTextAsJSON } from '../../lib/llm-client.js';
 import { DIRECTOR_SYSTEM_PROMPT } from '../prompts/director-prompt.js';
 import {
   searchVoicesTool,
@@ -15,6 +15,7 @@ import {
   resetUsedVoices,
 } from '../tools/voice-search.js';
 import { DirectorJSONSchema, type DirectorJSON } from '../../schemas/director-json.js';
+import { parseJSONSafely, extractJSON, repairJSON } from '../../lib/json-repair.js';
 
 // Default model from environment
 const DEFAULT_MODEL = process.env.DIRECTOR_MODEL || 'openai/gpt-4.1';
@@ -84,34 +85,80 @@ export class DirectorAgent {
    * Process a script and return validated Director JSON
    *
    * Uses Zod schema validation to ensure type safety at the LLM boundary.
+   * Falls back to structured output generation if JSON parsing fails.
    * This is the primary public method - returns properly typed DirectorJSON.
    */
   async process(input: DirectorAgentInput): Promise<DirectorJSON> {
     const result = await this.run(input);
 
-    // Try to extract JSON from the response
-    const jsonMatch = result.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Failed to extract JSON from DirectorAgent response');
-    }
+    // Log the raw response for debugging (first 500 chars)
+    console.log('[DirectorAgent] Raw response preview:', result.slice(0, 500));
+
+    // Use robust JSON extraction and repair
+    const parseResult = parseJSONSafely<unknown>(result);
 
     let parsed: unknown;
-    try {
-      parsed = JSON.parse(jsonMatch[0]);
-    } catch (err) {
-      console.error('[DirectorAgent] Failed to parse JSON:', err);
-      throw new Error(`Invalid JSON from DirectorAgent: ${err}`);
+
+    if (!parseResult.success) {
+      // Log the failure
+      console.warn('[DirectorAgent] Initial JSON parse failed:', parseResult.error);
+      console.warn('[DirectorAgent] Response length:', result.length);
+
+      // Fallback: Use AI SDK structured output to convert the text
+      console.log('[DirectorAgent] Attempting structured output conversion...');
+      try {
+        const structured = await structureTextAsJSON<DirectorJSON>(result, {
+          schema: DirectorJSONSchema,
+          context: `This is output from a screenplay parsing AI agent. Convert it to valid Director JSON with project_id: "${input.project_id}".`,
+        });
+        console.log('[DirectorAgent] Structured output conversion successful');
+        return structured;
+      } catch (structErr) {
+        console.error('[DirectorAgent] Structured output conversion also failed:', structErr);
+
+        // Try one more approach: extract and repair manually with more logging
+        const extracted = extractJSON(result);
+        if (extracted) {
+          console.error('[DirectorAgent] Extracted JSON preview:', extracted.slice(0, 300));
+          const repaired = repairJSON(extracted);
+          console.error('[DirectorAgent] Repaired JSON preview:', repaired.slice(0, 300));
+
+          // Try parsing the repaired JSON
+          try {
+            parsed = JSON.parse(repaired);
+            console.log('[DirectorAgent] Repaired JSON parsed successfully');
+          } catch (repairErr) {
+            throw new Error(`Failed to parse JSON from DirectorAgent after all attempts: ${parseResult.error}`);
+          }
+        } else {
+          throw new Error(`Failed to parse JSON from DirectorAgent: ${parseResult.error}`);
+        }
+      }
+    } else {
+      parsed = parseResult.data;
     }
 
     // Validate with Zod schema - this provides runtime type safety
     const validation = DirectorJSONSchema.safeParse(parsed);
     if (!validation.success) {
       console.error('[DirectorAgent] Schema validation failed:', validation.error.issues);
-      throw new Error(
-        `DirectorAgent output failed schema validation: ${validation.error.issues
-          .map((i) => `${i.path.join('.')}: ${i.message}`)
-          .join(', ')}`
-      );
+
+      // Final fallback: use structured output to fix schema issues
+      console.log('[DirectorAgent] Attempting schema fix via structured output...');
+      try {
+        const fixed = await structureTextAsJSON<DirectorJSON>(JSON.stringify(parsed), {
+          schema: DirectorJSONSchema,
+          context: `Fix this JSON to match the DirectorJSON schema. project_id should be "${input.project_id}".`,
+        });
+        console.log('[DirectorAgent] Schema fix successful');
+        return fixed;
+      } catch (fixErr) {
+        throw new Error(
+          `DirectorAgent output failed schema validation: ${validation.error.issues
+            .map((i) => `${i.path.join('.')}: ${i.message}`)
+            .join(', ')}`
+        );
+      }
     }
 
     console.log(`[DirectorAgent] Output validated: ${validation.data.scenes.length} scenes`);

@@ -17,11 +17,12 @@
  *   - "groq/llama-3.3-70b-versatile"
  */
 
-import { generateText, tool, CoreMessage, CoreTool, LanguageModelV1 } from 'ai';
+import { generateText, generateObject, tool, CoreMessage, CoreTool, LanguageModelV1 } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { createGroq } from '@ai-sdk/groq';
 import { anthropic } from '@ai-sdk/anthropic';
 import { google } from '@ai-sdk/google';
+import { z } from 'zod';
 
 export type LLMProvider = 'openai' | 'anthropic' | 'google' | 'groq';
 
@@ -244,6 +245,69 @@ export async function generateSimpleText(
   });
 
   return result.text;
+}
+
+/**
+ * Generate a structured object using Zod schema enforcement
+ *
+ * This uses the AI SDK's native structured output feature which guarantees
+ * valid JSON output matching the provided schema. Use this when you need
+ * guaranteed structured output without parsing issues.
+ */
+export async function generateStructuredOutput<T>(
+  prompt: string,
+  options: {
+    model: string;
+    schema: z.ZodSchema<T>;
+    systemPrompt?: string;
+    maxTokens?: number;
+    temperature?: number;
+  }
+): Promise<T> {
+  const result = await generateObject({
+    model: getModel(options.model),
+    schema: options.schema,
+    system: options.systemPrompt,
+    prompt,
+    maxTokens: options.maxTokens || 8192,
+    temperature: options.temperature || 0.7,
+  });
+
+  return result.object;
+}
+
+/**
+ * Convert raw LLM text output to structured JSON using a second pass
+ *
+ * Use this when you have text that should be JSON but may have formatting issues.
+ * It uses a small model to clean/structure the output according to a schema.
+ */
+export async function structureTextAsJSON<T>(
+  rawText: string,
+  options: {
+    model?: string;
+    schema: z.ZodSchema<T>;
+    context?: string;
+  }
+): Promise<T> {
+  const model = options.model || 'openai/gpt-4o-mini';
+
+  const prompt = `Convert the following text into valid JSON matching the required schema.
+Extract all relevant information and format it correctly.
+Only output the JSON, nothing else.
+
+${options.context ? `Context: ${options.context}\n\n` : ''}Text to convert:
+${rawText}`;
+
+  const result = await generateObject({
+    model: getModel(model),
+    schema: options.schema,
+    prompt,
+    maxTokens: 16384,
+    temperature: 0, // Deterministic for conversion
+  });
+
+  return result.object;
 }
 
 export { tool };
