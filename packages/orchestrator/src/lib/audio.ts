@@ -86,8 +86,15 @@ async function transcodeMp3ToWav(mp3: Buffer): Promise<Buffer> {
   return stdout as unknown as Buffer;
 }
 
+// Default fallback voices (always available in ElevenLabs)
+const DEFAULT_VOICES = {
+  male: 'pNInz6obpgDQGcFmaJgB', // Adam - reliable male voice
+  female: '21m00Tcm4TlvDq8ikWAM', // Rachel - reliable female voice
+};
+
 /**
  * Generate TTS audio using ElevenLabs API
+ * If a voice is not found (404), automatically falls back to a default voice
  */
 export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
@@ -107,46 +114,66 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
     output_format: 'mp3_44100_128',
   };
 
-  console.log('request_body', request_body);
+  // Try with the requested voice, fall back to default if voice not found
+  let voiceId = opts.voice.voice_id;
+  let usedFallback = false;
 
-  return withRetry(
-    async () => {
-      const res = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${opts.voice.voice_id}/stream?optimize_streaming_latency=0`,
-        {
-          method: 'POST',
-          headers: {
-            'xi-api-key': apiKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(request_body),
-        }
-      );
+  const generateWithVoice = async (vid: string): Promise<Buffer> => {
+    console.log(`🎙️ TTS: Generating with voice_id="${vid}"${usedFallback ? ' (fallback)' : ''}`);
+    console.log('request_body', request_body);
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        if (res.status === 429 || res.status >= 500) {
+    return withRetry(
+      async () => {
+        const res = await fetch(
+          `https://api.elevenlabs.io/v1/text-to-speech/${vid}/stream?optimize_streaming_latency=0`,
+          {
+            method: 'POST',
+            headers: {
+              'xi-api-key': apiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(request_body),
+          }
+        );
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          if (res.status === 429 || res.status >= 500) {
+            throw new RetryableError(
+              `ElevenLabs TTS failed ${res.status}: ${errorText}`,
+              res.status,
+              true
+            );
+          }
           throw new RetryableError(
             `ElevenLabs TTS failed ${res.status}: ${errorText}`,
             res.status,
-            true
+            false
           );
         }
-        throw new RetryableError(
-          `ElevenLabs TTS failed ${res.status}: ${errorText}`,
-          res.status,
-          false
-        );
-      }
 
-      return transcodeMp3ToWav(Buffer.from(await res.arrayBuffer()));
-    },
-    {
-      maxRetries: 3,
-      initialDelayMs: 1000,
-      maxDelayMs: 10000,
-      jitterFactor: 0.2,
-      retryableStatuses: [429, 500, 502, 503, 504],
+        return transcodeMp3ToWav(Buffer.from(await res.arrayBuffer()));
+      },
+      {
+        maxRetries: 3,
+        initialDelayMs: 1000,
+        maxDelayMs: 10000,
+        jitterFactor: 0.2,
+        retryableStatuses: [429, 500, 502, 503, 504],
+      }
+    );
+  };
+
+  try {
+    return await generateWithVoice(voiceId);
+  } catch (err) {
+    // Check if it's a voice_not_found error (404)
+    if (err instanceof Error && err.message.includes('404') && err.message.includes('voice_not_found')) {
+      console.warn(`⚠️ TTS: Voice ${voiceId} not found, using fallback voice`);
+      usedFallback = true;
+      // Use male voice as default fallback
+      return await generateWithVoice(DEFAULT_VOICES.male);
     }
-  );
+    throw err;
+  }
 }
