@@ -8,7 +8,7 @@ import { execa } from 'execa';
 import { withRetry, RetryableError } from './retry.js';
 import fs from 'fs';
 
-const ffprobePath = ffprobeStatic;
+const ffprobePath = ffprobeStatic.path;
 const ffmpeg = ffmpegStatic as unknown as string;
 
 if (!ffmpeg) {

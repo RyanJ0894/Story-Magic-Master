@@ -20,7 +20,7 @@ import { validateFiltergraph } from '../../lib/ffmpeg-validator.js';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const ffmpeg = ffmpegStatic as unknown as string;
-const ffprobePath = ffprobeStatic;
+const ffprobePath = ffprobeStatic.path;
 
 if (!ffmpeg) {
   throw new Error('FFmpeg binary not found. Please ensure ffmpeg-static is installed.');

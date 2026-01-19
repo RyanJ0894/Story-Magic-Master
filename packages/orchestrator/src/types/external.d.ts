@@ -3,6 +3,6 @@
  */
 
 declare module 'ffprobe-static' {
-  const ffprobePath: string;
-  export default ffprobePath;
+  const ffprobeStatic: { path: string };
+  export default ffprobeStatic;
 }
