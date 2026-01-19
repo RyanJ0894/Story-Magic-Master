@@ -59,7 +59,9 @@ export async function POST(request: Request) {
     });
 
     if (!directorResponse.ok) {
-      throw new Error('Director Agent failed');
+      const errorBody = await directorResponse.text();
+      console.error('Director Agent error response:', errorBody);
+      throw new Error(`Director Agent failed: ${errorBody}`);
     }
 
     const directorResponse_json = await directorResponse.json();
@@ -95,7 +97,9 @@ export async function POST(request: Request) {
     });
 
     if (!orchestratorResponse.ok) {
-      throw new Error('Orchestrator failed');
+      const errorBody = await orchestratorResponse.text();
+      console.error('Orchestrator error response:', errorBody);
+      throw new Error(`Orchestrator failed: ${errorBody}`);
     }
 
     const orchestratorResult = await orchestratorResponse.json();
