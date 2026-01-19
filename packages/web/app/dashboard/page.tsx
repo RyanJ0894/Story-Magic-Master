@@ -8,7 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { Plus, FileText, Sparkles, LogOut, Folder } from 'lucide-react';
 
 export default async function DashboardPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
 
