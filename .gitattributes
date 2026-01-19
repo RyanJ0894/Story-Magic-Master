@@ -1,0 +1,2 @@
+packages/orchestrator/catalog/**/*.mp3 filter=lfs diff=lfs merge=lfs -text
+packages/orchestrator/catalog/**/*.wav filter=lfs diff=lfs merge=lfs -text
