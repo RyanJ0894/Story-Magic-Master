@@ -1,14 +1,20 @@
 /**
- * Voice Search Tool - LLM-callable tool for semantic voice search
+ * Voice Search Tool - LLM-callable tool for voice search
  *
  * This tool allows the DirectorAgent to search for suitable voices
- * from the ElevenLabs voice catalog using semantic similarity.
+ * from the ElevenLabs voice catalog using attribute-based filtering.
+ *
+ * Uses hybrid search (no embeddings) for reliable voice matching.
  */
 
 import { tool } from 'ai';
 import { z } from 'zod';
-import { getVoiceStore, VoiceMetadata, SearchResult } from '../embeddings/embedding-store.js';
-import { getQueryEmbedding } from '../embeddings/query-embedding.js';
+import {
+  searchVoicesHybrid,
+  getAgeRange,
+  type VoiceMetadata,
+  type AgeRange,
+} from './hybrid-voice-search.js';
 
 // Track used voices to ensure uniqueness across characters
 const usedVoiceIds = new Set<string>();
@@ -35,6 +41,21 @@ export function getUsedVoiceIds(): string[] {
 }
 
 /**
+ * Parse age range from label string
+ */
+function parseAgeRangeFromLabel(label: string | undefined): AgeRange | undefined {
+  if (!label) return undefined;
+  const lower = label.toLowerCase();
+
+  if (lower.includes('teen')) return 'teen';
+  if (lower.includes('child') || lower.includes('under 10')) return 'child';
+  if (lower.includes('20s') || lower.includes('30s') || lower.includes('young')) return 'young_adult';
+  if (lower.includes('older') || lower.includes('mature') || lower.includes('40s') || lower.includes('50s') || lower.includes('60s')) return 'older';
+
+  return undefined;
+}
+
+/**
  * Search for voices tool - callable by LLM agents
  */
 export const searchVoicesTool = tool({
@@ -52,7 +73,7 @@ Priority order when selecting voices:
 1. Race/ethnicity (style) - HIGHEST priority
 2. Age (label) - Must match for teens (17-19 years old)
 3. Gender - Must match
-4. Tone - Semantic search handles this`,
+4. Tone - Lower priority`,
 
   parameters: z.object({
     query: z.string().describe('Natural language description of the desired voice'),
@@ -65,51 +86,53 @@ Priority order when selecting voices:
 
   execute: async ({ query, gender, label, style, tone, top_k = 3 }) => {
     try {
-      // Get query embedding
-      const queryEmbedding = await getQueryEmbedding(query);
+      console.log(`[searchVoices] Searching: query="${query}", gender=${gender}, label=${label}, style=${style}`);
 
-      // Get voice store
-      const voiceStore = getVoiceStore();
+      // Determine if this is a narrator search
+      const isNarrator = query.toLowerCase().includes('narrator') || label?.toLowerCase().includes('narrator');
 
-      // Search with filters, excluding already-used voices
-      const results = voiceStore.search({
-        queryEmbedding,
-        topK: top_k,
+      // Parse age range from label
+      const ageRange = parseAgeRangeFromLabel(label);
+
+      // Use hybrid search (attribute-based, no embeddings)
+      const result = await searchVoicesHybrid({
+        characterName: query,
         gender,
-        label,
+        ageRange,
         style,
         tone,
+        isNarrator,
         excludeVoiceIds: getUsedVoiceIds(),
+        topK: top_k,
       });
 
-      if (results.length === 0) {
-        // Try relaxing filters progressively
-        const relaxedResults = await searchWithRelaxedFilters(
-          queryEmbedding,
-          { gender, label, style, tone },
-          top_k
-        );
-
-        if (relaxedResults.length === 0) {
-          return {
-            status: 'error',
-            message: 'No matching voices found. Try different search criteria.',
-            voices: [],
-          };
-        }
-
+      if (!result.success || result.voices.length === 0) {
         return {
-          status: 'success',
-          message: `Found ${relaxedResults.length} voices (some filters relaxed)`,
-          voices: relaxedResults.map(formatVoiceResult),
-          filters_relaxed: true,
+          status: 'error',
+          message: 'No matching voices found. Try different search criteria.',
+          voices: [],
         };
       }
 
+      // Format voices for LLM consumption
+      const formattedVoices = result.voices.map((voice) => ({
+        voice_id: voice.voice_id,
+        name: voice.name,
+        label: voice.label,
+        gender: voice.gender,
+        tone: Array.isArray(voice.tone) ? voice.tone.join(', ') : voice.tone || '',
+        style: voice.style,
+        description: voice.description || '',
+      }));
+
+      console.log(`[searchVoices] Found ${formattedVoices.length} voices from ${result.source}`);
+
       return {
         status: 'success',
-        message: `Found ${results.length} matching voices`,
-        voices: results.map(formatVoiceResult),
+        message: result.message || `Found ${formattedVoices.length} matching voices`,
+        voices: formattedVoices,
+        filters_relaxed: result.filtersRelaxed,
+        source: result.source,
       };
     } catch (err) {
       console.error('[searchVoices] Error:', err);
@@ -123,71 +146,6 @@ Priority order when selecting voices:
 });
 
 /**
- * Format voice result for LLM consumption
- */
-function formatVoiceResult(result: SearchResult<VoiceMetadata>) {
-  return {
-    voice_id: result.item.voice_id,
-    name: result.item.name,
-    label: result.item.label,
-    gender: result.item.gender,
-    tone: Array.isArray(result.item.tone) ? result.item.tone.join(', ') : result.item.tone,
-    style: result.item.style,
-    description: result.item.description,
-    similarity_score: result.score.toFixed(3),
-  };
-}
-
-/**
- * Search with progressively relaxed filters
- * Order: tone → style → label → gender (least to most important)
- */
-async function searchWithRelaxedFilters(
-  queryEmbedding: number[],
-  filters: {
-    gender?: 'Male' | 'Female';
-    label?: string;
-    style?: string;
-    tone?: string;
-  },
-  topK: number
-): Promise<SearchResult<VoiceMetadata>[]> {
-  const voiceStore = getVoiceStore();
-  const filterOrder = ['tone', 'style', 'label', 'gender'] as const;
-
-  let activeFilters = { ...filters };
-
-  for (const filterToRemove of filterOrder) {
-    // Remove this filter
-    if (activeFilters[filterToRemove]) {
-      console.log(`[searchVoices] Relaxing filter: ${filterToRemove}`);
-      delete activeFilters[filterToRemove];
-
-      const results = voiceStore.search({
-        queryEmbedding,
-        topK,
-        gender: activeFilters.gender,
-        label: activeFilters.label,
-        style: activeFilters.style,
-        tone: activeFilters.tone,
-        excludeVoiceIds: getUsedVoiceIds(),
-      });
-
-      if (results.length > 0) {
-        return results;
-      }
-    }
-  }
-
-  // All filters removed, return whatever we can find
-  return voiceStore.search({
-    queryEmbedding,
-    topK,
-    excludeVoiceIds: getUsedVoiceIds(),
-  });
-}
-
-/**
  * Get voice by ID tool - for verification
  */
 export const getVoiceByIdTool = tool({
@@ -198,8 +156,13 @@ export const getVoiceByIdTool = tool({
   }),
 
   execute: async ({ voice_id }) => {
-    const voiceStore = getVoiceStore();
-    const voice = voiceStore.findById(voice_id);
+    // Use hybrid search to find the voice
+    const result = await searchVoicesHybrid({
+      characterName: 'lookup',
+      topK: 100, // Get all to find by ID
+    });
+
+    const voice = result.voices.find((v) => v.voice_id === voice_id);
 
     if (!voice) {
       return {
@@ -216,9 +179,9 @@ export const getVoiceByIdTool = tool({
         name: voice.name,
         label: voice.label,
         gender: voice.gender,
-        tone: Array.isArray(voice.tone) ? voice.tone.join(', ') : voice.tone,
+        tone: Array.isArray(voice.tone) ? voice.tone.join(', ') : voice.tone || '',
         style: voice.style,
-        description: voice.description,
+        description: voice.description || '',
         is_used: usedVoiceIds.has(voice_id),
       },
     };
@@ -234,19 +197,20 @@ export const listVoiceLabelsTool = tool({
   parameters: z.object({}),
 
   execute: async () => {
-    const voiceStore = getVoiceStore();
-    const allVoices = voiceStore.getAllMetadata();
+    // Get all voices using hybrid search
+    const result = await searchVoicesHybrid({
+      characterName: 'list',
+      topK: 100,
+    });
+
+    const allVoices = result.voices;
 
     // Extract unique labels
     const labels = [...new Set(allVoices.map((v) => v.label))].sort();
 
     // Group by gender
-    const maleLabels = allVoices
-      .filter((v) => v.gender === 'Male')
-      .map((v) => v.label);
-    const femaleLabels = allVoices
-      .filter((v) => v.gender === 'Female')
-      .map((v) => v.label);
+    const maleLabels = allVoices.filter((v) => v.gender === 'Male').map((v) => v.label);
+    const femaleLabels = allVoices.filter((v) => v.gender === 'Female').map((v) => v.label);
 
     return {
       status: 'success',
