@@ -62,7 +62,10 @@ export async function POST(request: Request) {
       throw new Error('Director Agent failed');
     }
 
-    const directorJson = await directorResponse.json();
+    const directorResponse_json = await directorResponse.json();
+
+    // Extract the actual director JSON (it's nested in the response)
+    const directorJson = directorResponse_json.director_json || directorResponse_json;
 
     // Update job progress
     await supabase
@@ -87,7 +90,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         project_id: projectId,
-        scenes: directorJson.scenes || directorJson,
+        scenes: directorJson.scenes || [],
       }),
     });
 
@@ -105,21 +108,23 @@ export async function POST(request: Request) {
       })
       .eq('id', jobId);
 
-    // Step 3: Upload audio to Supabase Storage
-    // TODO: Implement actual file upload from Orchestrator output
-    // For now, we'll store the result metadata
+    // Step 3: Store audio output records
+    // The orchestrator returns audio_urls and playback_manifest
+    const audioUrls = orchestratorResult.audio_urls || [];
+    const manifest = orchestratorResult.playback_manifest;
 
-    // Create audio output record
-    if (orchestratorResult.output_file) {
+    // Create audio output records for each generated file
+    for (const audioUrl of audioUrls) {
+      const fileName = audioUrl.split('/').pop() || 'output.mp3';
       await supabase
         .from('audio_outputs')
         .insert({
           project_id: projectId,
           job_id: jobId,
-          file_name: orchestratorResult.output_file,
-          file_path: `audio-outputs/${projectId}/${orchestratorResult.output_file}`,
-          duration_seconds: orchestratorResult.duration_seconds,
-          format: 'mp3',
+          file_name: fileName,
+          file_path: audioUrl,
+          duration_seconds: manifest?.total_duration || null,
+          format: fileName.endsWith('.m4a') ? 'm4a' : 'mp3',
         });
     }
 

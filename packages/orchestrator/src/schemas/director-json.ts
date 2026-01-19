@@ -126,7 +126,8 @@ export type GenerateScenesRequest = z.infer<typeof GenerateScenesRequestSchema>;
 
 export const OrchestrateRequestSchema = z.object({
   project_id: z.string(),
-  scenes: z.array(SceneSchema),
+  // Scenes can be omitted if script_text is provided (director runs first)
+  scenes: z.array(SceneSchema).optional(),
   // Optional: allow passing script_text to run director internally
   script_text: z.string().optional(),
 });
