@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "PORT=22002 node dist/index.js",
+    "start": "node dist/index.js",
     "dev": "PORT=22002 tsx watch src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
