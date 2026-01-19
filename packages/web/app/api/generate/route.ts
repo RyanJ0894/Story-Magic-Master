@@ -18,8 +18,17 @@ async function processGenerationJob(
   accessToken: string | undefined
 ) {
   // Use service role client for background processing (not tied to user session)
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error(`[Job ${jobId}] Missing required environment variables:`, {
+      hasUrl: !!supabaseUrl,
+      hasServiceKey: !!serviceRoleKey,
+    });
+    throw new Error('Server configuration error: Missing Supabase credentials');
+  }
+
   const supabase = createServiceClient(supabaseUrl, serviceRoleKey);
 
   const updateJobProgress = async (step: string, percent: number, details?: string) => {
