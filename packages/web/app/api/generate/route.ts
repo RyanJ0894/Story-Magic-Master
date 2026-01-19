@@ -119,6 +119,7 @@ export async function POST(request: Request) {
 
     // Create audio output records for each generated file
     for (const audioUrl of audioUrls) {
+      if (!audioUrl) continue; // Skip null/undefined entries
       const fileName = audioUrl.split('/').pop() || 'output.mp3';
       await supabase
         .from('audio_outputs')
