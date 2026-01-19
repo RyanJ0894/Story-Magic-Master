@@ -9,6 +9,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { ValidationError, DirectorValidationErrorTypes } from './validation-error.js';
 import type { DirectorJSON, Scene, DialogueLine } from '../../schemas/director-json.js';
+import { searchVoicesHybrid, getAgeRange, type AgeRange } from '../tools/hybrid-voice-search.js';
 
 // Default fallback voice IDs (from ElevenLabs)
 const DEFAULT_NARRATOR_VOICE = 'pNInz6obpgDQGcFmaJgB'; // Adam - professional narrator
@@ -366,47 +367,26 @@ export class DirectorJSONValidator {
 
   /**
    * Fix all placeholder voice IDs by assigning real voices from catalog
+   * Uses hybrid voice search to find best-matching voices based on character attributes
    */
   private fixPlaceholderVoices(directorJson: DirectorJSON): DirectorJSON {
     // Build a mapping of character name -> voice ID
     const characterVoices = new Map<string, string>();
-    let voiceIndex = 0;
 
-    // Assign voices to each unique character
+    // First, extract character info for intelligent voice matching
+    const characters = this.extractCharacterInfo(directorJson);
+
+    // Track characters needing voice assignment
+    const charactersNeedingVoices: string[] = [];
+
     for (const scene of directorJson.scenes || []) {
       for (const line of scene.dialogue || []) {
         const charName = line.character;
 
         if (isPlaceholderVoiceId(line.voice_key)) {
-          // Need to assign a real voice
-          if (!characterVoices.has(charName)) {
-            let newVoice: string;
-
-            if (charName === 'Narrator') {
-              // Use narrator voice
-              newVoice = this.voiceCatalog.find((v) => v.label?.includes('Narrator'))?.voice_id
-                || DEFAULT_NARRATOR_VOICE;
-            } else {
-              // Try to find a voice from catalog that's not already used
-              const usedVoices = new Set(characterVoices.values());
-              const availableVoice = this.voiceCatalog.find((v) => !usedVoices.has(v.voice_id));
-
-              if (availableVoice) {
-                newVoice = availableVoice.voice_id;
-              } else {
-                // Fallback: cycle through default voices
-                const defaults = [DEFAULT_MALE_VOICE, DEFAULT_FEMALE_VOICE];
-                newVoice = defaults[voiceIndex % defaults.length];
-                voiceIndex++;
-              }
-            }
-
-            characterVoices.set(charName, newVoice);
-            console.log(`✓ Assigned voice ${newVoice} to ${charName} (replacing placeholder "${line.voice_key}")`);
+          if (!charactersNeedingVoices.includes(charName) && !characterVoices.has(charName)) {
+            charactersNeedingVoices.push(charName);
           }
-
-          // Update the line's voice_key
-          line.voice_key = characterVoices.get(charName)!;
         } else {
           // Valid voice ID - track it
           if (!characterVoices.has(charName)) {
@@ -416,7 +396,144 @@ export class DirectorJSONValidator {
       }
     }
 
+    // Now assign voices using hybrid search - we'll use sync version for validator
+    // Process synchronously to avoid async complexity in validator
+    for (const charName of charactersNeedingVoices) {
+      const charInfo = characters[charName];
+      const excludeVoiceIds = Array.from(characterVoices.values());
+
+      let newVoice: string;
+
+      if (charName === 'Narrator') {
+        // Use narrator voice
+        newVoice =
+          this.voiceCatalog.find((v) => v.label?.includes('Narrator') && !excludeVoiceIds.includes(v.voice_id))
+            ?.voice_id || DEFAULT_NARRATOR_VOICE;
+      } else {
+        // Find best matching voice using character attributes
+        const gender = charInfo?.gender as 'Male' | 'Female' | undefined;
+        const age = charInfo?.age;
+        const ageRange = age ? getAgeRange(age) : undefined;
+        const ethnicity = charInfo?.ethnicity;
+
+        // Search local catalog with filters
+        let matchingVoice = this.findMatchingVoice({
+          gender,
+          ageRange,
+          style: ethnicity,
+          excludeVoiceIds,
+        });
+
+        if (matchingVoice) {
+          newVoice = matchingVoice;
+          console.log(
+            `✓ Found matching voice ${newVoice} for ${charName} (gender=${gender}, age=${age}, ethnicity=${ethnicity})`
+          );
+        } else {
+          // Fallback: any unused voice
+          const availableVoice = this.voiceCatalog.find((v) => !excludeVoiceIds.includes(v.voice_id));
+          if (availableVoice) {
+            newVoice = availableVoice.voice_id;
+          } else {
+            // Ultimate fallback: use defaults based on gender hint
+            newVoice = gender === 'Female' ? DEFAULT_FEMALE_VOICE : DEFAULT_MALE_VOICE;
+          }
+        }
+      }
+
+      characterVoices.set(charName, newVoice);
+      console.log(`✓ Assigned voice ${newVoice} to ${charName}`);
+    }
+
+    // Now update all lines with the assigned voices
+    for (const scene of directorJson.scenes || []) {
+      for (const line of scene.dialogue || []) {
+        if (isPlaceholderVoiceId(line.voice_key)) {
+          const newVoice = characterVoices.get(line.character);
+          if (newVoice) {
+            line.voice_key = newVoice;
+          }
+        }
+      }
+    }
+
     return directorJson;
+  }
+
+  /**
+   * Find a voice matching the given criteria from the local catalog
+   */
+  private findMatchingVoice(criteria: {
+    gender?: 'Male' | 'Female';
+    ageRange?: AgeRange;
+    style?: string;
+    excludeVoiceIds?: string[];
+  }): string | null {
+    const { gender, ageRange, style, excludeVoiceIds = [] } = criteria;
+
+    // Priority 1: Match all criteria
+    for (const voice of this.voiceCatalog) {
+      if (excludeVoiceIds.includes(voice.voice_id)) continue;
+
+      // Check gender
+      if (gender && voice.gender !== gender) continue;
+
+      // Check age range via label
+      if (ageRange) {
+        const label = voice.label?.toLowerCase() || '';
+        const patterns = this.getAgeLabelPatterns(ageRange);
+        if (!patterns.some((p) => label.includes(p.toLowerCase()))) continue;
+      }
+
+      // Check style/ethnicity
+      if (style && voice.style?.toLowerCase() !== style.toLowerCase()) continue;
+
+      return voice.voice_id;
+    }
+
+    // Priority 2: Match gender and style (relax age)
+    if (gender || style) {
+      for (const voice of this.voiceCatalog) {
+        if (excludeVoiceIds.includes(voice.voice_id)) continue;
+        if (gender && voice.gender !== gender) continue;
+        if (style && voice.style?.toLowerCase() !== style.toLowerCase()) continue;
+
+        return voice.voice_id;
+      }
+    }
+
+    // Priority 3: Match gender only
+    if (gender) {
+      for (const voice of this.voiceCatalog) {
+        if (excludeVoiceIds.includes(voice.voice_id)) continue;
+        if (voice.gender === gender) return voice.voice_id;
+      }
+    }
+
+    // Priority 4: Any unused voice
+    for (const voice of this.voiceCatalog) {
+      if (!excludeVoiceIds.includes(voice.voice_id)) {
+        return voice.voice_id;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Get label patterns for an age range
+   */
+  private getAgeLabelPatterns(ageRange: AgeRange): string[] {
+    switch (ageRange) {
+      case 'child':
+        return ['Under 10', 'Child'];
+      case 'teen':
+        return ['Teen'];
+      case 'young_adult':
+        return ['20s to 30s', 'Young Adult', '20s', '30s'];
+      case 'older':
+        return ['Older', 'Mature', '40s', '50s', '60s'];
+    }
   }
 
   /**
