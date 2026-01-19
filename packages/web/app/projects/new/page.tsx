@@ -10,62 +10,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { ArrowLeft, FileText, Loader2, Sparkles, Wand2 } from 'lucide-react';
 
-// Demo script for development testing
-const DEMO_SCRIPT = `INT. COFFEE SHOP - MORNING
-
-SARAH, 28, a software developer, sits at a corner table with her laptop. MARCUS, 35, her older brother, approaches with two coffees.
-
-MARCUS
-I got you the usual. Double shot, oat milk.
-
-SARAH
-Thanks. Sit down, we need to talk.
-
-MARCUS
-That sounds ominous.
-
-He sits across from her, concerned.
-
-SARAH
-I'm leaving my job. I got an offer from a startup in Seattle.
-
-MARCUS
-Seattle? That's across the country. What about Mom?
-
-SARAH
-She'll understand. This is my shot, Marcus. Lead engineer, equity stake, the whole thing.
-
-MARCUS
-(sighing)
-You always were the brave one.
-
-The BARISTA, 22, calls out from the counter.
-
-BARISTA
-Order for Rebecca!
-
-SARAH
-Look, I'm not asking for permission. I just wanted you to hear it from me first.
-
-MARCUS
-When do you leave?
-
-SARAH
-Two weeks.
-
-Marcus stares at his coffee, processing the news.
-
-MARCUS
-Then I guess we better make these two weeks count.
-
-He raises his cup. Sarah smiles and clinks hers against it.
-
-FADE OUT.`;
-
-// Feature flag: only show demo button in development
-const SHOW_DEMO_BUTTON = process.env.NODE_ENV === 'development';
+// Show demo button (enabled for demos)
+const SHOW_DEMO_BUTTON = true;
 
 export default function NewProjectPage() {
   const [name, setName] = useState('');
@@ -74,15 +30,48 @@ export default function NewProjectPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  // AI Demo Script Generator state
+  const [showAiDialog, setShowAiDialog] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [generatingScript, setGeneratingScript] = useState(false);
+
   // Estimate page count (~250 words per page)
   const wordCount = scriptText.trim().split(/\s+/).filter(Boolean).length;
   const pageCount = Math.max(1, Math.ceil(wordCount / 250));
 
-  // Load demo script for testing
-  const loadDemoScript = () => {
-    setName('Coffee Shop Scene');
-    setDescription('A brother and sister discuss life changes over coffee');
-    setScriptText(DEMO_SCRIPT);
+  // Generate demo script using AI
+  const generateDemoScript = async () => {
+    if (!aiPrompt.trim()) {
+      toast.error('Please describe the scene you want');
+      return;
+    }
+
+    setGeneratingScript(true);
+
+    try {
+      const response = await fetch('/api/generate-demo-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: aiPrompt }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate script');
+      }
+
+      const data = await response.json();
+
+      setName(data.title);
+      setDescription(data.description);
+      setScriptText(data.script);
+      setShowAiDialog(false);
+      setAiPrompt('');
+      toast.success('Script generated!');
+    } catch (error) {
+      toast.error('Failed to generate script. Please try again.');
+    } finally {
+      setGeneratingScript(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -171,11 +160,11 @@ export default function NewProjectPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={loadDemoScript}
+                  onClick={() => setShowAiDialog(true)}
                   className="text-violet-600 border-violet-300 hover:bg-violet-50"
                 >
                   <Wand2 className="w-4 h-4 mr-2" />
-                  Load Demo Script
+                  Generate Demo Script
                 </Button>
               )}
             </div>
@@ -279,6 +268,60 @@ The door CHIMES. MARCUS (40s, distinguished) enters...`}
           </CardContent>
         </Card>
       </main>
+
+      {/* AI Script Generator Dialog */}
+      <Dialog open={showAiDialog} onOpenChange={setShowAiDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="w-5 h-5 text-violet-500" />
+              Generate Demo Script
+            </DialogTitle>
+            <DialogDescription>
+              Describe the scene you want and AI will write a short screenplay for you.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Textarea
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              placeholder="E.g., A tense confrontation between a detective and a suspect in a rainy alley at night..."
+              rows={4}
+              className="resize-none"
+              disabled={generatingScript}
+            />
+            <p className="text-xs text-slate-500">
+              The AI will generate a ~1 page scene with proper screenplay formatting.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowAiDialog(false)}
+              disabled={generatingScript}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={generateDemoScript}
+              disabled={generatingScript || !aiPrompt.trim()}
+              className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
+            >
+              {generatingScript ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Generate
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
