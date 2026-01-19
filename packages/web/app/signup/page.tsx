@@ -37,7 +37,6 @@ export default function SignupPage() {
         data: {
           full_name: fullName,
         },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
@@ -47,8 +46,22 @@ export default function SignupPage() {
       return;
     }
 
-    // If user is auto-confirmed (email confirmation disabled), redirect to dashboard
-    if (data.session) {
+    // If user is auto-confirmed, create their profile and redirect
+    if (data.session && data.user) {
+      // Create profile (trigger disabled, doing it from app)
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: data.user.id,
+          email: data.user.email,
+          full_name: fullName,
+        });
+
+      if (profileError) {
+        console.error('Profile creation error:', profileError);
+        // Don't block signup if profile fails - they can still use the app
+      }
+
       toast.success('Account created successfully!');
       router.push('/dashboard');
       return;
