@@ -10,7 +10,62 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, FileText, Loader2, Sparkles } from 'lucide-react';
+import { ArrowLeft, FileText, Loader2, Sparkles, Wand2 } from 'lucide-react';
+
+// Demo script for development testing
+const DEMO_SCRIPT = `INT. COFFEE SHOP - MORNING
+
+SARAH, 28, a software developer, sits at a corner table with her laptop. MARCUS, 35, her older brother, approaches with two coffees.
+
+MARCUS
+I got you the usual. Double shot, oat milk.
+
+SARAH
+Thanks. Sit down, we need to talk.
+
+MARCUS
+That sounds ominous.
+
+He sits across from her, concerned.
+
+SARAH
+I'm leaving my job. I got an offer from a startup in Seattle.
+
+MARCUS
+Seattle? That's across the country. What about Mom?
+
+SARAH
+She'll understand. This is my shot, Marcus. Lead engineer, equity stake, the whole thing.
+
+MARCUS
+(sighing)
+You always were the brave one.
+
+The BARISTA, 22, calls out from the counter.
+
+BARISTA
+Order for Rebecca!
+
+SARAH
+Look, I'm not asking for permission. I just wanted you to hear it from me first.
+
+MARCUS
+When do you leave?
+
+SARAH
+Two weeks.
+
+Marcus stares at his coffee, processing the news.
+
+MARCUS
+Then I guess we better make these two weeks count.
+
+He raises his cup. Sarah smiles and clinks hers against it.
+
+FADE OUT.`;
+
+// Feature flag: only show demo button in development
+const SHOW_DEMO_BUTTON = process.env.NODE_ENV === 'development';
 
 export default function NewProjectPage() {
   const [name, setName] = useState('');
@@ -22,6 +77,13 @@ export default function NewProjectPage() {
   // Estimate page count (~250 words per page)
   const wordCount = scriptText.trim().split(/\s+/).filter(Boolean).length;
   const pageCount = Math.max(1, Math.ceil(wordCount / 250));
+
+  // Load demo script for testing
+  const loadDemoScript = () => {
+    setName('Coffee Shop Scene');
+    setDescription('A brother and sister discuss life changes over coffee');
+    setScriptText(DEMO_SCRIPT);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,10 +161,24 @@ export default function NewProjectPage() {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5" />
-              Create a New Project
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Create a New Project
+              </CardTitle>
+              {SHOW_DEMO_BUTTON && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={loadDemoScript}
+                  className="text-violet-600 border-violet-300 hover:bg-violet-50"
+                >
+                  <Wand2 className="w-4 h-4 mr-2" />
+                  Load Demo Script
+                </Button>
+              )}
+            </div>
             <CardDescription>
               Paste your screenplay and we&apos;ll transform it into an immersive audio experience.
             </CardDescription>
