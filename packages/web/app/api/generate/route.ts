@@ -121,13 +121,18 @@ export async function POST(request: Request) {
     for (const audioUrl of audioUrls) {
       if (!audioUrl) continue; // Skip null/undefined entries
       const fileName = audioUrl.split('/').pop() || 'output.mp3';
+      // Extract just the storage path from the full URL
+      // Full URL: https://xxx.supabase.co/storage/v1/object/public/audio/project_id/episode.m4a
+      // Path needed: audio/project_id/episode.m4a
+      const pathMatch = audioUrl.match(/\/storage\/v1\/object\/public\/(.+)$/);
+      const filePath = pathMatch ? pathMatch[1] : `audio/${projectId}/${fileName}`;
       await supabase
         .from('audio_outputs')
         .insert({
           project_id: projectId,
           job_id: jobId,
           file_name: fileName,
-          file_path: audioUrl,
+          file_path: filePath,
           duration_seconds: manifest?.total_duration || null,
           format: fileName.endsWith('.m4a') ? 'm4a' : 'mp3',
         });
