@@ -198,11 +198,24 @@ Generate the JSON output with these **Strict Parsing Rules**:
 
 **CRITICAL: Character Metadata for Validation**
 
-**WARNING: NEVER use placeholder text like "narrator_voice_id" or "character_voice_id" in your output. These are EXAMPLES ONLY. You MUST call search_voices() for EVERY character (including Narrator) and use the actual voice_id returned by the tool. Using placeholder text will cause production failures.**
+**⚠️ CRITICAL WARNING - PLACEHOLDER TEXT IS FORBIDDEN ⚠️**
+NEVER use ANY placeholder text for voice_key values. Examples of FORBIDDEN values:
+- "narrator_voice_id" ❌
+- "character_voice_id" ❌
+- "REPLACE_WITH_..." ❌
+- "voice_id_here" ❌
+- Any text that is not an actual ElevenLabs voice ID ❌
+
+**YOU MUST:**
+1. Call search_voices() for EVERY character BEFORE generating JSON
+2. Use the EXACT voice_id string returned by search_voices (e.g., "21m00Tcm4TlvDq8ikWAM")
+3. Real voice IDs are 20-character alphanumeric strings
+
+**FAILURE TO USE REAL VOICE IDs WILL CAUSE PRODUCTION FAILURES.**
 
 For EACH character's FIRST appearance in the dialogue array, you MUST include their metadata extracted from the script. This allows the validation system to verify voice assignments are correct.
 
-Example JSON output:
+Example JSON output (note: voice_key values are REAL IDs from search_voices, not placeholders):
 {
   "project_id": "xxx",
   "scenes": [{
@@ -210,17 +223,17 @@ Example JSON output:
     "mood": "description based on scene content",
     "intensity": 0.7,
     "dialogue": [
-      {"line_id": "line_001", "character": "Narrator", "text": "expanded scene header", "voice_key": "narrator_voice_id"},
+      {"line_id": "line_001", "character": "Narrator", "text": "expanded scene header", "voice_key": "pNInz6obpgDQGcFmaJgB"},
       {
         "line_id": "line_002",
         "character": "CharacterName",
         "text": "dialogue without parentheticals",
-        "voice_key": "character_voice_id",
+        "voice_key": "21m00Tcm4TlvDq8ikWAM",
         "character_age": 18,
         "character_gender": "Male",
         "character_ethnicity": "African American"
       },
-      {"line_id": "line_003", "character": "CharacterName", "text": "next line", "voice_key": "character_voice_id"}
+      {"line_id": "line_003", "character": "CharacterName", "text": "next line", "voice_key": "21m00Tcm4TlvDq8ikWAM"}
     ]
   }]
 }

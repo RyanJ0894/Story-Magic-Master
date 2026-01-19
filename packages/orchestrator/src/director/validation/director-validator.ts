@@ -10,6 +10,43 @@ import { fileURLToPath } from 'url';
 import { ValidationError, DirectorValidationErrorTypes } from './validation-error.js';
 import type { DirectorJSON, Scene, DialogueLine } from '../../schemas/director-json.js';
 
+// Default fallback voice IDs (from ElevenLabs)
+const DEFAULT_NARRATOR_VOICE = 'pNInz6obpgDQGcFmaJgB'; // Adam - professional narrator
+const DEFAULT_MALE_VOICE = '29vD33N1CtxCmqQRPOHJ'; // Drew - male
+const DEFAULT_FEMALE_VOICE = '21m00Tcm4TlvDq8ikWAM'; // Rachel - female
+
+// Pattern to detect placeholder voice IDs (not real ElevenLabs IDs)
+// Real IDs are 20-char alphanumeric strings
+const PLACEHOLDER_PATTERNS = [
+  /^REPLACE_WITH_/i,
+  /voice_id$/i,
+  /placeholder/i,
+  /^narrator_voice/i,
+  /^character_voice/i,
+  /voice_here/i,
+  /^xxx/i,
+  /^TODO/i,
+];
+
+function isPlaceholderVoiceId(voiceId: string): boolean {
+  if (!voiceId) return true;
+
+  // Check against known placeholder patterns
+  for (const pattern of PLACEHOLDER_PATTERNS) {
+    if (pattern.test(voiceId)) {
+      return true;
+    }
+  }
+
+  // Real ElevenLabs IDs are 20 characters, alphanumeric
+  // If it's too long, has spaces, or underscores in wrong places, it's likely a placeholder
+  if (voiceId.length > 30 || voiceId.includes(' ') || voiceId.includes('_')) {
+    return true;
+  }
+
+  return false;
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -73,6 +110,9 @@ export class DirectorJSONValidator {
       console.log(`  ${charName}: age=${info.age}, ethnicity=${info.ethnicity}, voice=${info.voice_key}`);
     }
 
+    // Check for placeholder voice IDs first (critical error)
+    this.validateNoPlaceholderVoices(directorJson);
+
     // Validate voice assignments
     this.validateVoiceAssignments(directorJson, characters);
 
@@ -100,6 +140,10 @@ export class DirectorJSONValidator {
 
     let corrected: DirectorJSON = JSON.parse(JSON.stringify(directorJson));
 
+    // First pass: fix placeholder voice IDs (most critical)
+    corrected = this.fixPlaceholderVoices(corrected);
+
+    // Second pass: fix other validation errors
     for (const error of errors) {
       switch (error.errorType) {
         case DirectorValidationErrorTypes.TEEN_VOICE_WRONG_LABEL:
@@ -111,6 +155,7 @@ export class DirectorJSONValidator {
         case DirectorValidationErrorTypes.DUPLICATE_VOICE:
           corrected = this.fixDuplicateVoice(corrected, error);
           break;
+        // INVALID_VOICE_ID is handled by fixPlaceholderVoices
       }
     }
 
@@ -167,6 +212,33 @@ export class DirectorJSONValidator {
     }
 
     return characters;
+  }
+
+  /**
+   * Validate that no placeholder voice IDs are used
+   */
+  private validateNoPlaceholderVoices(directorJson: DirectorJSON): void {
+    for (const scene of directorJson.scenes || []) {
+      for (const line of scene.dialogue || []) {
+        if (isPlaceholderVoiceId(line.voice_key)) {
+          console.error(
+            `VALIDATION ERROR: Placeholder voice ID detected: "${line.voice_key}" for ${line.character}`
+          );
+          this.errors.push(
+            new ValidationError(
+              DirectorValidationErrorTypes.INVALID_VOICE_ID,
+              `Placeholder voice ID "${line.voice_key}" used for character "${line.character}"`,
+              `line:${line.line_id}`,
+              {
+                character: line.character,
+                line_id: line.line_id,
+                placeholder_voice: line.voice_key,
+              }
+            )
+          );
+        }
+      }
+    }
   }
 
   /**
@@ -290,6 +362,61 @@ export class DirectorJSONValidator {
         );
       }
     }
+  }
+
+  /**
+   * Fix all placeholder voice IDs by assigning real voices from catalog
+   */
+  private fixPlaceholderVoices(directorJson: DirectorJSON): DirectorJSON {
+    // Build a mapping of character name -> voice ID
+    const characterVoices = new Map<string, string>();
+    let voiceIndex = 0;
+
+    // Assign voices to each unique character
+    for (const scene of directorJson.scenes || []) {
+      for (const line of scene.dialogue || []) {
+        const charName = line.character;
+
+        if (isPlaceholderVoiceId(line.voice_key)) {
+          // Need to assign a real voice
+          if (!characterVoices.has(charName)) {
+            let newVoice: string;
+
+            if (charName === 'Narrator') {
+              // Use narrator voice
+              newVoice = this.voiceCatalog.find((v) => v.label?.includes('Narrator'))?.voice_id
+                || DEFAULT_NARRATOR_VOICE;
+            } else {
+              // Try to find a voice from catalog that's not already used
+              const usedVoices = new Set(characterVoices.values());
+              const availableVoice = this.voiceCatalog.find((v) => !usedVoices.has(v.voice_id));
+
+              if (availableVoice) {
+                newVoice = availableVoice.voice_id;
+              } else {
+                // Fallback: cycle through default voices
+                const defaults = [DEFAULT_MALE_VOICE, DEFAULT_FEMALE_VOICE];
+                newVoice = defaults[voiceIndex % defaults.length];
+                voiceIndex++;
+              }
+            }
+
+            characterVoices.set(charName, newVoice);
+            console.log(`✓ Assigned voice ${newVoice} to ${charName} (replacing placeholder "${line.voice_key}")`);
+          }
+
+          // Update the line's voice_key
+          line.voice_key = characterVoices.get(charName)!;
+        } else {
+          // Valid voice ID - track it
+          if (!characterVoices.has(charName)) {
+            characterVoices.set(charName, line.voice_key);
+          }
+        }
+      }
+    }
+
+    return directorJson;
   }
 
   /**
