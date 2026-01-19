@@ -176,9 +176,11 @@ export async function makePlaybackManifest(
   const episodePath = path.join(process.cwd(), 'output', project_id, 'episode.m4a');
   let publicUrl: string | null = null;
 
-  if (fs.existsSync(episodePath) && process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+  // Use service role key for uploads (bypasses RLS)
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+  if (fs.existsSync(episodePath) && process.env.SUPABASE_URL && supabaseKey) {
     try {
-      const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+      const supabase = createClient(process.env.SUPABASE_URL, supabaseKey);
 
       const episodeBuffer = fs.readFileSync(episodePath);
 

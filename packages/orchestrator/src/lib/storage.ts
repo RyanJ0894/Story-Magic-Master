@@ -7,10 +7,12 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
 
-// Initialize Supabase client if credentials are available
+// Initialize Supabase client with service role key (bypasses RLS for server-side uploads)
+// Falls back to anon key if service role key is not available
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 const supabase: SupabaseClient | null =
-  process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY
-    ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
+  process.env.SUPABASE_URL && supabaseKey
+    ? createClient(process.env.SUPABASE_URL, supabaseKey)
     : null;
 
 const localBase = path.join(process.cwd(), 'data', 'stems');
