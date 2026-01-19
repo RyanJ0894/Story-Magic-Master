@@ -50,22 +50,24 @@ app.use('/orchestrate', authMiddleware, strictRateLimitMiddleware);
 app.use('/', generateScenesRouter);
 app.use('/', orchestrateRouter);
 
-// Download endpoint for testing
-app.get('/download/:project_id/:filename', (req: Request, res: Response) => {
+// Download endpoint - requires auth
+app.get('/download/:project_id/:filename', authMiddleware, (req: Request, res: Response) => {
   const { project_id, filename } = req.params;
   const outputDir = path.join(process.cwd(), 'output', project_id);
   const filePath = path.join(outputDir, filename);
 
-  console.log('🔍 Download endpoint debug:');
-  console.log('  project_id:', project_id);
-  console.log('  filename:', filename);
-  console.log('  filePath:', filePath);
-  console.log('  exists:', fs.existsSync(filePath));
+  // Sanitize filename to prevent path traversal
+  if (filename.includes('..') || filename.includes('/')) {
+    res.status(400).json({ error: 'Invalid filename' });
+    return;
+  }
+
+  log.info('Download request', { project_id, filename, exists: fs.existsSync(filePath) });
 
   if (fs.existsSync(filePath)) {
     res.download(filePath);
   } else {
-    res.status(404).json({ error: 'File not found', path: filePath });
+    res.status(404).json({ error: 'File not found' });
   }
 });
 
