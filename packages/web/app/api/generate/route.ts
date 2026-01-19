@@ -4,11 +4,15 @@ import { NextResponse } from 'next/server';
 export async function POST(request: Request) {
   const supabase = createClient();
 
-  // Verify user is authenticated
+  // Verify user is authenticated and get session for API calls
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  // Get session token for orchestrator API calls
+  const { data: { session } } = await supabase.auth.getSession();
+  const accessToken = session?.access_token;
 
   const { projectId, jobId } = await request.json();
 
@@ -40,10 +44,14 @@ export async function POST(request: Request) {
 
   try {
     // Step 1: Call Director Agent to parse script
-    const directorUrl = process.env.DIRECTOR_URL || 'http://localhost:8000';
-    const directorResponse = await fetch(`${directorUrl}/generate-scenes`, {
+    // Note: Director is now consolidated into Orchestrator service
+    const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:22002';
+    const directorResponse = await fetch(`${orchestratorUrl}/generate-scenes`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
+      },
       body: JSON.stringify({
         project_id: projectId,
         script_text: project.script_text,
@@ -71,10 +79,12 @@ export async function POST(request: Request) {
       .eq('id', projectId);
 
     // Step 2: Call Orchestrator to generate audio
-    const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:3001';
     const orchestratorResponse = await fetch(`${orchestratorUrl}/orchestrate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
+      },
       body: JSON.stringify({
         project_id: projectId,
         scenes: directorJson.scenes || directorJson,
