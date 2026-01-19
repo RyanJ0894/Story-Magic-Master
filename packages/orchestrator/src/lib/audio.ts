@@ -125,12 +125,13 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
     return withRetry(
       async () => {
         const res = await fetch(
-          `https://api.elevenlabs.io/v1/text-to-speech/${vid}/stream?optimize_streaming_latency=0`,
+          `https://api.elevenlabs.io/v1/text-to-speech/${vid}`,
           {
             method: 'POST',
             headers: {
               'xi-api-key': apiKey,
               'Content-Type': 'application/json',
+              'Accept': 'audio/mpeg',
             },
             body: JSON.stringify(request_body),
           }
