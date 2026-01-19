@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import GenerateButton from './generate-button';
 import AudioPlayer from './audio-player';
+import DeleteProjectButton from './delete-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -210,21 +211,7 @@ export default async function ProjectPage({
                   Once deleted, this project and all its data cannot be recovered.
                 </p>
               </div>
-              <form action={`/api/projects/${project.id}/delete`} method="POST">
-                <Button
-                  type="submit"
-                  variant="destructive"
-                  data-testid="delete-project-button"
-                  onClick={(e) => {
-                    if (!confirm('Are you sure you want to delete this project? This cannot be undone.')) {
-                      e.preventDefault();
-                    }
-                  }}
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete
-                </Button>
-              </form>
+              <DeleteProjectButton projectId={project.id} />
             </div>
           </CardContent>
         </Card>
