@@ -1,30 +1,8 @@
 version: '3.8'
 
 services:
-  # Director Agent - Python/FastAPI
-  director:
-    build:
-      context: ./packages/director
-      dockerfile: Dockerfile
-    ports:
-      - "22001:22001"
-    environment:
-      - DIRECTOR_MODEL=${DIRECTOR_MODEL:-openai/gpt-4.1}
-      - AUDIO_DIRECTOR_MODEL=${AUDIO_DIRECTOR_MODEL:-openai/gpt-4.1}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-      - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-    volumes:
-      - ./packages/director:/app
-      - director-cache:/root/.cache
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:22001/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Orchestrator - Node.js/Express
+  # Consolidated Orchestrator - Node.js/Express
+  # Now includes Director functionality (script parsing, voice selection)
   orchestrator:
     build:
       context: ./packages/orchestrator
@@ -35,16 +13,18 @@ services:
       - PORT=22002
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - DIRECTOR_MODEL=${DIRECTOR_MODEL:-openai/gpt-4.1}
+      - AUDIO_DIRECTOR_MODEL=${AUDIO_DIRECTOR_MODEL:-openai/gpt-4.1}
       - SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - DIRECTOR_URL=http://director:22001
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
     volumes:
       - ./packages/orchestrator:/app
       - /app/node_modules
       - orchestrator-output:/app/output
-    depends_on:
-      director:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:22002/health"]
       interval: 30s
@@ -52,7 +32,6 @@ services:
       retries: 3
 
 volumes:
-  director-cache:
   orchestrator-output:
 
 networks:

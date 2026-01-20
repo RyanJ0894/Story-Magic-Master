@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "pnpm run --parallel dev",
     "dev:web": "pnpm --filter @story-magic/web dev",
-    "dev:director": "pnpm --filter @story-magic/director dev",
     "dev:orchestrator": "pnpm --filter @story-magic/orchestrator dev",
     "build": "pnpm run --parallel build",
     "build:web": "pnpm --filter @story-magic/web build",

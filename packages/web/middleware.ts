@@ -1,6 +1,34 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+// =============================================================================
+// Security Headers
+// =============================================================================
+function addSecurityHeaders(response: NextResponse): void {
+  // Content Security Policy
+  // Note: 'unsafe-inline' is required for Next.js and Tailwind CSS
+  // In production, consider using nonces for stricter CSP
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js requires unsafe-eval for dev
+    "style-src 'self' 'unsafe-inline'", // Tailwind requires unsafe-inline
+    "img-src 'self' data: blob: https://*.supabase.co",
+    "font-src 'self' data:",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.elevenlabs.io https://*.sentry.io",
+    "media-src 'self' blob: https://*.supabase.co",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join('; ');
+
+  response.headers.set('Content-Security-Policy', csp);
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+}
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -66,7 +94,9 @@ export async function middleware(request: NextRequest) {
   if (isProtectedPath && !user) {
     const redirectUrl = new URL('/login', request.url);
     redirectUrl.searchParams.set('redirect', request.nextUrl.pathname);
-    return NextResponse.redirect(redirectUrl);
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+    addSecurityHeaders(redirectResponse);
+    return redirectResponse;
   }
 
   // Redirect logged-in users away from auth pages
@@ -76,8 +106,13 @@ export async function middleware(request: NextRequest) {
   );
 
   if (isAuthPath && user) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url));
+    addSecurityHeaders(redirectResponse);
+    return redirectResponse;
   }
+
+  // Add security headers to all responses
+  addSecurityHeaders(response);
 
   return response;
 }

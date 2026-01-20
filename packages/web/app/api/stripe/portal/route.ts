@@ -1,8 +1,15 @@
 import { createClient } from '@/lib/supabase/server';
 import { createPortalSession } from '@/lib/stripe/server';
 import { NextResponse } from 'next/server';
+import { validateCsrf } from '@/lib/csrf';
 
 export async function POST(request: Request) {
+  // CSRF protection
+  const csrfError = validateCsrf(request);
+  if (csrfError) {
+    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   try {
     const supabase = await createClient();
 

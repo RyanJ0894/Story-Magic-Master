@@ -8,6 +8,11 @@ import { fileURLToPath } from 'url';
 // Load environment variables first
 dotenv.config();
 
+// Validate environment variables
+import { validateEnv, printEnvSummary } from './lib/env.js';
+validateEnv();
+printEnvSummary();
+
 // Initialize Sentry (must be before other imports that might throw)
 import { initSentry, Sentry, captureError } from './lib/sentry.js';
 initSentry();
@@ -35,7 +40,9 @@ const PORT = parseInt(process.env.PORT || '22002', 10);
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+// Limit request body size to prevent memory exhaustion
+// Script text max is 500KB, director JSON should be under 1MB
+app.use(express.json({ limit: '2mb' }));
 
 // Structured request logging with Pino
 app.use(httpLogger);

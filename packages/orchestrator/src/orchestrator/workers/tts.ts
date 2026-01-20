@@ -24,7 +24,9 @@ export interface StemResult {
  * Generate TTS for all dialogue lines in a scene
  */
 export async function ttsForScene(project_id: string, scene: Scene): Promise<StemResult[]> {
-  const limit = pLimit(3);
+  // Increase concurrency to 8 for faster processing
+  // ElevenLabs Creator tier supports higher concurrency
+  const limit = pLimit(8);
 
   console.log(
     `\n🔍 DIAGNOSTIC: Processing ${scene.dialogue.length} dialogue lines for scene ${scene.scene_id}`
