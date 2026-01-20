@@ -65,6 +65,84 @@ function logProgress(jobId: string, step: string, message: string) {
   console.log(`[${timestamp}] [Job ${jobId.slice(0, 8)}] [${step}] ${message}`);
 }
 
+// Get service client for background operations
+function getServiceClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return null;
+  }
+
+  return createServiceClient(supabaseUrl, serviceRoleKey);
+}
+
+// Log to job_logs table for audit trail
+async function logJobEvent(
+  supabase: ReturnType<typeof createServiceClient>,
+  jobId: string,
+  projectId: string,
+  level: 'debug' | 'info' | 'warn' | 'error',
+  step: string,
+  message: string,
+  metadata: Record<string, unknown> = {},
+  errorMessage?: string,
+  errorStack?: string
+) {
+  try {
+    await supabase.from('job_logs').insert({
+      job_id: jobId,
+      project_id: projectId,
+      level,
+      step,
+      message,
+      metadata,
+      error_message: errorMessage,
+      error_stack: errorStack,
+    });
+  } catch (err) {
+    // Don't fail if logging fails - just console log
+    console.error(`Failed to write job log: ${err}`);
+  }
+}
+
+// Mark job as failed with error details
+async function markJobFailed(
+  jobId: string,
+  projectId: string,
+  errorMessage: string,
+  errorStack?: string
+) {
+  const supabase = getServiceClient();
+  if (!supabase) {
+    console.error(`[Job ${jobId}] Cannot mark job failed - no service client`);
+    return;
+  }
+
+  const now = new Date().toISOString();
+
+  // Log the error
+  await logJobEvent(supabase, jobId, projectId, 'error', 'failed', errorMessage, {}, errorMessage, errorStack);
+
+  // Update job status
+  await supabase
+    .from('jobs')
+    .update({
+      status: 'failed',
+      error: errorMessage,
+      progress: { step: 'failed', percent: 0, details: errorMessage, updated_at: now },
+    })
+    .eq('id', jobId);
+
+  // Update project status
+  await supabase
+    .from('projects')
+    .update({ status: 'failed' })
+    .eq('id', projectId);
+
+  logProgress(jobId, 'error', `Job marked as failed: ${errorMessage}`);
+}
+
 // Background job processor - runs after response is sent
 async function processGenerationJob(
   projectId: string,
@@ -75,20 +153,17 @@ async function processGenerationJob(
   accessToken: string | undefined
 ) {
   // Use service role client for background processing (not tied to user session)
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabase = getServiceClient();
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.error(`[Job ${jobId}] Missing required environment variables:`, {
-      hasUrl: !!supabaseUrl,
-      hasServiceKey: !!serviceRoleKey,
-    });
-    throw new Error('Server configuration error: Missing Supabase credentials');
+  if (!supabase) {
+    const error = 'Server configuration error: Missing Supabase credentials';
+    console.error(`[Job ${jobId}] ${error}`);
+    // We can't update the DB without credentials, but try anyway with a fresh attempt
+    await markJobFailed(jobId, projectId, error);
+    throw new Error(error);
   }
 
-  const supabase = createServiceClient(supabaseUrl, serviceRoleKey);
-
-  const updateJobProgress = async (step: string, percent: number, details?: string) => {
+  const updateJobProgress = async (step: string, percent: number, details?: string, metadata: Record<string, unknown> = {}) => {
     const progressData = {
       step,
       percent,
@@ -96,6 +171,10 @@ async function processGenerationJob(
       updated_at: new Date().toISOString(),
     };
     logProgress(jobId, step, `${percent}% - ${details || 'Processing...'}`);
+
+    // Log to job_logs table for audit trail
+    await logJobEvent(supabase, jobId, projectId, 'info', step, details || 'Processing...', { percent, ...metadata });
+
     await supabase
       .from('jobs')
       .update({ progress: progressData })
@@ -229,7 +308,21 @@ async function processGenerationJob(
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
     logProgress(jobId, 'error', `Generation failed: ${errorMessage}`);
+
+    // Log detailed error to job_logs
+    await logJobEvent(
+      supabase,
+      jobId,
+      projectId,
+      'error',
+      'failed',
+      `Generation failed: ${errorMessage}`,
+      { userId, pageCount },
+      errorMessage,
+      errorStack
+    );
 
     await supabase
       .from('jobs')
@@ -352,9 +445,14 @@ export async function POST(request: Request) {
       sanitizedScript, // Use sanitized script text
       project.page_count,
       accessToken
-    ).catch((error) => {
-      // Log any unhandled errors from background processing
+    ).catch(async (error) => {
+      // Ensure job is marked as failed even for unhandled errors
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
       console.error(`[Background Job Error] Job ${jobId}:`, error);
+
+      // Try to mark the job as failed in the database
+      await markJobFailed(jobId, projectId, errorMessage, errorStack);
     });
   });
 
