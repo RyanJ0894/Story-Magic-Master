@@ -1,0 +1,1 @@
+-- Placeholder for initial migration applied directly on Supabase
