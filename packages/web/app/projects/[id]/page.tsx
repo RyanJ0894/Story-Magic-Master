@@ -6,6 +6,7 @@ import AudioPlayer from './audio-player';
 import DeleteProjectButton from './delete-button';
 import { VoiceChooser } from './voice-chooser';
 import { Storygraph } from './storygraph';
+import { StoryScoreSection } from '@/components/storyscore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -220,6 +221,12 @@ export default async function ProjectPage({
             </CardContent>
           </Card>
         )}
+
+        {/* StoryScore - Feature flagged, shows "Coming Soon" when disabled */}
+        <StoryScoreSection
+          projectId={project.id}
+          scriptText={project.script_text}
+        />
 
         {/* Script Preview */}
         <Card>
