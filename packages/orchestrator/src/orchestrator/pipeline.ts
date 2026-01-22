@@ -1,15 +1,16 @@
 /**
  * Orchestrator Pipeline - Main audio generation workflow
  *
- * Coordinates the full orchestration process:
+ * Coordinates the full orchestration process with parallel processing:
  * 1. Validate Director JSON
- * 2. Generate TTS for each scene
- * 3. Compute dialogue alignment
- * 4. Select audio cues
- * 5. Build scene timeline
- * 6. Mix scene audio
- * 7. Concatenate scenes
- * 8. Generate playback manifest
+ * 2. Generate TTS for ALL scenes in parallel (storygraph-aware)
+ * 3. Progressive scene assembly (align + cues + timeline + mix)
+ * 4. Final concatenation with crossfades
+ * 5. Generate playback manifest
+ *
+ * This pipeline leverages parallel processing for:
+ * - TTS generation across all scenes simultaneously
+ * - Scene mixing as soon as TTS for that scene completes
  */
 
 import 'dotenv/config';
@@ -20,6 +21,8 @@ import path from 'path';
 
 import { DirectorJSONSchema, type DirectorJSON, type Scene } from '../schemas/director-json.js';
 import { ttsForScene, type StemResult } from './workers/tts.js';
+import { parallelTTSGenerate, type TTSProgress, type ParallelTTSResult } from './workers/parallel-tts.js';
+import { progressiveStitch, finalConcatenation, type ProgressiveStitchProgress } from './workers/progressive-stitch.js';
 import { alignScene, type SceneAlignment, type LineAlignment } from './workers/align.js';
 import { pickCues, type SceneCues } from './workers/cues.js';
 import { buildTimeline, type Timeline } from './workers/timeline.js';
@@ -32,6 +35,16 @@ const ffmpeg = ffmpegStatic as unknown as string;
 if (!ffmpeg) {
   throw new Error('FFmpeg binary not found. Please ensure ffmpeg-static is installed.');
 }
+
+// Progress callback types for external consumers
+export interface PipelineProgress {
+  step: 'validating' | 'tts' | 'assembling' | 'stitching' | 'manifest' | 'complete';
+  percent: number;
+  message: string;
+  details?: TTSProgress | ProgressiveStitchProgress;
+}
+
+export type PipelineProgressCallback = (progress: PipelineProgress) => void;
 
 export interface SceneOutput {
   scene_id: string;
@@ -294,6 +307,157 @@ export async function orchestrate(directorJSON: unknown): Promise<OrchestrationR
   console.log(`📄 Manifest: manifest.json`);
   console.log(`⏱️  Total duration: ${manifest.total.toFixed(2)}s (${(manifest.total / 60).toFixed(2)} min)`);
   console.log('═'.repeat(80) + '\n');
+
+  return {
+    project_id: director.project_id,
+    output_dir: projectDir,
+    episode_path: episodePath,
+    manifest_path: manifestPath,
+    scenes: sceneOutputs,
+    audio_urls: [manifest.public_url],
+    manifest: manifest,
+  };
+}
+
+/**
+ * Parallel orchestration pipeline - faster processing with concurrent execution
+ *
+ * This is the optimized pipeline that:
+ * 1. Generates ALL TTS in parallel across scenes
+ * 2. Assembles scenes progressively as TTS completes
+ * 3. Reports granular progress throughout
+ *
+ * Use this for production - it's significantly faster than the sequential pipeline
+ */
+export async function orchestrateParallel(
+  directorJSON: unknown,
+  onProgress?: PipelineProgressCallback
+): Promise<OrchestrationResult> {
+  // Step 0: Validate
+  if (onProgress) {
+    onProgress({ step: 'validating', percent: 0, message: 'Validating Director JSON...' });
+  }
+
+  console.log('🎬 Step 0: Validating Director JSON...');
+  const parsed = DirectorJSONSchema.safeParse(directorJSON);
+  if (!parsed.success) {
+    throw new Error('Invalid Director JSON: ' + JSON.stringify(parsed.error.issues));
+  }
+  const director = parsed.data;
+  console.log(`   ✅ Valid Director JSON for project: ${director.project_id}`);
+  console.log(`   📋 Scenes to process: ${director.scenes.length}`);
+
+  const totalLines = director.scenes.reduce((sum, s) => sum + s.dialogue.length, 0);
+  console.log(`   🎙️  Total dialogue lines: ${totalLines}\n`);
+
+  // Setup output directories
+  const projectDir = path.join(process.cwd(), 'output', director.project_id);
+  const scenesDir = path.join(projectDir, 'scenes');
+  fs.mkdirSync(projectDir, { recursive: true });
+  fs.mkdirSync(scenesDir, { recursive: true });
+
+  // Step 1: Parallel TTS Generation
+  console.log('═'.repeat(80));
+  console.log('🔊 STEP 1: PARALLEL TTS GENERATION');
+  console.log('═'.repeat(80) + '\n');
+
+  const ttsResult = await parallelTTSGenerate(
+    director,
+    (ttsProgress) => {
+      if (onProgress) {
+        onProgress({
+          step: 'tts',
+          percent: Math.round(ttsProgress.percent * 0.6), // TTS is 60% of work
+          message: `Generating TTS: ${ttsProgress.completed_lines}/${ttsProgress.total_lines} lines`,
+          details: ttsProgress,
+        });
+      }
+    },
+    12 // Concurrency - adjust based on ElevenLabs tier
+  );
+
+  // Step 2: Progressive Scene Assembly
+  console.log('═'.repeat(80));
+  console.log('🔗 STEP 2: PROGRESSIVE SCENE ASSEMBLY');
+  console.log('═'.repeat(80) + '\n');
+
+  if (onProgress) {
+    onProgress({ step: 'assembling', percent: 60, message: 'Assembling scenes...' });
+  }
+
+  const stitchResult = await progressiveStitch(
+    director,
+    ttsResult.stems_by_scene,
+    projectDir,
+    3, // Scene concurrency
+    (stitchProgress) => {
+      if (onProgress) {
+        const basePercent = 60;
+        const assemblyPercent = (stitchProgress.percent / 100) * 25; // Assembly is 25% of work
+        onProgress({
+          step: 'assembling',
+          percent: Math.round(basePercent + assemblyPercent),
+          message: `Assembling scene ${stitchProgress.current_scene}...`,
+          details: stitchProgress,
+        });
+      }
+    }
+  );
+
+  // Step 3: Final Concatenation
+  console.log('═'.repeat(80));
+  console.log('🎬 STEP 3: FINAL CONCATENATION');
+  console.log('═'.repeat(80) + '\n');
+
+  if (onProgress) {
+    onProgress({ step: 'stitching', percent: 85, message: 'Creating final episode...' });
+  }
+
+  const episodePath = path.join(projectDir, 'episode.m4a');
+  await finalConcatenation(stitchResult.scenes, episodePath, 1.5);
+
+  // Step 4: Generate Manifest
+  console.log('═'.repeat(80));
+  console.log('📄 STEP 4: GENERATING MANIFEST');
+  console.log('═'.repeat(80) + '\n');
+
+  if (onProgress) {
+    onProgress({ step: 'manifest', percent: 95, message: 'Generating playback manifest...' });
+  }
+
+  const manifest = await makePlaybackManifest(
+    director.project_id,
+    stitchResult.scenes.map((s) => ({ scene_id: s.scene_id, path: s.path })),
+    1.5
+  );
+  const manifestPath = path.join(projectDir, 'manifest.json');
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+  // Convert scene results to expected format
+  const sceneOutputs: SceneOutput[] = stitchResult.scenes.map((s) => ({
+    scene_id: s.scene_id,
+    path: s.path,
+    timeline: s.timeline,
+    alignment: s.alignment,
+    cues: s.cues,
+  }));
+
+  // Final report
+  console.log('═'.repeat(80));
+  console.log('🎊 PARALLEL ORCHESTRATION COMPLETE!');
+  console.log('═'.repeat(80) + '\n');
+  console.log(`📁 Output directory: ${projectDir}`);
+  console.log(`🎵 Episode file: episode.m4a`);
+  console.log(`📄 Manifest: manifest.json`);
+  console.log(`⏱️  Total duration: ${manifest.total.toFixed(2)}s (${(manifest.total / 60).toFixed(2)} min)`);
+  console.log(`📊 Performance:`);
+  console.log(`   - TTS: ${ttsResult.cached_lines} cached, ${ttsResult.generated_lines} generated`);
+  console.log(`   - Scenes: ${stitchResult.scenes.length} processed in parallel`);
+  console.log('═'.repeat(80) + '\n');
+
+  if (onProgress) {
+    onProgress({ step: 'complete', percent: 100, message: 'Orchestration complete!' });
+  }
 
   return {
     project_id: director.project_id,

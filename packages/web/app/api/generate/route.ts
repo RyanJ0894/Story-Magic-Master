@@ -79,7 +79,8 @@ function getServiceClient() {
 
 // Log to job_logs table for audit trail
 async function logJobEvent(
-  supabase: ReturnType<typeof createServiceClient>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
   jobId: string,
   projectId: string,
   level: 'debug' | 'info' | 'warn' | 'error',

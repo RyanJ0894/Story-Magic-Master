@@ -4,11 +4,13 @@ import Link from 'next/link';
 import GenerateButton from './generate-button';
 import AudioPlayer from './audio-player';
 import DeleteProjectButton from './delete-button';
+import { VoiceChooser } from './voice-chooser';
+import { Storygraph } from './storygraph';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { ArrowLeft, FileText, Sparkles, Trash2, CheckCircle, AlertCircle, Clock, Loader2 } from 'lucide-react';
+import { ArrowLeft, FileText, Sparkles, Trash2, CheckCircle, AlertCircle, Clock, Loader2, Users, GitBranch } from 'lucide-react';
 
 export default async function ProjectPage({
   params,
@@ -173,6 +175,51 @@ export default async function ProjectPage({
             )}
           </CardContent>
         </Card>
+
+        {/* Voice Chooser - Show when draft or has director_json */}
+        {(project.status === 'draft' || project.director_json) && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-violet-500" />
+                Character Voices
+              </CardTitle>
+              <CardDescription>
+                Preview and customize voice assignments for each character
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <VoiceChooser
+                projectId={project.id}
+                scriptText={project.script_text}
+                directorJson={project.director_json}
+                disabled={project.status === 'processing'}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Storygraph - Show when processing or completed */}
+        {(project.status === 'processing' || project.status === 'completed') && project.director_json && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <GitBranch className="w-5 h-5 text-violet-500" />
+                Generation Progress
+              </CardTitle>
+              <CardDescription>
+                Visual breakdown of scenes and dialogue processing
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Storygraph
+                projectId={project.id}
+                directorJson={project.director_json}
+                jobProgress={latestJob?.progress}
+              />
+            </CardContent>
+          </Card>
+        )}
 
         {/* Script Preview */}
         <Card>

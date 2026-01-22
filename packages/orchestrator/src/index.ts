@@ -31,6 +31,7 @@ import { rateLimitMiddleware, strictRateLimitMiddleware } from './middleware/rat
 import healthRouter from './routes/health.js';
 import generateScenesRouter from './routes/generate-scenes.js';
 import orchestrateRouter from './routes/orchestrate.js';
+import analyzeRouter from './routes/analyze.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -54,8 +55,10 @@ app.use('/', healthRouter);
 // Protected routes - require authentication and rate limiting
 app.use('/generate-scenes', authMiddleware, strictRateLimitMiddleware);
 app.use('/orchestrate', authMiddleware, strictRateLimitMiddleware);
+app.use('/analyze', authMiddleware, rateLimitMiddleware);
 app.use('/', generateScenesRouter);
 app.use('/', orchestrateRouter);
+app.use('/', analyzeRouter);
 
 // Download endpoint - requires auth
 app.get('/download/:project_id/:filename', authMiddleware, (req: Request, res: Response) => {
@@ -116,7 +119,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   log.info('Story Magic Consolidated Service started', {
     port: PORT,
     nodeEnv: process.env.NODE_ENV || 'development',
-    endpoints: ['/health', '/generate-scenes', '/orchestrate'],
+    endpoints: ['/health', '/generate-scenes', '/orchestrate', '/analyze'],
   });
 
   // Start Checkly heartbeat monitoring

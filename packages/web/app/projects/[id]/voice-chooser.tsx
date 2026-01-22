@@ -1,0 +1,523 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Play, Pause, Lock, Unlock, Search, User, Volume2, Check, RefreshCw } from 'lucide-react';
+import type { Voice, DetectedCharacter, CharacterVoiceAssignment } from '@/lib/types/voice';
+
+interface VoiceChooserProps {
+  projectId: string;
+  scriptText: string;
+  directorJson?: {
+    scenes?: Array<{
+      dialogue?: Array<{
+        character: string;
+        text: string;
+        voice_key?: string;
+      }>;
+    }>;
+  };
+  onAssignmentsChange?: (assignments: CharacterVoiceAssignment[]) => void;
+  disabled?: boolean;
+}
+
+// =============================================================================
+// Voice Preview Component
+// =============================================================================
+function VoicePreview({
+  voice,
+  isSelected,
+  onSelect,
+}: {
+  voice: Voice;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
+
+  const handlePlayPreview = useCallback(async () => {
+    if (!voice.preview_url) return;
+
+    if (isPlaying && audio) {
+      audio.pause();
+      setIsPlaying(false);
+      return;
+    }
+
+    const newAudio = new Audio(voice.preview_url);
+    newAudio.onended = () => setIsPlaying(false);
+    newAudio.onerror = () => setIsPlaying(false);
+    setAudio(newAudio);
+    setIsPlaying(true);
+    await newAudio.play().catch(() => setIsPlaying(false));
+  }, [voice.preview_url, isPlaying, audio]);
+
+  return (
+    <Card
+      className={`cursor-pointer transition-all ${
+        isSelected ? 'ring-2 ring-primary bg-primary/5' : 'hover:bg-muted/50'
+      }`}
+      onClick={onSelect}
+    >
+      <CardContent className="p-3">
+        <div className="flex items-center justify-between">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-medium truncate">{voice.name}</span>
+              {isSelected && <Check className="h-4 w-4 text-primary" />}
+            </div>
+            <div className="flex gap-1 mt-1 flex-wrap">
+              <Badge variant="outline" className="text-xs">
+                {voice.gender}
+              </Badge>
+              <Badge variant="outline" className="text-xs">
+                {voice.age}
+              </Badge>
+              {voice.accent && (
+                <Badge variant="outline" className="text-xs">
+                  {voice.accent}
+                </Badge>
+              )}
+            </div>
+          </div>
+          {voice.preview_url && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePlayPreview();
+              }}
+            >
+              {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// =============================================================================
+// Character Card Component
+// =============================================================================
+function CharacterCard({
+  character,
+  assignment,
+  voices,
+  onAssign,
+  onToggleLock,
+}: {
+  character: DetectedCharacter;
+  assignment?: CharacterVoiceAssignment;
+  voices: Voice[];
+  onAssign: (voiceId: string) => void;
+  onToggleLock: () => void;
+}) {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [genderFilter, setGenderFilter] = useState<string>('all');
+  const [ageFilter, setAgeFilter] = useState<string>('all');
+
+  const assignedVoice = voices.find((v) => v.voice_id === assignment?.voice_id);
+
+  const filteredVoices = voices.filter((voice) => {
+    const matchesSearch =
+      !searchQuery ||
+      voice.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      voice.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesGender = genderFilter === 'all' || voice.gender === genderFilter;
+    const matchesAge = ageFilter === 'all' || voice.age === ageFilter;
+    return matchesSearch && matchesGender && matchesAge;
+  });
+
+  return (
+    <Card className="relative">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <User className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-lg">{character.name}</CardTitle>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onToggleLock}
+            title={assignment?.locked ? 'Unlock voice' : 'Lock voice'}
+          >
+            {assignment?.locked ? (
+              <Lock className="h-4 w-4 text-amber-500" />
+            ) : (
+              <Unlock className="h-4 w-4 text-muted-foreground" />
+            )}
+          </Button>
+        </div>
+        <CardDescription>
+          {character.line_count} line{character.line_count !== 1 ? 's' : ''}
+          {character.inferred_gender && ` • ${character.inferred_gender}`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {/* Sample line preview */}
+        {character.sample_lines[0] && (
+          <p className="text-sm text-muted-foreground italic mb-3 line-clamp-2">
+            "{character.sample_lines[0]}"
+          </p>
+        )}
+
+        {/* Current assignment */}
+        <div className="flex items-center gap-2">
+          <Volume2 className="h-4 w-4 text-muted-foreground" />
+          {assignedVoice ? (
+            <span className="text-sm">
+              {assignedVoice.name}
+              {assignment?.user_selected && (
+                <Badge variant="secondary" className="ml-2 text-xs">
+                  Custom
+                </Badge>
+              )}
+            </span>
+          ) : (
+            <span className="text-sm text-muted-foreground">No voice assigned</span>
+          )}
+        </div>
+
+        {/* Change voice button */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm" className="mt-3 w-full">
+              {assignedVoice ? 'Change Voice' : 'Select Voice'}
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle>Select Voice for {character.name}</DialogTitle>
+              <DialogDescription>
+                Choose a voice that matches the character. You can preview voices before selecting.
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* Filters */}
+            <div className="flex gap-2 py-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search voices..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
+              <Select value={genderFilter} onValueChange={setGenderFilter}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="Gender" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Genders</SelectItem>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                  <SelectItem value="neutral">Neutral</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={ageFilter} onValueChange={setAgeFilter}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="Age" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Ages</SelectItem>
+                  <SelectItem value="child">Child</SelectItem>
+                  <SelectItem value="teen">Teen</SelectItem>
+                  <SelectItem value="young_adult">Young Adult</SelectItem>
+                  <SelectItem value="adult">Adult</SelectItem>
+                  <SelectItem value="senior">Senior</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Voice grid */}
+            <div className="flex-1 overflow-y-auto pr-2">
+              <div className="grid grid-cols-2 gap-2">
+                {filteredVoices.map((voice) => (
+                  <VoicePreview
+                    key={voice.voice_id}
+                    voice={voice}
+                    isSelected={voice.voice_id === assignment?.voice_id}
+                    onSelect={() => {
+                      onAssign(voice.voice_id);
+                      setIsDialogOpen(false);
+                    }}
+                  />
+                ))}
+              </div>
+              {filteredVoices.length === 0 && (
+                <p className="text-center text-muted-foreground py-8">
+                  No voices match your filters
+                </p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
+  );
+}
+
+// =============================================================================
+// Main Voice Chooser Component
+// =============================================================================
+export function VoiceChooser({
+  projectId,
+  scriptText,
+  directorJson,
+  onAssignmentsChange,
+  disabled = false,
+}: VoiceChooserProps) {
+  const [characters, setCharacters] = useState<DetectedCharacter[]>([]);
+  const [voices, setVoices] = useState<Voice[]>([]);
+  const [assignments, setAssignments] = useState<CharacterVoiceAssignment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Extract characters from script or directorJson
+  useEffect(() => {
+    const extractCharacters = () => {
+      // If we have director JSON, use it
+      if (directorJson?.scenes) {
+        const charMap = new Map<string, DetectedCharacter>();
+
+        directorJson.scenes.forEach((scene) => {
+          scene.dialogue?.forEach((line, idx) => {
+            const existing = charMap.get(line.character);
+            if (existing) {
+              existing.line_count++;
+              if (existing.sample_lines.length < 3) {
+                existing.sample_lines.push(line.text);
+              }
+            } else {
+              charMap.set(line.character, {
+                name: line.character,
+                line_count: 1,
+                first_appearance: idx,
+                sample_lines: [line.text],
+                assigned_voice: line.voice_key
+                  ? { voice_id: line.voice_key, name: '', gender: 'neutral', age: 'adult' }
+                  : undefined,
+              });
+            }
+          });
+        });
+
+        setCharacters(Array.from(charMap.values()).sort((a, b) => b.line_count - a.line_count));
+
+        // Initialize assignments from director JSON
+        const initialAssignments: CharacterVoiceAssignment[] = [];
+        charMap.forEach((char, name) => {
+          if (char.assigned_voice) {
+            initialAssignments.push({
+              character_name: name,
+              voice_id: char.assigned_voice.voice_id,
+              voice_name: '',
+              user_selected: false,
+              locked: false,
+            });
+          }
+        });
+        setAssignments(initialAssignments);
+      } else {
+        // Parse from script text (basic character detection)
+        const lines = scriptText.split('\n');
+        const charMap = new Map<string, DetectedCharacter>();
+
+        // Simple heuristic: lines that are ALL CAPS followed by dialogue
+        const characterPattern = /^([A-Z][A-Z\s]+)(?:\s*\(.*\))?$/;
+
+        lines.forEach((line, idx) => {
+          const trimmed = line.trim();
+          const match = trimmed.match(characterPattern);
+          if (match && match[1].length > 1 && match[1].length < 30) {
+            const name = match[1].trim();
+            // Get the next non-empty line as sample dialogue
+            const nextLine = lines.slice(idx + 1).find((l) => l.trim().length > 0)?.trim() || '';
+
+            const existing = charMap.get(name);
+            if (existing) {
+              existing.line_count++;
+              if (existing.sample_lines.length < 3 && nextLine) {
+                existing.sample_lines.push(nextLine);
+              }
+            } else {
+              charMap.set(name, {
+                name,
+                line_count: 1,
+                first_appearance: idx,
+                sample_lines: nextLine ? [nextLine] : [],
+              });
+            }
+          }
+        });
+
+        setCharacters(Array.from(charMap.values()).sort((a, b) => b.line_count - a.line_count));
+      }
+    };
+
+    extractCharacters();
+  }, [scriptText, directorJson]);
+
+  // Fetch voice catalog
+  useEffect(() => {
+    const fetchVoices = async () => {
+      try {
+        setIsLoading(true);
+        // TODO: Replace with actual API call
+        // const response = await fetch('/api/voices');
+        // const data = await response.json();
+
+        // For now, use mock data
+        const mockVoices: Voice[] = [
+          { voice_id: 'pMsXgVXv3BLzUgSXRplE', name: 'Brian', gender: 'male', age: 'adult', accent: 'American', preview_url: '' },
+          { voice_id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', gender: 'female', age: 'young_adult', accent: 'American', preview_url: '' },
+          { voice_id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', gender: 'female', age: 'adult', accent: 'American', preview_url: '' },
+          { voice_id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi', gender: 'female', age: 'young_adult', accent: 'American', preview_url: '' },
+          { voice_id: 'CYw3kZ02Hs0563khs1Fj', name: 'Dave', gender: 'male', age: 'adult', accent: 'British', preview_url: '' },
+          { voice_id: 'D38z5RcWu1voky8WS1ja', name: 'Fin', gender: 'male', age: 'adult', accent: 'Irish', preview_url: '' },
+          { voice_id: 'ErXwobaYiN019PkySvjV', name: 'Antoni', gender: 'male', age: 'young_adult', accent: 'American', preview_url: '' },
+          { voice_id: 'GBv7mTt0atIp3Br8iCZE', name: 'Thomas', gender: 'male', age: 'adult', accent: 'American', preview_url: '' },
+          { voice_id: 'IKne3meq5aSn9XLyUdCD', name: 'Charlie', gender: 'male', age: 'adult', accent: 'Australian', preview_url: '' },
+          { voice_id: 'JBFqnCBsd6RMkjVDRZzb', name: 'George', gender: 'male', age: 'senior', accent: 'British', preview_url: '' },
+          { voice_id: 'LcfcDJNUP1GQjkzn1xUU', name: 'Emily', gender: 'female', age: 'adult', accent: 'American', preview_url: '' },
+          { voice_id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli', gender: 'female', age: 'young_adult', accent: 'American', preview_url: '' },
+          { voice_id: 'N2lVS1w4EtoT3dr4eOWO', name: 'Callum', gender: 'male', age: 'adult', accent: 'British', preview_url: '' },
+          { voice_id: 'ODq5zmih8GrVes37Dizd', name: 'Patrick', gender: 'male', age: 'adult', accent: 'American', preview_url: '' },
+          { voice_id: 'SOYHLrjzK2X1ezoPC6cr', name: 'Harry', gender: 'male', age: 'young_adult', accent: 'American', preview_url: '' },
+        ];
+
+        setVoices(mockVoices);
+        setError(null);
+      } catch (err) {
+        setError('Failed to load voice catalog');
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchVoices();
+  }, []);
+
+  // Handle voice assignment
+  const handleAssign = (characterName: string, voiceId: string) => {
+    const voice = voices.find((v) => v.voice_id === voiceId);
+    if (!voice) return;
+
+    setAssignments((prev) => {
+      const existing = prev.find((a) => a.character_name === characterName);
+      const newAssignments = existing
+        ? prev.map((a) =>
+            a.character_name === characterName
+              ? { ...a, voice_id: voiceId, voice_name: voice.name, user_selected: true }
+              : a
+          )
+        : [
+            ...prev,
+            {
+              character_name: characterName,
+              voice_id: voiceId,
+              voice_name: voice.name,
+              user_selected: true,
+              locked: false,
+            },
+          ];
+
+      onAssignmentsChange?.(newAssignments);
+      return newAssignments;
+    });
+  };
+
+  // Toggle lock
+  const handleToggleLock = (characterName: string) => {
+    setAssignments((prev) => {
+      const newAssignments = prev.map((a) =>
+        a.character_name === characterName ? { ...a, locked: !a.locked } : a
+      );
+      onAssignmentsChange?.(newAssignments);
+      return newAssignments;
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-8">
+          <div className="flex items-center justify-center gap-2 text-muted-foreground">
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            <span>Loading voice catalog...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="py-8">
+          <p className="text-center text-destructive">{error}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (characters.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-8">
+          <p className="text-center text-muted-foreground">
+            No characters detected in the script. Add dialogue to see character options.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">Character Voices</h3>
+        <Badge variant="outline">{characters.length} characters</Badge>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {characters.map((character) => (
+          <CharacterCard
+            key={character.name}
+            character={character}
+            assignment={assignments.find((a) => a.character_name === character.name)}
+            voices={voices}
+            onAssign={(voiceId) => handleAssign(character.name, voiceId)}
+            onToggleLock={() => handleToggleLock(character.name)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { OrchestrateRequestSchema, DirectorJSONSchema, OrchestrateResponse, type DirectorJSON } from '../schemas/director-json.js';
 import { processScript } from '../director/pipeline.js';
-import { orchestrate } from '../orchestrator/pipeline.js';
+import { orchestrate, orchestrateParallel, type PipelineProgress } from '../orchestrator/pipeline.js';
 
 const router = Router();
 
@@ -15,6 +15,9 @@ const router = Router();
  *   - project_id: string
  *   - scenes: Scene[] (optional if script_text provided)
  *   - script_text?: string (optional - if provided with no scenes, runs Director first)
+ *
+ * Query parameters:
+ *   - parallel: 'true' (default) or 'false' - Use parallel processing pipeline
  *
  * Response:
  *   - status: 'success' | 'error'
@@ -64,8 +67,15 @@ router.post('/orchestrate', async (req: Request, res: Response): Promise<void> =
     console.log(`🎬 [orchestrate] Starting orchestration for project: ${project_id}`);
     console.log(`📋 Scenes to process: ${directorJSON.scenes.length}`);
 
+    // Check if parallel processing is requested (default: true)
+    const useParallel = req.query.parallel !== 'false';
+
     // Run the orchestration pipeline
-    const result = await orchestrate(directorJSON);
+    const result = useParallel
+      ? await orchestrateParallel(directorJSON, (progress: PipelineProgress) => {
+          console.log(`📊 [Progress] ${progress.step}: ${progress.percent}% - ${progress.message}`);
+        })
+      : await orchestrate(directorJSON);
 
     res.json({
       status: 'success',
