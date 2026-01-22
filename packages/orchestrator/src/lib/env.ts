@@ -8,6 +8,26 @@
 import { z } from 'zod';
 
 // =============================================================================
+// Helpers
+// =============================================================================
+
+/**
+ * Preprocessor that converts empty strings to undefined.
+ * Useful for optional env vars that may be set to "" in docker-compose.
+ */
+const emptyToUndefined = (val: unknown) => (val === '' ? undefined : val);
+
+/** Optional string that must have at least 1 char if provided */
+const optionalString = z.preprocess(emptyToUndefined, z.string().min(1).optional());
+
+/** Optional URL string */
+const optionalUrl = z.preprocess(emptyToUndefined, z.string().url().optional());
+
+/** Optional enum */
+const optionalTrueFalse = z.preprocess(emptyToUndefined, z.enum(['true', 'false']).optional());
+const optionalLogLevel = z.preprocess(emptyToUndefined, z.enum(['debug', 'info', 'warn', 'error']).optional());
+
+// =============================================================================
 // Environment Schema
 // =============================================================================
 const envSchema = z.object({
@@ -16,42 +36,42 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 
   // Supabase (required for database operations)
-  SUPABASE_URL: z.string().url().optional(),
-  SUPABASE_ANON_KEY: z.string().min(1).optional(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+  SUPABASE_URL: optionalUrl,
+  SUPABASE_ANON_KEY: optionalString,
+  SUPABASE_SERVICE_ROLE_KEY: optionalString,
   // Alternative names for Supabase vars
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url().optional(),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).optional(),
+  NEXT_PUBLIC_SUPABASE_URL: optionalUrl,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: optionalString,
 
   // LLM APIs
-  OPENAI_API_KEY: z.string().min(1).optional(),
-  GROQ_API_KEY: z.string().min(1).optional(),
+  OPENAI_API_KEY: optionalString,
+  GROQ_API_KEY: optionalString,
   DIRECTOR_MODEL: z.string().default('openai/gpt-4.1'),
   AUDIO_DIRECTOR_MODEL: z.string().default('openai/gpt-4.1'),
 
   // TTS
-  ELEVENLABS_API_KEY: z.string().min(1).optional(),
+  ELEVENLABS_API_KEY: optionalString,
 
   // Rate Limiting (Upstash Redis)
-  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
-  UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
+  UPSTASH_REDIS_REST_URL: optionalUrl,
+  UPSTASH_REDIS_REST_TOKEN: optionalString,
 
   // Whisper (optional for alignment)
-  WHISPER_CPP_PATH: z.string().optional(),
-  WHISPER_MODEL_PATH: z.string().optional(),
+  WHISPER_CPP_PATH: optionalString,
+  WHISPER_MODEL_PATH: optionalString,
 
   // Monitoring
-  SENTRY_DSN: z.string().url().optional(),
-  SENTRY_ENABLED: z.enum(['true', 'false']).optional(),
-  CHECKLY_PING_URL: z.string().url().optional(),
-  LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).optional(),
+  SENTRY_DSN: optionalUrl,
+  SENTRY_ENABLED: optionalTrueFalse,
+  CHECKLY_PING_URL: optionalUrl,
+  LOG_LEVEL: optionalLogLevel,
 
   // Feature Flags
-  AUTH_DISABLED: z.enum(['true', 'false']).optional(),
-  RATE_LIMIT_DISABLED: z.enum(['true', 'false']).optional(),
+  AUTH_DISABLED: optionalTrueFalse,
+  RATE_LIMIT_DISABLED: optionalTrueFalse,
 
   // Internal Services
-  SERVICE_SECRET_KEY: z.string().min(1).optional(),
+  SERVICE_SECRET_KEY: optionalString,
 });
 
 // =============================================================================
