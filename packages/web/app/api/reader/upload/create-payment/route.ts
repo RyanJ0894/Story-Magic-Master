@@ -2,7 +2,14 @@ import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+// Lazy initialization to avoid build-time errors when STRIPE_SECRET_KEY is not set
+function getStripe(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    throw new Error('STRIPE_SECRET_KEY is not configured');
+  }
+  return new Stripe(key);
+}
 
 // POST /api/reader/upload/create-payment - Create payment intent for upload
 export async function POST(request: NextRequest) {
@@ -23,6 +30,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const stripe = getStripe();
+
     // Create Stripe payment intent
     const paymentIntent = await stripe.paymentIntents.create({
       amount: price * 100, // Convert to cents

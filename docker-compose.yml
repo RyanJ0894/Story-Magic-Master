@@ -1,15 +1,52 @@
 version: '3.8'
 
 services:
+  # PostgreSQL Database (for local development)
+  # In production, Supabase provides the database
+  postgres:
+    image: postgres:16-alpine
+    container_name: story-magic-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=story_magic
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis (optional - for local rate limiting, or use Upstash in cloud)
+  redis:
+    image: redis:7-alpine
+    container_name: story-magic-redis
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Consolidated Orchestrator - Node.js/Express
-  # Now includes Director functionality (script parsing, voice selection)
+  # Includes Director functionality (script parsing, voice selection)
   orchestrator:
     build:
       context: ./packages/orchestrator
       dockerfile: Dockerfile
+    container_name: story-magic-orchestrator
     ports:
       - "22002:22002"
+    env_file:
+      - .env
     environment:
+      - NODE_ENV=development
       - PORT=22002
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -19,12 +56,17 @@ services:
       - SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL}
-      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
+      # Use local Redis for rate limiting in dev
+      - UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL:-}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN:-}
+      - REDIS_URL=redis://redis:6379
     volumes:
-      - ./packages/orchestrator:/app
-      - /app/node_modules
       - orchestrator-output:/app/output
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:22002/health"]
       interval: 30s
@@ -32,6 +74,8 @@ services:
       retries: 3
 
 volumes:
+  postgres-data:
+  redis-data:
   orchestrator-output:
 
 networks:
