@@ -35,7 +35,7 @@ import {
   Loader2,
   BarChart3,
   Music,
-  Lock,
+  SkipForward,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ImprovementWizardButton } from './improvement-wizard-button';
@@ -52,8 +52,9 @@ interface WorkflowStep {
   title: string;
   description: string;
   icon: React.ReactNode;
-  status: 'locked' | 'available' | 'in-progress' | 'complete';
+  status: 'skipped' | 'available' | 'in-progress' | 'complete';
   priority: number; // Lower = higher priority
+  canSkip: boolean;
 }
 
 interface ProjectWorkflowProps {
@@ -94,8 +95,8 @@ interface ProjectWorkflowProps {
 // =============================================================================
 
 function StepStatusBadge({ status }: { status: WorkflowStep['status'] }) {
-  const config: Record<WorkflowStep['status'], { label: string; variant: 'default' | 'secondary' | 'outline'; icon: typeof Lock; className?: string }> = {
-    locked: { label: 'Locked', variant: 'secondary', icon: Lock },
+  const config: Record<WorkflowStep['status'], { label: string; variant: 'default' | 'secondary' | 'outline'; icon: typeof Circle; className?: string }> = {
+    skipped: { label: 'Skipped', variant: 'secondary', icon: SkipForward, className: 'opacity-60' },
     available: { label: 'Start', variant: 'outline', icon: Circle },
     'in-progress': { label: 'In Progress', variant: 'default', icon: Loader2 },
     complete: { label: 'Complete', variant: 'outline', icon: CheckCircle, className: 'border-green-500 text-green-600' },
@@ -117,14 +118,17 @@ function StepStatusBadge({ status }: { status: WorkflowStep['status'] }) {
 
 function WorkflowProgress({ steps }: { steps: WorkflowStep[] }) {
   const completed = steps.filter(s => s.status === 'complete').length;
+  const skipped = steps.filter(s => s.status === 'skipped').length;
   const total = steps.length;
-  const percent = (completed / total) * 100;
+  const percent = ((completed + skipped) / total) * 100;
 
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium">Workflow Progress</span>
-        <span className="text-sm text-muted-foreground">{completed} of {total} steps</span>
+        <span className="text-sm text-muted-foreground">
+          {completed} complete{skipped > 0 && `, ${skipped} skipped`}
+        </span>
       </div>
       <Progress value={percent} className="h-2" />
       <div className="flex justify-between mt-2">
@@ -135,10 +139,12 @@ function WorkflowProgress({ steps }: { steps: WorkflowStep[] }) {
               step.status === 'complete' && 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
               step.status === 'in-progress' && 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400 ring-2 ring-violet-500',
               step.status === 'available' && 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
-              step.status === 'locked' && 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500',
+              step.status === 'skipped' && 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 opacity-60',
             )}>
               {step.status === 'complete' ? (
                 <CheckCircle className="w-4 h-4" />
+              ) : step.status === 'skipped' ? (
+                <SkipForward className="w-4 h-4" />
               ) : (
                 i + 1
               )}
@@ -147,7 +153,8 @@ function WorkflowProgress({ steps }: { steps: WorkflowStep[] }) {
               'text-[10px] mt-1 text-center max-w-[60px]',
               step.status === 'complete' && 'text-green-600 dark:text-green-400',
               step.status === 'in-progress' && 'text-violet-600 dark:text-violet-400 font-medium',
-              (step.status === 'available' || step.status === 'locked') && 'text-muted-foreground',
+              step.status === 'available' && 'text-muted-foreground',
+              step.status === 'skipped' && 'text-muted-foreground opacity-60 line-through',
             )}>
               {step.title}
             </span>
@@ -201,6 +208,32 @@ export function ProjectWorkflow({
 }: ProjectWorkflowProps) {
   const router = useRouter();
 
+  // Track which steps have been skipped (persisted in localStorage)
+  const [skippedSteps, setSkippedSteps] = useState<Set<string>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`project-${project.id}-skipped-steps`);
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    }
+    return new Set();
+  });
+
+  // Save skipped steps to localStorage
+  useEffect(() => {
+    localStorage.setItem(`project-${project.id}-skipped-steps`, JSON.stringify(Array.from(skippedSteps)));
+  }, [skippedSteps, project.id]);
+
+  const handleSkip = (stepId: string) => {
+    setSkippedSteps(prev => new Set(Array.from(prev).concat(stepId)));
+  };
+
+  const handleUnskip = (stepId: string) => {
+    setSkippedSteps(prev => {
+      const next = new Set(prev);
+      next.delete(stepId);
+      return next;
+    });
+  };
+
   // Determine step statuses based on project state
   const hasScore = !!storyScore?.overall_score;
   const hasVoices = voiceAssignments.assigned > 0;
@@ -209,43 +242,57 @@ export function ProjectWorkflow({
   const isCompleted = project.status === 'completed' && audioOutputs && audioOutputs.length > 0;
   const hasFailed = project.status === 'failed';
 
+  // Helper to determine status considering skips
+  const getStatus = (stepId: string, naturalStatus: WorkflowStep['status']): WorkflowStep['status'] => {
+    if (naturalStatus === 'complete') return 'complete';
+    if (naturalStatus === 'in-progress') return 'in-progress';
+    if (skippedSteps.has(stepId)) return 'skipped';
+    return naturalStatus;
+  };
+
   const steps: WorkflowStep[] = [
     {
       id: 'analyze',
       title: 'Analyze & Improve',
       description: 'Get your StoryScore and AI suggestions to polish your script',
       icon: <Wand2 className="w-5 h-5 text-violet-500" />,
-      status: hasScore ? 'complete' : 'available',
-      priority: hasScore ? 4 : 1,
+      status: getStatus('analyze', hasScore ? 'complete' : 'available'),
+      priority: hasScore || skippedSteps.has('analyze') ? 4 : 1,
+      canSkip: !hasScore,
     },
     {
       id: 'cast',
       title: 'Cast Voices',
       description: 'Assign unique voices to each character',
       icon: <Users className="w-5 h-5 text-blue-500" />,
-      status: allVoicesAssigned ? 'complete' : hasVoices ? 'in-progress' : 'available',
-      priority: allVoicesAssigned ? 4 : hasScore ? 1 : 2,
+      status: getStatus('cast', allVoicesAssigned ? 'complete' : hasVoices ? 'in-progress' : 'available'),
+      priority: allVoicesAssigned || skippedSteps.has('cast') ? 4 : (hasScore || skippedSteps.has('analyze')) ? 1 : 2,
+      canSkip: !allVoicesAssigned,
     },
     {
       id: 'generate',
       title: 'Generate Audio',
       description: 'Transform your script into an immersive audio experience',
       icon: <Sparkles className="w-5 h-5 text-amber-500" />,
-      status: isCompleted ? 'complete' : isProcessing ? 'in-progress' : hasFailed ? 'available' : 'available',
-      priority: isCompleted ? 4 : allVoicesAssigned ? 1 : 3,
+      status: getStatus('generate', isCompleted ? 'complete' : isProcessing ? 'in-progress' : 'available'),
+      priority: isCompleted ? 4 : (allVoicesAssigned || skippedSteps.has('cast')) ? 1 : 3,
+      canSkip: false, // Can't skip - this is the main purpose
     },
     {
       id: 'share',
       title: 'Review & Share',
       description: 'Listen, compare, and share your audio production',
       icon: <Share2 className="w-5 h-5 text-green-500" />,
-      status: isCompleted ? 'available' : 'locked',
+      status: isCompleted ? 'complete' : 'available',
       priority: isCompleted ? 1 : 4,
+      canSkip: false, // Always available, no need to skip
     },
   ];
 
-  // Find the current priority step
-  const currentStep = [...steps].sort((a, b) => a.priority - b.priority)[0];
+  // Find the current priority step (excluding skipped and complete)
+  const currentStep = [...steps]
+    .filter(s => s.status !== 'complete' && s.status !== 'skipped')
+    .sort((a, b) => a.priority - b.priority)[0] || steps[steps.length - 1];
 
   // Determine which accordion items should be open by default
   const defaultOpenItems = [currentStep.id];
@@ -354,8 +401,8 @@ export function ProjectWorkflow({
             value={step.id}
             className={cn(
               'border rounded-lg px-4',
-              step.status === 'locked' && 'opacity-50',
-              step.id === currentStep.id && step.status !== 'complete' && 'border-violet-300 dark:border-violet-700',
+              step.status === 'skipped' && 'opacity-60',
+              step.id === currentStep.id && step.status !== 'complete' && step.status !== 'skipped' && 'border-violet-300 dark:border-violet-700',
             )}
           >
             <AccordionTrigger className="hover:no-underline">
@@ -365,17 +412,45 @@ export function ProjectWorkflow({
                   step.status === 'complete' && 'bg-green-100 dark:bg-green-900/30',
                   step.status === 'in-progress' && 'bg-violet-100 dark:bg-violet-900/30',
                   step.status === 'available' && 'bg-slate-100 dark:bg-slate-800',
-                  step.status === 'locked' && 'bg-slate-100 dark:bg-slate-800',
+                  step.status === 'skipped' && 'bg-slate-100 dark:bg-slate-800',
                 )}>
                   {step.icon}
                 </div>
                 <div className="flex-1 text-left">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{step.title}</span>
+                    <span className={cn('font-medium', step.status === 'skipped' && 'line-through')}>{step.title}</span>
                     <StepStatusBadge status={step.status} />
                   </div>
                   <p className="text-sm text-muted-foreground">{step.description}</p>
                 </div>
+                {/* Skip/Unskip button */}
+                {step.canSkip && step.status !== 'complete' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-foreground"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (step.status === 'skipped') {
+                        handleUnskip(step.id);
+                      } else {
+                        handleSkip(step.id);
+                      }
+                    }}
+                  >
+                    {step.status === 'skipped' ? (
+                      <>
+                        <Circle className="w-4 h-4 mr-1" />
+                        Unskip
+                      </>
+                    ) : (
+                      <>
+                        <SkipForward className="w-4 h-4 mr-1" />
+                        Skip
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
             </AccordionTrigger>
             <AccordionContent className="pt-4 pb-6">
@@ -514,8 +589,8 @@ export function ProjectWorkflow({
                     </>
                   ) : (
                     <div className="text-center py-6 text-muted-foreground">
-                      <Lock className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                      <p>Complete audio generation to unlock sharing options.</p>
+                      <Share2 className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                      <p>Generate audio first, then share and review your production here.</p>
                     </div>
                   )}
                 </div>
