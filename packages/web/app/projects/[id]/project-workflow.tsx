@@ -45,8 +45,33 @@ import { VoiceChooser } from './voice-chooser';
 import GenerateButton from './generate-button';
 import AudioPlayer from './audio-player';
 import { WorkflowModeSelector } from './workflow-mode-selector';
+import { RunSelector, type Run } from './run-selector';
+import { RunHistory } from './run-history';
+import { RunComparison } from './run-comparison';
 
 type WorkflowMode = 'automatic' | 'fine_tuned';
+
+// Extended job type with audio info
+interface EnrichedJob {
+  id: string;
+  run_number: number;
+  workflow_mode: WorkflowMode;
+  status: 'queued' | 'processing' | 'completed' | 'failed';
+  created_at: string;
+  completed_at?: string;
+  has_audio: boolean;
+  audio_outputs: Array<{
+    id: string;
+    file_name: string;
+    file_path: string;
+    duration_seconds?: number;
+  }>;
+  error?: string;
+  progress?: {
+    step?: string;
+    percent?: number;
+  };
+}
 
 // =============================================================================
 // Types
@@ -93,6 +118,7 @@ interface ProjectWorkflowProps {
     };
     error?: string;
   } | null;
+  allJobs?: EnrichedJob[];
   voiceAssignments?: {
     total: number;
     assigned: number;
@@ -213,9 +239,15 @@ export function ProjectWorkflow({
   storyScore,
   audioOutputs,
   latestJob,
+  allJobs = [],
   voiceAssignments = { total: 0, assigned: 0 },
 }: ProjectWorkflowProps) {
   const router = useRouter();
+
+  // Track which run we're currently viewing (null = latest/new run)
+  const [viewingRunNumber, setViewingRunNumber] = useState<number | null>(
+    latestJob?.run_number || null
+  );
 
   // Track workflow mode for current run (persisted in localStorage per run)
   const [selectedMode, setSelectedMode] = useState<WorkflowMode | null>(() => {
@@ -241,6 +273,12 @@ export function ProjectWorkflow({
     return new Set();
   });
 
+  // Run history modal state
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Comparison state
+  const [comparisonRuns, setComparisonRuns] = useState<{ runA: number; runB: number } | null>(null);
+
   // Save skipped steps to localStorage
   useEffect(() => {
     localStorage.setItem(`project-${project.id}-skipped-steps`, JSON.stringify(Array.from(skippedSteps)));
@@ -261,10 +299,57 @@ export function ProjectWorkflow({
   const handleStartNewRun = () => {
     // Clear mode selection to show mode selector again
     setSelectedMode(null);
+    setViewingRunNumber(null);
     // Clear localStorage for next run
     const key = `project-${project.id}-run-${project.current_run_number + 1}-mode`;
     localStorage.removeItem(key);
   };
+
+  const handleSelectRun = (runNumber: number | null) => {
+    setViewingRunNumber(runNumber);
+    // If viewing a past run, set its mode
+    if (runNumber) {
+      const run = allJobs.find(j => j.run_number === runNumber);
+      if (run) {
+        setSelectedMode(run.workflow_mode);
+      }
+    }
+  };
+
+  const handleCompareRuns = (runA: number, runB: number) => {
+    setComparisonRuns({ runA, runB });
+  };
+
+  const handleCopySettings = (runNumber: number) => {
+    // TODO: Copy voice assignments and other settings from the run
+    // For now, just start a new run with the same mode
+    const run = allJobs.find(j => j.run_number === runNumber);
+    if (run) {
+      setSelectedMode(run.workflow_mode);
+      setViewingRunNumber(null);
+    }
+  };
+
+  // Convert allJobs to Run[] format for RunSelector
+  const runs: Run[] = allJobs.map(job => ({
+    id: job.id,
+    run_number: job.run_number,
+    workflow_mode: job.workflow_mode,
+    status: job.status,
+    created_at: job.created_at,
+    completed_at: job.completed_at,
+    has_audio: job.has_audio,
+  }));
+
+  // Get the run being viewed (or latest)
+  const currentViewedRun = viewingRunNumber
+    ? allJobs.find(j => j.run_number === viewingRunNumber)
+    : latestJob
+      ? allJobs.find(j => j.id === latestJob.run_number?.toString()) || allJobs[0]
+      : null;
+
+  // Get audio for the current viewed run
+  const currentRunAudio = currentViewedRun?.audio_outputs || audioOutputs;
 
   const handleSkip = (stepId: string) => {
     setSkippedSteps(prev => new Set(Array.from(prev).concat(stepId)));
@@ -361,15 +446,51 @@ export function ProjectWorkflow({
     );
   }
 
+  // Get comparison run data
+  const comparisonRunA = comparisonRuns
+    ? allJobs.find(j => j.run_number === comparisonRuns.runA)
+    : null;
+  const comparisonRunB = comparisonRuns
+    ? allJobs.find(j => j.run_number === comparisonRuns.runB)
+    : null;
+
   return (
     <div className="space-y-6">
-      {/* Run Header */}
+      {/* Run Comparison Dialog */}
+      <RunComparison
+        open={!!comparisonRuns}
+        onClose={() => setComparisonRuns(null)}
+        runA={comparisonRunA ? {
+          run_number: comparisonRunA.run_number,
+          workflow_mode: comparisonRunA.workflow_mode,
+          created_at: comparisonRunA.created_at,
+          audio_outputs: comparisonRunA.audio_outputs,
+        } : null}
+        runB={comparisonRunB ? {
+          run_number: comparisonRunB.run_number,
+          workflow_mode: comparisonRunB.workflow_mode,
+          created_at: comparisonRunB.created_at,
+          audio_outputs: comparisonRunB.audio_outputs,
+        } : null}
+      />
+
+      {/* Run Header with Selector */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Badge variant="outline" className="text-sm px-3 py-1">
-            <Sparkles className="w-3 h-3 mr-1" />
-            Run #{latestJob?.run_number || nextRunNumber}
-          </Badge>
+          {runs.length > 0 ? (
+            <RunSelector
+              runs={runs}
+              currentRunNumber={viewingRunNumber}
+              onSelectRun={handleSelectRun}
+              onStartNewRun={handleStartNewRun}
+              onViewHistory={() => setShowHistory(true)}
+            />
+          ) : (
+            <Badge variant="outline" className="text-sm px-3 py-1">
+              <Sparkles className="w-3 h-3 mr-1" />
+              Run #{nextRunNumber}
+            </Badge>
+          )}
           <Badge variant={isAutomatic ? 'secondary' : 'default'} className="text-xs">
             {isAutomatic ? 'Automatic' : 'Fine-Tuned'}
           </Badge>
@@ -781,6 +902,17 @@ export function ProjectWorkflow({
         ))}
       </Accordion>
         </>
+      )}
+
+      {/* Run History (shown when there are past runs) */}
+      {allJobs.length > 0 && (
+        <RunHistory
+          runs={allJobs}
+          currentRunNumber={viewingRunNumber}
+          onSelectRun={handleSelectRun}
+          onCompareRuns={handleCompareRuns}
+          onCopySettings={handleCopySettings}
+        />
       )}
     </div>
   );

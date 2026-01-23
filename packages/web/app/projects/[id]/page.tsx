@@ -36,21 +36,41 @@ export default async function ProjectPage({
     notFound();
   }
 
-  // Fetch latest job if exists
-  const { data: latestJob } = await supabase
+  // Fetch ALL jobs for run history (sorted by run_number descending)
+  const { data: allJobs } = await supabase
     .from('jobs')
     .select('*')
     .eq('project_id', params.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
+    .order('run_number', { ascending: false });
 
-  // Fetch audio outputs
+  // Get the latest job (first in the sorted list)
+  const latestJob = allJobs && allJobs.length > 0 ? allJobs[0] : null;
+
+  // Fetch audio outputs with job_id so we can associate with runs
   const { data: audioOutputs } = await supabase
     .from('audio_outputs')
     .select('*')
     .eq('project_id', params.id)
     .order('created_at', { ascending: false });
+
+  // Group audio outputs by job_id for easy lookup
+  const audioByJobId = new Map<string, typeof audioOutputs>();
+  if (audioOutputs) {
+    for (const audio of audioOutputs) {
+      if (audio.job_id) {
+        const existing = audioByJobId.get(audio.job_id) || [];
+        existing.push(audio);
+        audioByJobId.set(audio.job_id, existing);
+      }
+    }
+  }
+
+  // Enrich jobs with audio info
+  const enrichedJobs = allJobs?.map(job => ({
+    ...job,
+    has_audio: audioByJobId.has(job.id),
+    audio_outputs: audioByJobId.get(job.id) || [],
+  })) || [];
 
   // Fetch story score
   const { data: storyScore } = await supabase
@@ -139,6 +159,7 @@ export default async function ProjectPage({
           storyScore={storyScore}
           audioOutputs={audioOutputs || undefined}
           latestJob={latestJob}
+          allJobs={enrichedJobs}
           voiceAssignments={voiceAssignments}
         />
 
