@@ -8,6 +8,8 @@ import { VoiceChooser } from './voice-chooser';
 import { Storygraph } from './storygraph';
 import { StoryScoreSection } from '@/components/storyscore';
 import { StoryAdviserSection } from '@/components/story-adviser';
+import { RevisionSection } from '@/components/revisions';
+import { ComparableSection } from '@/components/comparable';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -52,6 +54,16 @@ export default async function ProjectPage({
     .select('*')
     .eq('project_id', params.id)
     .order('created_at', { ascending: false });
+
+  // Check if project has a story score (for comparable scripts)
+  const { data: storyScore } = await supabase
+    .from('story_scores')
+    .select('id')
+    .eq('project_id', params.id)
+    .limit(1)
+    .single();
+
+  const hasScore = !!storyScore;
 
   const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string, icon: typeof CheckCircle }> = {
     draft: { variant: 'secondary', label: 'Draft', icon: Clock },
@@ -229,10 +241,21 @@ export default async function ProjectPage({
           scriptText={project.script_text}
         />
 
+        {/* Comparable Scripts - Feature flagged, requires score */}
+        <ComparableSection
+          projectId={project.id}
+          hasScore={hasScore}
+        />
+
         {/* Story-Adviser - Feature flagged, shows "Coming Soon" when disabled */}
         <StoryAdviserSection
           projectId={project.id}
           scriptText={project.script_text}
+        />
+
+        {/* Revision History - Feature flagged, shows "Coming Soon" when disabled */}
+        <RevisionSection
+          projectId={project.id}
         />
 
         {/* Script Preview */}

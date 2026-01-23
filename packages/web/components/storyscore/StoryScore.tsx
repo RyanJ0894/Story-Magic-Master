@@ -38,6 +38,7 @@ import {
   Category,
   Rating,
 } from '@/lib/scoring/types';
+import { ExportButton } from './ExportButton';
 
 // =============================================================================
 // Props
@@ -421,6 +422,9 @@ export function StoryScore({
             </Badge>
             <p className="text-xs text-muted-foreground mt-1">{ratingConfig.description}</p>
           </div>
+        </div>
+        <div className="flex justify-end mt-3">
+          <ExportButton projectId={projectId} />
         </div>
       </CardHeader>
 
