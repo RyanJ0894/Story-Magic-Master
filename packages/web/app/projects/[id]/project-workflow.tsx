@@ -4,10 +4,11 @@
  * ProjectWorkflow - Modular, priority-based project page
  *
  * Shows a graduated workflow with progressive reveals:
- * 1. Analyze & Improve (highest priority if not scored)
- * 2. Cast Voices (priority once improved)
- * 3. Generate Audio (priority once cast)
- * 4. Review & Share (priority once generated)
+ * 1. Mode Selection (Automatic vs Fine-Tuned)
+ * 2. Analyze & Improve (highest priority if not scored) - Fine-Tuned only
+ * 3. Cast Voices (priority once improved) - Fine-Tuned only
+ * 4. Generate Audio (priority once cast)
+ * 5. Review & Share (priority once generated)
  */
 
 import { useState, useEffect } from 'react';
@@ -36,12 +37,16 @@ import {
   BarChart3,
   Music,
   SkipForward,
+  RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ImprovementWizardButton } from './improvement-wizard-button';
 import { VoiceChooser } from './voice-chooser';
 import GenerateButton from './generate-button';
 import AudioPlayer from './audio-player';
+import { WorkflowModeSelector } from './workflow-mode-selector';
+
+type WorkflowMode = 'automatic' | 'fine_tuned';
 
 // =============================================================================
 // Types
@@ -65,6 +70,8 @@ interface ProjectWorkflowProps {
     page_count: number;
     script_text: string;
     director_json?: any;
+    preferred_workflow_mode?: WorkflowMode;
+    current_run_number: number;
   };
   storyScore?: {
     id: string;
@@ -78,6 +85,8 @@ interface ProjectWorkflowProps {
     format: string;
   }>;
   latestJob?: {
+    run_number?: number;
+    workflow_mode?: WorkflowMode;
     progress?: {
       step?: string;
       percent?: number;
@@ -208,6 +217,21 @@ export function ProjectWorkflow({
 }: ProjectWorkflowProps) {
   const router = useRouter();
 
+  // Track workflow mode for current run (persisted in localStorage per run)
+  const [selectedMode, setSelectedMode] = useState<WorkflowMode | null>(() => {
+    // If there's an active job, use its mode
+    if (latestJob?.workflow_mode) {
+      return latestJob.workflow_mode;
+    }
+    // Check localStorage for mode selection for current run
+    if (typeof window !== 'undefined') {
+      const key = `project-${project.id}-run-${project.current_run_number + 1}-mode`;
+      const saved = localStorage.getItem(key);
+      if (saved) return saved as WorkflowMode;
+    }
+    return null;
+  });
+
   // Track which steps have been skipped (persisted in localStorage)
   const [skippedSteps, setSkippedSteps] = useState<Set<string>>(() => {
     if (typeof window !== 'undefined') {
@@ -221,6 +245,26 @@ export function ProjectWorkflow({
   useEffect(() => {
     localStorage.setItem(`project-${project.id}-skipped-steps`, JSON.stringify(Array.from(skippedSteps)));
   }, [skippedSteps, project.id]);
+
+  // Save selected mode to localStorage
+  useEffect(() => {
+    if (selectedMode) {
+      const key = `project-${project.id}-run-${project.current_run_number + 1}-mode`;
+      localStorage.setItem(key, selectedMode);
+    }
+  }, [selectedMode, project.id, project.current_run_number]);
+
+  const handleModeSelected = (mode: WorkflowMode) => {
+    setSelectedMode(mode);
+  };
+
+  const handleStartNewRun = () => {
+    // Clear mode selection to show mode selector again
+    setSelectedMode(null);
+    // Clear localStorage for next run
+    const key = `project-${project.id}-run-${project.current_run_number + 1}-mode`;
+    localStorage.removeItem(key);
+  };
 
   const handleSkip = (stepId: string) => {
     setSkippedSteps(prev => new Set(Array.from(prev).concat(stepId)));
@@ -241,6 +285,7 @@ export function ProjectWorkflow({
   const isProcessing = project.status === 'processing';
   const isCompleted = project.status === 'completed' && audioOutputs && audioOutputs.length > 0;
   const hasFailed = project.status === 'failed';
+  const isAutomatic = selectedMode === 'automatic';
 
   // Helper to determine status considering skips
   const getStatus = (stepId: string, naturalStatus: WorkflowStep['status']): WorkflowStep['status'] => {
@@ -297,11 +342,147 @@ export function ProjectWorkflow({
   // Determine which accordion items should be open by default
   const defaultOpenItems = [currentStep.id];
 
+  const nextRunNumber = project.current_run_number + 1;
+
+  // Show mode selector if no mode selected for current run (and not completed/processing)
+  if (!selectedMode && !isCompleted && !isProcessing) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <WorkflowModeSelector
+            projectId={project.id}
+            projectName={project.name}
+            currentRunNumber={project.current_run_number}
+            preferredMode={project.preferred_workflow_mode}
+            onModeSelected={handleModeSelected}
+          />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Progress Overview */}
-      <WorkflowProgress steps={steps} />
+      {/* Run Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Badge variant="outline" className="text-sm px-3 py-1">
+            <Sparkles className="w-3 h-3 mr-1" />
+            Run #{latestJob?.run_number || nextRunNumber}
+          </Badge>
+          <Badge variant={isAutomatic ? 'secondary' : 'default'} className="text-xs">
+            {isAutomatic ? 'Automatic' : 'Fine-Tuned'}
+          </Badge>
+        </div>
+        {isCompleted && (
+          <Button variant="outline" size="sm" onClick={handleStartNewRun}>
+            <RotateCcw className="w-4 h-4 mr-2" />
+            Start New Run
+          </Button>
+        )}
+      </div>
 
+      {/* Progress Overview - only show for Fine-Tuned mode */}
+      {!isAutomatic && <WorkflowProgress steps={steps} />}
+
+      {/* AUTOMATIC MODE - Simplified Generate Flow */}
+      {isAutomatic && (
+        <Card className="border-2 border-amber-300 dark:border-amber-700 bg-gradient-to-br from-amber-50/50 to-orange-50/50 dark:from-amber-950/20 dark:to-orange-950/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-amber-500" />
+              </div>
+              {isCompleted ? 'Audio Ready' : isProcessing ? 'Generating...' : 'Quick Generate'}
+            </CardTitle>
+            <CardDescription>
+              {isCompleted
+                ? 'Your audio production is complete. Listen and share below.'
+                : isProcessing
+                  ? 'AI is selecting voices, music, and generating your audio...'
+                  : 'AI will automatically select the best voices, music, and ambience for your script.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isCompleted ? (
+              <>
+                <AudioPlayer outputs={audioOutputs!} />
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => router.push(`/projects/${project.id}/share`)}>
+                    <Share2 className="w-4 h-4 mr-2" />
+                    Share
+                  </Button>
+                  <GenerateButton
+                    projectId={project.id}
+                    pageCount={project.page_count}
+                    status={project.status}
+                    label="Regenerate"
+                    workflowMode="automatic"
+                  />
+                </div>
+              </>
+            ) : isProcessing ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
+                  <span>Generating audio... This may take a few minutes.</span>
+                </div>
+                {latestJob?.progress && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground capitalize">
+                        {latestJob.progress.step?.replace(/_/g, ' ')}
+                      </span>
+                      <span className="font-medium">{latestJob.progress.percent}%</span>
+                    </div>
+                    <Progress value={latestJob.progress.percent} className="h-2" />
+                  </div>
+                )}
+              </div>
+            ) : hasFailed ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-red-800 dark:text-red-200">Generation failed</p>
+                      {latestJob?.error && (
+                        <p className="text-sm text-red-600 dark:text-red-400 mt-1">{latestJob.error}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <GenerateButton
+                  projectId={project.id}
+                  pageCount={project.page_count}
+                  status={project.status}
+                  label="Retry"
+                  workflowMode="automatic"
+                />
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    Uses <strong>{project.page_count}</strong> page{project.page_count !== 1 ? 's' : ''} from your quota.
+                  </p>
+                </div>
+                <GenerateButton
+                  projectId={project.id}
+                  pageCount={project.page_count}
+                  status={project.status}
+                  label="Generate Now"
+                  workflowMode="automatic"
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* FINE-TUNED MODE - Full Workflow */}
+      {!isAutomatic && (
+        <>
       {/* Current Action Highlight */}
       {currentStep.status !== 'complete' && (
         <CurrentActionCard step={currentStep}>
@@ -599,6 +780,8 @@ export function ProjectWorkflow({
           </AccordionItem>
         ))}
       </Accordion>
+        </>
+      )}
     </div>
   );
 }

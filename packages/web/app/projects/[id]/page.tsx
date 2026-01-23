@@ -133,6 +133,8 @@ export default async function ProjectPage({
             page_count: project.page_count,
             script_text: project.script_text,
             director_json: project.director_json,
+            preferred_workflow_mode: project.preferred_workflow_mode,
+            current_run_number: project.current_run_number ?? 0,
           }}
           storyScore={storyScore}
           audioOutputs={audioOutputs || undefined}

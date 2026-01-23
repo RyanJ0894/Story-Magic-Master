@@ -36,6 +36,7 @@ interface GenerateButtonProps {
   pageCount: number;
   status: string;
   label?: string;
+  workflowMode?: 'automatic' | 'fine_tuned';
 }
 
 const ESTIMATED_DURATION_MS = 120000; // 2 minutes estimated
@@ -45,6 +46,7 @@ export default function GenerateButton({
   pageCount,
   status,
   label = 'Generate Audio',
+  workflowMode = 'fine_tuned',
 }: GenerateButtonProps) {
   const [loading, setLoading] = useState(false);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
@@ -198,6 +200,7 @@ export default function GenerateButton({
         project_id: projectId,
         user_id: user.id,
         status: 'queued',
+        workflow_mode: workflowMode,
         progress: { step: 'queued', percent: 0, details: 'Initializing...' },
       })
       .select()
