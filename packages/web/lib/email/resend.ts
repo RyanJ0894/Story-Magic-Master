@@ -10,8 +10,19 @@ import TeamInviteEmail from '@/emails/TeamInviteEmail';
 import ScriptStatusChangeEmail from '@/emails/ScriptStatusChangeEmail';
 import ScriptSharedEmail from '@/emails/ScriptSharedEmail';
 
-// Initialize Resend client
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy-loaded Resend client (to avoid build-time initialization errors)
+let resendClient: Resend | null = null;
+
+function getResendClient(): Resend {
+  if (!resendClient) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      throw new Error('RESEND_API_KEY environment variable is not set');
+    }
+    resendClient = new Resend(apiKey);
+  }
+  return resendClient;
+}
 
 // Base URL for the app
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://www.storymagicapp.net';
@@ -52,7 +63,7 @@ export async function sendTeamInviteEmail(params: {
       })
     );
 
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResendClient().emails.send({
       from: FROM_ADDRESS,
       to,
       subject: `You've been invited to join ${teamName} on Story Magic`,
@@ -107,7 +118,7 @@ export async function sendScriptStatusChangeEmail(params: {
       undecided: 'marked as undecided on',
     };
 
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResendClient().emails.send({
       from: FROM_ADDRESS,
       to,
       subject: `${readerName} ${statusLabels[status]} your script "${scriptName}"`,
@@ -158,7 +169,7 @@ export async function sendScriptSharedEmail(params: {
       })
     );
 
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResendClient().emails.send({
       from: FROM_ADDRESS,
       to,
       subject: `${senderName} shared "${scriptName}" with you on Story Magic`,
@@ -203,7 +214,7 @@ export async function sendBatchEmails(
 
   for (const batch of batches) {
     try {
-      const { data, error } = await resend.batch.send(
+      const { data, error } = await getResendClient().batch.send(
         batch.map((email) => ({
           from: FROM_ADDRESS,
           to: email.to,
