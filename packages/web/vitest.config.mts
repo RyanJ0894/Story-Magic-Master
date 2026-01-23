@@ -5,11 +5,12 @@ import path from 'path';
 export default defineConfig({
   plugins: [react()],
   test: {
-    environment: 'jsdom',
+    environment: 'node', // Use node for unit tests, jsdom causes ESM issues
     globals: true,
-    setupFiles: ['./tests/setup.ts'],
-    include: ['**/*.{test,spec}.{ts,tsx}'],
+    setupFiles: ['./tests/setup-unit.ts'],
+    include: ['tests/unit/**/*.{test,spec}.{ts,tsx}'],
     exclude: ['node_modules', '.next', 'tests/e2e'],
+    pool: 'threads', // Use threads instead of forks to avoid ESM issues
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
