@@ -572,6 +572,14 @@ export default function GuidePage() {
       {/* Footer */}
       <footer className="py-8 border-t border-slate-200 dark:border-slate-800 mt-12">
         <div className="max-w-4xl mx-auto px-4 text-center text-slate-600 dark:text-slate-400">
+          <p className="mb-2">
+            <a
+              href="https://www.storymagicapp.net"
+              className="text-violet-600 hover:text-violet-700 font-medium"
+            >
+              www.StoryMagicApp.net
+            </a>
+          </p>
           <p>&copy; 2026 Story Magic. All rights reserved.</p>
         </div>
       </footer>

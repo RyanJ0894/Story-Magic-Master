@@ -141,6 +141,14 @@ export default function Home() {
             </div>
           </div>
           <div className="pt-8 border-t border-gray-200 dark:border-gray-800 text-center text-gray-600 dark:text-gray-400">
+            <p className="mb-2">
+              <a
+                href="https://www.storymagicapp.net"
+                className="text-brand-600 hover:text-brand-700 font-medium"
+              >
+                www.StoryMagicApp.net
+              </a>
+            </p>
             <p>&copy; 2026 Story Magic. All rights reserved.</p>
           </div>
         </div>

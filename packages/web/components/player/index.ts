@@ -1,0 +1,1 @@
+export { ScriptSyncPlayer } from './ScriptSyncPlayer';

@@ -87,6 +87,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     tags,
     play_position_seconds,
     completed,
+    readStatus,
   } = body;
 
   const updates: Record<string, unknown> = {};
@@ -98,6 +99,18 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     updates.last_played_at = new Date().toISOString();
   }
   if (completed !== undefined) updates.completed = completed;
+
+  // Handle read status (Like/Pass/Undecided)
+  if (readStatus !== undefined) {
+    if (!['like', 'pass', 'undecided'].includes(readStatus)) {
+      return NextResponse.json(
+        { error: 'Invalid read status. Must be like, pass, or undecided.' },
+        { status: 400 }
+      );
+    }
+    updates.read_status = readStatus;
+    updates.read_status_updated_at = new Date().toISOString();
+  }
 
   updates.updated_at = new Date().toISOString();
 

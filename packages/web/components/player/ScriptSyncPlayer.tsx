@@ -1,0 +1,438 @@
+'use client';
+
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Play,
+  Pause,
+  Download,
+  Music,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  VolumeX,
+  FileText,
+  Maximize2,
+  Minimize2,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+interface DialogueLine {
+  line_id: string;
+  character: string;
+  text: string;
+  voice_key?: string;
+  start_time?: number; // seconds
+  end_time?: number; // seconds
+}
+
+interface Scene {
+  scene_id?: string;
+  scene_header?: string;
+  dialogue: DialogueLine[];
+}
+
+interface AudioOutput {
+  id: string;
+  file_name: string;
+  file_path: string;
+  duration_seconds?: number;
+  format: string;
+}
+
+interface ScriptSyncPlayerProps {
+  outputs: AudioOutput[];
+  scenes?: Scene[];
+  manifest?: {
+    timeline?: Array<{
+      type: string;
+      line_id?: string;
+      start: number;
+      end: number;
+    }>;
+  };
+  className?: string;
+}
+
+// =============================================================================
+// Component
+// =============================================================================
+
+export function ScriptSyncPlayer({
+  outputs,
+  scenes = [],
+  manifest,
+  className,
+}: ScriptSyncPlayerProps) {
+  const [currentTrack, setCurrentTrack] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [muted, setMuted] = useState(false);
+  const [activeLineId, setActiveLineId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [view, setView] = useState<'script' | 'player'>('script');
+
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const scriptRef = useRef<HTMLDivElement>(null);
+  const activeLineRef = useRef<HTMLDivElement>(null);
+
+  const currentOutput = outputs[currentTrack];
+
+  // Build timing map from manifest or estimate from dialogue
+  const timingMap = useRef<Map<string, { start: number; end: number }>>(new Map());
+
+  useEffect(() => {
+    timingMap.current.clear();
+
+    if (manifest?.timeline) {
+      // Use timeline data
+      manifest.timeline
+        .filter((event) => event.type === 'dialogue' && event.line_id)
+        .forEach((event) => {
+          timingMap.current.set(event.line_id!, { start: event.start, end: event.end });
+        });
+    } else if (scenes.length > 0) {
+      // Estimate timing based on text length and duration
+      const totalChars = scenes.reduce(
+        (acc, scene) =>
+          acc + scene.dialogue.reduce((a, line) => a + line.text.length, 0),
+        0
+      );
+      const estimatedDuration = duration || currentOutput?.duration_seconds || 60;
+      const charsPerSecond = totalChars / estimatedDuration;
+
+      let currentTimeOffset = 0;
+      scenes.forEach((scene) => {
+        scene.dialogue.forEach((line) => {
+          const lineDuration = line.text.length / charsPerSecond;
+          timingMap.current.set(line.line_id, {
+            start: currentTimeOffset,
+            end: currentTimeOffset + lineDuration,
+          });
+          currentTimeOffset += lineDuration;
+        });
+      });
+    }
+  }, [manifest, scenes, duration, currentOutput]);
+
+  // Find active line based on current time
+  const updateActiveLine = useCallback((time: number) => {
+    let foundLine: string | null = null;
+
+    const entries = Array.from(timingMap.current.entries());
+    for (const [lineId, timing] of entries) {
+      if (time >= timing.start && time < timing.end) {
+        foundLine = lineId;
+        break;
+      }
+    }
+
+    setActiveLineId(foundLine);
+  }, []);
+
+  // Auto-scroll to active line
+  useEffect(() => {
+    if (activeLineRef.current && isPlaying) {
+      activeLineRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [activeLineId, isPlaying]);
+
+  // Audio controls
+  const togglePlayPause = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleTimeUpdate = () => {
+    if (!audioRef.current) return;
+    const progressPercent =
+      (audioRef.current.currentTime / audioRef.current.duration) * 100;
+    setProgress(progressPercent || 0);
+    setCurrentTime(audioRef.current.currentTime);
+    updateActiveLine(audioRef.current.currentTime);
+  };
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+    }
+  };
+
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!audioRef.current) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = x / rect.width;
+    const time = percentage * audioRef.current.duration;
+    audioRef.current.currentTime = time;
+    setProgress(percentage * 100);
+  };
+
+  const seekToLine = (lineId: string) => {
+    if (!audioRef.current) return;
+    const timing = timingMap.current.get(lineId);
+    if (timing) {
+      audioRef.current.currentTime = timing.start;
+      if (!isPlaying) {
+        audioRef.current.play();
+        setIsPlaying(true);
+      }
+    }
+  };
+
+  const skipForward = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = Math.min(
+        audioRef.current.currentTime + 10,
+        audioRef.current.duration
+      );
+    }
+  };
+
+  const skipBackward = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = Math.max(audioRef.current.currentTime - 10, 0);
+    }
+  };
+
+  const toggleMute = () => {
+    if (audioRef.current) {
+      audioRef.current.muted = !muted;
+      setMuted(!muted);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    if (!seconds || !isFinite(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  if (!currentOutput) {
+    return (
+      <div className="flex items-center justify-center p-8 text-slate-500">
+        <Music className="w-5 h-5 mr-2" />
+        No audio available
+      </div>
+    );
+  }
+
+  const audioUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${currentOutput.file_path}`;
+
+  return (
+    <div className={cn('space-y-4', className)}>
+      <audio
+        ref={audioRef}
+        src={audioUrl}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onEnded={() => setIsPlaying(false)}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+      />
+
+      {/* Main Player Card */}
+      <Card
+        className={cn(
+          'overflow-hidden transition-all',
+          expanded && 'fixed inset-4 z-50 flex flex-col'
+        )}
+      >
+        {/* Controls Header */}
+        <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+          <div className="flex items-center gap-4">
+            {/* Play Controls */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={skipBackward}
+                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"
+              >
+                <SkipBack className="w-4 h-4" />
+              </button>
+              <button
+                onClick={togglePlayPause}
+                className="w-12 h-12 flex items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600 text-white rounded-full hover:from-violet-600 hover:to-purple-700 transition-all shadow-lg shadow-violet-500/25"
+              >
+                {isPlaying ? (
+                  <Pause className="w-5 h-5" />
+                ) : (
+                  <Play className="w-5 h-5 ml-0.5" />
+                )}
+              </button>
+              <button
+                onClick={skipForward}
+                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"
+              >
+                <SkipForward className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="flex-1 space-y-1">
+              <div
+                onClick={handleSeek}
+                className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer overflow-hidden"
+              >
+                <div
+                  className="h-full bg-gradient-to-r from-violet-500 to-purple-600 rounded-full transition-all duration-100"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-xs text-slate-500">
+                <span>{formatTime(currentTime)}</span>
+                <span>{formatTime(duration)}</span>
+              </div>
+            </div>
+
+            {/* Volume & Actions */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleMute}
+                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"
+              >
+                {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              </button>
+              <Button variant="outline" size="sm" asChild>
+                <a href={audioUrl} download={currentOutput.file_name}>
+                  <Download className="w-4 h-4" />
+                </a>
+              </Button>
+              <button
+                onClick={() => setExpanded(!expanded)}
+                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"
+              >
+                {expanded ? (
+                  <Minimize2 className="w-4 h-4" />
+                ) : (
+                  <Maximize2 className="w-4 h-4" />
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Script View */}
+        {scenes.length > 0 && (
+          <div className={cn('flex-1', expanded ? 'min-h-0' : 'max-h-[400px]')}>
+            <Tabs value={view} onValueChange={(v) => setView(v as 'script' | 'player')}>
+              <TabsList className="w-full justify-start rounded-none border-b">
+                <TabsTrigger value="script" className="gap-2">
+                  <FileText className="w-4 h-4" />
+                  Script
+                </TabsTrigger>
+                <TabsTrigger value="player" className="gap-2">
+                  <Music className="w-4 h-4" />
+                  Now Playing
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="script" className="m-0">
+                <ScrollArea className={cn(expanded ? 'h-[calc(100vh-200px)]' : 'h-[350px]')}>
+                  <div ref={scriptRef} className="p-4 space-y-6">
+                    {scenes.map((scene, sceneIndex) => (
+                      <div key={scene.scene_id || sceneIndex} className="space-y-3">
+                        {scene.scene_header && (
+                          <h3 className="text-sm font-bold uppercase text-slate-500 dark:text-slate-400">
+                            {scene.scene_header}
+                          </h3>
+                        )}
+                        {scene.dialogue.map((line) => {
+                          const isActive = activeLineId === line.line_id;
+                          return (
+                            <div
+                              key={line.line_id}
+                              ref={isActive ? activeLineRef : null}
+                              onClick={() => seekToLine(line.line_id)}
+                              className={cn(
+                                'p-3 rounded-lg cursor-pointer transition-all',
+                                isActive
+                                  ? 'bg-violet-100 dark:bg-violet-900/30 ring-2 ring-violet-500 scale-[1.02]'
+                                  : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+                              )}
+                            >
+                              <div className="flex items-start gap-3">
+                                <span
+                                  className={cn(
+                                    'text-xs font-bold uppercase shrink-0 w-24',
+                                    isActive
+                                      ? 'text-violet-600 dark:text-violet-400'
+                                      : 'text-slate-500'
+                                  )}
+                                >
+                                  {line.character}
+                                </span>
+                                <p
+                                  className={cn(
+                                    'text-sm leading-relaxed',
+                                    isActive
+                                      ? 'text-slate-900 dark:text-white font-medium'
+                                      : 'text-slate-700 dark:text-slate-300'
+                                  )}
+                                >
+                                  {line.text}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+
+              <TabsContent value="player" className="m-0">
+                <div className="p-8 text-center">
+                  {activeLineId && scenes.length > 0 ? (
+                    <div className="space-y-4">
+                      {scenes.map((scene) =>
+                        scene.dialogue
+                          .filter((line) => line.line_id === activeLineId)
+                          .map((line) => (
+                            <div key={line.line_id} className="space-y-2">
+                              <p className="text-sm font-bold uppercase text-violet-600 dark:text-violet-400">
+                                {line.character}
+                              </p>
+                              <p className="text-xl text-slate-900 dark:text-white leading-relaxed">
+                                "{line.text}"
+                              </p>
+                            </div>
+                          ))
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-slate-500">
+                      <Music className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p>Press play to see the current line</p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+export default ScriptSyncPlayer;
