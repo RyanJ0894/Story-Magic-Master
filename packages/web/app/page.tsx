@@ -3,8 +3,40 @@ import Link from 'next/link';
 export default function Home() {
   return (
     <main className="min-h-screen flex flex-col">
+      {/* Navigation */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 dark:bg-gray-950/95 backdrop-blur border-b border-gray-200 dark:border-gray-800">
+        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
+              <span className="text-white text-lg">✨</span>
+            </div>
+            <span className="font-bold text-lg">Story Magic</span>
+          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/guide"
+              className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+            >
+              User Guide
+            </Link>
+            <Link
+              href="/login"
+              className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+            >
+              Sign In
+            </Link>
+            <Link
+              href="/signup"
+              className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition-colors"
+            >
+              Get Started
+            </Link>
+          </div>
+        </div>
+      </nav>
+
       {/* Hero Section */}
-      <section className="flex-1 flex flex-col items-center justify-center px-4 py-24">
+      <section className="flex-1 flex flex-col items-center justify-center px-4 py-24 pt-32">
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-6">
             Transform Scripts into{' '}
@@ -68,9 +100,49 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="py-8 border-t border-gray-200 dark:border-gray-800">
-        <div className="max-w-6xl mx-auto px-4 text-center text-gray-600 dark:text-gray-400">
-          <p>&copy; 2026 Story Magic. All rights reserved.</p>
+      <footer className="py-12 border-t border-gray-200 dark:border-gray-800">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
+            <div>
+              <Link href="/" className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
+                  <span className="text-white text-lg">✨</span>
+                </div>
+                <span className="font-bold text-lg">Story Magic</span>
+              </Link>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Transform scripts into immersive audio experiences with AI.
+              </p>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-4">Product</h4>
+              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                <li><Link href="/guide#getting-started" className="hover:text-brand-600">Getting Started</Link></li>
+                <li><Link href="/guide#storyscore" className="hover:text-brand-600">StoryScore</Link></li>
+                <li><Link href="/guide#audio-generation" className="hover:text-brand-600">Audio Generation</Link></li>
+                <li><Link href="/guide#billing" className="hover:text-brand-600">Pricing</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-4">Resources</h4>
+              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                <li><Link href="/guide" className="hover:text-brand-600">User Guide</Link></li>
+                <li><Link href="/guide#help" className="hover:text-brand-600">FAQ</Link></li>
+                <li><a href="mailto:support@storymagic.ai" className="hover:text-brand-600">Contact Support</a></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-4">Account</h4>
+              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                <li><Link href="/login" className="hover:text-brand-600">Sign In</Link></li>
+                <li><Link href="/signup" className="hover:text-brand-600">Create Account</Link></li>
+                <li><Link href="/dashboard" className="hover:text-brand-600">Dashboard</Link></li>
+              </ul>
+            </div>
+          </div>
+          <div className="pt-8 border-t border-gray-200 dark:border-gray-800 text-center text-gray-600 dark:text-gray-400">
+            <p>&copy; 2026 Story Magic. All rights reserved.</p>
+          </div>
         </div>
       </footer>
     </main>
