@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus } from 'lucide-react';
 import { WriterDashboardClient } from '@/components/dashboard/writer-dashboard-client';
+import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
 import type { WriterScriptSummary, Subscription, SubscriptionLimits } from '@/lib/types/marketplace';
 
 export default async function WriterDashboardPage() {
@@ -110,6 +111,7 @@ export default async function WriterDashboardPage() {
               <Badge variant="secondary">Writer</Badge>
             </div>
             <div className="flex items-center gap-4">
+              <AlertsDropdown />
               <Link href="/upload">
                 <Button>
                   <Plus className="w-4 h-4 mr-2" />

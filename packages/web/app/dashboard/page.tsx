@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Plus, FileText, Sparkles, LogOut, Folder, HelpCircle } from 'lucide-react';
+import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -74,6 +75,9 @@ export default async function DashboardPage() {
             </Link>
 
             <div className="flex items-center gap-4">
+              {/* Alerts */}
+              <AlertsDropdown />
+
               {/* Usage indicator */}
               <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800" data-testid="usage-indicator">
                 <div className="text-right">

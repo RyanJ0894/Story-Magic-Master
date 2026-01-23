@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Upload } from 'lucide-react';
 import { ReaderDashboardClient } from '@/components/dashboard/reader-dashboard-client';
+import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
 import type { ReaderLibraryEntryDetailed } from '@/lib/types/marketplace';
 
 export default async function ReaderDashboardPage() {
@@ -108,6 +109,7 @@ export default async function ReaderDashboardPage() {
               <Badge variant="outline">Reader</Badge>
             </div>
             <div className="flex items-center gap-4">
+              <AlertsDropdown />
               <Link href="/reader/upload">
                 <Button variant="outline">
                   <Upload className="w-4 h-4 mr-2" />

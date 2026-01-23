@@ -332,7 +332,7 @@ GROUP BY job_type;
 
 CREATE OR REPLACE FUNCTION get_queue_position(p_job_id UUID)
 RETURNS TABLE (
-    position INTEGER,
+    queue_position INTEGER,
     estimated_wait_seconds INTEGER,
     jobs_ahead INTEGER
 )
@@ -345,10 +345,10 @@ DECLARE
     v_avg_duration INTEGER;
 BEGIN
     -- Get the job's queue info
-    SELECT queued_at, priority
+    SELECT j.queued_at, j.priority
     INTO v_queued_at, v_priority
-    FROM jobs
-    WHERE id = p_job_id AND status = 'queued';
+    FROM jobs j
+    WHERE j.id = p_job_id AND j.status = 'queued';
 
     IF v_queued_at IS NULL THEN
         -- Job not in queue
@@ -357,23 +357,23 @@ BEGIN
     END IF;
 
     -- Count jobs ahead in queue
-    SELECT COUNT(*)
+    SELECT COUNT(*)::INTEGER
     INTO v_jobs_ahead
-    FROM jobs
-    WHERE status = 'queued'
-      AND (priority > v_priority OR (priority = v_priority AND queued_at < v_queued_at));
+    FROM jobs j
+    WHERE j.status = 'queued'
+      AND (j.priority > v_priority OR (j.priority = v_priority AND j.queued_at < v_queued_at));
 
     -- Get average duration from recent completed jobs
-    SELECT COALESCE(AVG(actual_duration_ms), 60000)::INTEGER  -- Default 60s
+    SELECT COALESCE(AVG(j.actual_duration_ms), 60000)::INTEGER  -- Default 60s
     INTO v_avg_duration
-    FROM jobs
-    WHERE status = 'completed'
-      AND completed_at > NOW() - INTERVAL '24 hours';
+    FROM jobs j
+    WHERE j.status = 'completed'
+      AND j.completed_at > NOW() - INTERVAL '24 hours';
 
     RETURN QUERY SELECT
         (v_jobs_ahead + 1)::INTEGER,
         ((v_jobs_ahead * v_avg_duration) / 1000)::INTEGER,
-        v_jobs_ahead::INTEGER;
+        v_jobs_ahead;
 END;
 $$;
 
