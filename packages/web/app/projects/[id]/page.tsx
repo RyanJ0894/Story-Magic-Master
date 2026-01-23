@@ -7,9 +7,6 @@ import DeleteProjectButton from './delete-button';
 import { VoiceChooser } from './voice-chooser';
 import { Storygraph } from './storygraph';
 import { ImprovementWizardButton } from './improvement-wizard-button';
-import { StoryScoreSection } from '@/components/storyscore';
-import { StoryAdviserSection } from '@/components/story-adviser';
-import { RevisionSection } from '@/components/revisions';
 import { ComparableSection } from '@/components/comparable';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -66,10 +63,10 @@ export default async function ProjectPage({
 
   const hasScore = !!storyScore;
 
-  const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string, icon: typeof CheckCircle }> = {
+  const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string, icon: typeof CheckCircle, className?: string }> = {
     draft: { variant: 'secondary', label: 'Draft', icon: Clock },
     processing: { variant: 'default', label: 'Processing', icon: Loader2 },
-    completed: { variant: 'outline', label: 'Completed', icon: CheckCircle },
+    completed: { variant: 'outline', label: 'Completed', icon: CheckCircle, className: 'border-green-500 text-green-600 dark:text-green-400' },
     failed: { variant: 'destructive', label: 'Failed', icon: AlertCircle },
   };
 
@@ -100,7 +97,7 @@ export default async function ProjectPage({
                 </div>
               </div>
             </div>
-            <Badge variant={status.variant} className="flex items-center gap-1" data-testid="project-status-badge">
+            <Badge variant={status.variant} className={`flex items-center gap-1 ${status.className || ''}`} data-testid="project-status-badge">
               <StatusIcon className={`w-3 h-3 ${project.status === 'processing' ? 'animate-spin' : ''}`} />
               {status.label}
             </Badge>
@@ -269,27 +266,10 @@ export default async function ProjectPage({
           </Card>
         )}
 
-        {/* StoryScore - Feature flagged, shows "Coming Soon" when disabled */}
-        <StoryScoreSection
-          projectId={project.id}
-          scriptText={project.script_text}
-        />
-
         {/* Comparable Scripts - Feature flagged, requires score */}
         <ComparableSection
           projectId={project.id}
           hasScore={hasScore}
-        />
-
-        {/* Story-Adviser - Feature flagged, shows "Coming Soon" when disabled */}
-        <StoryAdviserSection
-          projectId={project.id}
-          scriptText={project.script_text}
-        />
-
-        {/* Revision History - Feature flagged, shows "Coming Soon" when disabled */}
-        <RevisionSection
-          projectId={project.id}
         />
 
         {/* Script Preview */}

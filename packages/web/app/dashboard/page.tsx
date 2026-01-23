@@ -54,10 +54,10 @@ export default async function DashboardPage() {
   const usedPages = limit - remaining;
   const usagePercent = (usedPages / limit) * 100;
 
-  const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string }> = {
+  const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string, className?: string }> = {
     draft: { variant: 'secondary', label: 'Draft' },
     processing: { variant: 'default', label: 'Processing' },
-    completed: { variant: 'outline', label: 'Completed' },
+    completed: { variant: 'outline', label: 'Completed', className: 'border-green-500 text-green-600 dark:text-green-400' },
     failed: { variant: 'destructive', label: 'Failed' },
   };
 
@@ -155,7 +155,7 @@ export default async function DashboardPage() {
                         <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                           <FileText className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                         </div>
-                        <Badge variant={status.variant} data-testid="project-status">{status.label}</Badge>
+                        <Badge variant={status.variant} className={status.className} data-testid="project-status">{status.label}</Badge>
                       </div>
                       <CardTitle className="mt-3 text-lg" data-testid="project-title">{project.name}</CardTitle>
                       <CardDescription className="line-clamp-2">
