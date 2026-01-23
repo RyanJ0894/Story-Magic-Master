@@ -13,6 +13,7 @@ interface JobProgress {
   percent: number;
   details?: string;
   updated_at?: string;
+  retryAttempt?: number;
 }
 
 interface JobStatus {
@@ -22,6 +23,12 @@ interface JobStatus {
   error?: string;
   started_at?: string;
   completed_at?: string;
+}
+
+interface QueuePosition {
+  position: number | null;
+  estimatedWaitSeconds: number | null;
+  jobsAhead: number | null;
 }
 
 interface GenerateButtonProps {
@@ -42,11 +49,13 @@ export default function GenerateButton({
   const [loading, setLoading] = useState(false);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
+  const [queuePosition, setQueuePosition] = useState<QueuePosition | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [timerProgress, setTimerProgress] = useState(0);
   const startTimeRef = useRef<number | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const queuePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const router = useRouter();
 
@@ -55,7 +64,31 @@ export default function GenerateButton({
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      if (queuePollRef.current) clearInterval(queuePollRef.current);
     };
+  }, []);
+
+  // Poll for queue position
+  const pollQueuePosition = useCallback(async (jobId: string) => {
+    try {
+      const response = await fetch(`/api/jobs/${jobId}/position`);
+      if (!response.ok) return;
+      const data: QueuePosition & { status: string } = await response.json();
+      setQueuePosition({
+        position: data.position,
+        estimatedWaitSeconds: data.estimatedWaitSeconds,
+        jobsAhead: data.jobsAhead,
+      });
+
+      // Stop polling position once job starts processing
+      if (data.status !== 'queued' && queuePollRef.current) {
+        clearInterval(queuePollRef.current);
+        queuePollRef.current = null;
+        setQueuePosition(null);
+      }
+    } catch (error) {
+      console.error('Error polling queue position:', error);
+    }
   }, []);
 
   // Poll for job status
@@ -73,16 +106,20 @@ export default function GenerateButton({
       if (data.status === 'completed') {
         if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+        if (queuePollRef.current) clearInterval(queuePollRef.current);
         toast.success('Audio generation complete!');
         setLoading(false);
         setCurrentJobId(null);
+        setQueuePosition(null);
         router.refresh();
       } else if (data.status === 'failed') {
         if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+        if (queuePollRef.current) clearInterval(queuePollRef.current);
         toast.error(`Generation failed: ${data.error || 'Unknown error'}`);
         setLoading(false);
         setCurrentJobId(null);
+        setQueuePosition(null);
         router.refresh();
       }
     } catch (error) {
@@ -112,9 +149,15 @@ export default function GenerateButton({
       pollJobStatus(jobId);
     }, 2000);
 
-    // Initial poll
+    // Poll queue position every 3 seconds (only while queued)
+    queuePollRef.current = setInterval(() => {
+      pollQueuePosition(jobId);
+    }, 3000);
+
+    // Initial polls
     pollJobStatus(jobId);
-  }, [pollJobStatus]);
+    pollQueuePosition(jobId);
+  }, [pollJobStatus, pollQueuePosition]);
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -214,7 +257,8 @@ export default function GenerateButton({
 
   const getStepLabel = (step: string) => {
     const labels: Record<string, string> = {
-      queued: 'Queued',
+      queued: 'In Queue',
+      retrying: 'Retrying',
       initializing: 'Initializing',
       parsing: 'Parsing Script',
       parsing_complete: 'Script Parsed',
@@ -224,8 +268,15 @@ export default function GenerateButton({
       finalizing: 'Finalizing',
       done: 'Complete',
       failed: 'Failed',
+      cancelled: 'Cancelled',
     };
     return labels[step] || step.replace(/_/g, ' ');
+  };
+
+  const formatWaitTime = (seconds: number): string => {
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `~${Math.round(seconds / 60)}m`;
+    return `~${(seconds / 3600).toFixed(1)}h`;
   };
 
   const isRegenerate = label.toLowerCase().includes('regenerate') || label.toLowerCase().includes('retry');
@@ -236,9 +287,41 @@ export default function GenerateButton({
     const actualProgress = jobStatus?.progress?.percent || 0;
     // Use the higher of timer progress or actual progress
     const displayProgress = Math.max(timerProgress, actualProgress);
+    const isQueued = jobStatus?.status === 'queued';
 
     return (
       <div className="w-full space-y-4">
+        {/* Queue Position (shown when queued) */}
+        {isQueued && queuePosition && queuePosition.position !== null && (
+          <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-amber-200 dark:bg-amber-800 flex items-center justify-center">
+                <span className="text-sm font-bold text-amber-800 dark:text-amber-200">
+                  #{queuePosition.position}
+                </span>
+              </div>
+              <div>
+                <span className="font-medium text-amber-800 dark:text-amber-200">
+                  Position in Queue
+                </span>
+                {queuePosition.jobsAhead !== null && queuePosition.jobsAhead > 0 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    {queuePosition.jobsAhead} job{queuePosition.jobsAhead > 1 ? 's' : ''} ahead
+                  </p>
+                )}
+              </div>
+            </div>
+            {queuePosition.estimatedWaitSeconds !== null && (
+              <div className="text-right">
+                <span className="text-sm text-amber-600 dark:text-amber-400">Est. wait:</span>
+                <p className="font-medium text-amber-800 dark:text-amber-200">
+                  {formatWaitTime(queuePosition.estimatedWaitSeconds)}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Progress Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -246,6 +329,11 @@ export default function GenerateButton({
             <span className="font-medium text-slate-700 dark:text-slate-200">
               {getStepLabel(jobStatus?.progress?.step || 'initializing')}
             </span>
+            {jobStatus?.progress?.retryAttempt && (
+              <span className="text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full">
+                Retry #{jobStatus.progress.retryAttempt}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <Clock className="w-4 h-4" />
