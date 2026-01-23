@@ -608,24 +608,18 @@ export function ProjectWorkflow({
       {currentStep.status !== 'complete' && (
         <CurrentActionCard step={currentStep}>
           {currentStep.id === 'analyze' && (
-            <div className="flex items-center justify-between">
-              <div>
-                {hasScore ? (
-                  <div className="flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-violet-500" />
-                    <span className="font-medium">Score: {storyScore?.overall_score}</span>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Start with the Improvement Wizard to analyze your script across 12 Hollywood dimensions.
-                  </p>
-                )}
-              </div>
-              <ImprovementWizardButton
-                projectId={project.id}
-                scriptText={project.script_text}
-                existingScore={storyScore}
-              />
+            <div>
+              {hasScore ? (
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-violet-500" />
+                  <span className="font-medium">Score: {storyScore?.overall_score}</span>
+                  <span className="text-sm text-muted-foreground">- Open the step below to improve</span>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Open the Analyze step below to start the Improvement Wizard.
+                </p>
+              )}
             </div>
           )}
           {currentStep.id === 'cast' && (

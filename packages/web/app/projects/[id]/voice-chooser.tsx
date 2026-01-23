@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Play, Pause, Lock, Unlock, Search, User, Volume2, Check, RefreshCw } from 'lucide-react';
+import { Play, Pause, Lock, Unlock, Search, User, Volume2, Check, RefreshCw, Star } from 'lucide-react';
 import type { Voice, DetectedCharacter, CharacterVoiceAssignment } from '@/lib/types/voice';
 
 interface VoiceChooserProps {
@@ -82,10 +82,20 @@ function VoicePreview({
         <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
+              {voice.is_custom && (
+                <span title="Custom Voice">
+                  <Star className="h-4 w-4 text-amber-500 fill-amber-500 flex-shrink-0" />
+                </span>
+              )}
               <span className="font-medium truncate">{voice.name}</span>
               {isSelected && <Check className="h-4 w-4 text-primary" />}
             </div>
             <div className="flex gap-1 mt-1 flex-wrap">
+              {voice.is_custom && (
+                <Badge variant="default" className="text-xs bg-amber-500">
+                  Custom
+                </Badge>
+              )}
               <Badge variant="outline" className="text-xs">
                 {voice.gender}
               </Badge>
@@ -383,39 +393,23 @@ export function VoiceChooser({
     extractCharacters();
   }, [scriptText, directorJson]);
 
-  // Fetch voice catalog
+  // Fetch voice catalog from API
   useEffect(() => {
     const fetchVoices = async () => {
       try {
         setIsLoading(true);
-        // TODO: Replace with actual API call
-        // const response = await fetch('/api/voices');
-        // const data = await response.json();
+        const response = await fetch('/api/voices');
 
-        // For now, use mock data
-        const mockVoices: Voice[] = [
-          { voice_id: 'pMsXgVXv3BLzUgSXRplE', name: 'Brian', gender: 'male', age: 'adult', accent: 'American', preview_url: '' },
-          { voice_id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', gender: 'female', age: 'young_adult', accent: 'American', preview_url: '' },
-          { voice_id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', gender: 'female', age: 'adult', accent: 'American', preview_url: '' },
-          { voice_id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi', gender: 'female', age: 'young_adult', accent: 'American', preview_url: '' },
-          { voice_id: 'CYw3kZ02Hs0563khs1Fj', name: 'Dave', gender: 'male', age: 'adult', accent: 'British', preview_url: '' },
-          { voice_id: 'D38z5RcWu1voky8WS1ja', name: 'Fin', gender: 'male', age: 'adult', accent: 'Irish', preview_url: '' },
-          { voice_id: 'ErXwobaYiN019PkySvjV', name: 'Antoni', gender: 'male', age: 'young_adult', accent: 'American', preview_url: '' },
-          { voice_id: 'GBv7mTt0atIp3Br8iCZE', name: 'Thomas', gender: 'male', age: 'adult', accent: 'American', preview_url: '' },
-          { voice_id: 'IKne3meq5aSn9XLyUdCD', name: 'Charlie', gender: 'male', age: 'adult', accent: 'Australian', preview_url: '' },
-          { voice_id: 'JBFqnCBsd6RMkjVDRZzb', name: 'George', gender: 'male', age: 'senior', accent: 'British', preview_url: '' },
-          { voice_id: 'LcfcDJNUP1GQjkzn1xUU', name: 'Emily', gender: 'female', age: 'adult', accent: 'American', preview_url: '' },
-          { voice_id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli', gender: 'female', age: 'young_adult', accent: 'American', preview_url: '' },
-          { voice_id: 'N2lVS1w4EtoT3dr4eOWO', name: 'Callum', gender: 'male', age: 'adult', accent: 'British', preview_url: '' },
-          { voice_id: 'ODq5zmih8GrVes37Dizd', name: 'Patrick', gender: 'male', age: 'adult', accent: 'American', preview_url: '' },
-          { voice_id: 'SOYHLrjzK2X1ezoPC6cr', name: 'Harry', gender: 'male', age: 'young_adult', accent: 'American', preview_url: '' },
-        ];
+        if (!response.ok) {
+          throw new Error('Failed to fetch voices');
+        }
 
-        setVoices(mockVoices);
+        const data = await response.json();
+        setVoices(data.voices || []);
         setError(null);
       } catch (err) {
         setError('Failed to load voice catalog');
-        console.error(err);
+        console.error('[VoiceChooser] Error fetching voices:', err);
       } finally {
         setIsLoading(false);
       }

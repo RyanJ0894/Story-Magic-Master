@@ -13,11 +13,13 @@ export interface Voice {
   age: 'child' | 'teen' | 'young_adult' | 'adult' | 'senior';
   accent?: string;
   style?: string;
+  tone?: string;
   description?: string;
   preview_url?: string;
   labels?: string[];
   // ElevenLabs specific
-  category?: 'premade' | 'cloned' | 'generated';
+  category?: 'premade' | 'cloned' | 'generated' | 'professional' | 'high_quality';
+  is_custom?: boolean; // True for voices native to our API key (not premade)
 }
 
 export interface VoiceCategory {
