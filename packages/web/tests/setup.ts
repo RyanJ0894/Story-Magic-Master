@@ -28,6 +28,67 @@ vi.stubEnv('NEXT_PUBLIC_APP_URL', 'http://localhost:22000');
 vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://test.supabase.co');
 vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'test-anon-key');
 
+/**
+ * Creates a chainable Supabase query mock.
+ * Each method returns the same chainable object, with terminal methods
+ * (like single()) returning the resolved value.
+ */
+export function createChainableMock(
+  finalValue: { data: any; error: any } = { data: null, error: null }
+) {
+  const chain: any = {};
+
+  // Define all chainable methods
+  const chainMethods = [
+    'select',
+    'insert',
+    'update',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'order',
+    'limit',
+    'gt',
+    'gte',
+    'lt',
+    'lte',
+    'like',
+    'ilike',
+    'is',
+    'contains',
+    'containedBy',
+    'range',
+    'filter',
+    'match',
+    'not',
+    'or',
+    'textSearch',
+  ];
+
+  chainMethods.forEach((method) => {
+    chain[method] = vi.fn().mockReturnValue(chain);
+  });
+
+  // Terminal methods that resolve to the final value
+  chain.single = vi.fn().mockResolvedValue(finalValue);
+  chain.maybeSingle = vi.fn().mockResolvedValue(finalValue);
+
+  // Make order/limit also resolvable (some queries end with .order())
+  const originalOrder = chain.order;
+  chain.order = vi.fn((...args: any[]) => {
+    const result = { ...chain };
+    // If this is the last call, allow it to resolve
+    result.then = (resolve: any) => resolve(finalValue);
+    return result;
+  });
+
+  // Allow the chain itself to be awaited
+  chain.then = (resolve: any) => resolve(finalValue);
+
+  return chain;
+}
+
 // Mock Supabase client
 export const mockSupabaseClient = {
   auth: {
@@ -35,18 +96,7 @@ export const mockSupabaseClient = {
     getSession: vi.fn(() => Promise.resolve({ data: { session: null }, error: null })),
     signOut: vi.fn(() => Promise.resolve({ error: null })),
   },
-  from: vi.fn((table: string) => ({
-    select: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
-    delete: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    neq: vi.fn().mockReturnThis(),
-    in: vi.fn().mockReturnThis(),
-    order: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
-    single: vi.fn(() => Promise.resolve({ data: null, error: null })),
-  })),
+  from: vi.fn((table: string) => createChainableMock()),
   storage: {
     from: vi.fn(() => ({
       upload: vi.fn(() => Promise.resolve({ error: null })),

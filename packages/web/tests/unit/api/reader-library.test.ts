@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { mockSupabaseClient } from '../../setup';
+import { mockSupabaseClient, createChainableMock } from '../../setup';
 
 // Import after mocks
 const { GET: getLibrary } = await import('@/app/api/reader/library/route');
@@ -64,27 +64,19 @@ describe('Reader Library API', () => {
       });
 
       // Library entries query
-      const libraryQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        neq: vi.fn().mockReturnThis(),
-        order: vi.fn().mockResolvedValue({ data: [mockLibraryEntry], error: null }),
-      };
+      const libraryQuery = createChainableMock({ data: [mockLibraryEntry], error: null });
 
-      // Subscriptions query
-      const subscriptionsQuery = {
-        select: vi.fn().mockReturnThis(),
-        in: vi.fn().mockResolvedValue({ data: [{ user_id: 'writer-456' }], error: null }),
-      };
+      // Subscriptions query - needs double .in() chain
+      const subscriptionsQuery = createChainableMock({
+        data: [{ user_id: 'writer-456' }],
+        error: null,
+      });
 
       // Audio outputs query
-      const audioQuery = {
-        select: vi.fn().mockReturnThis(),
-        in: vi.fn().mockResolvedValue({
-          data: [{ project_id: 'project-123', duration_seconds: 5400 }],
-          error: null,
-        }),
-      };
+      const audioQuery = createChainableMock({
+        data: [{ project_id: 'project-123', duration_seconds: 5400 }],
+        error: null,
+      });
 
       mockSupabaseClient.from
         .mockReturnValueOnce(libraryQuery)
@@ -109,23 +101,9 @@ describe('Reader Library API', () => {
         error: null,
       });
 
-      const libraryQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        neq: vi.fn().mockReturnThis(),
-        order: vi.fn().mockResolvedValue({ data: [mockLibraryEntry], error: null }),
-      };
-
-      // No active subscriptions
-      const subscriptionsQuery = {
-        select: vi.fn().mockReturnThis(),
-        in: vi.fn().mockResolvedValue({ data: [], error: null }),
-      };
-
-      const audioQuery = {
-        select: vi.fn().mockReturnThis(),
-        in: vi.fn().mockResolvedValue({ data: [], error: null }),
-      };
+      const libraryQuery = createChainableMock({ data: [mockLibraryEntry], error: null });
+      const subscriptionsQuery = createChainableMock({ data: [], error: null });
+      const audioQuery = createChainableMock({ data: [], error: null });
 
       mockSupabaseClient.from
         .mockReturnValueOnce(libraryQuery)
@@ -146,22 +124,9 @@ describe('Reader Library API', () => {
         error: null,
       });
 
-      const libraryQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        neq: vi.fn().mockReturnThis(),
-        order: vi.fn().mockResolvedValue({ data: [], error: null }),
-      };
-
-      const subscriptionsQuery = {
-        select: vi.fn().mockReturnThis(),
-        in: vi.fn().mockResolvedValue({ data: [], error: null }),
-      };
-
-      const audioQuery = {
-        select: vi.fn().mockReturnThis(),
-        in: vi.fn().mockResolvedValue({ data: [], error: null }),
-      };
+      const libraryQuery = createChainableMock({ data: [], error: null });
+      const subscriptionsQuery = createChainableMock({ data: [], error: null });
+      const audioQuery = createChainableMock({ data: [], error: null });
 
       mockSupabaseClient.from
         .mockReturnValueOnce(libraryQuery)
@@ -182,22 +147,11 @@ describe('Reader Library API', () => {
         error: null,
       });
 
-      const entryQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: mockLibraryEntry, error: null }),
-      };
-
-      const audioQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        order: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({
-          data: { file_url: 'https://storage.test.com/audio.m4a', duration_seconds: 5400 },
-          error: null,
-        }),
-      };
+      const entryQuery = createChainableMock({ data: mockLibraryEntry, error: null });
+      const audioQuery = createChainableMock({
+        data: { file_url: 'https://storage.test.com/audio.m4a', duration_seconds: 5400 },
+        error: null,
+      });
 
       mockSupabaseClient.from
         .mockReturnValueOnce(entryQuery)
@@ -218,11 +172,7 @@ describe('Reader Library API', () => {
         error: null,
       });
 
-      const entryQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: null, error: { message: 'Not found' } }),
-      };
+      const entryQuery = createChainableMock({ data: null, error: { message: 'Not found' } });
 
       mockSupabaseClient.from.mockReturnValueOnce(entryQuery);
 
@@ -242,21 +192,11 @@ describe('Reader Library API', () => {
         error: null,
       });
 
-      const existingQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: mockLibraryEntry, error: null }),
-      };
-
-      const updateQuery = {
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({
-          data: { ...mockLibraryEntry, notes: 'Great script!' },
-          error: null,
-        }),
-      };
+      const existingQuery = createChainableMock({ data: mockLibraryEntry, error: null });
+      const updateQuery = createChainableMock({
+        data: { ...mockLibraryEntry, notes: 'Great script!' },
+        error: null,
+      });
 
       mockSupabaseClient.from
         .mockReturnValueOnce(existingQuery)
@@ -281,16 +221,8 @@ describe('Reader Library API', () => {
         error: null,
       });
 
-      const existingQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: mockLibraryEntry, error: null }),
-      };
-
-      const updateQuery = {
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockResolvedValue({ error: null }),
-      };
+      const existingQuery = createChainableMock({ data: mockLibraryEntry, error: null });
+      const updateQuery = createChainableMock({ data: null, error: null });
 
       mockSupabaseClient.from
         .mockReturnValueOnce(existingQuery)
@@ -317,24 +249,14 @@ describe('Reader Library API', () => {
         error: null,
       });
 
-      const existingQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({
-          data: { ...mockLibraryEntry, is_favorited: false },
-          error: null,
-        }),
-      };
-
-      const updateQuery = {
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({
-          data: { ...mockLibraryEntry, is_favorited: true },
-          error: null,
-        }),
-      };
+      const existingQuery = createChainableMock({
+        data: { ...mockLibraryEntry, is_favorited: false },
+        error: null,
+      });
+      const updateQuery = createChainableMock({
+        data: { ...mockLibraryEntry, is_favorited: true },
+        error: null,
+      });
 
       mockSupabaseClient.from
         .mockReturnValueOnce(existingQuery)
@@ -359,25 +281,18 @@ describe('Reader Library API', () => {
         error: null,
       });
 
-      const existingQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: mockLibraryEntry, error: null }),
-      };
-
-      const updateQuery = {
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({
-          data: { ...mockLibraryEntry, play_position_seconds: 300 },
-          error: null,
-        }),
-      };
-
-      const logQuery = {
-        insert: vi.fn().mockResolvedValue({ error: null }),
-      };
+      // 1. Ownership check
+      const existingQuery = createChainableMock({
+        data: { id: 'entry-123', reader_id: 'user-123' },
+        error: null,
+      });
+      // 2. Update query
+      const updateQuery = createChainableMock({
+        data: { ...mockLibraryEntry, play_position_seconds: 300 },
+        error: null,
+      });
+      // 3. Log query
+      const logQuery = createChainableMock({ data: null, error: null });
 
       mockSupabaseClient.from
         .mockReturnValueOnce(existingQuery)
@@ -401,25 +316,18 @@ describe('Reader Library API', () => {
         error: null,
       });
 
-      const existingQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: mockLibraryEntry, error: null }),
-      };
-
-      const updateQuery = {
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({
-          data: { ...mockLibraryEntry, play_position_seconds: 5380, completed: true },
-          error: null,
-        }),
-      };
-
-      const logQuery = {
-        insert: vi.fn().mockResolvedValue({ error: null }),
-      };
+      // 1. Ownership check
+      const existingQuery = createChainableMock({
+        data: { id: 'entry-123', reader_id: 'user-123' },
+        error: null,
+      });
+      // 2. Update query
+      const updateQuery = createChainableMock({
+        data: { ...mockLibraryEntry, play_position_seconds: 5380, completed: true },
+        error: null,
+      });
+      // 3. Log query
+      const logQuery = createChainableMock({ data: null, error: null });
 
       mockSupabaseClient.from
         .mockReturnValueOnce(existingQuery)

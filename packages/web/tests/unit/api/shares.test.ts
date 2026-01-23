@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { mockSupabaseClient } from '../../setup';
+import { mockSupabaseClient, createChainableMock } from '../../setup';
 
 // Mock nanoid
 vi.mock('nanoid', () => ({
@@ -66,17 +66,14 @@ describe('Shares API', () => {
         error: null,
       });
 
-      const mockQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        order: vi.fn().mockResolvedValue({ data: [], error: null }),
-      };
+      const mockQuery = createChainableMock({ data: [], error: null });
       mockSupabaseClient.from.mockReturnValue(mockQuery);
 
       const request = new NextRequest('http://localhost:22000/api/shares?project_id=project-123');
       await GET(request);
 
       expect(mockQuery.eq).toHaveBeenCalledWith('shared_by', 'user-123');
+      expect(mockQuery.eq).toHaveBeenCalledWith('project_id', 'project-123');
     });
   });
 
