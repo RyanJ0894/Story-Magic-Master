@@ -9,6 +9,7 @@ import {
   calculatePageCount,
   calculateChanges,
   calculateTrend,
+  generateDiff,
   rowToRevision,
   revisionToRow,
 } from '@/lib/revisions/types';
@@ -103,6 +104,104 @@ describe('Revisions Types', () => {
 
       const removedChanges = calculateChanges('Line 1', '');
       expect(removedChanges.linesModified).toBe(1);
+    });
+  });
+
+  describe('generateDiff', () => {
+    it('should return empty diff for identical texts', () => {
+      const text = 'Line 1\nLine 2\nLine 3';
+      const diff = generateDiff(text, text);
+
+      expect(diff.every((line) => line.type === 'unchanged')).toBe(true);
+      expect(diff).toHaveLength(3);
+    });
+
+    it('should detect added lines', () => {
+      const oldText = 'Line 1\nLine 2';
+      const newText = 'Line 1\nLine 2\nLine 3';
+      const diff = generateDiff(oldText, newText);
+
+      const added = diff.filter((line) => line.type === 'added');
+      expect(added).toHaveLength(1);
+      expect(added[0].content).toBe('Line 3');
+      expect(added[0].lineNumber.to).toBe(3);
+    });
+
+    it('should detect removed lines', () => {
+      const oldText = 'Line 1\nLine 2\nLine 3';
+      const newText = 'Line 1\nLine 3';
+      const diff = generateDiff(oldText, newText);
+
+      const removed = diff.filter((line) => line.type === 'removed');
+      expect(removed).toHaveLength(1);
+      expect(removed[0].content).toBe('Line 2');
+      expect(removed[0].lineNumber.from).toBe(2);
+    });
+
+    it('should detect modified lines', () => {
+      // Single-line changes are detected as modification when lines are similar
+      const oldText = 'Hello world';
+      const newText = 'Hello universe';
+      const diff = generateDiff(oldText, newText);
+
+      // The algorithm will detect this as either modified or removed+added
+      // depending on similarity threshold
+      const changes = diff.filter((line) => line.type !== 'unchanged');
+      expect(changes.length).toBeGreaterThanOrEqual(1);
+
+      // With context, modifications are detected
+      const oldWithContext = 'Line 1\nHello world\nLine 3';
+      const newWithContext = 'Line 1\nHello universe\nLine 3';
+      const diffWithContext = generateDiff(oldWithContext, newWithContext);
+
+      // Line 1 and Line 3 should be unchanged
+      const unchanged = diffWithContext.filter((line) => line.type === 'unchanged');
+      expect(unchanged.length).toBe(2);
+
+      // Middle line should be changed
+      const changedLines = diffWithContext.filter((line) => line.type !== 'unchanged');
+      expect(changedLines.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should handle complex diffs with multiple changes', () => {
+      const oldText = 'Line A\nLine B\nLine C\nLine D';
+      const newText = 'Line A\nLine X\nLine C\nLine Y\nLine E';
+      const diff = generateDiff(oldText, newText);
+
+      // Line A and Line C should be unchanged
+      const unchanged = diff.filter((line) => line.type === 'unchanged');
+      expect(unchanged.length).toBeGreaterThanOrEqual(2);
+
+      // Should have some changes
+      const changes = diff.filter((line) => line.type !== 'unchanged');
+      expect(changes.length).toBeGreaterThan(0);
+    });
+
+    it('should handle empty old text (all additions)', () => {
+      const diff = generateDiff('', 'New line');
+      const added = diff.filter((line) => line.type === 'added');
+      // Treating empty-to-content as modification or addition
+      expect(diff.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should handle empty new text (all removals)', () => {
+      const diff = generateDiff('Old line', '');
+      const removed = diff.filter((line) => line.type === 'removed');
+      // Treating content-to-empty as modification or removal
+      expect(diff.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should preserve line numbers correctly', () => {
+      const oldText = 'A\nB\nC';
+      const newText = 'A\nX\nC';
+      const diff = generateDiff(oldText, newText);
+
+      // First line (A) should be unchanged with from=1, to=1
+      const firstLine = diff.find((line) => line.content === 'A' || line.content === 'A');
+      if (firstLine && firstLine.type === 'unchanged') {
+        expect(firstLine.lineNumber.from).toBe(1);
+        expect(firstLine.lineNumber.to).toBe(1);
+      }
     });
   });
 

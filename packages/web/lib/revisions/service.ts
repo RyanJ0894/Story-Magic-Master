@@ -19,6 +19,7 @@ import {
   calculatePageCount,
   calculateChanges,
   calculateTrend,
+  generateDiff,
 } from './types';
 import { generateScore } from '@/lib/scoring/service';
 
@@ -333,75 +334,7 @@ export async function compareRevisions(
   };
 }
 
-/**
- * Generate a simple line-by-line diff
- */
-function generateDiff(oldText: string, newText: string): DiffLine[] {
-  const oldLines = oldText.split('\n');
-  const newLines = newText.split('\n');
-  const diff: DiffLine[] = [];
-
-  // Simple LCS-based diff would be better, but this works for basic cases
-  const oldSet = new Map<string, number[]>();
-  oldLines.forEach((line, i) => {
-    if (!oldSet.has(line)) oldSet.set(line, []);
-    oldSet.get(line)!.push(i);
-  });
-
-  let oldIndex = 0;
-  let newIndex = 0;
-
-  while (oldIndex < oldLines.length || newIndex < newLines.length) {
-    if (oldIndex >= oldLines.length) {
-      // Rest are additions
-      diff.push({
-        type: 'added',
-        lineNumber: { to: newIndex + 1 },
-        content: newLines[newIndex],
-      });
-      newIndex++;
-    } else if (newIndex >= newLines.length) {
-      // Rest are removals
-      diff.push({
-        type: 'removed',
-        lineNumber: { from: oldIndex + 1 },
-        content: oldLines[oldIndex],
-      });
-      oldIndex++;
-    } else if (oldLines[oldIndex] === newLines[newIndex]) {
-      // Unchanged
-      diff.push({
-        type: 'unchanged',
-        lineNumber: { from: oldIndex + 1, to: newIndex + 1 },
-        content: oldLines[oldIndex],
-      });
-      oldIndex++;
-      newIndex++;
-    } else {
-      // Check if this old line appears later in new
-      const newOccurrences = oldSet.get(newLines[newIndex]);
-      if (newOccurrences && newOccurrences.some(i => i > oldIndex)) {
-        // Old line was removed
-        diff.push({
-          type: 'removed',
-          lineNumber: { from: oldIndex + 1 },
-          content: oldLines[oldIndex],
-        });
-        oldIndex++;
-      } else {
-        // New line was added
-        diff.push({
-          type: 'added',
-          lineNumber: { to: newIndex + 1 },
-          content: newLines[newIndex],
-        });
-        newIndex++;
-      }
-    }
-  }
-
-  return diff;
-}
+// generateDiff is now imported from types.ts with proper LCS algorithm
 
 // =============================================================================
 // Update Revision

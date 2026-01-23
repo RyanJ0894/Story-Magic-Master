@@ -301,6 +301,144 @@ export function calculateChanges(oldText: string, newText: string): RevisionChan
 }
 
 /**
+ * Generate line-by-line diff between two texts using LCS algorithm
+ */
+export function generateDiff(oldText: string, newText: string): DiffLine[] {
+  const oldLines = oldText.split('\n');
+  const newLines = newText.split('\n');
+  const result: DiffLine[] = [];
+
+  // Build LCS table
+  const m = oldLines.length;
+  const n = newLines.length;
+  const dp: number[][] = Array(m + 1)
+    .fill(null)
+    .map(() => Array(n + 1).fill(0));
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (oldLines[i - 1] === newLines[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  // Backtrack to build diff
+  let i = m;
+  let j = n;
+  const diffStack: DiffLine[] = [];
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+      // Unchanged line
+      diffStack.push({
+        type: 'unchanged',
+        content: oldLines[i - 1],
+        lineNumber: { from: i, to: j },
+      });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      // Added line
+      diffStack.push({
+        type: 'added',
+        content: newLines[j - 1],
+        lineNumber: { to: j },
+      });
+      j--;
+    } else if (i > 0) {
+      // Removed line
+      diffStack.push({
+        type: 'removed',
+        content: oldLines[i - 1],
+        lineNumber: { from: i },
+      });
+      i--;
+    }
+  }
+
+  // Reverse to get correct order
+  while (diffStack.length > 0) {
+    result.push(diffStack.pop()!);
+  }
+
+  // Post-process to detect modifications (adjacent removed + added)
+  const processed: DiffLine[] = [];
+  for (let k = 0; k < result.length; k++) {
+    const current = result[k];
+    const next = result[k + 1];
+
+    if (
+      current.type === 'removed' &&
+      next?.type === 'added' &&
+      isSimilarLine(current.content, next.content)
+    ) {
+      // Convert to modified
+      processed.push({
+        type: 'modified',
+        content: next.content,
+        oldContent: current.content,
+        lineNumber: { from: current.lineNumber.from, to: next.lineNumber.to },
+      });
+      k++; // Skip next line
+    } else {
+      processed.push(current);
+    }
+  }
+
+  return processed;
+}
+
+/**
+ * Check if two lines are similar enough to be considered a modification
+ */
+function isSimilarLine(line1: string, line2: string): boolean {
+  if (!line1 || !line2) return false;
+
+  // Calculate Levenshtein similarity
+  const maxLen = Math.max(line1.length, line2.length);
+  if (maxLen === 0) return true;
+
+  const distance = levenshteinDistance(line1, line2);
+  const similarity = 1 - distance / maxLen;
+
+  // Consider similar if > 50% match
+  return similarity > 0.5;
+}
+
+/**
+ * Calculate Levenshtein edit distance
+ */
+function levenshteinDistance(s1: string, s2: string): number {
+  const m = s1.length;
+  const n = s2.length;
+
+  if (m === 0) return n;
+  if (n === 0) return m;
+
+  const dp: number[][] = Array(m + 1)
+    .fill(null)
+    .map(() => Array(n + 1).fill(0));
+
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (s1[i - 1] === s2[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1];
+      } else {
+        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+      }
+    }
+  }
+
+  return dp[m][n];
+}
+
+/**
  * Determine score trajectory trend
  */
 export function calculateTrend(
