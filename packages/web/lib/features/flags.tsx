@@ -20,7 +20,17 @@
 // Feature Definitions
 // =============================================================================
 
-export const FEATURES = {
+// Feature definition type
+interface FeatureDefinition {
+  key: string;
+  name: string;
+  description: string;
+  defaultEnabled: boolean;
+  dependsOn?: readonly string[];
+  phase: number;
+}
+
+export const FEATURES: Record<string, FeatureDefinition> = {
   // StoryScore - 12-dimension script evaluation
   STORY_SCORE: {
     key: 'STORY_SCORE',
@@ -79,9 +89,9 @@ export const FEATURES = {
     dependsOn: ['STORY_SCORE'],
     phase: 3,
   },
-} as const;
+};
 
-export type FeatureKey = keyof typeof FEATURES;
+export type FeatureKey = 'STORY_SCORE' | 'STORY_ADVISER' | 'REVISION_TRACKING' | 'SCRIPT_EDITOR' | 'COMPARABLE_SCRIPTS' | 'EXPORT_REPORTS';
 
 // =============================================================================
 // Feature Flag Checking
@@ -233,11 +243,10 @@ export function logFeatureFlags(): void {
  * Feature flag admin panel data
  */
 export function getFeatureFlagStatus() {
-  return Object.entries(FEATURES).map(([key, feature]) => ({
-    key,
+  return Object.entries(FEATURES).map(([featureKey, feature]) => ({
     ...feature,
-    enabled: isFeatureEnabled(key as FeatureKey),
-    envVar: `NEXT_PUBLIC_FF_${key}`,
-    urlParam: `ff_${key.toLowerCase()}`,
+    enabled: isFeatureEnabled(featureKey as FeatureKey),
+    envVar: `NEXT_PUBLIC_FF_${featureKey}`,
+    urlParam: `ff_${featureKey.toLowerCase()}`,
   }));
 }

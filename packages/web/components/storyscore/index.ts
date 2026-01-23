@@ -1,2 +1,10 @@
-export { StoryScore, type StoryScoreData } from './StoryScore';
+export { StoryScore } from './StoryScore';
 export { StoryScoreSection } from './StoryScoreSection';
+
+// Re-export types from the scoring lib for convenience
+export type {
+  StoryScore as StoryScoreType,
+  DimensionScores,
+  CategoryScores,
+  Rating,
+} from '@/lib/scoring/types';

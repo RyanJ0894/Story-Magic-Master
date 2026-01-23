@@ -10,7 +10,7 @@
  *   <StoryScoreSection projectId={project.id} scriptText={project.script_text} />
  */
 
-import { StoryScore, StoryScoreData } from './StoryScore';
+import { StoryScore } from './StoryScore';
 import { FeatureGate } from '@/lib/features';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +19,6 @@ import { BarChart3, FlaskConical } from 'lucide-react';
 interface StoryScoreSectionProps {
   projectId: string;
   scriptText: string;
-  existingScore?: StoryScoreData | null;
 }
 
 /**
@@ -60,7 +59,6 @@ function StoryScorePreview() {
 export function StoryScoreSection({
   projectId,
   scriptText,
-  existingScore,
 }: StoryScoreSectionProps) {
   return (
     <FeatureGate
@@ -70,7 +68,6 @@ export function StoryScoreSection({
       <StoryScore
         projectId={projectId}
         scriptText={scriptText}
-        existingScore={existingScore}
       />
     </FeatureGate>
   );
