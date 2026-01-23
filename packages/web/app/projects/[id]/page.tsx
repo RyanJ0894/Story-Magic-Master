@@ -6,6 +6,7 @@ import AudioPlayer from './audio-player';
 import DeleteProjectButton from './delete-button';
 import { VoiceChooser } from './voice-chooser';
 import { Storygraph } from './storygraph';
+import { ImprovementWizardButton } from './improvement-wizard-button';
 import { StoryScoreSection } from '@/components/storyscore';
 import { StoryAdviserSection } from '@/components/story-adviser';
 import { RevisionSection } from '@/components/revisions';
@@ -14,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { ArrowLeft, FileText, Sparkles, Trash2, CheckCircle, AlertCircle, Clock, Loader2, Users, GitBranch } from 'lucide-react';
+import { ArrowLeft, FileText, Sparkles, Trash2, CheckCircle, AlertCircle, Clock, Loader2, Users, GitBranch, Wand2 } from 'lucide-react';
 
 export default async function ProjectPage({
   params,
@@ -187,6 +188,39 @@ export default async function ProjectPage({
                 />
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Script Improvement Wizard */}
+        <Card className="border-violet-200 dark:border-violet-900/50 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/20 dark:to-purple-950/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wand2 className="w-5 h-5 text-violet-500" />
+              Improve Your Script
+            </CardTitle>
+            <CardDescription>
+              Follow a guided workflow to analyze, get suggestions, and improve your screenplay
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  The improvement wizard guides you through:
+                </p>
+                <ul className="text-sm text-slate-500 list-disc list-inside">
+                  <li>StoryScore analysis (12 Hollywood dimensions)</li>
+                  <li>AI-powered improvement suggestions</li>
+                  <li>Guided revision workflow</li>
+                  <li>Progress tracking across versions</li>
+                </ul>
+              </div>
+              <ImprovementWizardButton
+                projectId={project.id}
+                scriptText={project.script_text}
+                existingScore={storyScore}
+              />
+            </div>
           </CardContent>
         </Card>
 
