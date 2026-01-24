@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
+  const type = searchParams.get('type');
   const redirect = searchParams.get('redirect') || '/dashboard';
 
   if (code) {
@@ -11,6 +12,10 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
+      // Handle password recovery flow
+      if (type === 'recovery') {
+        return NextResponse.redirect(`${origin}/reset-password`);
+      }
       return NextResponse.redirect(`${origin}${redirect}`);
     }
   }
