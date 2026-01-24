@@ -10,20 +10,24 @@ function addSecurityHeaders(response: NextResponse): void {
   // In production, consider using nonces for stricter CSP
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js requires unsafe-eval for dev
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://*.supabase.co",
     "style-src 'self' 'unsafe-inline'", // Tailwind requires unsafe-inline
-    "img-src 'self' data: blob: https://*.supabase.co",
+    "img-src 'self' data: blob: https://*.supabase.co https://api.dicebear.com",
     "font-src 'self' data:",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.elevenlabs.io https://*.sentry.io",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.elevenlabs.io https://api.openai.com https://*.sentry.io",
+    "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
     "media-src 'self' blob: https://*.supabase.co",
-    "frame-ancestors 'none'",
+    "worker-src 'self' blob:",
+    "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    "form-action 'self' https://*.supabase.co",
+    "frame-ancestors 'self'",
+    "upgrade-insecure-requests",
   ].join('; ');
 
   response.headers.set('Content-Security-Policy', csp);
   response.headers.set('X-Content-Type-Options', 'nosniff');
-  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-Frame-Options', 'SAMEORIGIN');
   response.headers.set('X-XSS-Protection', '1; mode=block');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
