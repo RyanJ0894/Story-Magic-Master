@@ -27,6 +27,7 @@ export async function GET(request: Request) {
   const limit = parseInt(url.searchParams.get('limit') || '50', 10);
 
   try {
+    // First, fetch alerts with project and team info
     let query = supabase
       .from('alerts')
       .select(
@@ -49,10 +50,6 @@ export async function GET(request: Request) {
         teams:team_id (
           id,
           name
-        ),
-        related_user:related_user_id (
-          full_name,
-          avatar_url
         )
       `
       )
@@ -64,9 +61,35 @@ export async function GET(request: Request) {
       query = query.eq('is_read', false);
     }
 
-    const { data: alerts, error } = await query;
+    const { data: alertsData, error } = await query;
 
     if (error) throw error;
+
+    // Fetch related user profiles separately (since related_user_id references auth.users, not profiles)
+    const relatedUserIds = Array.from(new Set((alertsData || [])
+      .map(a => a.related_user_id)
+      .filter(Boolean))) as string[];
+
+    let profilesMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
+
+    if (relatedUserIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .in('id', relatedUserIds);
+
+      if (profiles) {
+        profilesMap = Object.fromEntries(
+          profiles.map(p => [p.id, { full_name: p.full_name, avatar_url: p.avatar_url }])
+        );
+      }
+    }
+
+    // Merge profile data into alerts
+    const alerts = (alertsData || []).map(alert => ({
+      ...alert,
+      related_user: alert.related_user_id ? profilesMap[alert.related_user_id] || null : null,
+    }));
 
     // Get unread count
     const { count: unreadCount } = await supabase
