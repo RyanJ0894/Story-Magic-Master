@@ -41,8 +41,10 @@ export function validateCsrf(request: Request): string | null {
   // Check if the origin is in our allowed list
   const isAllowed = ALLOWED_ORIGINS.some((allowed) => {
     if (!allowed) return false;
-    // Handle both exact match and subdomain match for Vercel preview URLs
-    return requestOrigin === allowed || requestOrigin.endsWith('.vercel.app');
+    // Handle exact match and subdomain match for hosting platforms
+    return requestOrigin === allowed ||
+           requestOrigin.endsWith('.vercel.app') ||
+           requestOrigin.endsWith('.onrender.com');
   });
 
   if (!isAllowed) {
