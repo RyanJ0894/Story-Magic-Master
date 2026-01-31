@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,8 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Play, Pause, Lock, Unlock, Search, User, Volume2, Check, RefreshCw, Star } from 'lucide-react';
+import { Play, Pause, Lock, Unlock, Search, User, Volume2, Check, RefreshCw, Star, Sparkles } from 'lucide-react';
 import type { Voice, DetectedCharacter, CharacterVoiceAssignment } from '@/lib/types/voice';
+import { getScoredVoices, type ScoredVoice } from '@/lib/voice-scoring';
 
 interface VoiceChooserProps {
   projectId: string;
@@ -46,10 +47,14 @@ function VoicePreview({
   voice,
   isSelected,
   onSelect,
+  matchScore,
+  matchLabel,
 }: {
   voice: Voice;
   isSelected: boolean;
   onSelect: () => void;
+  matchScore?: number;
+  matchLabel?: string;
 }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
@@ -91,6 +96,18 @@ function VoicePreview({
               {isSelected && <Check className="h-4 w-4 text-primary" />}
             </div>
             <div className="flex gap-1 mt-1 flex-wrap">
+              {matchLabel && matchScore !== undefined && matchScore > 0 && (
+                <Badge
+                  variant={matchLabel === 'Excellent' ? 'default' : 'secondary'}
+                  className={`text-xs ${
+                    matchLabel === 'Excellent' ? 'bg-emerald-600' :
+                    matchLabel === 'Good' ? 'bg-blue-500 text-white' :
+                    ''
+                  }`}
+                >
+                  {matchLabel} {Math.round(matchScore * 100)}%
+                </Badge>
+              )}
               {voice.is_custom && (
                 <Badge variant="default" className="text-xs bg-amber-500">
                   Custom
@@ -135,12 +152,14 @@ function CharacterCard({
   character,
   assignment,
   voices,
+  scoredVoices,
   onAssign,
   onToggleLock,
 }: {
   character: DetectedCharacter;
   assignment?: CharacterVoiceAssignment;
   voices: Voice[];
+  scoredVoices: ScoredVoice[];
   onAssign: (voiceId: string) => void;
   onToggleLock: () => void;
 }) {
@@ -150,12 +169,16 @@ function CharacterCard({
   const [ageFilter, setAgeFilter] = useState<string>('all');
 
   const assignedVoice = voices.find((v) => v.voice_id === assignment?.voice_id);
+  const assignedScore = scoredVoices.find(sv => sv.voice.voice_id === assignment?.voice_id);
 
-  const filteredVoices = voices.filter((voice) => {
+  // Filter scored voices (already sorted by match strength)
+  const filteredScoredVoices = scoredVoices.filter((sv) => {
+    const voice = sv.voice;
     const matchesSearch =
       !searchQuery ||
       voice.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      voice.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      voice.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      voice.style?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesGender = genderFilter === 'all' || voice.gender === genderFilter;
     const matchesAge = ageFilter === 'all' || voice.age === ageFilter;
     return matchesSearch && matchesGender && matchesAge;
@@ -199,10 +222,22 @@ function CharacterCard({
         <div className="flex items-center gap-2">
           <Volume2 className="h-4 w-4 text-muted-foreground" />
           {assignedVoice ? (
-            <span className="text-sm">
+            <span className="text-sm flex items-center gap-1.5">
               {assignedVoice.name}
+              {assignedScore && assignedScore.score > 0 && (
+                <Badge
+                  variant="secondary"
+                  className={`text-xs ${
+                    assignedScore.matchLabel === 'Excellent' ? 'bg-emerald-100 text-emerald-700' :
+                    assignedScore.matchLabel === 'Good' ? 'bg-blue-100 text-blue-700' :
+                    ''
+                  }`}
+                >
+                  {assignedScore.matchLabel}
+                </Badge>
+              )}
               {assignment?.user_selected && (
-                <Badge variant="secondary" className="ml-2 text-xs">
+                <Badge variant="secondary" className="text-xs">
                   Custom
                 </Badge>
               )}
@@ -222,8 +257,9 @@ function CharacterCard({
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle>Select Voice for {character.name}</DialogTitle>
-              <DialogDescription>
-                Choose a voice that matches the character. You can preview voices before selecting.
+              <DialogDescription className="flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" />
+                Voices are sorted by match strength. Best matches appear first.
               </DialogDescription>
             </DialogHeader>
 
@@ -264,22 +300,24 @@ function CharacterCard({
               </Select>
             </div>
 
-            {/* Voice grid */}
+            {/* Voice grid - sorted by match strength */}
             <div className="flex-1 overflow-y-auto pr-2">
               <div className="grid grid-cols-2 gap-2">
-                {filteredVoices.map((voice) => (
+                {filteredScoredVoices.map((sv) => (
                   <VoicePreview
-                    key={voice.voice_id}
-                    voice={voice}
-                    isSelected={voice.voice_id === assignment?.voice_id}
+                    key={sv.voice.voice_id}
+                    voice={sv.voice}
+                    isSelected={sv.voice.voice_id === assignment?.voice_id}
+                    matchScore={sv.score}
+                    matchLabel={sv.matchLabel}
                     onSelect={() => {
-                      onAssign(voice.voice_id);
+                      onAssign(sv.voice.voice_id);
                       setIsDialogOpen(false);
                     }}
                   />
                 ))}
               </div>
-              {filteredVoices.length === 0 && (
+              {filteredScoredVoices.length === 0 && (
                 <p className="text-center text-muted-foreground py-8">
                   No voices match your filters
                 </p>
@@ -518,6 +556,23 @@ export function VoiceChooser({
     );
   }
 
+  // Compute scored voices per character (memoized to avoid re-scoring on every render)
+  const scoredVoicesByCharacter = useMemo(() => {
+    if (voices.length === 0 || characters.length === 0) return new Map<string, ScoredVoice[]>();
+
+    const map = new Map<string, ScoredVoice[]>();
+    for (const character of characters) {
+      // Exclude voices assigned to OTHER characters (not this one)
+      const otherAssignedIds = assignments
+        .filter(a => a.character_name !== character.name)
+        .map(a => a.voice_id);
+
+      const scored = getScoredVoices(voices, character, otherAssignedIds);
+      map.set(character.name, scored);
+    }
+    return map;
+  }, [voices, characters, assignments]);
+
   if (characters.length === 0) {
     return (
       <Card>
@@ -544,6 +599,7 @@ export function VoiceChooser({
             character={character}
             assignment={assignments.find((a) => a.character_name === character.name)}
             voices={voices}
+            scoredVoices={scoredVoicesByCharacter.get(character.name) || []}
             onAssign={(voiceId) => handleAssign(character.name, voiceId)}
             onToggleLock={() => handleToggleLock(character.name)}
           />
