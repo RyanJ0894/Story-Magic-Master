@@ -48,13 +48,20 @@ export function PreviewButton({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mountedRef = useRef(true);
 
   const budgetExhausted = remainingPreviews <= 0;
 
   // Cleanup on unmount
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       if (audioRef.current) {
+        audioRef.current.onplay = null;
+        audioRef.current.onpause = null;
+        audioRef.current.onended = null;
+        audioRef.current.onerror = null;
         audioRef.current.pause();
         audioRef.current = null;
       }
@@ -93,11 +100,13 @@ export function PreviewButton({
     const audio = new Audio(url);
 
     audio.onplay = () => {
+      if (!mountedRef.current) return;
       setState('playing');
       startProgressTracking(audio);
     };
 
     audio.onpause = () => {
+      if (!mountedRef.current) return;
       if (!audio.ended) {
         setState('paused');
       }
@@ -105,12 +114,14 @@ export function PreviewButton({
     };
 
     audio.onended = () => {
+      if (!mountedRef.current) return;
       setState('idle');
       setProgress(0);
       stopProgressTracking();
     };
 
     audio.onerror = () => {
+      if (!mountedRef.current) return;
       setState('error');
       setErrorMessage('Failed to play audio');
       stopProgressTracking();
@@ -118,6 +129,7 @@ export function PreviewButton({
 
     audioRef.current = audio;
     audio.play().catch(() => {
+      if (!mountedRef.current) return;
       setState('error');
       setErrorMessage('Failed to play audio');
     });

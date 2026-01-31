@@ -110,16 +110,18 @@ export async function POST(request: Request) {
   }
 
   // Apply audio overrides to the scene (same logic as generate route)
+  const validCategories = ['music', 'ambience', 'sfx'];
   const audioOverrides = Array.isArray(project.audio_overrides)
     ? project.audio_overrides.filter(
-        (o: { user_selected?: boolean; file?: string; scene_id?: string }) =>
-          o.user_selected && o.file && o.scene_id === sceneId
+        (o: { user_selected?: boolean; file?: string; scene_id?: string; category?: string }) =>
+          o.user_selected && o.file && o.scene_id === sceneId && validCategories.includes(o.category || '')
       )
     : [];
 
   if (audioOverrides.length > 0) {
     for (const override of audioOverrides) {
-      const cueArray = scene[override.category as string];
+      const category = override.category as 'music' | 'ambience' | 'sfx';
+      const cueArray = scene[category];
       if (!Array.isArray(cueArray) || override.cue_index >= cueArray.length) continue;
       cueArray[override.cue_index] = {
         ...cueArray[override.cue_index],

@@ -184,6 +184,10 @@ export async function generatePreview(
 ): Promise<PreviewResult> {
   console.log(`[Preview] Starting preview for project=${projectId} scene=${scene.scene_id}`);
 
+  if (!scene.dialogue || scene.dialogue.length === 0) {
+    throw new Error(`Scene ${scene.scene_id} has no dialogue lines to preview`);
+  }
+
   // Setup output directories
   const projectDir = path.join(process.cwd(), 'output', projectId, 'previews');
   const scenesDir = path.join(projectDir, 'scenes');
@@ -320,26 +324,22 @@ export async function generatePreview(
   console.log(`[Preview] Uploading to ${storagePath}...`);
   const previewUrl = await uploadPreview(previewPath, storagePath);
 
-  // Get actual duration of the preview
-  let durationSeconds = PREVIEW_DURATION_SECONDS;
+  // Cleanup local preview file after upload
   try {
-    const { stdout } = await execa(ffmpeg, [
-      '-i', previewPath,
-      '-f', 'null',
-      '-',
-    ], { reject: false });
-    // Duration is in stderr for FFmpeg
+    if (fs.existsSync(previewPath)) {
+      fs.unlinkSync(previewPath);
+    }
   } catch {
-    // Use default duration
+    // Non-critical cleanup failure
   }
 
-  console.log(`[Preview] Preview complete: ${previewUrl || previewPath}`);
+  console.log(`[Preview] Preview complete: ${previewUrl || storagePath}`);
 
   return {
     project_id: projectId,
     scene_id: scene.scene_id,
     preview_url: previewUrl,
     preview_path: storagePath,
-    duration_seconds: durationSeconds,
+    duration_seconds: PREVIEW_DURATION_SECONDS,
   };
 }
