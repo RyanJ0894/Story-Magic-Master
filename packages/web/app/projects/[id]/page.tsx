@@ -81,6 +81,11 @@ export default async function ProjectPage({
     .limit(1)
     .single();
 
+  // Fetch remaining preview budget
+  const { data: remainingPreviews } = await supabase.rpc('get_remaining_previews', {
+    p_user_id: user.id,
+  });
+
   // Calculate voice assignments from director_json
   let voiceAssignments = { total: 0, assigned: 0 };
   if (project.director_json?.scenes) {
@@ -98,6 +103,19 @@ export default async function ProjectPage({
       total: characters.size,
       assigned: Array.from(characters.values()).filter(c => c.assigned).length,
     };
+  }
+
+  // Calculate audio override stats
+  let audioOverrideStats = { total_scenes: 0, scenes_with_overrides: 0 };
+  if (project.director_json?.scenes) {
+    const totalScenes = project.director_json.scenes.length;
+    const audioOverrides = Array.isArray(project.audio_overrides) ? project.audio_overrides : [];
+    const scenesWithOverrides = new Set(
+      audioOverrides
+        .filter((o: { user_selected?: boolean }) => o.user_selected)
+        .map((o: { scene_id: string }) => o.scene_id)
+    ).size;
+    audioOverrideStats = { total_scenes: totalScenes, scenes_with_overrides: scenesWithOverrides };
   }
 
   const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string, icon: typeof CheckCircle, className?: string }> = {
@@ -161,6 +179,8 @@ export default async function ProjectPage({
           latestJob={latestJob}
           allJobs={enrichedJobs}
           voiceAssignments={voiceAssignments}
+          audioOverrides={audioOverrideStats}
+          remainingPreviews={remainingPreviews ?? 0}
         />
 
         {/* Script Preview - Collapsible */}

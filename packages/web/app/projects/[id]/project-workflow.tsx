@@ -36,12 +36,14 @@ import {
   Loader2,
   BarChart3,
   Music,
+  Volume2,
   SkipForward,
   RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ImprovementWizardButton } from './improvement-wizard-button';
 import { VoiceChooser } from './voice-chooser';
+import { AudioChooser } from './audio-chooser';
 import GenerateButton from './generate-button';
 import AudioPlayer from './audio-player';
 import { WorkflowModeSelector } from './workflow-mode-selector';
@@ -123,6 +125,11 @@ interface ProjectWorkflowProps {
     total: number;
     assigned: number;
   };
+  audioOverrides?: {
+    total_scenes: number;
+    scenes_with_overrides: number;
+  };
+  remainingPreviews?: number;
 }
 
 // =============================================================================
@@ -241,6 +248,8 @@ export function ProjectWorkflow({
   latestJob,
   allJobs = [],
   voiceAssignments = { total: 0, assigned: 0 },
+  audioOverrides,
+  remainingPreviews: initialRemainingPreviews = 0,
 }: ProjectWorkflowProps) {
   const router = useRouter();
 
@@ -272,6 +281,9 @@ export function ProjectWorkflow({
     }
     return new Set();
   });
+
+  // Preview budget state (can be updated when previews are used)
+  const [remainingPreviews, setRemainingPreviews] = useState(initialRemainingPreviews);
 
   // Run history modal state
   const [showHistory, setShowHistory] = useState(false);
@@ -367,6 +379,8 @@ export function ProjectWorkflow({
   const hasScore = !!storyScore?.overall_score;
   const hasVoices = voiceAssignments.assigned > 0;
   const allVoicesAssigned = voiceAssignments.total > 0 && voiceAssignments.assigned === voiceAssignments.total;
+  const hasDirectorJson = !!project.director_json?.scenes;
+  const hasAudioOverrides = (audioOverrides?.scenes_with_overrides ?? 0) > 0;
   const isProcessing = project.status === 'processing';
   const isCompleted = project.status === 'completed' && audioOutputs && audioOutputs.length > 0;
   const hasFailed = project.status === 'failed';
@@ -399,13 +413,24 @@ export function ProjectWorkflow({
       priority: allVoicesAssigned || skippedSteps.has('cast') ? 4 : (hasScore || skippedSteps.has('analyze')) ? 1 : 2,
       canSkip: !allVoicesAssigned,
     },
+    ...(hasDirectorJson ? [{
+      id: 'audio',
+      title: 'Set Audio',
+      description: 'Fine-tune music, ambience, and sound effects',
+      icon: <Volume2 className="w-5 h-5 text-indigo-500" />,
+      status: getStatus('audio', hasAudioOverrides ? 'complete' : 'available'),
+      priority: hasAudioOverrides || skippedSteps.has('audio')
+        ? 5
+        : (allVoicesAssigned || skippedSteps.has('cast')) ? 1 : 3,
+      canSkip: true,
+    } as WorkflowStep] : []),
     {
       id: 'generate',
       title: 'Generate Audio',
       description: 'Transform your script into an immersive audio experience',
       icon: <Sparkles className="w-5 h-5 text-amber-500" />,
       status: getStatus('generate', isCompleted ? 'complete' : isProcessing ? 'in-progress' : 'available'),
-      priority: isCompleted ? 4 : (allVoicesAssigned || skippedSteps.has('cast')) ? 1 : 3,
+      priority: isCompleted ? 5 : (allVoicesAssigned || skippedSteps.has('cast') || skippedSteps.has('audio')) ? 1 : 3,
       canSkip: false, // Can't skip - this is the main purpose
     },
     {
@@ -646,6 +671,18 @@ export function ProjectWorkflow({
               </p>
             </div>
           )}
+          {currentStep.id === 'audio' && (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Review and customize the AI-selected music, ambience, and sound effects for each scene.
+              </p>
+              {hasAudioOverrides && (
+                <Badge variant="outline" className="text-xs border-violet-300 text-violet-600">
+                  {audioOverrides?.scenes_with_overrides} scene{(audioOverrides?.scenes_with_overrides ?? 0) !== 1 ? 's' : ''} customized
+                </Badge>
+              )}
+            </div>
+          )}
           {currentStep.id === 'generate' && (
             <div className="flex items-center justify-between">
               <div>
@@ -793,6 +830,16 @@ export function ProjectWorkflow({
                   scriptText={project.script_text}
                   directorJson={project.director_json}
                   disabled={isProcessing}
+                />
+              )}
+
+              {step.id === 'audio' && (
+                <AudioChooser
+                  projectId={project.id}
+                  directorJson={project.director_json}
+                  disabled={isProcessing}
+                  remainingPreviews={remainingPreviews}
+                  onRemainingPreviewsChanged={setRemainingPreviews}
                 />
               )}
 

@@ -239,6 +239,37 @@ async function processGenerationJob(
       .update({ director_json: directorJson })
       .eq('id', projectId);
 
+    // Apply audio overrides from project settings
+    const { data: projectData } = await supabase
+      .from('projects')
+      .select('audio_overrides')
+      .eq('id', projectId)
+      .single();
+
+    const audioOverrides = Array.isArray(projectData?.audio_overrides)
+      ? projectData.audio_overrides.filter(
+          (o: { user_selected?: boolean; file?: string; scene_id?: string }) =>
+            o.user_selected && o.file && o.scene_id
+        )
+      : [];
+
+    if (audioOverrides.length > 0) {
+      for (const override of audioOverrides) {
+        const scene = directorJson.scenes?.find(
+          (s: { scene_id: string }) => s.scene_id === override.scene_id
+        );
+        if (!scene) continue;
+        const cueArray = scene[override.category as string];
+        if (!Array.isArray(cueArray) || override.cue_index >= cueArray.length) continue;
+        cueArray[override.cue_index] = {
+          ...cueArray[override.cue_index],
+          file: override.file,
+          reasoning: 'User override',
+        };
+      }
+      await updateJobProgress('audio_overrides', 27, `Applied ${audioOverrides.length} audio override(s)`);
+    }
+
     // Step 3: Call Orchestrator to generate audio
     await updateJobProgress('generating_audio', 30, 'Generating TTS audio for all dialogue...');
     logProgress(jobId, 'generating_audio', `Calling orchestrator at ${orchestratorUrl}/orchestrate with ${sceneCount} scenes`);

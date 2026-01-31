@@ -32,6 +32,7 @@ import healthRouter from './routes/health.js';
 import generateScenesRouter from './routes/generate-scenes.js';
 import orchestrateRouter from './routes/orchestrate.js';
 import analyzeRouter from './routes/analyze.js';
+import previewRouter from './routes/preview.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,6 +49,9 @@ app.use(express.json({ limit: '2mb' }));
 // Structured request logging with Pino
 app.use(httpLogger);
 
+// Static audio preview - serves catalog files for frontend preview player
+app.use('/audio-preview', express.static(path.join(__dirname, '../catalog')));
+
 // Routes
 // Health check - no auth required
 app.use('/', healthRouter);
@@ -56,9 +60,11 @@ app.use('/', healthRouter);
 app.use('/generate-scenes', authMiddleware, strictRateLimitMiddleware);
 app.use('/orchestrate', authMiddleware, strictRateLimitMiddleware);
 app.use('/analyze', authMiddleware, rateLimitMiddleware);
+app.use('/preview', authMiddleware, strictRateLimitMiddleware);
 app.use('/', generateScenesRouter);
 app.use('/', orchestrateRouter);
 app.use('/', analyzeRouter);
+app.use('/', previewRouter);
 
 // Download endpoint - requires auth
 app.get('/download/:project_id/:filename', authMiddleware, (req: Request, res: Response) => {
