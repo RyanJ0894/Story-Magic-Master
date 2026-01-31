@@ -151,7 +151,8 @@ async function processGenerationJob(
   userId: string,
   scriptText: string,
   pageCount: number,
-  accessToken: string | undefined
+  accessToken: string | undefined,
+  voiceOverrides: Record<string, string> = {}
 ) {
   // Use service role client for background processing (not tied to user session)
   const supabase = getServiceClient();
@@ -200,16 +201,22 @@ async function processGenerationJob(
     const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:22002';
     logProgress(jobId, 'parsing', `Calling orchestrator at ${orchestratorUrl}/generate-scenes`);
 
+    const generateScenesBody: Record<string, unknown> = {
+      project_id: projectId,
+      script_text: scriptText,
+    };
+    if (Object.keys(voiceOverrides).length > 0) {
+      generateScenesBody.voice_overrides = voiceOverrides;
+      logProgress(jobId, 'parsing', `Voice overrides for ${Object.keys(voiceOverrides).length} character(s)`);
+    }
+
     const directorResponse = await fetch(`${orchestratorUrl}/generate-scenes`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
       },
-      body: JSON.stringify({
-        project_id: projectId,
-        script_text: scriptText,
-      }),
+      body: JSON.stringify(generateScenesBody),
     });
 
     if (!directorResponse.ok) {
@@ -423,6 +430,16 @@ export async function POST(request: Request) {
   // Sanitize script text before processing
   const sanitizedScript = sanitizeScriptText(project.script_text);
 
+  // Get voice assignments (user-selected voice overrides)
+  const voiceOverrides: Record<string, string> = {};
+  if (Array.isArray(project.voice_assignments)) {
+    for (const assignment of project.voice_assignments) {
+      if (assignment.user_selected && assignment.voice_id && assignment.character_name) {
+        voiceOverrides[assignment.character_name] = assignment.voice_id;
+      }
+    }
+  }
+
   // Initialize job status immediately
   await supabase
     .from('jobs')
@@ -445,7 +462,8 @@ export async function POST(request: Request) {
       user.id,
       sanitizedScript, // Use sanitized script text
       project.page_count,
-      accessToken
+      accessToken,
+      voiceOverrides
     ).catch(async (error) => {
       // Ensure job is marked as failed even for unhandled errors
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

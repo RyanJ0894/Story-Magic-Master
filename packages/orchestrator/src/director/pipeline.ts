@@ -26,6 +26,8 @@ export interface PipelineOptions {
 export interface PipelineInput {
   project_id: string;
   script_text: string;
+  // Optional: character_name -> voice_id mapping for user-selected voices
+  voice_overrides?: Record<string, string>;
 }
 
 // Re-export for convenience
@@ -57,6 +59,12 @@ export async function processScript(
   // Agent now returns validated DirectorJSON (Zod-validated at boundary)
   console.log('[Pipeline] Phase 1: Running DirectorAgent...');
   let directorJson = await directorAgent.process(input);
+
+  // Phase 1b: Apply user voice overrides (if any)
+  if (input.voice_overrides && Object.keys(input.voice_overrides).length > 0) {
+    console.log('[Pipeline] Phase 1b: Applying user voice overrides...');
+    directorJson = applyVoiceOverrides(directorJson, input.voice_overrides);
+  }
 
   // Phase 2: Validate and auto-correct Director JSON (business rules)
   console.log('[Pipeline] Phase 2: Validating Director JSON...');
@@ -108,6 +116,38 @@ export async function processScript(
       audio_validation: audioValidationReport,
     },
   };
+}
+
+/**
+ * Apply user-selected voice overrides to Director JSON
+ *
+ * Replaces voice_key for all dialogue lines belonging to overridden characters.
+ * This runs after DirectorAgent so the AI still handles character detection and
+ * scene structure, but the user's voice preferences take priority.
+ */
+function applyVoiceOverrides(
+  directorJson: DirectorJSON,
+  overrides: Record<string, string>
+): DirectorJSON {
+  const result: DirectorJSON = JSON.parse(JSON.stringify(directorJson));
+  let overrideCount = 0;
+
+  for (const scene of result.scenes) {
+    for (const line of scene.dialogue) {
+      // Check both exact match and case-insensitive match
+      const overrideVoiceId = overrides[line.character]
+        || overrides[line.character.toUpperCase()]
+        || overrides[line.character.toLowerCase()];
+
+      if (overrideVoiceId && line.voice_key !== overrideVoiceId) {
+        line.voice_key = overrideVoiceId;
+        overrideCount++;
+      }
+    }
+  }
+
+  console.log(`[Pipeline] Applied ${overrideCount} voice override(s) across ${Object.keys(overrides).length} character(s)`);
+  return result;
 }
 
 /**

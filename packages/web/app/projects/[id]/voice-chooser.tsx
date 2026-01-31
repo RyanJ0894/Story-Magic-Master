@@ -307,6 +307,39 @@ export function VoiceChooser({
   const [assignments, setAssignments] = useState<CharacterVoiceAssignment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadedFromDb, setLoadedFromDb] = useState(false);
+
+  // Load saved voice assignments from the database
+  useEffect(() => {
+    const loadSavedAssignments = async () => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}/voice-assignments`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.assignments && data.assignments.length > 0) {
+            setAssignments(data.assignments);
+            setLoadedFromDb(true);
+          }
+        }
+      } catch (err) {
+        console.error('[VoiceChooser] Error loading saved assignments:', err);
+      }
+    };
+    loadSavedAssignments();
+  }, [projectId]);
+
+  // Persist assignments to the database
+  const saveAssignments = useCallback(async (newAssignments: CharacterVoiceAssignment[]) => {
+    try {
+      await fetch(`/api/projects/${projectId}/voice-assignments`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignments: newAssignments }),
+      });
+    } catch (err) {
+      console.error('[VoiceChooser] Error saving assignments:', err);
+    }
+  }, [projectId]);
 
   // Extract characters from script or directorJson
   useEffect(() => {
@@ -339,20 +372,22 @@ export function VoiceChooser({
 
         setCharacters(Array.from(charMap.values()).sort((a, b) => b.line_count - a.line_count));
 
-        // Initialize assignments from director JSON
-        const initialAssignments: CharacterVoiceAssignment[] = [];
-        charMap.forEach((char, name) => {
-          if (char.assigned_voice) {
-            initialAssignments.push({
-              character_name: name,
-              voice_id: char.assigned_voice.voice_id,
-              voice_name: '',
-              user_selected: false,
-              locked: false,
-            });
-          }
-        });
-        setAssignments(initialAssignments);
+        // Only initialize assignments from director JSON if we don't have DB-saved ones
+        if (!loadedFromDb) {
+          const initialAssignments: CharacterVoiceAssignment[] = [];
+          charMap.forEach((char, name) => {
+            if (char.assigned_voice) {
+              initialAssignments.push({
+                character_name: name,
+                voice_id: char.assigned_voice.voice_id,
+                voice_name: '',
+                user_selected: false,
+                locked: false,
+              });
+            }
+          });
+          setAssignments(initialAssignments);
+        }
       } else {
         // Parse from script text (basic character detection)
         const lines = scriptText.split('\n');
@@ -391,7 +426,7 @@ export function VoiceChooser({
     };
 
     extractCharacters();
-  }, [scriptText, directorJson]);
+  }, [scriptText, directorJson, loadedFromDb]);
 
   // Fetch voice catalog from API
   useEffect(() => {
@@ -443,6 +478,7 @@ export function VoiceChooser({
           ];
 
       onAssignmentsChange?.(newAssignments);
+      saveAssignments(newAssignments);
       return newAssignments;
     });
   };
@@ -454,6 +490,7 @@ export function VoiceChooser({
         a.character_name === characterName ? { ...a, locked: !a.locked } : a
       );
       onAssignmentsChange?.(newAssignments);
+      saveAssignments(newAssignments);
       return newAssignments;
     });
   };

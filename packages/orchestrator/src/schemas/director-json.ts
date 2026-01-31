@@ -120,6 +120,8 @@ export type PipelineResult = z.infer<typeof PipelineResultSchema>;
 export const GenerateScenesRequestSchema = z.object({
   project_id: z.string(),
   script_text: z.string().min(1),
+  // Optional: character_name -> voice_id mapping for user-selected voices
+  voice_overrides: z.record(z.string(), z.string()).optional(),
 });
 
 export type GenerateScenesRequest = z.infer<typeof GenerateScenesRequestSchema>;

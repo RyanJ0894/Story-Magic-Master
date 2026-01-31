@@ -36,18 +36,22 @@ router.post('/generate-scenes', async (req: Request, res: Response): Promise<voi
     return;
   }
 
-  const { project_id, script_text } = parsed.data;
+  const { project_id, script_text, voice_overrides } = parsed.data;
 
   try {
     console.log(`🎬 [generate-scenes] Starting for project: ${project_id}`);
     console.log(`📄 Script length: ${script_text.length} characters`);
+    if (voice_overrides && Object.keys(voice_overrides).length > 0) {
+      console.log(`🎤 Voice overrides for ${Object.keys(voice_overrides).length} character(s):`, Object.keys(voice_overrides));
+    }
 
     // Run the full Director pipeline:
     // 1. DirectorAgent parses script → Director JSON with voice assignments
-    // 2. AudioDirectorAgent selects audio → Scene Audio JSON
-    // 3. Validators check and auto-correct business rules
-    // 4. Merge results into final Director JSON
-    const result = await processScript({ project_id, script_text });
+    // 2. Apply user voice overrides (if any)
+    // 3. AudioDirectorAgent selects audio → Scene Audio JSON
+    // 4. Validators check and auto-correct business rules
+    // 5. Merge results into final Director JSON
+    const result = await processScript({ project_id, script_text, voice_overrides });
 
     const processingTime = (Date.now() - start) / 1000;
     console.log(`✅ [generate-scenes] Complete in ${processingTime.toFixed(2)}s`);
