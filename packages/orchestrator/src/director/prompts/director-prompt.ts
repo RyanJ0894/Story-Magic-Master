@@ -298,12 +298,12 @@ Example JSON output (note: voice_key values are REAL IDs from search_voices, not
 **Voice Matching Strategy and Assignment Rules:**
 
 **CASTING PRIORITY ORDER:**
-1. **NARRATIVE FIT** (Highest Priority - does the voice serve the character's story role?)
-2. **RACE/ETHNICITY** (Must match when specified in script)
-3. **VOCAL CONTRAST** (Characters sharing scenes must sound distinct)
-4. **AGE** (Must match character's described age)
-5. **GENDER** (Must match)
-6. **PERSONALITY/TONE** (Voice personality should match character personality)
+1. **GENDER** (Hard constraint - MUST match the character's gender)
+2. **AGE** (Hard constraint - teen/child/adult/older MUST match)
+3. **RACE/ETHNICITY** (Hard constraint when specified in script - MUST match)
+4. **NARRATIVE FIT** (Differentiator - among voices passing the above constraints, choose the one that best serves the character's story role)
+5. **VOCAL CONTRAST** (Differentiator - avoid similar-sounding voices for characters sharing scenes)
+6. **PERSONALITY/TONE** (Preference - voice personality should match character personality)
 
 **RACE/ETHNICITY MATCHING (MANDATORY - CHECK THIS FIRST):**
 
