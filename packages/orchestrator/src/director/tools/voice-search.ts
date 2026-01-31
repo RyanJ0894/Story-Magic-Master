@@ -41,6 +41,28 @@ export function getUsedVoiceIds(): string[] {
 }
 
 /**
+ * Extract narrative personality keywords from voice metadata
+ * Helps the LLM understand what kind of character this voice suits
+ */
+function extractVoicePersonality(voice: VoiceMetadata): string {
+  const parts: string[] = [];
+
+  // Extract descriptive words from name (e.g., "Roger - Laid-Back, Casual, Resonant")
+  const nameParts = voice.name.split(' - ');
+  if (nameParts.length > 1) {
+    parts.push(nameParts[1]);
+  }
+
+  // Add tone info
+  const tone = Array.isArray(voice.tone) ? voice.tone.join(', ') : voice.tone || '';
+  if (tone && !parts.some(p => p.toLowerCase().includes(tone.toLowerCase()))) {
+    parts.push(tone);
+  }
+
+  return parts.join('; ') || 'General purpose voice';
+}
+
+/**
  * Parse age range from label string
  */
 function parseAgeRangeFromLabel(label: string | undefined): AgeRange | undefined {
@@ -60,8 +82,13 @@ function parseAgeRangeFromLabel(label: string | undefined): AgeRange | undefined
  */
 export const searchVoicesTool = tool({
   description: `Search for voice profiles matching character descriptions.
-Returns voice profiles with voice_id, name, label, gender, tone, and style.
+Returns voice profiles with voice_id, name, label, gender, tone, style, and description.
 IMPORTANT: Each voice can only be assigned to ONE character.
+
+The 'query' parameter is the MOST IMPORTANT field - use it to describe the character's
+narrative role and vocal quality (e.g., "fierce warrior, commanding and deep" or
+"warm motherly mentor, reassuring storyteller"). The search matches query keywords
+against voice names and descriptions for story-driven casting.
 
 Filters:
 - gender: "Male" or "Female" (REQUIRED for character voices)
@@ -69,11 +96,12 @@ Filters:
 - style: Accent/ethnicity like "African American", "American", "British"
 - tone: Voice quality like "Calm", "Energetic", "Deep"
 
-Priority order when selecting voices:
-1. Race/ethnicity (style) - HIGHEST priority
-2. Age (label) - Must match for teens (17-19 years old)
-3. Gender - Must match
-4. Tone - Lower priority`,
+Casting priority:
+1. Narrative fit (query) - Does the voice personality match the character's story role?
+2. Race/ethnicity (style) - Must match when specified in script
+3. Age (label) - Must match for teens (17-19 years old)
+4. Gender - Must match
+5. Tone - Voice quality preference`,
 
   parameters: z.object({
     query: z.string().describe('Natural language description of the desired voice'),
@@ -114,7 +142,7 @@ Priority order when selecting voices:
         };
       }
 
-      // Format voices for LLM consumption
+      // Format voices for LLM consumption with rich narrative metadata
       const formattedVoices = result.voices.map((voice) => ({
         voice_id: voice.voice_id,
         name: voice.name,
@@ -122,7 +150,9 @@ Priority order when selecting voices:
         gender: voice.gender,
         tone: Array.isArray(voice.tone) ? voice.tone.join(', ') : voice.tone || '',
         style: voice.style,
-        description: voice.description || '',
+        description: voice.description || voice.name || '',
+        // Help the LLM understand what this voice sounds like for narrative casting
+        personality: extractVoicePersonality(voice),
       }));
 
       console.log(`[searchVoices] Found ${formattedVoices.length} voices from ${result.source}`);

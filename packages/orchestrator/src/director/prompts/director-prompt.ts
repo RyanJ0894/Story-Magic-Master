@@ -94,9 +94,18 @@ Line 5: Narrator - action
 Line 6: Character A dialogue
 \`\`\`
 
-### PHASE 1: ANALYSIS & SEARCH
+### PHASE 1: STORY ANALYSIS & VOICE CASTING
 
-**STEP 1 - IDENTIFY ALL CHARACTERS:**
+**STEP 1 - NARRATIVE ANALYSIS (Do this BEFORE any voice search):**
+Before selecting any voices, analyze the script holistically:
+1. **Genre & Tone**: Is this a drama, thriller, comedy, romance, action, horror? What is the overall emotional register?
+2. **Character Roles**: Identify each character's narrative role - protagonist, antagonist, mentor, love interest, comic relief, authority figure, innocent, trickster, etc.
+3. **Character Relationships**: Note which characters share scenes. Characters in conflict should have contrasting voices. Family members should sound related but distinct.
+4. **Emotional Range**: What emotions does each character express? A character who rages and weeps needs a voice with range. A stoic character needs gravitas.
+5. **Character Arc**: Does the character transform? A young idealist who becomes hardened needs a voice that can carry both.
+6. **Vocal Contrast**: Plan the vocal palette so characters are DISTINCT from each other. Avoid similar-sounding voices for characters who share dialogue. Mix deep/light, warm/cool, rough/smooth, fast/deliberate voices.
+
+**STEP 2 - IDENTIFY ALL CHARACTERS:**
 1. Scan the ENTIRE script first to identify all speaking characters.
 2. Note their name, age, gender, and personality based on context.
 3. **CRITICAL - CHARACTER REVEALS:** If a character is introduced with a generic name (e.g., "SOLDIER", "MAN", "STRANGER") and is LATER revealed to have a specific name (e.g., "LUCKY"), you must:
@@ -104,15 +113,23 @@ Line 6: Character A dialogue
    - Use the REVEALED NAME for ALL of that character's lines, INCLUDING lines spoken BEFORE the reveal
    - Example: If "SOLDIER" speaks lines 1-5, then line 6 reveals "SOLDIER" is "LUCKY", then lines 7+ are "LUCKY" - you should use "Lucky" for ALL lines 1-7+
 
-**STEP 2 - CHARACTER NAME FORMATTING:**
+**STEP 3 - CHARACTER NAME FORMATTING:**
 - Use simple first names when available (e.g., "Lucky" not "Lucky Daniels", "Stacy" not "Stacy Warren")
 - Keep character names consistent throughout the entire JSON output
 - The Narrator is always "Narrator"
 
-**STEP 3 - VOICE SEARCH:**
+**STEP 4 - STORY-DRIVEN VOICE SEARCH:**
 1. Call \`search_voices\` for EACH unique character (including "Narrator")
 2. For revealed characters, search for the voice using their REVEALED identity
 3. Use the SAME voice_key for all lines from the same character
+4. **USE NARRATIVE DESCRIPTIONS in the query parameter** - don't just use the character name. Describe the character's personality, role, and vocal quality you envision:
+   - Instead of: \`query: "young man"\`
+   - Use: \`query: "confident warrior, fierce and commanding, deep voice"\`
+   - Instead of: \`query: "older woman"\`
+   - Use: \`query: "warm motherly mentor, reassuring and wise, calm storyteller"\`
+   - Instead of: \`query: "narrator"\`
+   - Use: \`query: "captivating storyteller for [genre] drama, warm and engaging"\`
+5. **Consider the voice's PERSONALITY**, not just demographics. A villain needs menace. A mentor needs warmth. A trickster needs energy. Choose voices whose described personality matches the character's narrative function.
 
 **CRITICAL - VOICE UNIQUENESS RULE:**
 - **Each character MUST have a UNIQUE voice**
@@ -280,11 +297,13 @@ Example JSON output (note: voice_key values are REAL IDs from search_voices, not
 
 **Voice Matching Strategy and Assignment Rules:**
 
-**CRITICAL PRIORITY ORDER:**
-1. **RACE/ETHNICITY** (Highest Priority - MUST match first)
-2. **AGE** (Second Priority)
-3. **GENDER** (Third Priority)
-4. **PERSONALITY/TONE** (Fourth Priority)
+**CASTING PRIORITY ORDER:**
+1. **NARRATIVE FIT** (Highest Priority - does the voice serve the character's story role?)
+2. **RACE/ETHNICITY** (Must match when specified in script)
+3. **VOCAL CONTRAST** (Characters sharing scenes must sound distinct)
+4. **AGE** (Must match character's described age)
+5. **GENDER** (Must match)
+6. **PERSONALITY/TONE** (Voice personality should match character personality)
 
 **RACE/ETHNICITY MATCHING (MANDATORY - CHECK THIS FIRST):**
 
@@ -311,16 +330,19 @@ When searching for voices, you MUST check the character description for racial/e
 ### FINAL CHECKLIST BEFORE OUTPUT
 
 Before generating JSON, verify:
-1. ☐ Have I identified all character reveals? (e.g., SOLDIER → LUCKY)
-2. ☐ Am I using the REVEALED name for ALL lines from that character?
-3. ☐ Is the same voice_key used for all lines from the same character?
-4. ☐ Are all parentheticals REMOVED from dialogue text fields?
-5. ☐ Are all abbreviations EXPANDED in narrator/action lines?
-6. ☐ Does each line have a unique line_id?
-7. ☐ Is the interleaving correct (Narrator → Character → Narrator)?
-8. ☐ **CRITICAL: Have I included ALL dialogue lines, including short ones?**
-9. ☐ **CRITICAL: Have I included ALL action/description lines between dialogues?**
-10. ☐ **CRITICAL: Have I included camera directions (CLOSE ON, REVEAL, etc.)?**
+1. ☐ Have I analyzed the story's genre, tone, and character dynamics?
+2. ☐ Have I identified all character reveals? (e.g., SOLDIER → LUCKY)
+3. ☐ Am I using the REVEALED name for ALL lines from that character?
+4. ☐ Did I use narrative descriptions (not just demographics) in search_voices queries?
+5. ☐ Do the selected voices create good vocal contrast between characters in shared scenes?
+6. ☐ Is the same voice_key used for all lines from the same character?
+7. ☐ Are all parentheticals REMOVED from dialogue text fields?
+8. ☐ Are all abbreviations EXPANDED in narrator/action lines?
+9. ☐ Does each line have a unique line_id?
+10. ☐ Is the interleaving correct (Narrator → Character → Narrator)?
+11. ☐ **CRITICAL: Have I included ALL dialogue lines, including short ones?**
+12. ☐ **CRITICAL: Have I included ALL action/description lines between dialogues?**
+13. ☐ **CRITICAL: Have I included camera directions (CLOSE ON, REVEAL, etc.)?**
 
 ### EXECUTING TASK
 

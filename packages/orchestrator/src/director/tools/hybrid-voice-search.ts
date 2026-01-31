@@ -151,14 +151,16 @@ export function matchVoiceAttributes(
  * Score how well a voice matches the criteria (0-1)
  *
  * Scoring weights:
- * - Style/Ethnicity: 0.4 (highest priority)
- * - Age: 0.3
- * - Gender: 0.2
+ * - Narrative query match: 0.25 (story-driven matching against name/description)
+ * - Style/Ethnicity: 0.3
+ * - Age: 0.2
+ * - Gender: 0.15
  * - Tone: 0.1
  */
 export function scoreVoiceMatch(
   voice: Partial<VoiceMetadata>,
   criteria: {
+    query?: string;
     gender?: 'Male' | 'Female';
     ageRange?: AgeRange;
     style?: string;
@@ -169,41 +171,49 @@ export function scoreVoiceMatch(
   let score = 0;
   let maxScore = 0;
 
-  // Gender match (weight: 0.2)
-  if (criteria.gender) {
-    maxScore += 0.2;
-    if (voice.gender === criteria.gender) {
-      score += 0.2;
+  // Narrative query match (weight: 0.25) - matches against voice name and description
+  if (criteria.query && criteria.query.length > 3) {
+    maxScore += 0.25;
+    const queryWords = criteria.query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    const voiceText = `${voice.name || ''} ${voice.description || ''} ${voice.tone || ''}`.toLowerCase();
+
+    // Count how many query words match the voice description
+    const matchCount = queryWords.filter(word => voiceText.includes(word)).length;
+    if (matchCount > 0) {
+      score += 0.25 * Math.min(1, matchCount / Math.max(1, queryWords.length * 0.5));
     }
   }
 
-  // Age match (weight: 0.3)
+  // Gender match (weight: 0.15)
+  if (criteria.gender) {
+    maxScore += 0.15;
+    if (voice.gender === criteria.gender) {
+      score += 0.15;
+    }
+  }
+
+  // Age match (weight: 0.2)
   if (criteria.ageRange && criteria.gender) {
-    maxScore += 0.3;
+    maxScore += 0.2;
     const labelPatterns = ageRangeToLabelPattern(criteria.ageRange, criteria.gender);
     const label = voice.label?.toLowerCase() || '';
 
     if (labelPatterns.some((pattern) => label.includes(pattern.toLowerCase()))) {
-      score += 0.3;
+      score += 0.2;
     }
   }
 
-  // Style/Ethnicity match (weight: 0.4 - highest priority)
+  // Style/Ethnicity match (weight: 0.3)
   if (criteria.style) {
-    maxScore += 0.4;
+    maxScore += 0.3;
     const voiceStyle = voice.style?.toLowerCase() || '';
     const targetStyle = criteria.style.toLowerCase();
 
     if (voiceStyle === targetStyle) {
-      score += 0.4;
+      score += 0.3;
     } else if (voiceStyle.includes(targetStyle)) {
-      // Only partial match if voice style is MORE specific than requested
-      // e.g., voice "African American" includes target "African" → partial credit
-      // But NOT: voice "American" with target "African American" → no credit
-      score += 0.2;
+      score += 0.15;
     }
-    // Note: We intentionally don't give partial credit when targetStyle includes voiceStyle
-    // e.g., target "African American" vs voice "American" should NOT match
   }
 
   // Tone match (weight: 0.1)
@@ -361,6 +371,7 @@ export async function searchVoicesHybrid(params: VoiceSearchParams): Promise<Voi
   console.log(`[HybridVoiceSearch] Searching for ${characterName}: gender=${gender}, age=${age}, ageRange=${ageRange}, style=${effectiveStyle}, isNarrator=${isNarrator}`);
 
   const criteria = {
+    query: characterName,
     gender,
     ageRange,
     style: effectiveStyle,
@@ -375,7 +386,7 @@ export async function searchVoicesHybrid(params: VoiceSearchParams): Promise<Voi
   let matchedVoices = filterVoicesByAttributes(localVoices, criteria, excludeVoiceIds);
 
   if (matchedVoices.length > 0) {
-    // Score and sort
+    // Score and sort (includes narrative query matching)
     const scored = matchedVoices.map((v) => ({
       voice: v,
       score: scoreVoiceMatch(v, criteria),
@@ -404,7 +415,7 @@ export async function searchVoicesHybrid(params: VoiceSearchParams): Promise<Voi
       if (matchedVoices.length > 0) {
         const scored = matchedVoices.map((v) => ({
           voice: v,
-          score: scoreVoiceMatch(v, criteria), // Score against original criteria
+          score: scoreVoiceMatch(v, criteria), // Score against original criteria (with query)
         }));
         scored.sort((a, b) => b.score - a.score);
 
