@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { hashPassword } from '@/lib/password';
+import { UpdateShareRequestSchema } from '@/lib/api/dto';
 
 interface RouteParams {
   params: Promise<{ shareId: string }>;
@@ -57,7 +59,17 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Share not found or not authorized' }, { status: 404 });
   }
 
+  // Parse and validate request body
   const body = await request.json();
+  const parseResult = UpdateShareRequestSchema.safeParse(body);
+
+  if (!parseResult.success) {
+    return NextResponse.json(
+      { error: 'Invalid request', details: parseResult.error.flatten().fieldErrors },
+      { status: 400 }
+    );
+  }
+
   const {
     access_level,
     expires_at,
@@ -66,7 +78,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     recipient_name,
     max_plays,
     password,
-  } = body;
+  } = parseResult.data;
 
   const updates: Record<string, unknown> = {};
 
@@ -135,11 +147,3 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   return NextResponse.json({ success: true });
 }
 
-// Simple password hashing (use bcrypt in production)
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}

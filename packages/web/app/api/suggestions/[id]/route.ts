@@ -45,8 +45,9 @@ async function verifySuggestionOwnership(
 
   if (!data) return { owned: false };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const projectUserId = (data as any).projects?.user_id;
+  const projectData = data as unknown as { project_id: string; projects: { user_id: string } | { user_id: string }[] };
+  const projects = projectData.projects;
+  const projectUserId = Array.isArray(projects) ? projects[0]?.user_id : projects?.user_id;
   return {
     owned: projectUserId === userId,
     projectId: data.project_id,

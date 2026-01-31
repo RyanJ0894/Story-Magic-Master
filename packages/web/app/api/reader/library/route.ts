@@ -1,6 +1,40 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
+// Type for the nested join query result
+interface LibraryEntryWithProject {
+  id: string;
+  reader_id: string;
+  project_id: string;
+  source: 'received' | 'uploaded' | 'purchased';
+  share_id: string | null;
+  status: 'active' | 'archived' | 'removed';
+  is_favorited: boolean;
+  notes: string | null;
+  tags: string[];
+  last_played_at: string | null;
+  play_position_seconds: number | null;
+  completed: boolean;
+  created_at: string;
+  updated_at: string;
+  projects: {
+    id: string;
+    name: string;
+    page_count: number;
+    status: string;
+    user_id: string;
+    profiles: {
+      full_name: string | null;
+      writer_code: string | null;
+    } | null;
+  } | null;
+  script_shares: {
+    id: string;
+    shared_by: string;
+    access_level: 'stream' | 'download';
+  } | null;
+}
+
 // GET /api/reader/library - Get reader's library
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -52,7 +86,9 @@ export async function GET(request: NextRequest) {
     query = query.eq('is_favorited', true);
   }
 
-  const { data: entries, error } = await query;
+  const { data: entriesData, error } = await query;
+
+  const entries = entriesData as LibraryEntryWithProject[] | null;
 
   if (error) {
     console.error('Error fetching library:', error);
@@ -60,7 +96,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Check writer subscription status for each entry
-  const writerIds = Array.from(new Set(entries?.map(e => (e.projects as any)?.user_id).filter(Boolean) || []));
+  const writerIds = Array.from(new Set(entries?.map(e => e.projects?.user_id).filter(Boolean) || [])) as string[];
 
   const { data: subscriptions } = await supabase
     .from('subscriptions')
@@ -81,7 +117,7 @@ export async function GET(request: NextRequest) {
 
   // Transform entries
   const transformedEntries = (entries || []).map(entry => {
-    const project = entry.projects as any;
+    const project = entry.projects;
     const writerProfile = project?.profiles;
     const writerId = project?.user_id;
 

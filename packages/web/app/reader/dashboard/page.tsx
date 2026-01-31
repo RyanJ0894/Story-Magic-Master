@@ -8,6 +8,39 @@ import { ReaderDashboardClient } from '@/components/dashboard/reader-dashboard-c
 import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
 import type { ReaderLibraryEntryDetailed } from '@/lib/types/marketplace';
 
+// Type for the nested join query result
+interface LibraryEntryWithProject {
+  id: string;
+  reader_id: string;
+  project_id: string;
+  source: 'received' | 'uploaded' | 'purchased';
+  share_id: string | null;
+  status: 'active' | 'archived' | 'removed';
+  is_favorited: boolean;
+  notes: string | null;
+  tags: string[];
+  last_played_at: string | null;
+  play_position_seconds: number | null;
+  completed: boolean;
+  created_at: string;
+  updated_at: string;
+  projects: {
+    id: string;
+    name: string;
+    page_count: number;
+    status: string;
+    user_id: string;
+    profiles: {
+      full_name: string | null;
+      writer_code: string | null;
+    } | null;
+  } | null;
+  script_shares: {
+    id: string;
+    shared_by: string;
+  } | null;
+}
+
 export default async function ReaderDashboardPage() {
   const supabase = await createClient();
 
@@ -57,8 +90,9 @@ export default async function ReaderDashboardPage() {
   const activeWriterIds = new Set(activeSubscriptions?.map(s => s.user_id) || []);
 
   // Transform to detailed entries
-  const entries: ReaderLibraryEntryDetailed[] = (libraryEntries || []).map(entry => {
-    const project = entry.projects as any;
+  const typedEntries = libraryEntries as LibraryEntryWithProject[] | null;
+  const entries: ReaderLibraryEntryDetailed[] = (typedEntries || []).map(entry => {
+    const project = entry.projects;
     const writerProfile = project?.profiles;
     const writerId = project?.user_id;
 

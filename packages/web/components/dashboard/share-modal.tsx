@@ -63,8 +63,8 @@ export function ShareModal({
   const [isCreating, setIsCreating] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
 
-  // Generate the default share URL
-  const defaultShareUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/s/${writerCode}/${projectId.slice(0, 8)}`;
+  // Placeholder URL before share is created
+  const placeholderUrl = 'Click "Create Share Link" to generate a URL';
 
   const handleCopy = async (url: string) => {
     await navigator.clipboard.writeText(url);
@@ -92,9 +92,10 @@ export function ShareModal({
   };
 
   const handleEmailShare = () => {
+    if (!shareUrl) return;
     const subject = encodeURIComponent(`Check out my script: ${projectName}`);
     const body = encodeURIComponent(
-      `Hi,\n\nI'd like to share my screenplay "${projectName}" with you. You can listen to the audio version here:\n\n${shareUrl || defaultShareUrl}\n\nLet me know what you think!\n\nBest`
+      `Hi,\n\nI'd like to share my screenplay "${projectName}" with you. You can listen to the audio version here:\n\n${shareUrl}\n\nLet me know what you think!\n\nBest`
     );
     window.open(`mailto:${recipientEmail}?subject=${subject}&body=${body}`);
   };
@@ -129,14 +130,15 @@ export function ShareModal({
           <TabsContent value="link" className="space-y-4 mt-4">
             <div className="flex items-center gap-2">
               <Input
-                value={shareUrl || defaultShareUrl}
+                value={shareUrl || placeholderUrl}
                 readOnly
-                className="font-mono text-sm"
+                className={`font-mono text-sm ${!shareUrl ? 'text-muted-foreground italic' : ''}`}
               />
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => handleCopy(shareUrl || defaultShareUrl)}
+                onClick={() => shareUrl && handleCopy(shareUrl)}
+                disabled={!shareUrl}
               >
                 {copied ? (
                   <CheckCircle className="w-4 h-4 text-green-500" />
@@ -223,14 +225,16 @@ export function ShareModal({
             <Button
               className="w-full"
               onClick={handleEmailShare}
-              disabled={!recipientEmail}
+              disabled={!recipientEmail || !shareUrl}
             >
               <Mail className="w-4 h-4 mr-2" />
               Open Email Client
             </Button>
 
             <p className="text-xs text-muted-foreground text-center">
-              Opens your default email client with a pre-filled message
+              {shareUrl
+                ? 'Opens your default email client with a pre-filled message'
+                : 'Create a share link first in the Link tab'}
             </p>
           </TabsContent>
 

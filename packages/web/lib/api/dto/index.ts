@@ -107,6 +107,12 @@ export const ShareAccessResponseSchema = z.object({
 
 export type ShareAccessResponse = z.infer<typeof ShareAccessResponseSchema>;
 
+export const VerifySharePasswordRequestSchema = z.object({
+  password: z.string().min(1, 'Password is required').max(50),
+});
+
+export type VerifySharePasswordRequest = z.infer<typeof VerifySharePasswordRequestSchema>;
+
 // =============================================================================
 // Library DTOs
 // =============================================================================

@@ -1,8 +1,40 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyPassword, isBcryptHash, hashPassword } from '@/lib/password';
+import { VerifySharePasswordRequestSchema } from '@/lib/api/dto';
 
 interface RouteParams {
   params: Promise<{ code: string }>;
+}
+
+// Type for the nested join query result
+interface ShareWithProject {
+  id: string;
+  project_id: string;
+  shared_by: string;
+  share_code: string;
+  access_level: 'stream' | 'download';
+  expires_at: string | null;
+  password_hash: string | null;
+  max_plays: number | null;
+  view_count: number;
+  play_count: number;
+  is_active: boolean;
+  recipient_email: string | null;
+  recipient_name: string | null;
+  created_at: string;
+  updated_at: string;
+  last_accessed_at: string | null;
+  projects: {
+    id: string;
+    name: string;
+    page_count: number;
+    user_id: string;
+    profiles: {
+      full_name: string | null;
+      writer_code: string | null;
+    } | null;
+  } | null;
 }
 
 // GET /api/shares/access/[code] - Access a shared script by code
@@ -11,7 +43,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const supabase = await createClient();
 
   // Get share by code
-  const { data: share, error } = await supabase
+  const { data: shareData, error } = await supabase
     .from('script_shares')
     .select(`
       *,
@@ -29,6 +61,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     .eq('share_code', code)
     .eq('is_active', true)
     .single();
+
+  const share = shareData as ShareWithProject | null;
 
   if (error || !share) {
     return NextResponse.json({ error: 'Share not found or expired' }, { status: 404 });
@@ -49,7 +83,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({
       requiresPassword: true,
       projectName: share.projects?.name,
-      writerName: (share.projects as any)?.profiles?.full_name,
+      writerName: share.projects?.profiles?.full_name,
     });
   }
 
@@ -124,8 +158,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       pageCount: share.projects?.page_count,
     },
     writer: {
-      name: (share.projects as any)?.profiles?.full_name,
-      code: (share.projects as any)?.profiles?.writer_code,
+      name: share.projects?.profiles?.full_name ?? '',
+      code: share.projects?.profiles?.writer_code ?? '',
     },
     audio: audioOutput ? {
       url: audioOutput.file_url,
@@ -141,14 +175,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const { code } = await params;
   const supabase = await createClient();
 
-  const { password } = await request.json();
+  // Parse and validate request body
+  const body = await request.json();
+  const parseResult = VerifySharePasswordRequestSchema.safeParse(body);
 
-  if (!password) {
-    return NextResponse.json({ error: 'Password required' }, { status: 400 });
+  if (!parseResult.success) {
+    return NextResponse.json(
+      { error: 'Invalid request', details: parseResult.error.flatten().fieldErrors },
+      { status: 400 }
+    );
   }
 
+  const { password } = parseResult.data;
+
   // Get share by code
-  const { data: share, error } = await supabase
+  const { data: shareData, error } = await supabase
     .from('script_shares')
     .select(`
       *,
@@ -167,13 +208,35 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .eq('is_active', true)
     .single();
 
+  const share = shareData as ShareWithProject | null;
+
   if (error || !share) {
     return NextResponse.json({ error: 'Share not found' }, { status: 404 });
   }
 
-  // Verify password
-  const hashedPassword = await hashPassword(password);
-  if (hashedPassword !== share.password_hash) {
+  // Verify password (supports both bcrypt and legacy SHA-256 hashes)
+  if (!share.password_hash) {
+    // No password set - this shouldn't happen as we only get here for protected shares
+    return NextResponse.json({ error: 'Share configuration error' }, { status: 500 });
+  }
+
+  let isValid = false;
+  if (isBcryptHash(share.password_hash)) {
+    isValid = await verifyPassword(password, share.password_hash);
+  } else {
+    // Legacy SHA-256 hash - migrate to bcrypt on successful verification
+    const legacyHash = await legacyHashPassword(password);
+    isValid = legacyHash === share.password_hash;
+    if (isValid) {
+      // Migrate to bcrypt
+      const bcryptHash = await hashPassword(password);
+      await supabase
+        .from('script_shares')
+        .update({ password_hash: bcryptHash })
+        .eq('id', share.id);
+    }
+  }
+  if (!isValid) {
     return NextResponse.json({ error: 'Incorrect password' }, { status: 401 });
   }
 
@@ -231,8 +294,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       pageCount: share.projects?.page_count,
     },
     writer: {
-      name: (share.projects as any)?.profiles?.full_name,
-      code: (share.projects as any)?.profiles?.writer_code,
+      name: share.projects?.profiles?.full_name ?? '',
+      code: share.projects?.profiles?.writer_code ?? '',
     },
     audio: audioOutput ? {
       url: audioOutput.file_url,
@@ -243,8 +306,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   });
 }
 
-// Simple password hashing (use bcrypt in production)
-async function hashPassword(password: string): Promise<string> {
+// Legacy SHA-256 hashing (for backward compatibility only)
+async function legacyHashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);

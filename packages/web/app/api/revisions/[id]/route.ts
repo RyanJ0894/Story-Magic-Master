@@ -43,8 +43,9 @@ async function verifyRevisionOwnership(
 
   if (!data) return false;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const projectUserId = (data as any).projects?.user_id;
+  const revisionData = data as unknown as { project_id: string; projects: { user_id: string } | { user_id: string }[] };
+  const projects = revisionData.projects;
+  const projectUserId = Array.isArray(projects) ? projects[0]?.user_id : projects?.user_id;
   return projectUserId === userId;
 }
 

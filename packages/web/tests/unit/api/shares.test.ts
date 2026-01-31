@@ -7,12 +7,19 @@ vi.mock('nanoid', () => ({
   nanoid: vi.fn(() => 'test-share-code'),
 }));
 
+// Mock password library
+vi.mock('@/lib/password', () => ({
+  hashPassword: vi.fn(() => Promise.resolve('$2b$12$mockedhash')),
+  verifyPassword: vi.fn((password: string) => Promise.resolve(password === 'correct-password')),
+  isBcryptHash: vi.fn((hash: string) => hash.startsWith('$2')),
+}));
+
 // Import after mocks
 const { GET, POST } = await import('@/app/api/shares/route');
 
 describe('Shares API', () => {
   const mockUser = { id: 'user-123', email: 'test@example.com' };
-  const mockProject = { id: 'project-123', name: 'Test Script', user_id: 'user-123' };
+  const mockProject = { id: '550e8400-e29b-41d4-a716-446655440000', name: 'Test Script', user_id: 'user-123' };
   const mockSubscription = { id: 'sub-123', status: 'active' };
 
   beforeEach(() => {
@@ -92,7 +99,76 @@ describe('Shares API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toBe('project_id is required');
+      expect(data.error).toBe('Invalid request');
+    });
+
+    it('returns 400 when project_id is not a valid UUID', async () => {
+      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      const request = new NextRequest('http://localhost:22000/api/shares', {
+        method: 'POST',
+        body: JSON.stringify({ project_id: 'not-a-uuid' }),
+      });
+      const response = await POST(request);
+
+      expect(response.status).toBe(400);
+    });
+
+    it('returns 400 for invalid access_level', async () => {
+      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      const request = new NextRequest('http://localhost:22000/api/shares', {
+        method: 'POST',
+        body: JSON.stringify({
+          project_id: '550e8400-e29b-41d4-a716-446655440000',
+          access_level: 'invalid',
+        }),
+      });
+      const response = await POST(request);
+
+      expect(response.status).toBe(400);
+    });
+
+    it('returns 400 for invalid email', async () => {
+      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      const request = new NextRequest('http://localhost:22000/api/shares', {
+        method: 'POST',
+        body: JSON.stringify({
+          project_id: '550e8400-e29b-41d4-a716-446655440000',
+          recipient_email: 'not-an-email',
+        }),
+      });
+      const response = await POST(request);
+
+      expect(response.status).toBe(400);
+    });
+
+    it('returns 400 for password too short', async () => {
+      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
+        data: { user: mockUser },
+        error: null,
+      });
+
+      const request = new NextRequest('http://localhost:22000/api/shares', {
+        method: 'POST',
+        body: JSON.stringify({
+          project_id: '550e8400-e29b-41d4-a716-446655440000',
+          password: '12',
+        }),
+      });
+      const response = await POST(request);
+
+      expect(response.status).toBe(400);
     });
 
     it('returns 404 when project not found', async () => {
@@ -110,7 +186,7 @@ describe('Shares API', () => {
 
       const request = new NextRequest('http://localhost:22000/api/shares', {
         method: 'POST',
-        body: JSON.stringify({ project_id: 'nonexistent' }),
+        body: JSON.stringify({ project_id: '550e8400-e29b-41d4-a716-446655440000' }),
       });
       const response = await POST(request);
       const data = await response.json();
@@ -135,7 +211,7 @@ describe('Shares API', () => {
 
       const request = new NextRequest('http://localhost:22000/api/shares', {
         method: 'POST',
-        body: JSON.stringify({ project_id: 'project-123' }),
+        body: JSON.stringify({ project_id: '550e8400-e29b-41d4-a716-446655440000' }),
       });
       const response = await POST(request);
       const data = await response.json();
@@ -150,14 +226,12 @@ describe('Shares API', () => {
         error: null,
       });
 
-      // First call for project check
       const projectQuery = {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         single: vi.fn().mockResolvedValue({ data: mockProject, error: null }),
       };
 
-      // Second call for subscription check
       const subscriptionQuery = {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
@@ -171,7 +245,7 @@ describe('Shares API', () => {
 
       const request = new NextRequest('http://localhost:22000/api/shares', {
         method: 'POST',
-        body: JSON.stringify({ project_id: 'project-123' }),
+        body: JSON.stringify({ project_id: '550e8400-e29b-41d4-a716-446655440000' }),
       });
       const response = await POST(request);
       const data = await response.json();
@@ -183,7 +257,7 @@ describe('Shares API', () => {
     it('creates share successfully with default options', async () => {
       const createdShare = {
         id: 'share-new',
-        project_id: 'project-123',
+        project_id: '550e8400-e29b-41d4-a716-446655440000',
         share_code: 'test-share-code',
         access_level: 'stream',
         is_active: true,
@@ -220,7 +294,7 @@ describe('Shares API', () => {
 
       const request = new NextRequest('http://localhost:22000/api/shares', {
         method: 'POST',
-        body: JSON.stringify({ project_id: 'project-123' }),
+        body: JSON.stringify({ project_id: '550e8400-e29b-41d4-a716-446655440000' }),
       });
       const response = await POST(request);
       const data = await response.json();
@@ -231,13 +305,12 @@ describe('Shares API', () => {
       expect(data.shareUrl).toContain('/s/test-share-code');
     });
 
-    it('creates share with custom access level and expiration', async () => {
+    it('creates share with password hashing', async () => {
       const createdShare = {
         id: 'share-new',
-        project_id: 'project-123',
+        project_id: '550e8400-e29b-41d4-a716-446655440000',
         share_code: 'test-share-code',
-        access_level: 'download',
-        expires_at: '2026-02-01T00:00:00Z',
+        password_hash: '$2b$12$mockedhash',
       };
 
       mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
@@ -272,16 +345,17 @@ describe('Shares API', () => {
       const request = new NextRequest('http://localhost:22000/api/shares', {
         method: 'POST',
         body: JSON.stringify({
-          project_id: 'project-123',
-          access_level: 'download',
-          expires_at: '2026-02-01T00:00:00Z',
+          project_id: '550e8400-e29b-41d4-a716-446655440000',
+          password: 'secretpass',
         }),
       });
       const response = await POST(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data.share.access_level).toBe('download');
+      // Verify hashPassword was called
+      const { hashPassword } = await import('@/lib/password');
+      expect(hashPassword).toHaveBeenCalledWith('secretpass');
     });
   });
 });

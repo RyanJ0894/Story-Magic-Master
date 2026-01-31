@@ -85,8 +85,7 @@ export async function POST(request: Request) {
         const tier = getTierFromPriceId(priceId);
 
         // Access current_period_end from the subscription object
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const periodEnd = (subscription as any).current_period_end;
+        const periodEnd = (subscription as unknown as { current_period_end?: number }).current_period_end;
 
         if (userId) {
           await supabase
@@ -125,8 +124,14 @@ export async function POST(request: Request) {
 
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object as Stripe.Invoice;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const subscriptionId = (invoice as any).subscription as string | null;
+        const invoiceData = invoice as unknown as {
+          subscription?: string | { id: string };
+          period_start?: number;
+          period_end?: number;
+        };
+        const subscriptionId = typeof invoiceData.subscription === 'string'
+          ? invoiceData.subscription
+          : invoiceData.subscription?.id ?? null;
 
         if (subscriptionId) {
           // Update subscription status
@@ -146,10 +151,8 @@ export async function POST(request: Request) {
 
           if (profile) {
             // Create new usage record for the billing period
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const periodStart = (invoice as any).period_start;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const periodEnd = (invoice as any).period_end;
+            const periodStart = invoiceData.period_start;
+            const periodEnd = invoiceData.period_end;
 
             if (periodStart && periodEnd) {
               await supabase.from('usage').upsert({
@@ -166,8 +169,12 @@ export async function POST(request: Request) {
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const subscriptionId = (invoice as any).subscription as string | null;
+        const invoiceData = invoice as unknown as {
+          subscription?: string | { id: string };
+        };
+        const subscriptionId = typeof invoiceData.subscription === 'string'
+          ? invoiceData.subscription
+          : invoiceData.subscription?.id ?? null;
 
         if (subscriptionId) {
           await supabase
