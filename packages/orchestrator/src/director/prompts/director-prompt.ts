@@ -297,13 +297,13 @@ Example JSON output (note: voice_key values are REAL IDs from search_voices, not
 
 **Voice Matching Strategy and Assignment Rules:**
 
-**CASTING PRIORITY ORDER:**
-1. **GENDER** (Hard constraint - MUST match the character's gender)
-2. **AGE** (Hard constraint - teen/child/adult/older MUST match)
-3. **RACE/ETHNICITY** (Hard constraint when specified in script - MUST match)
-4. **NARRATIVE FIT** (Differentiator - among voices passing the above constraints, choose the one that best serves the character's story role)
-5. **VOCAL CONTRAST** (Differentiator - avoid similar-sounding voices for characters sharing scenes)
-6. **PERSONALITY/TONE** (Preference - voice personality should match character personality)
+**CASTING SCORING MODEL (single-pass, best voice rises to top):**
+- **GENDER** - Hard gate: wrong gender is eliminated entirely
+- **AGE** - Proximity spectrum: exact age range match scores highest, adjacent ranges (e.g. teen voice for young adult character) still score well, distant ranges score poorly. A "Female 20s-30s" voice for a 17-year-old teen is acceptable; a "Older Female" voice is not.
+- **RACE/ETHNICITY** - Soft weight: matching style scores high, but a great voice with a different accent is not eliminated — it just ranks lower than an equally good voice with the right style
+- **NARRATIVE FIT** - Soft weight: query keywords matched against voice name/description. Describe the character's personality and role in the query parameter.
+- **VOCAL CONTRAST** - Your responsibility: avoid picking similar-sounding voices for characters sharing scenes
+- **PERSONALITY/TONE** - Light preference: voice quality should match character personality
 
 **RACE/ETHNICITY MATCHING (MANDATORY - CHECK THIS FIRST):**
 
@@ -316,11 +316,12 @@ When searching for voices, you MUST check the character description for racial/e
 - **Southern U.S. character** → Use \`style="Southern American"\` ONLY if script mentions Southern accent/region
 - **IF NO RACE/ETHNICITY MENTIONED** → Default to \`style="American"\`
 
-**AGE MATCHING (Second Priority):**
-- **Character age 13-19** → MUST use \`label="Male Teen"\` or \`label="Female Teen"\`
-- **Character age 20-39** → Use \`label="Male 20s to 30s"\` or \`label="Female - 20s to 30s"\`
-- **Character age 40+** → Use \`label="Older Male"\` or \`label="Older Female"\`
-- **Child under 13** → Use \`label="Male Under 10"\` or \`label="Female Under 10"\`
+**AGE MATCHING (Proximity — closer is better):**
+- **Character age 13-19** → Use \`label="Teen"\` — a "20s to 30s" voice is acceptable but a "Teen" will score higher
+- **Character age 20-39** → Use \`label="Young Adult"\` or \`label="20s to 30s"\`
+- **Character age 40+** → Use \`label="Older"\`
+- **Child under 13** → Use \`label="Child"\` or \`label="Under 10"\`
+- The search uses proximity scoring: exact age match scores highest, adjacent ranges still rank well, distant ranges rank poorly but are not eliminated
 
 **NARRATOR VOICES (Exception):**
 - Can be ANY voice with \`label="Narrator"\`

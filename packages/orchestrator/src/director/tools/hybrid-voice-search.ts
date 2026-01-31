@@ -1,16 +1,20 @@
 /**
- * Hybrid Voice Search - Combines ElevenLabs API with local catalog
+ * Hybrid Voice Search - Single-pass soft scoring with gender gate
  *
  * Architecture:
- * 1. Primary: ElevenLabs API filtering (gender, age, accent)
- * 2. Fallback: Local voice catalog with attribute-based search
- * 3. Scoring: Match quality based on attribute priority
+ * 1. Score every voice in catalog (gender mismatch = instant 0)
+ * 2. Age uses proximity scoring (adjacent ranges get partial credit)
+ * 3. Style, narrative, tone are weighted soft scores
+ * 4. Fallback to ElevenLabs API if local catalog is empty
+ * 5. Ultimate fallback: default voices
  *
- * Priority order (highest to lowest):
- * 1. Ethnicity/Style (African American, British, etc.)
- * 2. Age range (Teen, Young Adult, Older)
- * 3. Gender
- * 4. Tone/Quality
+ * Scoring model:
+ * - Gender: hard gate (mismatch = score 0, match = no bonus, just eligible)
+ * - Age proximity: 0.30 (closer age range = higher score)
+ * - Style/Ethnicity: 0.25 (exact > partial > none)
+ * - Narrative query: 0.25 (keyword match against voice name/description)
+ * - Tone: 0.10 (voice quality preference)
+ * - Narrator: 0.10 (bonus for narrator-labeled voices when searching for narrator)
  */
 
 import { readFileSync, existsSync } from 'fs';
@@ -32,6 +36,17 @@ const DEFAULT_VOICES = {
 
 // ElevenLabs API config
 const ELEVENLABS_API_URL = 'https://api.elevenlabs.io/v1';
+
+// Age range midpoints for proximity scoring
+const AGE_MIDPOINTS: Record<AgeRange, number> = {
+  child: 8,
+  teen: 16,
+  young_adult: 28,
+  older: 50,
+};
+
+// Maximum age distance possible (child to older)
+const MAX_AGE_DISTANCE = Math.abs(AGE_MIDPOINTS.child - AGE_MIDPOINTS.older);
 
 export interface VoiceMetadata {
   voice_id: string;
@@ -61,7 +76,6 @@ export interface VoiceSearchResult {
   success: boolean;
   voices: VoiceMetadata[];
   source: 'elevenlabs_api' | 'local_catalog' | 'fallback';
-  filtersRelaxed?: boolean;
   message?: string;
 }
 
@@ -78,86 +92,41 @@ export function getAgeRange(age: number): AgeRange {
 }
 
 /**
- * Map age range to ElevenLabs label patterns
+ * Detect age range from a voice label string
  */
-function ageRangeToLabelPattern(ageRange: AgeRange, gender: 'Male' | 'Female'): string[] {
-  switch (ageRange) {
-    case 'child':
-      return [gender === 'Male' ? 'Male Under 10' : 'Female Under 10', 'Child'];
-    case 'teen':
-      return [gender === 'Male' ? 'Male Teen' : 'Female Teen', 'Teen'];
-    case 'young_adult':
-      return [
-        gender === 'Male' ? 'Male 20s to 30s' : 'Female - 20s to 30s',
-        'Young Adult',
-        '20s',
-        '30s',
-      ];
-    case 'older':
-      return [gender === 'Male' ? 'Older Male' : 'Older Female', 'Older', 'Mature', '40s', '50s', '60s'];
-  }
+export function detectAgeRangeFromLabel(label: string | undefined): AgeRange | undefined {
+  if (!label) return undefined;
+  const lower = label.toLowerCase();
+
+  if (lower.includes('teen')) return 'teen';
+  if (lower.includes('child') || lower.includes('under 10')) return 'child';
+  if (lower.includes('20s') || lower.includes('30s') || lower.includes('young')) return 'young_adult';
+  if (lower.includes('older') || lower.includes('mature') || lower.includes('40s') || lower.includes('50s') || lower.includes('60s')) return 'older';
+
+  return undefined;
 }
 
 /**
- * Check if a voice matches the given attributes
+ * Calculate age proximity score (0-1)
+ *
+ * Exact match = 1.0
+ * Adjacent range = ~0.7-0.8
+ * Two ranges apart = ~0.4-0.5
+ * Opposite ends = 0.0
  */
-export function matchVoiceAttributes(
-  voice: Partial<VoiceMetadata>,
-  criteria: {
-    gender?: 'Male' | 'Female';
-    ageRange?: AgeRange;
-    style?: string;
-    isNarrator?: boolean;
-  }
-): boolean {
-  // Gender must match exactly if specified
-  if (criteria.gender && voice.gender !== criteria.gender) {
-    return false;
-  }
+export function ageProximityScore(targetAge: AgeRange, voiceAge: AgeRange): number {
+  if (targetAge === voiceAge) return 1.0;
 
-  // Check narrator
-  if (criteria.isNarrator) {
-    const label = voice.label?.toLowerCase() || '';
-    if (!label.includes('narrator')) {
-      return false;
-    }
-  }
-
-  // Check age range via label
-  if (criteria.ageRange && criteria.gender) {
-    const labelPatterns = ageRangeToLabelPattern(criteria.ageRange, criteria.gender);
-    const label = voice.label?.toLowerCase() || '';
-
-    const matchesAge = labelPatterns.some((pattern) => label.includes(pattern.toLowerCase()));
-    if (!matchesAge) {
-      return false;
-    }
-  }
-
-  // Check style/ethnicity
-  if (criteria.style) {
-    const voiceStyle = voice.style?.toLowerCase() || '';
-    const targetStyle = criteria.style.toLowerCase();
-
-    if (voiceStyle !== targetStyle && !voiceStyle.includes(targetStyle)) {
-      return false;
-    }
-  }
-
-  return true;
+  const distance = Math.abs(AGE_MIDPOINTS[targetAge] - AGE_MIDPOINTS[voiceAge]);
+  return Math.max(0, 1 - (distance / MAX_AGE_DISTANCE));
 }
 
 /**
  * Score how well a voice matches the criteria (0-1)
  *
- * Hard constraints (filter first, then score):
- * - Gender: 0.30 (must match)
- * - Age: 0.25 (must match for teens/children)
- * - Style/Ethnicity: 0.20 (must match when specified)
- *
- * Differentiators (choose the best within matching pool):
- * - Narrative query: 0.15 (story-driven matching against name/description)
- * - Tone: 0.10 (voice quality preference)
+ * Gender is a hard gate: wrong gender = 0 score immediately.
+ * Everything else is soft-weighted so the best available voice
+ * always rises to the top, even in a small catalog.
  */
 export function scoreVoiceMatch(
   voice: Partial<VoiceMetadata>,
@@ -170,54 +139,50 @@ export function scoreVoiceMatch(
     isNarrator?: boolean;
   }
 ): number {
+  // Hard gate: gender mismatch = instant 0
+  if (criteria.gender && voice.gender && voice.gender !== criteria.gender) {
+    return 0;
+  }
+
   let score = 0;
   let maxScore = 0;
 
-  // Gender match (weight: 0.30 - hard constraint)
-  if (criteria.gender) {
+  // Age proximity (weight: 0.30)
+  if (criteria.ageRange) {
     maxScore += 0.30;
-    if (voice.gender === criteria.gender) {
-      score += 0.30;
+    const voiceAge = detectAgeRangeFromLabel(voice.label);
+    if (voiceAge) {
+      score += 0.30 * ageProximityScore(criteria.ageRange, voiceAge);
     }
+    // No label = no age score (voice gets 0 for this dimension, not eliminated)
   }
 
-  // Age match (weight: 0.25 - hard constraint)
-  if (criteria.ageRange && criteria.gender) {
-    maxScore += 0.25;
-    const labelPatterns = ageRangeToLabelPattern(criteria.ageRange, criteria.gender);
-    const label = voice.label?.toLowerCase() || '';
-
-    if (labelPatterns.some((pattern) => label.includes(pattern.toLowerCase()))) {
-      score += 0.25;
-    }
-  }
-
-  // Style/Ethnicity match (weight: 0.20 - hard constraint when specified)
+  // Style/Ethnicity (weight: 0.25)
   if (criteria.style) {
-    maxScore += 0.20;
+    maxScore += 0.25;
     const voiceStyle = voice.style?.toLowerCase() || '';
     const targetStyle = criteria.style.toLowerCase();
 
     if (voiceStyle === targetStyle) {
-      score += 0.20;
-    } else if (voiceStyle.includes(targetStyle)) {
-      score += 0.10;
+      score += 0.25;
+    } else if (voiceStyle.includes(targetStyle) || targetStyle.includes(voiceStyle)) {
+      score += 0.125;
     }
   }
 
-  // Narrative query match (weight: 0.15 - differentiator within matching pool)
+  // Narrative query (weight: 0.25)
   if (criteria.query && criteria.query.length > 3) {
-    maxScore += 0.15;
+    maxScore += 0.25;
     const queryWords = criteria.query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
     const voiceText = `${voice.name || ''} ${voice.description || ''} ${voice.tone || ''}`.toLowerCase();
 
     const matchCount = queryWords.filter(word => voiceText.includes(word)).length;
     if (matchCount > 0) {
-      score += 0.15 * Math.min(1, matchCount / Math.max(1, queryWords.length * 0.5));
+      score += 0.25 * Math.min(1, matchCount / Math.max(1, queryWords.length * 0.5));
     }
   }
 
-  // Tone match (weight: 0.10 - preference)
+  // Tone (weight: 0.10)
   if (criteria.tone) {
     maxScore += 0.10;
     const voiceTones = Array.isArray(voice.tone) ? voice.tone : [voice.tone || ''];
@@ -228,39 +193,15 @@ export function scoreVoiceMatch(
     }
   }
 
-  // Narrator match
+  // Narrator bonus (weight: 0.10)
   if (criteria.isNarrator) {
-    maxScore += 0.30;
+    maxScore += 0.10;
     if (voice.label?.toLowerCase().includes('narrator')) {
-      score += 0.30;
+      score += 0.10;
     }
   }
 
-  // Normalize score to 0-1
   return maxScore > 0 ? score / maxScore : 0;
-}
-
-/**
- * Filter voices by attributes (local catalog search)
- */
-export function filterVoicesByAttributes(
-  voices: VoiceMetadata[],
-  criteria: {
-    gender?: 'Male' | 'Female';
-    ageRange?: AgeRange;
-    style?: string;
-    isNarrator?: boolean;
-  },
-  excludeVoiceIds: string[] = []
-): VoiceMetadata[] {
-  return voices.filter((voice) => {
-    // Exclude already used voices
-    if (excludeVoiceIds.includes(voice.voice_id)) {
-      return false;
-    }
-
-    return matchVoiceAttributes(voice, criteria);
-  });
 }
 
 /**
@@ -344,12 +285,11 @@ async function fetchElevenLabsVoices(params: {
 /**
  * Main hybrid search function
  *
- * Strategy:
- * 1. Try ElevenLabs API with filters
- * 2. If no results or API fails, use local catalog
- * 3. Score and rank results
- * 4. If still no results, relax filters progressively
- * 5. Ultimate fallback: return default voice
+ * Single-pass approach:
+ * 1. Score every voice in catalog (gender gate eliminates wrong gender)
+ * 2. Sort by score, return top K
+ * 3. If local catalog yields nothing, try ElevenLabs API
+ * 4. Ultimate fallback: default voice
  */
 export async function searchVoicesHybrid(params: VoiceSearchParams): Promise<VoiceSearchResult> {
   const {
@@ -383,55 +323,31 @@ export async function searchVoicesHybrid(params: VoiceSearchParams): Promise<Voi
   // Load local catalog
   const localVoices = loadLocalVoiceCatalog();
 
-  // Step 1: Try local catalog first (faster, more reliable)
-  let matchedVoices = filterVoicesByAttributes(localVoices, criteria, excludeVoiceIds);
+  // Single-pass: score every non-excluded voice
+  const candidates = localVoices.filter((v) => !excludeVoiceIds.includes(v.voice_id));
 
-  if (matchedVoices.length > 0) {
-    // Score and sort (includes narrative query matching)
-    const scored = matchedVoices.map((v) => ({
-      voice: v,
-      score: scoreVoiceMatch(v, criteria),
-    }));
-    scored.sort((a, b) => b.score - a.score);
+  const scored = candidates.map((v) => ({
+    voice: v,
+    score: scoreVoiceMatch(v, criteria),
+  }));
+
+  // Remove gender-gated voices (score === 0 when gender was specified)
+  const eligible = scored.filter((s) => s.score > 0 || !criteria.gender);
+  eligible.sort((a, b) => b.score - a.score);
+
+  if (eligible.length > 0 && eligible[0].score > 0) {
+    const topVoices = eligible.slice(0, topK).map((s) => s.voice);
+    console.log(`[HybridVoiceSearch] Found ${eligible.length} eligible voices, top score: ${eligible[0].score.toFixed(3)}`);
 
     return {
       success: true,
-      voices: scored.slice(0, topK).map((s) => s.voice),
+      voices: topVoices,
       source: 'local_catalog',
-      message: `Found ${matchedVoices.length} matching voices`,
+      message: `Found ${eligible.length} eligible voices (top score: ${eligible[0].score.toFixed(2)})`,
     };
   }
 
-  // Step 2: Try relaxing filters progressively
-  const filterRelaxationOrder: (keyof typeof criteria)[] = ['tone', 'style', 'ageRange', 'gender'];
-
-  let relaxedCriteria = { ...criteria };
-  for (const filterToRelax of filterRelaxationOrder) {
-    if (relaxedCriteria[filterToRelax]) {
-      console.log(`[HybridVoiceSearch] Relaxing filter: ${filterToRelax}`);
-      delete relaxedCriteria[filterToRelax];
-
-      matchedVoices = filterVoicesByAttributes(localVoices, relaxedCriteria, excludeVoiceIds);
-
-      if (matchedVoices.length > 0) {
-        const scored = matchedVoices.map((v) => ({
-          voice: v,
-          score: scoreVoiceMatch(v, criteria), // Score against original criteria (with query)
-        }));
-        scored.sort((a, b) => b.score - a.score);
-
-        return {
-          success: true,
-          voices: scored.slice(0, topK).map((s) => s.voice),
-          source: 'local_catalog',
-          filtersRelaxed: true,
-          message: `Found ${matchedVoices.length} voices with relaxed filters`,
-        };
-      }
-    }
-  }
-
-  // Step 3: Try ElevenLabs API as last resort
+  // Fallback: Try ElevenLabs API
   const apiVoices = await fetchElevenLabsVoices({
     gender,
     age: ageRange,
@@ -439,27 +355,25 @@ export async function searchVoicesHybrid(params: VoiceSearchParams): Promise<Voi
   });
 
   if (apiVoices.length > 0) {
-    // Filter out excluded voices
-    const filteredApiVoices = apiVoices.filter((v) => !excludeVoiceIds.includes(v.voice_id));
+    const apiCandidates = apiVoices.filter((v) => !excludeVoiceIds.includes(v.voice_id));
+    const apiScored = apiCandidates.map((v) => ({
+      voice: v,
+      score: scoreVoiceMatch(v, criteria),
+    }));
+    const apiEligible = apiScored.filter((s) => s.score > 0 || !criteria.gender);
+    apiEligible.sort((a, b) => b.score - a.score);
 
-    if (filteredApiVoices.length > 0) {
-      const scored = filteredApiVoices.map((v) => ({
-        voice: v,
-        score: scoreVoiceMatch(v, criteria),
-      }));
-      scored.sort((a, b) => b.score - a.score);
-
+    if (apiEligible.length > 0 && apiEligible[0].score > 0) {
       return {
         success: true,
-        voices: scored.slice(0, topK).map((s) => s.voice),
+        voices: apiEligible.slice(0, topK).map((s) => s.voice),
         source: 'elevenlabs_api',
-        filtersRelaxed: true,
-        message: `Found ${filteredApiVoices.length} voices from ElevenLabs API`,
+        message: `Found ${apiEligible.length} voices from ElevenLabs API`,
       };
     }
   }
 
-  // Step 4: Ultimate fallback - return default voice
+  // Ultimate fallback: default voice
   console.warn(`[HybridVoiceSearch] No matches found for ${characterName}, using fallback`);
 
   let fallbackVoice: VoiceMetadata;
@@ -473,7 +387,6 @@ export async function searchVoicesHybrid(params: VoiceSearchParams): Promise<Voi
 
   // Make sure fallback isn't excluded
   if (excludeVoiceIds.includes(fallbackVoice.voice_id)) {
-    // Find any non-excluded voice from defaults
     const availableDefault = Object.values(DEFAULT_VOICES).find(
       (v) => !excludeVoiceIds.includes(v.voice_id)
     );
@@ -486,7 +399,6 @@ export async function searchVoicesHybrid(params: VoiceSearchParams): Promise<Voi
     success: true,
     voices: [fallbackVoice],
     source: 'fallback',
-    filtersRelaxed: true,
     message: `Using fallback voice for ${characterName}`,
   };
 }

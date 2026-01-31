@@ -12,6 +12,7 @@ import { z } from 'zod';
 import {
   searchVoicesHybrid,
   getAgeRange,
+  detectAgeRangeFromLabel,
   type VoiceMetadata,
   type AgeRange,
 } from './hybrid-voice-search.js';
@@ -62,20 +63,8 @@ function extractVoicePersonality(voice: VoiceMetadata): string {
   return parts.join('; ') || 'General purpose voice';
 }
 
-/**
- * Parse age range from label string
- */
-function parseAgeRangeFromLabel(label: string | undefined): AgeRange | undefined {
-  if (!label) return undefined;
-  const lower = label.toLowerCase();
-
-  if (lower.includes('teen')) return 'teen';
-  if (lower.includes('child') || lower.includes('under 10')) return 'child';
-  if (lower.includes('20s') || lower.includes('30s') || lower.includes('young')) return 'young_adult';
-  if (lower.includes('older') || lower.includes('mature') || lower.includes('40s') || lower.includes('50s') || lower.includes('60s')) return 'older';
-
-  return undefined;
-}
+// Re-export detectAgeRangeFromLabel as parseAgeRangeFromLabel for local use
+const parseAgeRangeFromLabel = detectAgeRangeFromLabel;
 
 /**
  * Search for voices tool - callable by LLM agents
@@ -85,23 +74,22 @@ export const searchVoicesTool = tool({
 Returns voice profiles with voice_id, name, label, gender, tone, style, and description.
 IMPORTANT: Each voice can only be assigned to ONE character.
 
-The 'query' parameter is the MOST IMPORTANT field - use it to describe the character's
-narrative role and vocal quality (e.g., "fierce warrior, commanding and deep" or
-"warm motherly mentor, reassuring storyteller"). The search matches query keywords
-against voice names and descriptions for story-driven casting.
+The 'query' parameter describes the character's narrative role and vocal quality
+(e.g., "fierce warrior, commanding and deep" or "warm motherly mentor, reassuring
+storyteller"). Keywords are matched against voice names and descriptions.
 
-Filters:
-- gender: "Male" or "Female" (REQUIRED for character voices)
-- label: Age/category hint like "Teen", "Older", "Young Adult", "Narrator"
+Parameters:
+- query: Character description for narrative matching (ALWAYS provide this)
+- gender: "Male" or "Female" (REQUIRED - wrong gender is eliminated)
+- label: Age hint like "Teen", "Older", "Young Adult", "Narrator" (uses proximity - close ages score higher)
 - style: Accent/ethnicity like "African American", "American", "British"
 - tone: Voice quality like "Calm", "Energetic", "Deep"
 
-Casting priority:
-1. Narrative fit (query) - Does the voice personality match the character's story role?
-2. Race/ethnicity (style) - Must match when specified in script
-3. Age (label) - Must match for teens (17-19 years old)
-4. Gender - Must match
-5. Tone - Voice quality preference`,
+Scoring model (all voices scored, best rises to top):
+- Gender: hard gate (wrong gender = eliminated)
+- Age: proximity spectrum (exact match best, adjacent ranges still score well)
+- Style/Ethnicity + Narrative query: equally weighted soft scores
+- Tone: light preference weight`,
 
   parameters: z.object({
     query: z.string().describe('Natural language description of the desired voice'),
@@ -161,7 +149,6 @@ Casting priority:
         status: 'success',
         message: result.message || `Found ${formattedVoices.length} matching voices`,
         voices: formattedVoices,
-        filters_relaxed: result.filtersRelaxed,
         source: result.source,
       };
     } catch (err) {
