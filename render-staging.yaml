@@ -1,0 +1,151 @@
+# Render Blueprint for Story Magic (STAGING)
+# Deploy with: https://render.com/docs/infrastructure-as-code
+#
+# Staging environment - uses starter plans and deploys from staging branch.
+# Point to a separate Supabase project for data isolation.
+
+services:
+  # =============================================================================
+  # WEB SERVICE - STAGING (Next.js)
+  # =============================================================================
+  - type: web
+    name: story-magic-web-staging
+    runtime: node
+    region: oregon
+    plan: starter
+    branch: staging
+    autoDeploy: true
+    numInstances: 1
+
+    # Node/pnpm versions
+    buildCommand: |
+      corepack enable &&
+      corepack prepare pnpm@9.1.0 --activate &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @story-magic/web build
+    startCommand: pnpm --filter @story-magic/web start
+
+    # Health check
+    healthCheckPath: /
+
+    # Environment variables
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+
+      # Supabase STAGING (set in Render dashboard)
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+
+      # Stripe TEST mode (set in Render dashboard)
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+        sync: false
+
+      # Sentry (optional for staging)
+      - key: NEXT_PUBLIC_SENTRY_DSN
+        sync: false
+      - key: SENTRY_AUTH_TOKEN
+        sync: false
+
+      # Orchestrator URL (set in Render dashboard - staging orchestrator URL)
+      - key: ORCHESTRATOR_URL
+        sync: false
+
+  # =============================================================================
+  # ORCHESTRATOR SERVICE - STAGING (Node.js/Express)
+  # =============================================================================
+  - type: web
+    name: story-magic-orchestrator-staging
+    runtime: node
+    region: oregon
+    plan: starter
+    branch: staging
+    autoDeploy: true
+    numInstances: 1
+
+    # Node/pnpm versions
+    buildCommand: |
+      corepack enable &&
+      corepack prepare pnpm@9.1.0 --activate &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @story-magic/orchestrator build
+    startCommand: pnpm --filter @story-magic/orchestrator start
+
+    # Health check
+    healthCheckPath: /health
+
+    # Disk for temporary audio files (smaller for staging)
+    disk:
+      name: audio-storage-staging
+      mountPath: /var/data/audio
+      sizeGB: 1
+
+    # Environment variables
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+
+      # Supabase STAGING (set in Render dashboard)
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+      # AI Services (use same keys or separate test keys)
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+
+      # Sentry (optional for staging)
+      - key: SENTRY_DSN
+        sync: false
+
+      # Rate Limiting (Upstash - set in Render dashboard)
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+
+      # Logging (more verbose for staging)
+      - key: LOG_LEVEL
+        value: debug
+
+      # TTS concurrency (lower for starter plan)
+      - key: TTS_CONCURRENCY
+        value: "4"
+
+      # Web frontend URL (for CORS allowlist on orchestrator)
+      - key: WEB_URL
+        sync: false
+
+      # Audio output directory (persistent disk mount)
+      - key: AUDIO_OUTPUT_DIR
+        value: /var/data/audio
+
+# =============================================================================
+# STAGING SETUP CHECKLIST
+# =============================================================================
+#
+# 1. Create a separate Supabase project for staging data isolation
+# 2. Set all sync:false env vars in Render dashboard
+# 3. Use Stripe TEST mode keys (pk_test_*, sk_test_*)
+# 4. Create a 'staging' branch in git
+# 5. Deploy: render blueprint sync --file render-staging.yaml
+#

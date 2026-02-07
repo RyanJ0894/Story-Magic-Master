@@ -5,6 +5,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { log } from './logger.js';
 
 const CATALOG_BASE = 'catalog';
 
@@ -24,12 +25,12 @@ export interface AudioCatalog {
  * Load audio catalog from filesystem
  */
 export function loadCatalog(): AudioCatalog {
-  console.log('📂 Loading audio catalog from:', CATALOG_BASE);
+  log.info('Loading audio catalog', { catalogBase: CATALOG_BASE });
   const catalog: AudioCatalog = { music: [], ambience: [], sfx: [] };
 
   try {
     if (!fs.existsSync(CATALOG_BASE)) {
-      console.warn(`⚠️  Catalog directory not found: ${CATALOG_BASE}`);
+      log.warn('Catalog directory not found', { catalogBase: CATALOG_BASE });
       fs.mkdirSync(path.join(CATALOG_BASE, 'music'), { recursive: true });
       fs.mkdirSync(path.join(CATALOG_BASE, 'ambience'), { recursive: true });
       fs.mkdirSync(path.join(CATALOG_BASE, 'sfx'), { recursive: true });
@@ -49,7 +50,7 @@ export function loadCatalog(): AudioCatalog {
           filename: file,
         });
       }
-      console.log(`   ✅ Loaded ${catalog.music.length} music tracks`);
+      log.info('Loaded music tracks', { count: catalog.music.length });
     }
 
     const ambienceDir = path.join(CATALOG_BASE, 'ambience');
@@ -62,7 +63,7 @@ export function loadCatalog(): AudioCatalog {
           filename: file,
         });
       }
-      console.log(`   ✅ Loaded ${catalog.ambience.length} ambience tracks`);
+      log.info('Loaded ambience tracks', { count: catalog.ambience.length });
     }
 
     const sfxDir = path.join(CATALOG_BASE, 'sfx');
@@ -75,12 +76,12 @@ export function loadCatalog(): AudioCatalog {
           filename: file,
         });
       }
-      console.log(`   ✅ Loaded ${catalog.sfx.length} SFX files`);
+      log.info('Loaded SFX files', { count: catalog.sfx.length });
     }
 
     return catalog;
   } catch (error) {
-    console.error('❌ Error loading catalog:', error);
+    log.error('Error loading catalog', error instanceof Error ? error : undefined);
     return catalog;
   }
 }
@@ -114,7 +115,7 @@ export function getTrackPath(trackId: string): string | null {
     if (result) return result;
   }
 
-  console.warn(`⚠️  Track not found: ${path.join(CATALOG_BASE, trackId)} or alternative extension`);
+  log.warn('Track not found', { trackId, searchPath: path.join(CATALOG_BASE, trackId) });
   return null;
 }
 

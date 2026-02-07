@@ -81,10 +81,12 @@ export function ScriptSyncPlayer({
   const [activeLineId, setActiveLineId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [view, setView] = useState<'script' | 'player'>('script');
+  const [isDragging, setIsDragging] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const scriptRef = useRef<HTMLDivElement>(null);
   const activeLineRef = useRef<HTMLDivElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
 
   const currentOutput = outputs[currentTrack];
 
@@ -162,7 +164,7 @@ export function ScriptSyncPlayer({
   };
 
   const handleTimeUpdate = () => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || isDragging) return;
     const progressPercent =
       (audioRef.current.currentTime / audioRef.current.duration) * 100;
     setProgress(progressPercent || 0);
@@ -176,14 +178,67 @@ export function ScriptSyncPlayer({
     }
   };
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+  const seekTo = useCallback((percentage: number) => {
     if (!audioRef.current) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percentage = x / rect.width;
-    const time = percentage * audioRef.current.duration;
+    const clamped = Math.max(0, Math.min(1, percentage));
+    const time = clamped * audioRef.current.duration;
     audioRef.current.currentTime = time;
-    setProgress(percentage * 100);
+    setProgress(clamped * 100);
+    setCurrentTime(time);
+  }, []);
+
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!audioRef.current || !progressRef.current) return;
+    const rect = progressRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    seekTo(x / rect.width);
+  };
+
+  // Drag-to-seek on progress bar
+  const handleProgressMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsDragging(true);
+    handleSeek(e);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!progressRef.current) return;
+      const rect = progressRef.current.getBoundingClientRect();
+      const x = moveEvent.clientX - rect.left;
+      seekTo(x / rect.width);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Progress bar keyboard navigation
+  const handleProgressKeyDown = (e: React.KeyboardEvent) => {
+    if (!audioRef.current) return;
+    const step = 0.02;
+
+    switch (e.key) {
+      case 'ArrowRight':
+        e.preventDefault();
+        seekTo((audioRef.current.currentTime / audioRef.current.duration) + step);
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        seekTo((audioRef.current.currentTime / audioRef.current.duration) - step);
+        break;
+      case 'Home':
+        e.preventDefault();
+        seekTo(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        seekTo(1);
+        break;
+    }
   };
 
   const seekToLine = (lineId: string) => {
@@ -230,7 +285,7 @@ export function ScriptSyncPlayer({
   if (!currentOutput) {
     return (
       <div className="flex items-center justify-center p-8 text-slate-500">
-        <Music className="w-5 h-5 mr-2" />
+        <Music className="w-5 h-5 mr-2" aria-hidden="true" />
         No audio available
       </div>
     );
@@ -261,39 +316,51 @@ export function ScriptSyncPlayer({
         <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
           <div className="flex items-center gap-4">
             {/* Play Controls */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" role="group" aria-label="Playback controls">
               <button
                 onClick={skipBackward}
-                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"
+                aria-label="Skip back 10 seconds"
+                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
               >
-                <SkipBack className="w-4 h-4" />
+                <SkipBack className="w-4 h-4" aria-hidden="true" />
               </button>
               <button
                 onClick={togglePlayPause}
-                className="w-12 h-12 flex items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600 text-white rounded-full hover:from-violet-600 hover:to-purple-700 transition-all shadow-lg shadow-violet-500/25"
+                aria-label={isPlaying ? 'Pause' : 'Play'}
+                className="w-12 h-12 flex items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600 text-white rounded-full hover:from-violet-600 hover:to-purple-700 transition-all shadow-lg shadow-violet-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
               >
                 {isPlaying ? (
-                  <Pause className="w-5 h-5" />
+                  <Pause className="w-5 h-5" aria-hidden="true" />
                 ) : (
-                  <Play className="w-5 h-5 ml-0.5" />
+                  <Play className="w-5 h-5 ml-0.5" aria-hidden="true" />
                 )}
               </button>
               <button
                 onClick={skipForward}
-                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"
+                aria-label="Skip forward 10 seconds"
+                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
               >
-                <SkipForward className="w-4 h-4" />
+                <SkipForward className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
 
             {/* Progress Bar */}
             <div className="flex-1 space-y-1">
               <div
-                onClick={handleSeek}
-                className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer overflow-hidden"
+                ref={progressRef}
+                role="slider"
+                tabIndex={0}
+                aria-label="Seek"
+                aria-valuemin={0}
+                aria-valuemax={Math.round(duration)}
+                aria-valuenow={Math.round(currentTime)}
+                aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
+                onMouseDown={handleProgressMouseDown}
+                onKeyDown={handleProgressKeyDown}
+                className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
               >
                 <div
-                  className="h-full bg-gradient-to-r from-violet-500 to-purple-600 rounded-full transition-all duration-100"
+                  className="h-full bg-gradient-to-r from-violet-500 to-purple-600 rounded-full transition-all duration-100 pointer-events-none"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -307,23 +374,26 @@ export function ScriptSyncPlayer({
             <div className="flex items-center gap-2">
               <button
                 onClick={toggleMute}
-                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"
+                aria-label={muted ? 'Unmute' : 'Mute'}
+                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
               >
-                {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                {muted ? <VolumeX className="w-4 h-4" aria-hidden="true" /> : <Volume2 className="w-4 h-4" aria-hidden="true" />}
               </button>
               <Button variant="outline" size="sm" asChild>
-                <a href={audioUrl} download={currentOutput.file_name}>
-                  <Download className="w-4 h-4" />
+                <a href={audioUrl} download={currentOutput.file_name} aria-label={`Download ${currentOutput.file_name}`}>
+                  <Download className="w-4 h-4" aria-hidden="true" />
+                  <span className="sr-only">Download</span>
                 </a>
               </Button>
               <button
                 onClick={() => setExpanded(!expanded)}
-                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"
+                aria-label={expanded ? 'Exit fullscreen' : 'Enter fullscreen'}
+                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
               >
                 {expanded ? (
-                  <Minimize2 className="w-4 h-4" />
+                  <Minimize2 className="w-4 h-4" aria-hidden="true" />
                 ) : (
-                  <Maximize2 className="w-4 h-4" />
+                  <Maximize2 className="w-4 h-4" aria-hidden="true" />
                 )}
               </button>
             </div>
@@ -336,11 +406,11 @@ export function ScriptSyncPlayer({
             <Tabs value={view} onValueChange={(v) => setView(v as 'script' | 'player')}>
               <TabsList className="w-full justify-start rounded-none border-b">
                 <TabsTrigger value="script" className="gap-2">
-                  <FileText className="w-4 h-4" />
+                  <FileText className="w-4 h-4" aria-hidden="true" />
                   Script
                 </TabsTrigger>
                 <TabsTrigger value="player" className="gap-2">
-                  <Music className="w-4 h-4" />
+                  <Music className="w-4 h-4" aria-hidden="true" />
                   Now Playing
                 </TabsTrigger>
               </TabsList>
@@ -361,9 +431,19 @@ export function ScriptSyncPlayer({
                             <div
                               key={line.line_id}
                               ref={isActive ? activeLineRef : null}
+                              role="button"
+                              tabIndex={0}
+                              aria-label={`${line.character}: ${line.text}`}
+                              aria-current={isActive ? 'true' : undefined}
                               onClick={() => seekToLine(line.line_id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  seekToLine(line.line_id);
+                                }
+                              }}
                               className={cn(
-                                'p-3 rounded-lg cursor-pointer transition-all',
+                                'p-3 rounded-lg cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2',
                                 isActive
                                   ? 'bg-violet-100 dark:bg-violet-900/30 ring-2 ring-violet-500 scale-[1.02]'
                                   : 'hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -413,7 +493,7 @@ export function ScriptSyncPlayer({
                                 {line.character}
                               </p>
                               <p className="text-xl text-slate-900 dark:text-white leading-relaxed">
-                                "{line.text}"
+                                &ldquo;{line.text}&rdquo;
                               </p>
                             </div>
                           ))
@@ -421,7 +501,7 @@ export function ScriptSyncPlayer({
                     </div>
                   ) : (
                     <div className="text-slate-500">
-                      <Music className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <Music className="w-12 h-12 mx-auto mb-4 opacity-50" aria-hidden="true" />
                       <p>Press play to see the current line</p>
                     </div>
                   )}

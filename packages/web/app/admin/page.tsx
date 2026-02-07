@@ -116,7 +116,7 @@ export default async function AdminDashboardPage() {
                   <p className="text-2xl font-bold">{stat.value}</p>
                 </div>
                 <div className={`p-3 rounded-lg ${stat.color}`}>
-                  <stat.icon className="w-5 h-5 text-white" />
+                  <stat.icon className="w-5 h-5 text-white" aria-hidden="true" />
                 </div>
               </div>
               <div className="mt-2">
@@ -179,7 +179,7 @@ export default async function AdminDashboardPage() {
                   <div key={sub.id} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-violet-100 dark:bg-violet-900 flex items-center justify-center">
-                        <CreditCard className="w-5 h-5 text-violet-600" />
+                        <CreditCard className="w-5 h-5 text-violet-600" aria-hidden="true" />
                       </div>
                       <div>
                         <p className="font-medium">{profile?.full_name || 'Unknown'}</p>
@@ -215,30 +215,30 @@ export default async function AdminDashboardPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <a
               href="/admin/users"
-              className="p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors text-center"
+              className="p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 transition-colors text-center"
             >
-              <Users className="w-6 h-6 mx-auto mb-2 text-slate-600" />
+              <Users className="w-6 h-6 mx-auto mb-2 text-slate-600" aria-hidden="true" />
               <p className="font-medium">Manage Users</p>
             </a>
             <a
               href="/admin/subscriptions"
-              className="p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors text-center"
+              className="p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 transition-colors text-center"
             >
-              <CreditCard className="w-6 h-6 mx-auto mb-2 text-slate-600" />
+              <CreditCard className="w-6 h-6 mx-auto mb-2 text-slate-600" aria-hidden="true" />
               <p className="font-medium">Subscriptions</p>
             </a>
             <a
               href="/admin/analytics"
-              className="p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors text-center"
+              className="p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 transition-colors text-center"
             >
-              <TrendingUp className="w-6 h-6 mx-auto mb-2 text-slate-600" />
+              <TrendingUp className="w-6 h-6 mx-auto mb-2 text-slate-600" aria-hidden="true" />
               <p className="font-medium">Analytics</p>
             </a>
             <a
               href="/admin/audit-log"
-              className="p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors text-center"
+              className="p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 transition-colors text-center"
             >
-              <FileText className="w-6 h-6 mx-auto mb-2 text-slate-600" />
+              <FileText className="w-6 h-6 mx-auto mb-2 text-slate-600" aria-hidden="true" />
               <p className="font-medium">Audit Log</p>
             </a>
           </div>

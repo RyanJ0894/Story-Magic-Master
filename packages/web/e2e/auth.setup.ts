@@ -1,17 +1,26 @@
 import { test as setup, expect } from '@playwright/test';
 import path from 'path';
 
-// Test user credentials - should be a real test account in Supabase
-const TEST_USER_EMAIL = process.env.E2E_TEST_EMAIL || 'e2e-test@storymagic.ai';
-const TEST_USER_PASSWORD = process.env.E2E_TEST_PASSWORD || 'E2ETestPassword123!';
+// Test user credentials - must be provided via environment variables in CI
+const TEST_USER_EMAIL = process.env.E2E_TEST_EMAIL || '';
+const TEST_USER_PASSWORD = process.env.E2E_TEST_PASSWORD || '';
 
 const authFile = path.join(__dirname, '.auth/user.json');
 
 /**
- * Setup test - logs in and saves authentication state
- * This runs once before all tests that need authentication
+ * Setup test - logs in and saves authentication state.
+ * This runs once before all authenticated tests.
+ *
+ * Skip gracefully if no test credentials are configured.
+ * Unauthenticated E2E tests (auth.spec.ts, dashboard.spec.ts, project.spec.ts)
+ * still run without credentials.
  */
 setup('authenticate', async ({ page }) => {
+  if (!TEST_USER_EMAIL || !TEST_USER_PASSWORD) {
+    setup.skip();
+    return;
+  }
+
   // Navigate to login page
   await page.goto('/login');
 

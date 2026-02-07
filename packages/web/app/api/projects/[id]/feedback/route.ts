@@ -16,6 +16,7 @@ import {
   rowToFeedback,
   calculateFeedbackStats,
 } from '@/lib/feedback/types';
+import { validateCsrf } from '@/lib/csrf';
 
 // =============================================================================
 // Validation
@@ -48,6 +49,11 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const csrfError = validateCsrf(request);
+  if (csrfError) {
+    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   const supabase = await createClient();
   const { id: projectId } = await params;
 

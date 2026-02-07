@@ -3,6 +3,8 @@
  * Prevents rate limit failures and duplicate charges
  */
 
+import { log } from './logger.js';
+
 export interface RetryOptions {
   maxRetries?: number;
   initialDelayMs?: number;
@@ -70,10 +72,7 @@ export async function withRetry<T>(
       const jitter = baseDelay * jitterFactor * (Math.random() * 2 - 1);
       const delay = Math.max(0, baseDelay + jitter);
 
-      console.warn(
-        `[Retry] Attempt ${attempt + 1}/${maxRetries} failed (status: ${status}). ` +
-          `Retrying in ${Math.round(delay)}ms...`
-      );
+      log.warn('Retry attempt failed', { attempt: attempt + 1, maxRetries, status, delayMs: Math.round(delay) });
 
       await new Promise((resolve) => setTimeout(resolve, delay));
     }

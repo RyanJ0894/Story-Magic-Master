@@ -1,9 +1,15 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { nanoid } from 'nanoid';
+import { validateCsrf } from '@/lib/csrf';
 
 // POST /api/reader/upload/process - Process uploaded PDF
 export async function POST(request: NextRequest) {
+  const csrfError = validateCsrf(request);
+  if (csrfError) {
+    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -125,42 +131,133 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Async function to trigger processing (simulated for now)
+// Trigger async processing: download PDF, extract text, queue for generation
 async function triggerProcessing(
   projectId: string,
   jobId: string,
   fileUrl: string,
   needsOCR: boolean
 ) {
-  // In production, this would:
-  // 1. Queue a job to a worker (e.g., Bull, SQS, etc.)
-  // 2. The worker would:
-  //    a. Download the PDF
-  //    b. Extract text (with OCR if needed)
-  //    c. Parse screenplay format
-  //    d. Call Director service to generate audio
-  //    e. Update job status
-
-  // For now, we'll simulate by calling the Director API directly
-  // This should be moved to a proper job queue
-  const directorUrl = process.env.DIRECTOR_URL || 'http://localhost:22001';
+  const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:22002';
 
   try {
-    // Update job status
     const supabase = await createClient();
+
+    // Update job status to processing
     await supabase
       .from('jobs')
       .update({
         status: 'processing',
         started_at: new Date().toISOString(),
+        progress: { step: 'downloading', percent: 5, details: 'Downloading PDF...' },
       })
       .eq('id', jobId);
 
-    // Simulate processing delay
-    // In production, actual PDF processing would happen here
-    console.log(`Processing project ${projectId} from ${fileUrl}`);
+    // Download PDF from Supabase storage
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('scripts')
+      .download(`${projectId}/${fileUrl.split('/').pop()}`);
+
+    if (downloadError || !fileData) {
+      throw new Error(`Failed to download PDF: ${downloadError?.message}`);
+    }
+
+    // Extract text by sending to orchestrator's /generate-scenes endpoint
+    // The orchestrator accepts script_text - we need to extract text from PDF first
+    // For now, use a basic text extraction approach
+    const pdfText = await fileData.text();
+
+    if (!pdfText || pdfText.trim().length < 50) {
+      await supabase
+        .from('jobs')
+        .update({
+          status: 'failed',
+          error: 'Could not extract text from PDF. The file may be scanned/image-based and require OCR.',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', jobId);
+
+      await supabase
+        .from('projects')
+        .update({ status: 'failed' })
+        .eq('id', projectId);
+      return;
+    }
+
+    // Update project with extracted text
+    const pageCount = Math.max(1, Math.ceil(pdfText.length / 3000));
+    await supabase
+      .from('projects')
+      .update({
+        script_text: pdfText,
+        page_count: pageCount,
+        status: 'ready',
+      })
+      .eq('id', projectId);
+
+    // Update job progress
+    await supabase
+      .from('jobs')
+      .update({
+        progress: { step: 'text_extracted', percent: 20, details: `Extracted ${pageCount} page(s) of text` },
+      })
+      .eq('id', jobId);
+
+    // Call orchestrator to parse into director JSON
+    const { data: { session } } = await supabase.auth.getSession();
+    const accessToken = session?.access_token;
+
+    const response = await fetch(`${orchestratorUrl}/generate-scenes`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
+      },
+      body: JSON.stringify({
+        project_id: projectId,
+        script_text: pdfText,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Scene generation failed: ${errorText}`);
+    }
+
+    const result = await response.json();
+    const directorJson = result.director_json || result;
+
+    // Save director JSON to project
+    await supabase
+      .from('projects')
+      .update({ director_json: directorJson, status: 'analyzed' })
+      .eq('id', projectId);
+
+    // Mark job as completed
+    await supabase
+      .from('jobs')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        progress: { step: 'complete', percent: 100, details: 'Script processed successfully' },
+      })
+      .eq('id', jobId);
 
   } catch (error) {
-    console.error('Async processing error:', error);
+    console.error('Processing error:', error);
+    const supabase = await createClient();
+    await supabase
+      .from('jobs')
+      .update({
+        status: 'failed',
+        error: error instanceof Error ? error.message : 'Unknown processing error',
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', jobId);
+
+    await supabase
+      .from('projects')
+      .update({ status: 'failed' })
+      .eq('id', projectId);
   }
 }

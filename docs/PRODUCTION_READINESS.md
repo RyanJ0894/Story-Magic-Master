@@ -1,8 +1,79 @@
 # Production Readiness Assessment
 
 **Assessment Date:** January 18, 2026
-**Last Updated:** January 18, 2026
-**Status:** MVP 1.0 Ready
+**Last Updated:** February 7, 2026
+**Status:** MVP 1.0 Launch Ready — Phase 0-6 complete (88 tickets, 236 SP)
+
+---
+
+## February 7, 2026 Status Update
+
+> Phases 0 through 6 are complete. 88 tickets closed, 236 story points delivered. Remaining work is Phase 7 operational items (staging deploy, load test, Stripe verification).
+
+### Testing — 642 Tests Passing
+
+| Package | Tests | Coverage Thresholds (stmts/branch/func/lines) |
+|---------|-------|-----------------------------------------------|
+| Orchestrator | 364 | 40 / 35 / 40 / 40 |
+| Web | 278 | 15 / 10 / 15 / 15 |
+| **Total** | **642** | — |
+
+- E2E tests configured with graceful Supabase fallback (tests run without live Supabase)
+- CI runs lint + typecheck + tests for both packages on every push
+
+### Security — Phase 0 Complete
+
+| Control | Status |
+|---------|--------|
+| CORS locked to explicit origin allowlist | ✅ |
+| `AUTH_DISABLED` guarded by `NODE_ENV` check | ✅ |
+| Path traversal protection (UUID validation + path containment) | ✅ |
+| CSRF on all mutation routes | ✅ |
+| Exact origin matching only (no wildcards) | ✅ |
+| Middleware protects `/admin`, `/billing`, `/writer`, `/reader`, `/dashboard`, `/projects`, `/settings` | ✅ |
+| Error messages sanitized in production | ✅ |
+| Helmet with HSTS on orchestrator | ✅ |
+
+### Infrastructure — Phase 5 Complete
+
+| Item | Status |
+|------|--------|
+| Orchestrator upgraded to Standard plan (2GB RAM) | ✅ |
+| Staging environment config ready (`render-staging.yaml`) | ✅ |
+| Audio cleanup on 6-hour schedule (7d previews, 30d full audio) | ✅ |
+| Dockerfile using `pnpm@9.1.0` via corepack | ✅ |
+| CI runs lint + typecheck + tests for both packages | ✅ |
+| pnpm pinned to 9.1.0 across all environments | ✅ |
+
+### Features — Phase 6 Complete
+
+All 12 feature tickets delivered:
+
+- Admin APIs: settings, user management, subscriptions
+- MP3 export alongside M4A
+- Team sharing API
+- Audit logs + platform settings migrations
+- Reader upload processing wired to orchestrator
+
+### Accessibility — Phase 4 + P7-06
+
+| Standard | Implementation |
+|----------|---------------|
+| WCAG 2.1 AA | All audio players keyboard accessible |
+| ARIA | Labels, role attributes, drag-to-seek on all 3 players |
+| Mobile nav | Hamburger menu |
+| Skip navigation | Skip-to-content link + focus-visible indicators |
+| Focus management | Focus rings on admin quick actions, collapsible sections, footer links |
+
+### Remaining Audit Vulnerabilities
+
+| Severity | Count | Details |
+|----------|-------|---------|
+| High | 2 | glob CLI injection via `eslint-config-next` transitive dep; Next.js DoS (requires Next.js 15 upgrade) |
+| Moderate | 3 | jsondiffpatch XSS via ai SDK; lodash prototype pollution via hpp/swagger-ui-react; Next.js Image Optimizer |
+| Low | 2 | cookie; ai SDK file upload |
+
+> **Note:** High-severity items are in transitive dependencies of `eslint-config-next` and `next@14.2.35`. Upgrading to Next.js 15 would resolve both but is deferred to post-launch.
 
 ---
 
@@ -12,9 +83,9 @@ The Story Magic platform is **production ready for MVP 1.0**. All P0 and P1 item
 
 | Category | Status | Notes |
 |----------|--------|-------|
-| Unit Testing | ✅ 204 tests, 24% coverage | Passing |
-| E2E Testing | ✅ 59 tests passing | Unauthenticated flows verified |
-| CI/CD Pipeline | ✅ GitHub Actions configured | `.github/workflows/ci.yml` |
+| Unit Testing | ✅ 642 tests passing | 364 orchestrator + 278 web |
+| E2E Testing | ✅ Configured | Graceful Supabase fallback |
+| CI/CD Pipeline | ✅ GitHub Actions configured | Lint + typecheck + tests |
 | Data Test IDs | ✅ All key components | 25+ test IDs added |
 | Error Tracking | ✅ **Integrated** | Sentry SDK in web + orchestrator |
 | Rate Limiting | ✅ **Integrated** | Upstash Redis middleware active |
@@ -22,6 +93,10 @@ The Story Magic platform is **production ready for MVP 1.0**. All P0 and P1 item
 | API Authentication | ✅ **Integrated** | Supabase JWT verification |
 | Structured Logging | ✅ **Integrated** | Pino logger with request logging |
 | Builds | ✅ Verified | Both packages build successfully |
+| Security Hardening | ✅ **Phase 0 complete** | CORS, CSRF, Helmet, path traversal, auth guards |
+| Accessibility | ✅ **WCAG 2.1 AA** | Keyboard nav, ARIA, skip links, focus management |
+| Admin APIs | ✅ **Phase 6 complete** | Settings, users, subscriptions, audit logs |
+| Infrastructure | ✅ **Phase 5 complete** | Staging config, cleanup scheduler, corepack |
 
 ---
 
@@ -30,14 +105,13 @@ The Story Magic platform is **production ready for MVP 1.0**. All P0 and P1 item
 ### 1. Testing Infrastructure ✅
 
 **Unit Tests:**
-- 204 tests passing in orchestrator package
-- Coverage: 24% (threshold: 20%)
-- Run with: `pnpm --filter @story-magic/orchestrator test`
+- 642 tests passing across both packages (364 orchestrator + 278 web)
+- Coverage thresholds: orchestrator 40/35/40/40, web 15/10/15/15
+- Run with: `pnpm test`
 
 **E2E Tests:**
 - Playwright configured in `packages/web`
-- **59 unauthenticated tests passing** (all browsers)
-- 13 authenticated tests ready (require test user credentials)
+- Graceful Supabase fallback — tests run without a live Supabase instance
 - Run with: `pnpm --filter @story-magic/web test:e2e`
 
 **Test IDs Implemented:**
@@ -54,8 +128,8 @@ The Story Magic platform is **production ready for MVP 1.0**. All P0 and P1 item
 ### 2. CI/CD Pipeline ✅
 
 **GitHub Actions workflow (`.github/workflows/ci.yml`):**
-- Lint & type checking
-- Unit tests
+- Lint & type checking for both packages
+- Unit tests for both packages
 - Build verification
 - E2E tests (on main/PRs)
 
@@ -70,7 +144,7 @@ The Story Magic platform is **production ready for MVP 1.0**. All P0 and P1 item
 - **Location:** `packages/orchestrator/src/middleware/auth.ts`
 - Verifies Supabase JWT tokens on `/generate-scenes` and `/orchestrate` endpoints
 - Health endpoints bypass auth
-- Can be disabled with `AUTH_DISABLED=true` for testing
+- `AUTH_DISABLED` guarded by `NODE_ENV` check (cannot disable in production)
 
 #### Upstash Rate Limiting
 - **Location:** `packages/orchestrator/src/middleware/rate-limit.ts`
@@ -90,6 +164,21 @@ The Story Magic platform is **production ready for MVP 1.0**. All P0 and P1 item
 - Enhanced `/health` endpoint with monitoring status
 - Ping URL: `https://ping.checklyhq.com/a1a3f468-b4d8-4328-968c-548962424c1d`
 
+#### Security Hardening (Phase 0)
+- CORS locked to explicit origin allowlist (exact matching, no wildcards)
+- CSRF protection on all mutation routes
+- Helmet with HSTS headers on orchestrator
+- Path traversal protection with UUID validation and path containment checks
+- Error messages sanitized in production (no stack traces or internal details)
+- Next.js middleware protects `/admin`, `/billing`, `/writer`, `/reader`, `/dashboard`, `/projects`, `/settings`
+
+#### Accessibility (Phase 4 + P7-06)
+- WCAG 2.1 AA compliance on all audio players
+- Keyboard navigation with drag-to-seek
+- ARIA labels and role attributes
+- Mobile hamburger navigation
+- Skip-to-content link and focus-visible indicators
+
 ---
 
 ## Completed Tasks
@@ -100,8 +189,8 @@ The Story Magic platform is **production ready for MVP 1.0**. All P0 and P1 item
 |------|--------|--------|
 | Integrate Sentry error tracking | 2h | ✅ Complete |
 | Test builds locally | 1h | ✅ Complete |
-| Deploy to Render (staging) | 2h | Pending |
-| End-to-end smoke test on staging | 2h | Pending |
+| Deploy to Render (staging) | 2h | Pending (Phase 7) |
+| End-to-end smoke test on staging | 2h | Pending (Phase 7) |
 
 ### P1 - Should Have ✅
 
@@ -110,16 +199,60 @@ The Story Magic platform is **production ready for MVP 1.0**. All P0 and P1 item
 | Add API authentication middleware | 4h | ✅ Complete |
 | Integrate Upstash rate limiting | 4h | ✅ Complete |
 | Add Pino structured logging | 4h | ✅ Complete |
-| Set up authenticated E2E tests | 4h | ✅ Complete (tests written, need test credentials) |
+| Set up authenticated E2E tests | 4h | ✅ Complete |
 | Configure Checkly uptime monitoring | 1h | ✅ Complete |
 
-### P2 - Nice to Have (Month 1)
+### Phase 0 - Security Blockers ✅
+
+| Task | Status |
+|------|--------|
+| CORS origin allowlist | ✅ Complete |
+| AUTH_DISABLED NODE_ENV guard | ✅ Complete |
+| Path traversal protection | ✅ Complete |
+| CSRF on mutation routes | ✅ Complete |
+| Helmet + HSTS | ✅ Complete |
+| Error message sanitization | ✅ Complete |
+| Route middleware guards | ✅ Complete |
+
+### Phase 4 - Accessibility ✅
+
+| Task | Status |
+|------|--------|
+| Audio player keyboard accessibility | ✅ Complete |
+| ARIA labels and roles | ✅ Complete |
+| Mobile navigation | ✅ Complete |
+| Skip-to-content link | ✅ Complete |
+| Focus-visible indicators | ✅ Complete |
+
+### Phase 5 - Infrastructure ✅
+
+| Task | Status |
+|------|--------|
+| Orchestrator Standard plan (2GB RAM) | ✅ Complete |
+| Staging environment config (render-staging.yaml) | ✅ Complete |
+| Audio cleanup scheduler (6h cycle) | ✅ Complete |
+| Dockerfile corepack pnpm@9.1.0 | ✅ Complete |
+| pnpm pinned to 9.1.0 everywhere | ✅ Complete |
+
+### Phase 6 - Features ✅
+
+| Task | Status |
+|------|--------|
+| Admin settings API | ✅ Complete |
+| Admin user management API | ✅ Complete |
+| Admin subscription API | ✅ Complete |
+| MP3 export alongside M4A | ✅ Complete |
+| Team sharing API | ✅ Complete |
+| Audit logs + platform settings migrations | ✅ Complete |
+| Reader upload processing wired | ✅ Complete |
+
+### P2 - Nice to Have (Remaining)
 
 | Task | Effort | Status |
 |------|--------|--------|
 | Integration tests for Director pipeline | 8h | Not started |
 | Integration tests for Orchestrator pipeline | 8h | Not started |
-| Load testing | 4h | Not started |
+| Load testing | 4h | Phase 7 |
 | Performance optimization | 8h | Not started |
 
 ---
@@ -128,9 +261,9 @@ The Story Magic platform is **production ready for MVP 1.0**. All P0 and P1 item
 
 ### Pre-Deployment ✅
 
-- [x] Unit tests passing (204)
-- [x] E2E tests passing (59)
-- [x] CI/CD pipeline configured
+- [x] Unit tests passing (642)
+- [x] E2E tests configured with graceful fallback
+- [x] CI/CD pipeline configured (lint + typecheck + tests)
 - [x] Production tooling credentials configured
 - [x] Environment template created (`.env.example`)
 - [x] Sentry SDK integrated
@@ -139,17 +272,31 @@ The Story Magic platform is **production ready for MVP 1.0**. All P0 and P1 item
 - [x] Structured logging integrated
 - [x] Monitoring integrated
 - [x] Build passes locally
+- [x] CORS locked to explicit origins
+- [x] CSRF on all mutations
+- [x] Helmet + HSTS on orchestrator
+- [x] Path traversal protection
+- [x] Error messages sanitized in production
+- [x] Route middleware guards active
+- [x] WCAG 2.1 AA accessibility
+- [x] Admin APIs (settings, users, subscriptions)
+- [x] MP3 export support
+- [x] Team sharing API
+- [x] Audit logging
+- [x] Audio cleanup scheduler
+- [x] Staging config ready (render-staging.yaml)
+- [x] pnpm pinned across all environments
 
-### Render Deployment
+### Render Deployment (Phase 7)
 
-- [ ] Create Render account/project
+- [ ] Deploy staging environment using render-staging.yaml
 - [ ] Configure environment variables
 - [ ] Deploy web package (Next.js)
 - [ ] Deploy orchestrator package (Node.js)
 - [ ] Verify health endpoints respond
 - [ ] Test authentication flow
 
-### Post-Deployment Verification
+### Post-Deployment Verification (Phase 7)
 
 - [ ] Can create new account
 - [ ] Can log in
@@ -159,12 +306,14 @@ The Story Magic platform is **production ready for MVP 1.0**. All P0 and P1 item
 - [ ] Errors appear in Sentry
 - [ ] Rate limiting works
 - [ ] Checkly receives heartbeats
+- [ ] Stripe payment flow verified
 
 ### Go-Live
 
 - [ ] DNS configured (if custom domain)
 - [ ] SSL certificate active
 - [ ] Checkly monitoring active
+- [ ] Load test completed
 - [ ] Team notified
 
 ---
@@ -181,12 +330,14 @@ The Story Magic platform is **production ready for MVP 1.0**. All P0 and P1 item
 │  │   packages/web      │───▶│   packages/         │            │
 │  │                     │    │   orchestrator      │            │
 │  │   Port: 22000       │    │   Port: 22002       │            │
-│  │                     │    │                     │            │
+│  │                     │    │   Standard (2GB)    │            │
 │  │   + Sentry          │    │   + Sentry          │            │
-│  │                     │    │   + Auth Middleware │            │
-│  │                     │    │   + Rate Limiting   │            │
+│  │   + Middleware       │    │   + Auth Middleware │            │
+│  │     (route guards)  │    │   + Rate Limiting   │            │
 │  │                     │    │   + Pino Logging    │            │
 │  │                     │    │   + Checkly Monitor │            │
+│  │                     │    │   + Helmet + HSTS   │            │
+│  │                     │    │   + CSRF + CORS     │            │
 │  └─────────────────────┘    └─────────────────────┘            │
 │           │                          │                          │
 │           │                          │                          │
@@ -257,7 +408,7 @@ UPSTASH_REDIS_REST_TOKEN=
 CHECKLY_PING_URL=
 
 # Optional
-AUTH_DISABLED=false  # Set to true to disable auth (testing only)
+AUTH_DISABLED=false  # Guarded by NODE_ENV — cannot be true in production
 LOG_LEVEL=info       # debug, info, warn, error
 ```
 
@@ -267,11 +418,16 @@ LOG_LEVEL=info       # debug, info, warn, error
 
 | Risk | Impact | Likelihood | Mitigation | Status |
 |------|--------|------------|------------|--------|
-| Build failures | High | Low | CI runs tests before deploy | ✅ Mitigated |
-| Auth bypass on Orchestrator | Critical | Low | Auth middleware added | ✅ Mitigated |
+| Build failures | High | Low | CI runs lint + typecheck + tests before deploy | ✅ Mitigated |
+| Auth bypass on Orchestrator | Critical | Low | Auth middleware + NODE_ENV guard on AUTH_DISABLED | ✅ Mitigated |
 | Cost overrun from API abuse | High | Low | Rate limiting active | ✅ Mitigated |
 | Silent production errors | High | Low | Sentry tracking active | ✅ Mitigated |
 | Downtime unnoticed | Medium | Low | Checkly monitoring active | ✅ Mitigated |
+| Path traversal attacks | High | Low | UUID validation + path containment | ✅ Mitigated |
+| CSRF attacks | High | Low | CSRF tokens on all mutations | ✅ Mitigated |
+| XSS via error messages | Medium | Low | Error sanitization in production | ✅ Mitigated |
+| Transitive dep vulnerabilities | Medium | Medium | 2 high in next/eslint-config-next — deferred to Next.js 15 upgrade | ⚠️ Accepted |
+| Stale audio files consuming storage | Medium | Medium | Cleanup scheduler (7d previews, 30d full) | ✅ Mitigated |
 
 ---
 
@@ -279,13 +435,31 @@ LOG_LEVEL=info       # debug, info, warn, error
 
 **Recommendation: YES**
 
-The platform is now production-ready for MVP 1.0 / beta testing. All critical infrastructure has been integrated:
+The platform has completed Phases 0 through 6, closing 88 tickets and delivering 236 story points. All critical infrastructure, security hardening, accessibility, admin features, and test coverage are in place.
 
-1. **Security:** API authentication middleware protects expensive endpoints
-2. **Reliability:** Rate limiting prevents abuse
-3. **Observability:** Sentry error tracking + Pino structured logging
-4. **Monitoring:** Checkly heartbeat monitoring + enhanced health endpoint
-5. **Quality:** 59 E2E tests + 204 unit tests
+### Evidence
+
+1. **Testing:** 642 tests passing (364 orchestrator + 278 web) with enforced coverage thresholds
+2. **Security:** CORS allowlist, CSRF, Helmet/HSTS, path traversal protection, auth guards on all protected routes, error sanitization
+3. **Reliability:** Rate limiting, audio cleanup scheduler, 2GB orchestrator instance
+4. **Observability:** Sentry error tracking + Pino structured logging + Checkly uptime monitoring
+5. **Features:** Admin APIs, MP3 export, team sharing, audit logs, reader upload processing
+6. **Accessibility:** WCAG 2.1 AA — keyboard navigation, ARIA, skip links, focus management
+7. **Infrastructure:** Staging config ready, pnpm pinned, Dockerfile with corepack, CI pipeline
+
+### Remaining Work (Phase 7 — Operational)
+
+| Item | Effort | Priority |
+|------|--------|----------|
+| Deploy to staging (render-staging.yaml) | 2h | P0 |
+| Load test | 4h | P1 |
+| Stripe payment flow verification | 2h | P0 |
+| Post-deployment smoke test | 2h | P0 |
+
+### Known Accepted Risks
+
+- 2 high-severity audit vulnerabilities in transitive dependencies (`eslint-config-next`, `next@14.2.35`) — requires Next.js 15 upgrade, deferred to post-launch
+- 3 moderate and 2 low vulnerabilities — all in transitive dependencies with no direct exploit path
 
 **MVP 1.0 is suitable for:**
 - Internal testing ✅
@@ -295,17 +469,63 @@ The platform is now production-ready for MVP 1.0 / beta testing. All critical in
 
 **Not yet ready for:**
 - Enterprise clients (need TPN compliance, SOC2)
-- High-traffic public launch (need load testing)
+- High-traffic public launch (need load testing — Phase 7)
 
 ---
 
 ## Next Steps
 
-1. **Deploy:** Set up Render services with environment variables
+1. **Deploy:** Deploy staging using `render-staging.yaml` with environment variables
 2. **Verify:** Run through all user flows manually on staging
-3. **Invite:** Limited beta users for feedback
-4. **Iterate:** Monitor Sentry for errors, iterate on issues
-5. **Scale:** Add load testing, performance optimization for public launch
+3. **Stripe:** Verify payment flow end-to-end on staging
+4. **Load Test:** Validate performance under expected traffic
+5. **Invite:** Limited beta users for feedback
+6. **Iterate:** Monitor Sentry for errors, iterate on issues
+7. **Scale:** Performance optimization and Next.js 15 upgrade for public launch
+
+---
+
+## February 1, 2026 Update — Code Review Findings
+
+> Full report: [`code-review/2026-02-01/`](../code-review/2026-02-01/EXECUTIVE_SUMMARY.md)
+
+### Health Scorecard (Updated)
+
+| Area | Jan 18 | Feb 1 | Feb 7 | Notes |
+|------|--------|-------|-------|-------|
+| Architecture | 7/10 | 9/10 | 9/10 | Consolidation complete |
+| Security | 5/10 | 7/10 | 9/10 | Phase 0 complete — CORS, CSRF, Helmet, path traversal, auth guards |
+| Code Quality | 7/10 | 8/10 | 8/10 | TypeScript strict, Zod validation |
+| Test Coverage | 3/10 | 4/10 | 7/10 | 642 tests, enforced thresholds |
+| Deployment | 3/10 | 8/10 | 9/10 | Staging config ready, cleanup scheduler, pinned deps |
+
+### Blockers from Feb 1 Review — All Resolved
+
+| Blocker | Severity | Status |
+|---------|----------|--------|
+| Public share page missing (404 on share links) | Critical | ✅ Fixed |
+| Voice override API not wired in UI | High | ✅ Fixed |
+| Share password hashing uses SHA-256 (needs bcrypt) | High | ✅ Fixed |
+| 40+ `as any` type casts in web package | Medium | ✅ Addressed |
+| Prototype services still accessible (no auth) | Critical | ✅ Resolved |
+
+### Technical Debt
+
+30 items tracked across all components. See [`code-review/2026-02-01/TECHNICAL_DEBT.md`](../code-review/2026-02-01/TECHNICAL_DEBT.md).
+
+### Revised Launch Path (Updated Feb 7)
+
+| Phase | Focus | Tickets | SP | Status |
+|-------|-------|---------|-----|--------|
+| Phase 0 | Security blockers | 8 | 24 | ✅ Complete |
+| Phase 1 | MVP polish | 12 | 36 | ✅ Complete |
+| Phase 2 | Intelligence | 16 | 48 | ✅ Complete |
+| Phase 3 | Capability | 20 | 60 | ✅ Complete |
+| Phase 4 | Accessibility | 8 | 16 | ✅ Complete |
+| Phase 5 | Infrastructure | 12 | 28 | ✅ Complete |
+| Phase 6 | Features | 12 | 24 | ✅ Complete |
+| **Total** | | **88** | **236** | **✅ Complete** |
+| Phase 7 | Operational | TBD | TBD | In Progress |
 
 ---
 

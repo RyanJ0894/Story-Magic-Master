@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
@@ -11,6 +11,20 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Sparkles, Check } from 'lucide-react';
 
+function getPasswordStrength(password: string): { score: number; label: string; color: string } {
+  let score = 0;
+  if (password.length >= 6) score++;
+  if (password.length >= 8) score++;
+  if (/[A-Z]/.test(password)) score++;
+  if (/[0-9]/.test(password)) score++;
+  if (/[^A-Za-z0-9]/.test(password)) score++;
+
+  if (score <= 1) return { score, label: 'Weak', color: 'bg-red-500' };
+  if (score <= 2) return { score, label: 'Fair', color: 'bg-orange-500' };
+  if (score <= 3) return { score, label: 'Good', color: 'bg-yellow-500' };
+  return { score, label: 'Strong', color: 'bg-green-500' };
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -18,16 +32,67 @@ export default function SignupPage() {
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+
+  const passwordStrength = useMemo(() => getPasswordStrength(password), [password]);
+
+  const validate = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!fullName.trim()) {
+      newErrors.fullName = 'Full name is required';
+    } else if (fullName.trim().length < 2) {
+      newErrors.fullName = 'Full name must be at least 2 characters';
+    }
+
+    if (!email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    if (!password) {
+      newErrors.password = 'Password is required';
+    } else if (password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleBlur = (field: string) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+    // Validate on blur for the touched field
+    const newErrors: Record<string, string> = { ...errors };
+
+    if (field === 'fullName') {
+      if (!fullName.trim()) newErrors.fullName = 'Full name is required';
+      else if (fullName.trim().length < 2) newErrors.fullName = 'Full name must be at least 2 characters';
+      else delete newErrors.fullName;
+    }
+    if (field === 'email') {
+      if (!email.trim()) newErrors.email = 'Email is required';
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Please enter a valid email address';
+      else delete newErrors.email;
+    }
+    if (field === 'password') {
+      if (!password) newErrors.password = 'Password is required';
+      else if (password.length < 6) newErrors.password = 'Password must be at least 6 characters';
+      else delete newErrors.password;
+    }
+
+    setErrors(newErrors);
+  };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setTouched({ fullName: true, email: true, password: true });
 
-    if (password.length < 6) {
-      toast.error('Password must be at least 6 characters');
-      setLoading(false);
-      return;
-    }
+    if (!validate()) return;
+
+    setLoading(true);
 
     const supabase = createClient();
     const { data, error } = await supabase.auth.signUp({
@@ -48,7 +113,6 @@ export default function SignupPage() {
 
     // If user is auto-confirmed, create their profile and redirect
     if (data.session && data.user) {
-      // Create profile (trigger disabled, doing it from app)
       const { error: profileError } = await supabase
         .from('profiles')
         .upsert({
@@ -59,7 +123,6 @@ export default function SignupPage() {
 
       if (profileError) {
         console.error('Profile creation error:', profileError);
-        // Don't block signup if profile fails - they can still use the app
       }
 
       toast.success('Account created successfully!');
@@ -118,7 +181,7 @@ export default function SignupPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSignup} className="space-y-4">
+            <form onSubmit={handleSignup} className="space-y-4" noValidate>
               <div className="space-y-2">
                 <Label htmlFor="fullName">Full Name</Label>
                 <Input
@@ -126,11 +189,17 @@ export default function SignupPage() {
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
+                  onBlur={() => handleBlur('fullName')}
                   required
                   placeholder="John Doe"
-                  className="h-11"
+                  className={`h-11 ${touched.fullName && errors.fullName ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                  aria-invalid={touched.fullName && !!errors.fullName}
+                  aria-describedby={errors.fullName ? 'fullName-error' : undefined}
                   data-testid="signup-fullname-input"
                 />
+                {touched.fullName && errors.fullName && (
+                  <p id="fullName-error" className="text-xs text-red-500" role="alert">{errors.fullName}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -140,11 +209,17 @@ export default function SignupPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onBlur={() => handleBlur('email')}
                   required
                   placeholder="you@example.com"
-                  className="h-11"
+                  className={`h-11 ${touched.email && errors.email ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                  aria-invalid={touched.email && !!errors.email}
+                  aria-describedby={errors.email ? 'email-error' : undefined}
                   data-testid="signup-email-input"
                 />
+                {touched.email && errors.email && (
+                  <p id="email-error" className="text-xs text-red-500" role="alert">{errors.email}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -154,13 +229,38 @@ export default function SignupPage() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onBlur={() => handleBlur('password')}
                   required
                   minLength={6}
                   placeholder="Create a password"
-                  className="h-11"
+                  className={`h-11 ${touched.password && errors.password ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                  aria-invalid={touched.password && !!errors.password}
+                  aria-describedby="password-help password-strength"
                   data-testid="signup-password-input"
                 />
-                <p className="text-xs text-slate-500">At least 6 characters</p>
+                {touched.password && errors.password ? (
+                  <p id="password-help" className="text-xs text-red-500" role="alert">{errors.password}</p>
+                ) : (
+                  <p id="password-help" className="text-xs text-slate-500">At least 6 characters</p>
+                )}
+                {/* Password strength indicator */}
+                {password.length > 0 && (
+                  <div id="password-strength" className="space-y-1">
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4].map((level) => (
+                        <div
+                          key={level}
+                          className={`h-1 flex-1 rounded-full transition-colors ${
+                            passwordStrength.score >= level ? passwordStrength.color : 'bg-slate-200 dark:bg-slate-700'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Password strength: <span className="font-medium">{passwordStrength.label}</span>
+                    </p>
+                  </div>
+                )}
               </div>
 
               <Button

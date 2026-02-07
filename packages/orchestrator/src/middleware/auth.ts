@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseClient as supabase } from '../lib/supabase.js';
 import { captureError } from '../lib/sentry.js';
+import { log } from '../lib/logger.js';
 
 // Extend Request type to include user
 declare global {
@@ -15,17 +16,9 @@ declare global {
   }
 }
 
-// Initialize Supabase client for auth verification
-const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  console.warn('⚠️ Supabase credentials not configured - auth middleware will reject all requests');
+if (!supabase) {
+  log.warn('Supabase credentials not configured - auth middleware will reject all requests');
 }
-
-const supabase = supabaseUrl && supabaseKey
-  ? createClient(supabaseUrl, supabaseKey)
-  : null;
 
 /**
  * Authentication middleware that verifies Supabase JWT tokens
@@ -45,9 +38,17 @@ export async function authMiddleware(
     return next();
   }
 
-  // Check if auth is enabled
+  // Check if auth is disabled (development only)
   if (process.env.AUTH_DISABLED === 'true') {
-    console.warn('⚠️ Auth disabled via AUTH_DISABLED env var');
+    if (process.env.NODE_ENV === 'production') {
+      log.error('AUTH_DISABLED=true is not allowed in production. Rejecting request.');
+      res.status(503).json({
+        error: 'Service misconfigured',
+        message: 'Authentication cannot be disabled in production',
+      });
+      return;
+    }
+    log.warn('Auth disabled via AUTH_DISABLED env var (development only)');
     return next();
   }
 
@@ -92,11 +93,11 @@ export async function authMiddleware(
     };
 
     // Log successful auth (minimal info)
-    console.log(`🔐 Auth: ${user.email?.slice(0, 3)}***@*** verified`);
+    log.info('Auth: user verified', { emailPrefix: user.email?.slice(0, 3) });
 
     next();
   } catch (error) {
-    console.error('❌ Auth error:', error);
+    log.error('Auth error', error instanceof Error ? error : undefined, { path: req.path });
     captureError(error as Error, { path: req.path });
 
     res.status(500).json({
@@ -157,7 +158,7 @@ export function serviceAuthMiddleware(
   }
 
   if (serviceKey === expectedKey) {
-    console.log('🔐 Service auth verified');
+    log.info('Service auth verified');
     return next();
   }
 

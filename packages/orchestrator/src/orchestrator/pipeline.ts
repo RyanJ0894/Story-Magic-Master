@@ -18,6 +18,7 @@ import { execa } from 'execa';
 import ffmpegStatic from 'ffmpeg-static';
 import fs from 'fs';
 import path from 'path';
+import { log } from '../lib/logger.js';
 
 import { DirectorJSONSchema, type DirectorJSON, type Scene } from '../schemas/director-json.js';
 import { ttsForScene, type StemResult } from './workers/tts.js';
@@ -26,9 +27,11 @@ import { progressiveStitch, finalConcatenation, type ProgressiveStitchProgress }
 import { alignScene, type SceneAlignment, type LineAlignment } from './workers/align.js';
 import { pickCues, type SceneCues } from './workers/cues.js';
 import { buildTimeline, type Timeline } from './workers/timeline.js';
-import { mixScene, type MixInputs, type SFXInput } from './workers/mixer.js';
+import { mixScene } from './workers/mixer.js';
 import { concatScenesWithCrossfade, makePlaybackManifest, type PlaybackManifest } from './workers/export.js';
-import { loadCatalog, getTrackPath, type AudioCatalog } from '../lib/catalog-loader.js';
+import { loadCatalog, type AudioCatalog } from '../lib/catalog-loader.js';
+import { resolveCuesToMixInputs, getDefaultMixParams } from './shared/resolve-cues.js';
+import { getOutputDir } from '../lib/env.js';
 
 const ffmpeg = ffmpegStatic as unknown as string;
 
@@ -64,65 +67,27 @@ export interface OrchestrationResult {
   manifest: PlaybackManifest;
 }
 
-/**
- * Concatenate dialogue stems into single file
- */
-async function concatenateDialogueStems(stems: StemResult[], outputPath: string): Promise<void> {
-  if (!stems || stems.length === 0) {
-    throw new Error('No dialogue stems to concatenate');
-  }
-
-  if (stems.length === 1) {
-    fs.copyFileSync(stems[0].path, outputPath);
-    return;
-  }
-
-  const concatList = stems.map((s) => `file '${s.path}'`).join('\n');
-  const concatFilePath = path.join(path.dirname(outputPath), 'concat-list.txt');
-  fs.writeFileSync(concatFilePath, concatList);
-
-  try {
-    await execa(ffmpeg, [
-      '-f',
-      'concat',
-      '-safe',
-      '0',
-      '-i',
-      concatFilePath,
-      '-c:a',
-      'aac',
-      '-b:a',
-      '192k',
-      '-ar',
-      '48000',
-      '-y',
-      outputPath,
-    ]);
-  } finally {
-    if (fs.existsSync(concatFilePath)) {
-      fs.unlinkSync(concatFilePath);
-    }
-  }
-}
+// concatenateDialogueStems extracted to shared/concat-stems.ts
+import { concatenateDialogueStems } from './shared/concat-stems.js';
 
 /**
  * Main orchestration pipeline
  */
 export async function orchestrate(directorJSON: unknown): Promise<OrchestrationResult> {
-  console.log('🎬 Step 0: Validating Director JSON...');
+  log.info('Validating Director JSON');
   const parsed = DirectorJSONSchema.safeParse(directorJSON);
   if (!parsed.success) {
     throw new Error('Invalid Director JSON: ' + JSON.stringify(parsed.error.issues));
   }
   const director = parsed.data;
-  console.log(`   ✅ Valid Director JSON for project: ${director.project_id}`);
-  console.log(`   📋 Scenes to process: ${director.scenes.length}\n`);
+  log.generation(director.project_id, 'validation-complete', {
+    sceneCount: director.scenes.length,
+  });
 
-  console.log('📚 Loading audio catalog...');
+  log.info('Loading audio catalog');
   const catalog: AudioCatalog = loadCatalog();
-  console.log('');
 
-  const projectDir = path.join(process.cwd(), 'output', director.project_id);
+  const projectDir = path.join(getOutputDir(), director.project_id);
   const scenesDir = path.join(projectDir, 'scenes');
   fs.mkdirSync(projectDir, { recursive: true });
   fs.mkdirSync(scenesDir, { recursive: true });
@@ -131,125 +96,64 @@ export async function orchestrate(directorJSON: unknown): Promise<OrchestrationR
 
   for (let i = 0; i < director.scenes.length; i++) {
     const scene = director.scenes[i];
-    console.log('─'.repeat(80));
-    console.log(`🎬 SCENE ${i + 1}/${director.scenes.length}: ${scene.scene_id}`);
-    console.log('─'.repeat(80) + '\n');
+    log.generation(director.project_id, 'scene-start', {
+      sceneIndex: i + 1,
+      totalScenes: director.scenes.length,
+      sceneId: scene.scene_id,
+    });
 
-    console.log(`🔊 Step 1: Generating TTS for ${scene.dialogue.length} lines...`);
+    log.generation(director.project_id, 'tts-start', {
+      sceneId: scene.scene_id,
+      dialogueLines: scene.dialogue.length,
+    });
     const stems = await ttsForScene(director.project_id, scene);
-    console.log(`   ✅ Generated ${stems.length} dialogue stems\n`);
+    log.generation(director.project_id, 'tts-complete', {
+      sceneId: scene.scene_id,
+      stemCount: stems.length,
+    });
 
-    console.log('⏱️  Step 2: Computing dialogue alignment...');
+    log.generation(director.project_id, 'alignment-start', { sceneId: scene.scene_id });
     const alignment = await alignScene(director.project_id, scene, stems);
-    console.log(`   ✅ Aligned ${alignment.lines.length} lines\n`);
+    log.generation(director.project_id, 'alignment-complete', {
+      sceneId: scene.scene_id,
+      lineCount: alignment.lines.length,
+    });
 
-    console.log('🎵 Step 3: Selecting music and ambience cues...');
+    log.generation(director.project_id, 'cue-selection-start', { sceneId: scene.scene_id });
     const cues = await pickCues(scene, catalog);
-    console.log(`   ✅ Music cues: ${cues.music ? cues.music.length : 0}`);
-    console.log(`   ✅ Ambience cues: ${cues.ambience ? cues.ambience.length : 0}\n`);
+    log.generation(director.project_id, 'cue-selection-complete', {
+      sceneId: scene.scene_id,
+      musicCues: cues.music ? cues.music.length : 0,
+      ambienceCues: cues.ambience ? cues.ambience.length : 0,
+    });
 
-    console.log('📅 Step 4: Building scene timeline...');
+    log.generation(director.project_id, 'timeline-start', { sceneId: scene.scene_id });
     const timeline = await buildTimeline(scene, alignment, cues);
-    console.log(`   ✅ Timeline built with ${timeline.events ? timeline.events.length : 0} events\n`);
+    log.generation(director.project_id, 'timeline-complete', {
+      sceneId: scene.scene_id,
+      eventCount: timeline.events ? timeline.events.length : 0,
+    });
 
-    console.log('🎵 Step 5: Mixing scene audio with professional film standards...');
+    log.generation(director.project_id, 'mix-start', { sceneId: scene.scene_id });
     const sceneOutput = path.join(projectDir, `scene-${scene.scene_id}.m4a`);
 
     // Prepare dialogue by concatenating stems
     const dialoguePath = path.join(scenesDir, `dialogue-${scene.scene_id}.m4a`);
     await concatenateDialogueStems(stems, dialoguePath);
 
-    const mixInputs: MixInputs = { dialogue: dialoguePath };
+    const mixInputs = resolveCuesToMixInputs({
+      cues,
+      alignmentLines: alignment.lines,
+      dialoguePath,
+    });
 
-    // Add music track if present in cues
-    if (cues.music && cues.music.length > 0) {
-      const musicCue = cues.music[0];
-      const trackId = musicCue.file;
-      if (trackId) {
-        const musicPath = getTrackPath(trackId);
-        if (musicPath && fs.existsSync(musicPath)) {
-          mixInputs.music = musicPath;
-          console.log(`   🎵 Adding music: ${trackId}`);
-        } else {
-          console.warn(`   ⚠️  Music track not found: ${trackId}`);
-        }
-      }
-    }
-
-    // Add ambience track if present in cues
-    if (cues.ambience && cues.ambience.length > 0) {
-      const ambienceCue = cues.ambience[0];
-      const trackId = ambienceCue.file;
-      if (trackId) {
-        const ambiencePath = getTrackPath(trackId);
-        if (ambiencePath && fs.existsSync(ambiencePath)) {
-          mixInputs.ambience = ambiencePath;
-          console.log(`   🌊 Adding ambience: ${trackId}`);
-        } else {
-          console.warn(`   ⚠️  Ambience track not found: ${trackId}`);
-        }
-      }
-    }
-
-    // Add SFX tracks if present in cues
-    if (cues.sfx && cues.sfx.length > 0) {
-      const sfxCues: SFXInput[] = [];
-      const alignmentLines = alignment.lines;
-
-      for (const sfxCue of cues.sfx) {
-        const trackId = sfxCue.file;
-        if (trackId) {
-          const sfxPath = getTrackPath(trackId);
-          if (sfxPath && fs.existsSync(sfxPath)) {
-            // Resolve the "at" time - could be a line_id or a number
-            let startAtSeconds = 0;
-
-            if (typeof sfxCue.start_at === 'string' && sfxCue.start_at.startsWith('line_')) {
-              // It's a line reference like "line_004"
-              const lineId = sfxCue.start_at;
-              for (const line of alignmentLines) {
-                if (line.line_id === lineId) {
-                  startAtSeconds = line.start;
-                  break;
-                }
-              }
-              console.log(`   🔊 SFX "${trackId}" starts at ${lineId} (${startAtSeconds}s)`);
-            } else if (typeof sfxCue.start_at === 'number') {
-              startAtSeconds = sfxCue.start_at;
-            }
-
-            sfxCues.push({
-              file: sfxPath,
-              at: startAtSeconds,
-              duration: sfxCue.duration || null,
-            });
-
-            console.log(`   🔊 Adding SFX: ${trackId} @ ${startAtSeconds}s for ${sfxCue.duration || 'full'}s`);
-          } else {
-            console.warn(`   ⚠️  SFX track not found: ${trackId}`);
-          }
-        }
-      }
-
-      if (sfxCues.length > 0) {
-        mixInputs.sfx = sfxCues;
-      }
-    }
+    if (mixInputs.music) log.debug('Adding music layer', { sceneId: scene.scene_id });
+    if (mixInputs.ambience) log.debug('Adding ambience layer', { sceneId: scene.scene_id });
+    if (mixInputs.sfx) log.debug('Adding SFX layers', { sceneId: scene.scene_id, sfxCount: mixInputs.sfx.length });
 
     // Prepare temp files for mixer
     const tempWav = path.join(scenesDir, `temp-${scene.scene_id}.wav`);
-
-    // Extract mix parameters from scene
-    const mixParams = {
-      music_gain_db: -22,
-      ambience_gain_db: -26,
-      sfx_gain_db: -12,
-      target_lufs: -16,
-      true_peak_db: -1.5,
-      use_dialogue_processing: true,
-      use_advanced_ducking: true,
-      ...(scene.mix || {}),
-    };
+    const mixParams = getDefaultMixParams(scene.mix as Record<string, unknown>);
 
     // Call mixer with correct interface
     await mixScene({
@@ -266,7 +170,10 @@ export async function orchestrate(directorJSON: unknown): Promise<OrchestrationR
       fs.unlinkSync(tempWav);
     }
 
-    console.log(`   ✅ Scene mixed: ${path.basename(sceneOutput)}\n`);
+    log.generation(director.project_id, 'mix-complete', {
+      sceneId: scene.scene_id,
+      outputFile: path.basename(sceneOutput),
+    });
 
     sceneOutputs.push({
       scene_id: scene.scene_id,
@@ -277,19 +184,21 @@ export async function orchestrate(directorJSON: unknown): Promise<OrchestrationR
     });
   }
 
-  console.log('─'.repeat(80));
-  console.log('✅ ALL SCENES PROCESSED - STARTING FINAL EXPORT');
-  console.log('─'.repeat(80) + '\n');
+  log.generation(director.project_id, 'all-scenes-processed', {
+    sceneCount: sceneOutputs.length,
+  });
 
-  console.log('🎬 Step 6: Concatenating scenes...');
+  log.generation(director.project_id, 'concatenation-start');
   const episodePath = path.join(projectDir, 'episode.m4a');
   await concatScenesWithCrossfade(sceneOutputs.map((s) => s.path), episodePath, {
     fadeDuration: 1.5,
     fadeType: 'tri',
   });
-  console.log(`   ✅ Episode created: ${path.basename(episodePath)}\n`);
+  log.generation(director.project_id, 'concatenation-complete', {
+    outputFile: path.basename(episodePath),
+  });
 
-  console.log('📄 Step 7: Generating playback manifest...');
+  log.generation(director.project_id, 'manifest-start');
   const manifest = await makePlaybackManifest(
     director.project_id,
     sceneOutputs.map((s) => ({ scene_id: s.scene_id, path: s.path })),
@@ -297,16 +206,15 @@ export async function orchestrate(directorJSON: unknown): Promise<OrchestrationR
   );
   const manifestPath = path.join(projectDir, 'manifest.json');
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-  console.log(`   ✅ Manifest saved: manifest.json\n`);
+  log.generation(director.project_id, 'manifest-complete');
 
-  console.log('═'.repeat(80));
-  console.log('🎊 ORCHESTRATION COMPLETE!');
-  console.log('═'.repeat(80) + '\n');
-  console.log(`📁 Output directory: ${projectDir}`);
-  console.log(`🎵 Episode file: episode.m4a`);
-  console.log(`📄 Manifest: manifest.json`);
-  console.log(`⏱️  Total duration: ${manifest.total.toFixed(2)}s (${(manifest.total / 60).toFixed(2)} min)`);
-  console.log('═'.repeat(80) + '\n');
+  log.generation(director.project_id, 'orchestration-complete', {
+    outputDir: projectDir,
+    episodeFile: 'episode.m4a',
+    manifestFile: 'manifest.json',
+    totalDurationSec: parseFloat(manifest.total.toFixed(2)),
+    totalDurationMin: parseFloat((manifest.total / 60).toFixed(2)),
+  });
 
   return {
     project_id: director.project_id,
@@ -338,28 +246,29 @@ export async function orchestrateParallel(
     onProgress({ step: 'validating', percent: 0, message: 'Validating Director JSON...' });
   }
 
-  console.log('🎬 Step 0: Validating Director JSON...');
+  log.info('Validating Director JSON (parallel pipeline)');
   const parsed = DirectorJSONSchema.safeParse(directorJSON);
   if (!parsed.success) {
     throw new Error('Invalid Director JSON: ' + JSON.stringify(parsed.error.issues));
   }
   const director = parsed.data;
-  console.log(`   ✅ Valid Director JSON for project: ${director.project_id}`);
-  console.log(`   📋 Scenes to process: ${director.scenes.length}`);
-
   const totalLines = director.scenes.reduce((sum, s) => sum + s.dialogue.length, 0);
-  console.log(`   🎙️  Total dialogue lines: ${totalLines}\n`);
+  log.generation(director.project_id, 'validation-complete', {
+    sceneCount: director.scenes.length,
+    totalDialogueLines: totalLines,
+    pipeline: 'parallel',
+  });
 
   // Setup output directories
-  const projectDir = path.join(process.cwd(), 'output', director.project_id);
+  const projectDir = path.join(getOutputDir(), director.project_id);
   const scenesDir = path.join(projectDir, 'scenes');
   fs.mkdirSync(projectDir, { recursive: true });
   fs.mkdirSync(scenesDir, { recursive: true });
 
   // Step 1: Parallel TTS Generation
-  console.log('═'.repeat(80));
-  console.log('🔊 STEP 1: PARALLEL TTS GENERATION');
-  console.log('═'.repeat(80) + '\n');
+  log.generation(director.project_id, 'parallel-tts-start', {
+    totalLines,
+  });
 
   const ttsResult = await parallelTTSGenerate(
     director,
@@ -373,13 +282,11 @@ export async function orchestrateParallel(
         });
       }
     },
-    12 // Concurrency - adjust based on ElevenLabs tier
+    parseInt(process.env.TTS_CONCURRENCY || '6', 10) // Configurable; reduce for memory-constrained envs
   );
 
   // Step 2: Progressive Scene Assembly
-  console.log('═'.repeat(80));
-  console.log('🔗 STEP 2: PROGRESSIVE SCENE ASSEMBLY');
-  console.log('═'.repeat(80) + '\n');
+  log.generation(director.project_id, 'progressive-assembly-start');
 
   if (onProgress) {
     onProgress({ step: 'assembling', percent: 60, message: 'Assembling scenes...' });
@@ -405,9 +312,7 @@ export async function orchestrateParallel(
   );
 
   // Step 3: Final Concatenation
-  console.log('═'.repeat(80));
-  console.log('🎬 STEP 3: FINAL CONCATENATION');
-  console.log('═'.repeat(80) + '\n');
+  log.generation(director.project_id, 'final-concatenation-start');
 
   if (onProgress) {
     onProgress({ step: 'stitching', percent: 85, message: 'Creating final episode...' });
@@ -417,9 +322,7 @@ export async function orchestrateParallel(
   await finalConcatenation(stitchResult.scenes, episodePath, 1.5);
 
   // Step 4: Generate Manifest
-  console.log('═'.repeat(80));
-  console.log('📄 STEP 4: GENERATING MANIFEST');
-  console.log('═'.repeat(80) + '\n');
+  log.generation(director.project_id, 'manifest-start');
 
   if (onProgress) {
     onProgress({ step: 'manifest', percent: 95, message: 'Generating playback manifest...' });
@@ -443,17 +346,17 @@ export async function orchestrateParallel(
   }));
 
   // Final report
-  console.log('═'.repeat(80));
-  console.log('🎊 PARALLEL ORCHESTRATION COMPLETE!');
-  console.log('═'.repeat(80) + '\n');
-  console.log(`📁 Output directory: ${projectDir}`);
-  console.log(`🎵 Episode file: episode.m4a`);
-  console.log(`📄 Manifest: manifest.json`);
-  console.log(`⏱️  Total duration: ${manifest.total.toFixed(2)}s (${(manifest.total / 60).toFixed(2)} min)`);
-  console.log(`📊 Performance:`);
-  console.log(`   - TTS: ${ttsResult.cached_lines} cached, ${ttsResult.generated_lines} generated`);
-  console.log(`   - Scenes: ${stitchResult.scenes.length} processed in parallel`);
-  console.log('═'.repeat(80) + '\n');
+  log.generation(director.project_id, 'parallel-orchestration-complete', {
+    outputDir: projectDir,
+    episodeFile: 'episode.m4a',
+    manifestFile: 'manifest.json',
+    totalDurationSec: parseFloat(manifest.total.toFixed(2)),
+    totalDurationMin: parseFloat((manifest.total / 60).toFixed(2)),
+    ttsCachedLines: ttsResult.cached_lines,
+    ttsGeneratedLines: ttsResult.generated_lines,
+    scenesProcessed: stitchResult.scenes.length,
+    pipeline: 'parallel',
+  });
 
   if (onProgress) {
     onProgress({ step: 'complete', percent: 100, message: 'Orchestration complete!' });

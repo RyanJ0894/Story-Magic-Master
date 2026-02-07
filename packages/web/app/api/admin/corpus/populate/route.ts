@@ -7,12 +7,21 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { populateMissingEmbeddings } from '@/lib/comparable/service';
+import { validateCsrf } from '@/lib/csrf';
 
 // =============================================================================
 // POST - Populate Missing Embeddings
 // =============================================================================
 
-export async function POST() {
+export async function POST(request: Request) {
+  const csrfError = validateCsrf(request);
+  if (csrfError) {
+    return NextResponse.json(
+      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
+      { status: 403 }
+    );
+  }
+
   const supabase = await createClient();
 
   // Check authentication

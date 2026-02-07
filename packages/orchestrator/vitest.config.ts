@@ -17,12 +17,10 @@ export default defineConfig({
         'src/director/prompts/**', // Prompts are static strings
       ],
       thresholds: {
-        // Coverage thresholds - starting point for consolidated service
-        // TODO: Increase thresholds as more tests are added
-        statements: 20,
-        branches: 25,
-        functions: 30,
-        lines: 20,
+        statements: 40,
+        branches: 35,
+        functions: 40,
+        lines: 40,
       },
     },
     testTimeout: 30000,

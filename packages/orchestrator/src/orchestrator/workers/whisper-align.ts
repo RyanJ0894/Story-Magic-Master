@@ -6,6 +6,7 @@ import { execa } from 'execa';
 import fs from 'fs';
 import FormData from 'form-data';
 import { withRetry } from '../../lib/retry.js';
+import { log } from '../../lib/logger.js';
 
 export interface WordTimestamp {
   word: string;
@@ -33,7 +34,7 @@ export async function whisperAlign(
   audioPath: string,
   expectedText: string
 ): Promise<WordTimestamp[] | null> {
-  console.log(`   🎙️  Running Whisper ASR for word-level alignment...`);
+  log.debug('Running Whisper ASR for word-level alignment');
 
   const whisperCppPath = process.env.WHISPER_CPP_PATH || 'whisper';
   const modelPath = process.env.WHISPER_MODEL_PATH || 'models/ggml-base.en.bin';
@@ -73,21 +74,22 @@ export async function whisperAlign(
     try {
       fs.unlinkSync(jsonOutputPath);
     } catch (e) {
-      console.warn('Warning: Could not delete temp JSON file:', (e as Error).message);
+      log.warn('Could not delete temp JSON file', { error: (e as Error).message });
     }
 
-    console.log(`   ✅ Whisper aligned ${words.length} words`);
+    log.debug('Whisper alignment complete', { wordCount: words.length });
     return words;
   } catch (err) {
-    console.warn(`   ⚠️  whisper.cpp failed, trying OpenAI Whisper API...`);
-    console.log(`   ❌ Error details: ${(err as Error).message}`);
+    log.warn('whisper.cpp failed, trying OpenAI Whisper API', {
+      error: (err as Error).message,
+    });
 
     // Fallback to OpenAI Whisper API
     if (process.env.OPENAI_API_KEY) {
       return await whisperAPIAlign(audioPath, expectedText);
     }
 
-    console.warn(`   ⚠️  No Whisper available, using duration-based fallback`);
+    log.warn('No Whisper available, using duration-based fallback');
     return null;
   }
 }
@@ -102,8 +104,9 @@ function parseWhisperCppOutput(jsonString: string, expectedText: string): WordTi
     const data: WhisperOutput = JSON.parse(jsonString);
 
     if (!data.transcription || !Array.isArray(data.transcription)) {
-      console.warn("   ⚠️  JSON format unexpected: 'transcription' array missing");
-      console.log('   🔍 JSON Preview:', jsonString.substring(0, 200));
+      log.warn('Whisper JSON format unexpected: transcription array missing', {
+        jsonPreview: jsonString.substring(0, 200),
+      });
       return [];
     }
 
@@ -141,7 +144,7 @@ function parseWhisperCppOutput(jsonString: string, expectedText: string): WordTi
       }
     }
   } catch (err) {
-    console.error('   ❌ Failed to parse whisper.cpp output:', (err as Error).message);
+    log.error('Failed to parse whisper.cpp output', err instanceof Error ? err : undefined);
   }
 
   return words;
@@ -193,7 +196,7 @@ async function whisperAPIAlign(
         }
       }
 
-      console.log(`   ✅ Whisper API aligned ${words.length} words`);
+      log.debug('Whisper API alignment complete', { wordCount: words.length });
       return words;
     },
     {

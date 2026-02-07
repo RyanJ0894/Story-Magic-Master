@@ -7,11 +7,17 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { cancelJob } from '@/lib/queue/service';
+import { validateCsrf } from '@/lib/csrf';
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const csrfError = validateCsrf(request);
+  if (csrfError) {
+    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   const supabase = await createClient();
   const { id: jobId } = await params;
 

@@ -20,7 +20,6 @@ import {
   Volume2,
   VolumeX,
   Settings,
-  Maximize2,
   List,
   Clock,
   User,
@@ -75,6 +74,7 @@ export function ProtectedPlayer({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showSceneList, setShowSceneList] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Get current scene
   const currentScene = scenes.find(
@@ -108,6 +108,12 @@ export function ProtectedPlayer({
     if (!audioRef.current) return;
     audioRef.current.currentTime = Math.max(0, Math.min(time, duration));
   }, [duration]);
+
+  // Seek by percentage
+  const seekToPercent = useCallback((percent: number) => {
+    const clamped = Math.max(0, Math.min(1, percent));
+    seek(clamped * duration);
+  }, [duration, seek]);
 
   // Skip forward/backward
   const skip = useCallback((seconds: number) => {
@@ -147,8 +153,56 @@ export function ProtectedPlayer({
     if (!progressRef.current) return;
     const rect = progressRef.current.getBoundingClientRect();
     const percent = (e.clientX - rect.left) / rect.width;
-    seek(percent * duration);
-  }, [duration, seek]);
+    seekToPercent(percent);
+  }, [seekToPercent]);
+
+  // Drag-to-seek on progress bar
+  const handleProgressMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    setIsDragging(true);
+    handleProgressClick(e);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!progressRef.current) return;
+      const rect = progressRef.current.getBoundingClientRect();
+      const percent = (moveEvent.clientX - rect.left) / rect.width;
+      seekToPercent(percent);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [handleProgressClick, seekToPercent]);
+
+  // Progress bar keyboard navigation
+  const handleProgressKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!audioRef.current) return;
+    const step = 0.02;
+    const current = audioRef.current.currentTime / duration;
+
+    switch (e.key) {
+      case 'ArrowRight':
+        e.preventDefault();
+        seekToPercent(current + step);
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        seekToPercent(current - step);
+        break;
+      case 'Home':
+        e.preventDefault();
+        seekToPercent(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        seekToPercent(1);
+        break;
+    }
+  }, [duration, seekToPercent]);
 
   // Audio event handlers
   useEffect(() => {
@@ -156,7 +210,9 @@ export function ProtectedPlayer({
     if (!audio) return;
 
     const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
+      if (!isDragging) {
+        setCurrentTime(audio.currentTime);
+      }
     };
 
     const handleLoadedMetadata = () => {
@@ -201,7 +257,7 @@ export function ProtectedPlayer({
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('error', handleError);
     };
-  }, [duration, initialPosition, onComplete]);
+  }, [duration, initialPosition, onComplete, isDragging]);
 
   // Save position periodically
   useEffect(() => {
@@ -304,7 +360,7 @@ export function ProtectedPlayer({
                   </Badge>
                   {currentScene.characters.length > 0 && (
                     <>
-                      <User className="w-3 h-3" />
+                      <User className="w-3 h-3" aria-hidden="true" />
                       <span>{currentScene.characters.join(', ')}</span>
                     </>
                   )}
@@ -316,10 +372,13 @@ export function ProtectedPlayer({
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowSceneList(!showSceneList)}
+                aria-expanded={showSceneList}
+                aria-label="Toggle scene list"
                 className={showSceneList ? 'bg-slate-200 dark:bg-slate-800' : ''}
               >
-                <List className="w-4 h-4 mr-2" />
-                Scenes
+                <List className="w-4 h-4 mr-2" aria-hidden="true" />
+                <span className="hidden sm:inline">Scenes</span>
+                <span className="sr-only sm:hidden">Scenes</span>
               </Button>
             </div>
           </div>
@@ -327,12 +386,14 @@ export function ProtectedPlayer({
 
         {/* Scene List (collapsible) */}
         {showSceneList && scenes.length > 0 && (
-          <div className="max-h-48 overflow-y-auto border-b">
+          <div className="max-h-48 overflow-y-auto border-b" role="listbox" aria-label="Scenes">
             {scenes.map((scene, index) => (
               <button
                 key={scene.scene_id}
+                role="option"
+                aria-selected={currentScene?.scene_id === scene.scene_id}
                 onClick={() => jumpToScene(scene)}
-                className={`w-full text-left px-4 py-2 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors ${
+                className={`w-full text-left px-4 py-2 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 ${
                   currentScene?.scene_id === scene.scene_id
                     ? 'bg-violet-50 dark:bg-violet-950 border-l-2 border-violet-500'
                     : ''
@@ -353,88 +414,100 @@ export function ProtectedPlayer({
         {/* Progress Bar */}
         <div
           ref={progressRef}
-          onClick={handleProgressClick}
-          className="h-2 bg-slate-200 dark:bg-slate-800 cursor-pointer relative group"
+          role="slider"
+          tabIndex={0}
+          aria-label="Seek"
+          aria-valuemin={0}
+          aria-valuemax={Math.round(duration)}
+          aria-valuenow={Math.round(currentTime)}
+          aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
+          onMouseDown={handleProgressMouseDown}
+          onKeyDown={handleProgressKeyDown}
+          className="h-2 bg-slate-200 dark:bg-slate-800 cursor-pointer relative group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
         >
           {/* Buffered */}
           <div
-            className="absolute h-full bg-slate-300 dark:bg-slate-700"
+            className="absolute h-full bg-slate-300 dark:bg-slate-700 pointer-events-none"
             style={{ width: `${buffered}%` }}
           />
           {/* Progress */}
           <div
-            className="absolute h-full bg-violet-500"
+            className="absolute h-full bg-violet-500 pointer-events-none"
             style={{ width: `${progress}%` }}
           />
           {/* Hover indicator */}
           <div
-            className="absolute h-full w-1 bg-violet-600 opacity-0 group-hover:opacity-100 transition-opacity"
+            className="absolute h-full w-1 bg-violet-600 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
             style={{ left: `${progress}%`, transform: 'translateX(-50%)' }}
           />
           {/* Scene markers */}
           {scenes.map((scene) => (
             <div
               key={scene.scene_id}
-              className="absolute top-0 w-0.5 h-full bg-slate-400 dark:bg-slate-600 opacity-50"
+              className="absolute top-0 w-0.5 h-full bg-slate-400 dark:bg-slate-600 opacity-50 pointer-events-none"
               style={{ left: `${(scene.start_time / duration) * 100}%` }}
             />
           ))}
         </div>
 
-        {/* Controls */}
-        <div className="p-4 flex items-center gap-4">
+        {/* Controls - responsive layout */}
+        <div className="p-3 sm:p-4 flex flex-wrap items-center gap-2 sm:gap-4">
           {/* Time */}
-          <div className="text-sm text-muted-foreground tabular-nums w-24">
-            {formatTime(currentTime)} / {formatTime(duration)}
+          <div className="text-xs sm:text-sm text-muted-foreground tabular-nums w-auto sm:w-24 order-2 sm:order-1">
+            <span>{formatTime(currentTime)}</span>
+            <span className="mx-1">/</span>
+            <span>{formatTime(duration)}</span>
           </div>
 
           {/* Main Controls */}
-          <div className="flex items-center gap-2 flex-1 justify-center">
+          <div className="flex items-center gap-1 sm:gap-2 flex-1 justify-center order-1 sm:order-2" role="group" aria-label="Playback controls">
             {scenes.length > 0 && (
-              <Button variant="ghost" size="icon" onClick={previousScene}>
-                <ChevronLeft className="w-5 h-5" />
+              <Button variant="ghost" size="icon" onClick={previousScene} aria-label="Previous scene" className="hidden sm:inline-flex">
+                <ChevronLeft className="w-5 h-5" aria-hidden="true" />
               </Button>
             )}
-            <Button variant="ghost" size="icon" onClick={() => skip(-10)}>
-              <SkipBack className="w-5 h-5" />
+            <Button variant="ghost" size="icon" onClick={() => skip(-10)} aria-label="Skip back 10 seconds">
+              <SkipBack className="w-5 h-5" aria-hidden="true" />
             </Button>
             <Button
               size="icon"
-              className="w-12 h-12 rounded-full"
+              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
               onClick={togglePlay}
               disabled={isLoading}
+              aria-label={isLoading ? 'Loading audio' : isPlaying ? 'Pause' : 'Play'}
             >
               {isLoading ? (
-                <Loader2 className="w-6 h-6 animate-spin" />
+                <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" aria-hidden="true" />
               ) : isPlaying ? (
-                <Pause className="w-6 h-6" />
+                <Pause className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />
               ) : (
-                <Play className="w-6 h-6 ml-0.5" />
+                <Play className="w-5 h-5 sm:w-6 sm:h-6 ml-0.5" aria-hidden="true" />
               )}
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => skip(10)}>
-              <SkipForward className="w-5 h-5" />
+            <Button variant="ghost" size="icon" onClick={() => skip(10)} aria-label="Skip forward 10 seconds">
+              <SkipForward className="w-5 h-5" aria-hidden="true" />
             </Button>
             {scenes.length > 0 && (
-              <Button variant="ghost" size="icon" onClick={nextScene}>
-                <ChevronRight className="w-5 h-5" />
+              <Button variant="ghost" size="icon" onClick={nextScene} aria-label="Next scene" className="hidden sm:inline-flex">
+                <ChevronRight className="w-5 h-5" aria-hidden="true" />
               </Button>
             )}
           </div>
 
           {/* Right Controls */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 order-3">
             {/* Volume */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setIsMuted(!isMuted)}
+                aria-label={isMuted || volume === 0 ? 'Unmute' : 'Mute'}
               >
                 {isMuted || volume === 0 ? (
-                  <VolumeX className="w-5 h-5" />
+                  <VolumeX className="w-5 h-5" aria-hidden="true" />
                 ) : (
-                  <Volume2 className="w-5 h-5" />
+                  <Volume2 className="w-5 h-5" aria-hidden="true" />
                 )}
               </Button>
               <Slider
@@ -445,14 +518,15 @@ export function ProtectedPlayer({
                 }}
                 max={100}
                 step={1}
-                className="w-20"
+                aria-label="Volume"
+                className="w-16 sm:w-20 hidden sm:flex"
               />
             </div>
 
             {/* Playback Speed */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="tabular-nums">
+                <Button variant="ghost" size="sm" className="tabular-nums" aria-label={`Playback speed ${playbackRate}x`}>
                   {playbackRate}x
                 </Button>
               </DropdownMenuTrigger>
@@ -472,13 +546,13 @@ export function ProtectedPlayer({
             {/* Settings */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <Settings className="w-5 h-5" />
+                <Button variant="ghost" size="icon" aria-label="Player settings">
+                  <Settings className="w-5 h-5" aria-hidden="true" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem disabled>
-                  <Clock className="w-4 h-4 mr-2" />
+                  <Clock className="w-4 h-4 mr-2" aria-hidden="true" />
                   Sleep Timer
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -492,7 +566,7 @@ export function ProtectedPlayer({
 
         {/* Error State */}
         {error && (
-          <div className="p-4 bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 text-sm text-center">
+          <div className="p-4 bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 text-sm text-center" role="alert">
             {error}
           </div>
         )}

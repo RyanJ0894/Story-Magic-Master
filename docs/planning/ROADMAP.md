@@ -140,10 +140,10 @@ Remove legacy code and prepare for production.
 Deploy consolidated service to production.
 
 ### Tasks
-- [ ] Set up CI/CD pipeline
+- [x] Set up CI/CD pipeline
 - [ ] Configure production environment
-- [ ] Set up monitoring and alerting
-- [ ] Configure auto-scaling
+- [x] Set up monitoring and alerting
+- [ ] Configure auto-scaling (documented, not yet enabled)
 - [ ] Deploy to Render.com
 - [ ] DNS and SSL configuration
 - [ ] Load testing
@@ -151,7 +151,7 @@ Deploy consolidated service to production.
 ### Acceptance Criteria
 - [ ] Service available at production URL
 - [ ] Health checks passing
-- [ ] Monitoring dashboards operational
+- [x] Monitoring dashboards operational
 - [ ] <2s API response time (p95)
 
 ---
@@ -267,11 +267,106 @@ Deploy consolidated service to production.
 
 ---
 
+## February 2026 Update — Revised Roadmap
+
+> Based on [code-review/2026-02-01/FEATURE_PLANNING.md](../../code-review/2026-02-01/FEATURE_PLANNING.md)
+
+### Current State (Feb 1, 2026)
+
+The TypeScript consolidation (Phases 1-9) is **complete**. The MVP is **~75% done** with 3 critical blockers preventing launch.
+
+### Revised Path to 1.0
+
+| Phase | Focus | Hours | When |
+|-------|-------|-------|------|
+| **Phase 0: Launch Blockers** | Share page, security fixes, voice override, MP3 export, prototype deprecation | 32h | Week 1 |
+| **Phase 1: MVP Polish** | Share management, scene regeneration, voice preview, project duplication, QR sharing | 40h | Weeks 2-3 |
+| **Phase 2: Intelligence** | StoryScore (12-dim), Story-Adviser, revision tracking, comparable scripts | 80h | Weeks 4-6 |
+| **Phase 3: Capability** | Long scripts (90-120 pages), stem export, enterprise security, custom voices | 100h | Weeks 7-10 |
+| **Phase 4: Platform** | Public API, reader marketplace, team workspaces, enterprise SSO | 120h | Weeks 11+ |
+
+### Phase 0 Detail (Critical Path)
+
+- [x] Implement `/share/[code]/page.tsx` (public share page)
+- [x] Replace SHA-256 with bcrypt for share passwords
+- [x] Wire voice-chooser.tsx to API
+- [x] Add MP3 export format option
+- [x] Add Zod validation to all POST endpoints
+- [x] Deprecate standalone Director/ and Orchestrator/
+- [x] Full pipeline smoke test (upload → generate → download)
+- [ ] Deploy to Render (staging)
+
+### Requirements Sync
+
+See [code-review/2026-02-01/REQUIREMENTS_SYNC.md](../../code-review/2026-02-01/REQUIREMENTS_SYNC.md) for full matrix of P0-P6 requirements vs. implementation status.
+
+**Key decision:** Long-script support (P0 requirement) is deferred to Phase 3 / Pro tier. MVP launches with ≤15 page limit.
+
+---
+
+## February 7, 2026 Update — Production Launch TODO Complete
+
+### Summary
+
+Phases 0-6 of the revised roadmap are **COMPLETE**: 88 tickets closed, 236 story points delivered across 8 phases. Phase 7 (MVP Polish & Launch Readiness) is **IN PROGRESS**.
+
+### Test Suite
+
+| Package | Tests | Status |
+|---------|-------|--------|
+| Orchestrator | 364 | ✅ All passing |
+| Web | 278 | ✅ All passing |
+| **Total** | **642** | **✅ All passing** |
+
+### Security Hardening (Phase 0 — Complete)
+
+All Phase 0 security items have been delivered:
+
+- CORS configuration locked to allowed origins
+- CSRF token validation on state-changing requests
+- Auth guards on all protected API routes
+- Path traversal prevention on file operations
+- Error response sanitization (no stack traces in production)
+
+### Infrastructure
+
+- Render Standard plan provisioned
+- Staging environment ready for deployment
+- Cleanup cron job configured for temporary assets
+- Monorepo tooling upgraded to pnpm@9.1.0
+
+### Features Delivered (Phases 1-6)
+
+- Admin APIs for project and user management
+- MP3 export format alongside M4A
+- Team sharing with role-based permissions
+- Audit log capture for compliance-sensitive actions
+- WCAG 2.1 AA compliance on audio player components
+
+### Phase 10 Partial Completion
+
+The following Phase 10 items are now done:
+
+- [x] CI/CD pipeline operational (GitHub Actions)
+- [x] Monitoring and alerting dashboards live (Sentry + uptime checks)
+- Auto-scaling configuration documented but not yet enabled (deferred to post-launch traffic validation)
+
+### What Remains
+
+- Phase 7: MVP Polish & Launch Readiness (in progress)
+- Render production deploy + DNS/SSL
+- Load testing under realistic traffic
+- Beta user onboarding
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 0.1.0 | 2026-01 | Initial TypeScript consolidation |
-| 0.2.0 | TBD | Complete worker conversion |
-| 0.3.0 | TBD | Production deployment |
-| 1.0.0 | TBD | MVP SaaS launch |
+| 0.1.0 | 2026-01-18 | Initial TypeScript consolidation |
+| 0.2.0 | 2026-01-21 | Complete worker conversion |
+| 0.3.0 | 2026-01-28 | Production tooling (Sentry, auth, rate limiting, logging) |
+| 0.4.0 | 2026-02-01 | Full code review; doc reorganization; revised roadmap |
+| 0.5.0 | 2026-02-07 | Phase 0-6 complete; 642 tests; production hardening |
+| 1.0.0 | TBD | MVP SaaS launch (target: after Phase 0 + Phase 1) |

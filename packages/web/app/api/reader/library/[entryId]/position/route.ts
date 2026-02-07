@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { validateCsrf } from '@/lib/csrf';
 
 interface RouteParams {
   params: Promise<{ entryId: string }>;
@@ -7,6 +8,11 @@ interface RouteParams {
 
 // POST /api/reader/library/[entryId]/position - Update playback position
 export async function POST(request: NextRequest, { params }: RouteParams) {
+  const csrfError = validateCsrf(request);
+  if (csrfError) {
+    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   const { entryId } = await params;
   const supabase = await createClient();
 

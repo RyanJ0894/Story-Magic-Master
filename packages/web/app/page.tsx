@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { MobileNav } from './mobile-nav';
 
 export default function Home() {
   return (
@@ -8,11 +9,12 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
-              <span className="text-white text-lg">✨</span>
+              <span className="text-white text-lg" aria-hidden="true">✨</span>
             </div>
             <span className="font-bold text-lg">Story Magic</span>
           </Link>
-          <div className="flex items-center gap-4">
+          {/* Desktop nav */}
+          <div className="hidden md:flex items-center gap-4">
             <Link
               href="/guide"
               className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
@@ -32,6 +34,8 @@ export default function Home() {
               Get Started
             </Link>
           </div>
+          {/* Mobile nav */}
+          <MobileNav />
         </div>
       </nav>
 
@@ -117,26 +121,26 @@ export default function Home() {
             <div>
               <h4 className="font-semibold mb-4">Product</h4>
               <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                <li><Link href="/guide#getting-started" className="hover:text-brand-600">Getting Started</Link></li>
-                <li><Link href="/guide#storyscore" className="hover:text-brand-600">StoryScore</Link></li>
-                <li><Link href="/guide#audio-generation" className="hover:text-brand-600">Audio Generation</Link></li>
-                <li><Link href="/guide#billing" className="hover:text-brand-600">Pricing</Link></li>
+                <li><Link href="/guide#getting-started" className="hover:text-brand-600 focus-visible:outline-none focus-visible:text-brand-600 focus-visible:underline">Getting Started</Link></li>
+                <li><Link href="/guide#storyscore" className="hover:text-brand-600 focus-visible:outline-none focus-visible:text-brand-600 focus-visible:underline">StoryScore</Link></li>
+                <li><Link href="/guide#audio-generation" className="hover:text-brand-600 focus-visible:outline-none focus-visible:text-brand-600 focus-visible:underline">Audio Generation</Link></li>
+                <li><Link href="/guide#billing" className="hover:text-brand-600 focus-visible:outline-none focus-visible:text-brand-600 focus-visible:underline">Pricing</Link></li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Resources</h4>
               <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                <li><Link href="/guide" className="hover:text-brand-600">User Guide</Link></li>
-                <li><Link href="/guide#help" className="hover:text-brand-600">FAQ</Link></li>
-                <li><a href="mailto:support@storymagic.ai" className="hover:text-brand-600">Contact Support</a></li>
+                <li><Link href="/guide" className="hover:text-brand-600 focus-visible:outline-none focus-visible:text-brand-600 focus-visible:underline">User Guide</Link></li>
+                <li><Link href="/guide#help" className="hover:text-brand-600 focus-visible:outline-none focus-visible:text-brand-600 focus-visible:underline">FAQ</Link></li>
+                <li><a href="mailto:support@storymagic.ai" className="hover:text-brand-600 focus-visible:outline-none focus-visible:text-brand-600 focus-visible:underline">Contact Support</a></li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Account</h4>
               <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                <li><Link href="/login" className="hover:text-brand-600">Sign In</Link></li>
-                <li><Link href="/signup" className="hover:text-brand-600">Create Account</Link></li>
-                <li><Link href="/dashboard" className="hover:text-brand-600">Dashboard</Link></li>
+                <li><Link href="/login" className="hover:text-brand-600 focus-visible:outline-none focus-visible:text-brand-600 focus-visible:underline">Sign In</Link></li>
+                <li><Link href="/signup" className="hover:text-brand-600 focus-visible:outline-none focus-visible:text-brand-600 focus-visible:underline">Create Account</Link></li>
+                <li><Link href="/dashboard" className="hover:text-brand-600 focus-visible:outline-none focus-visible:text-brand-600 focus-visible:underline">Dashboard</Link></li>
               </ul>
             </div>
           </div>

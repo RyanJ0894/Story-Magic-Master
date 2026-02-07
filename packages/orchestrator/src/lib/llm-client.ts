@@ -23,6 +23,7 @@ import { createGroq } from '@ai-sdk/groq';
 import { anthropic } from '@ai-sdk/anthropic';
 import { google } from '@ai-sdk/google';
 import { z } from 'zod';
+import { log } from './logger.js';
 
 export type LLMProvider = 'openai' | 'anthropic' | 'google' | 'groq';
 
@@ -118,7 +119,7 @@ export async function runAgentLoop(
   const messages: CoreMessage[] = [{ role: 'user', content: userInput }];
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
-    console.log(`[LLM] Iteration ${iteration + 1}/${maxIterations}`);
+    log.debug('LLM iteration', { iteration: iteration + 1, maxIterations });
 
     try {
       const result = await generateText({
@@ -132,11 +133,11 @@ export async function runAgentLoop(
 
       // If no tool calls, return the text response
       if (!result.toolCalls || result.toolCalls.length === 0) {
-        console.log(`[LLM] Completed - no more tool calls`);
+        log.debug('LLM completed - no more tool calls');
         return result.text;
       }
 
-      console.log(`[LLM] Processing ${result.toolCalls.length} tool calls`);
+      log.debug('LLM processing tool calls', { count: result.toolCalls.length });
 
       // Add assistant message with tool calls
       messages.push({
@@ -161,12 +162,12 @@ export async function runAgentLoop(
         const toolName = toolCall.toolName;
         const toolArgs = toolCall.args as Record<string, unknown>;
 
-        console.log(`[LLM] Calling tool: ${toolName}`, JSON.stringify(toolArgs));
+        log.debug('LLM calling tool', { toolName, args: toolArgs });
 
         // Get the tool and execute it
         const toolDef = tools[toolName];
         if (!toolDef) {
-          console.error(`[LLM] Unknown tool: ${toolName}`);
+          log.error('LLM unknown tool', undefined, { toolName });
           toolResults.push({
             type: 'tool-result',
             toolCallId: toolCall.toolCallId,
@@ -183,7 +184,7 @@ export async function runAgentLoop(
             messages: [],
             abortSignal: undefined as unknown as AbortSignal,
           });
-          console.log(`[LLM] Tool result:`, JSON.stringify(toolResult).slice(0, 200));
+          log.debug('LLM tool result', { toolName, resultPreview: JSON.stringify(toolResult).slice(0, 200) });
 
           toolResults.push({
             type: 'tool-result',
@@ -192,7 +193,7 @@ export async function runAgentLoop(
             result: toolResult,
           });
         } catch (err) {
-          console.error(`[LLM] Tool execution error:`, err);
+          log.error('LLM tool execution error', err instanceof Error ? err : undefined, { toolName });
           toolResults.push({
             type: 'tool-result',
             toolCallId: toolCall.toolCallId,
@@ -208,12 +209,12 @@ export async function runAgentLoop(
         content: toolResults,
       });
     } catch (err) {
-      console.error(`[LLM] Error in iteration ${iteration + 1}:`, err);
+      log.error('LLM error in iteration', err instanceof Error ? err : undefined, { iteration: iteration + 1 });
       throw err;
     }
   }
 
-  console.warn(`[LLM] Max iterations (${maxIterations}) reached`);
+  log.warn('LLM max iterations reached', { maxIterations });
 
   // Return whatever we have
   const lastMessage = messages[messages.length - 1];

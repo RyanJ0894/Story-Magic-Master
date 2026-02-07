@@ -13,13 +13,9 @@ import { ttsKey, hash } from '../../lib/idempotency.js';
 import { getVoiceForCharacter, upsertVoiceMap } from '../../lib/db.js';
 import { readStemByKey, writeStem } from '../../lib/storage.js';
 import { ttsGenerate } from '../../lib/audio.js';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { supabaseClient as sb } from '../../lib/supabase.js';
+import { log } from '../../lib/logger.js';
 import type { DirectorJSON, Scene, DialogueLine } from '../../schemas/director-json.js';
-
-const sb: SupabaseClient | null =
-  process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY
-    ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
-    : null;
 
 export interface StemResult {
   scene_id: string;
@@ -93,8 +89,11 @@ export async function parallelTTSGenerate(
   const totalLines = allTasks.length;
   const totalScenes = director.scenes.length;
 
-  console.log(`\n🔊 Parallel TTS: Processing ${totalLines} lines across ${totalScenes} scenes`);
-  console.log(`   Concurrency: ${concurrency} parallel API calls\n`);
+  log.info('Parallel TTS: starting batch processing', {
+    totalLines,
+    totalScenes,
+    concurrency,
+  });
 
   // 2. Initialize results structure
   const stemsByScene: SceneStemMap = {};
@@ -161,7 +160,7 @@ export async function parallelTTSGenerate(
           completedLines++;
           sceneLinesComplete.set(scene_id, (sceneLinesComplete.get(scene_id) || 0) + 1);
 
-          console.log(`   ♻️  Cached: ${line.line_id} (${line.character})`);
+          log.debug('Using cached TTS stem', { lineId: line.line_id, character: line.character });
 
           return {
             scene_id,
@@ -171,7 +170,11 @@ export async function parallelTTSGenerate(
         }
 
         // Generate new TTS
-        console.log(`   🎙️  Generating: ${line.line_id} (${line.character}) - "${line.text.substring(0, 40)}..."`);
+        log.info('Generating TTS stem', {
+          lineId: line.line_id,
+          character: line.character,
+          textPreview: line.text.substring(0, 40),
+        });
 
         const wav = await ttsGenerate({ voice, text: line.text });
         const stemPath = await writeStem(project_id, scene_id, line.line_id, wav, key);
@@ -237,10 +240,12 @@ export async function parallelTTSGenerate(
     });
   }
 
-  console.log(`\n✅ Parallel TTS Complete:`);
-  console.log(`   Total: ${totalLines} lines`);
-  console.log(`   Cached: ${cachedLines} lines (${Math.round((cachedLines / totalLines) * 100)}%)`);
-  console.log(`   Generated: ${generatedLines} lines\n`);
+  log.info('Parallel TTS complete', {
+    totalLines,
+    cachedLines,
+    cachedPercent: Math.round((cachedLines / totalLines) * 100),
+    generatedLines,
+  });
 
   return {
     stems_by_scene: stemsByScene,

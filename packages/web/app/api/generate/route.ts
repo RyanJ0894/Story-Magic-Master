@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateCsrf } from '@/lib/csrf';
@@ -22,8 +21,6 @@ const GenerateRequestSchema = z.object({
 // Input Sanitization
 // =============================================================================
 function sanitizeScriptText(text: string): string {
-  // Remove potential prompt injection patterns
-  // These patterns attempt to override system prompts or inject instructions
   const dangerousPatterns = [
     /ignore\s+(all\s+)?(previous|above|prior)\s+(instructions|prompts)/gi,
     /disregard\s+(all\s+)?(previous|above|prior)/gi,
@@ -57,326 +54,6 @@ function validateScriptContent(text: string): { valid: boolean; error?: string }
   }
 
   return { valid: true };
-}
-
-// Helper to log progress with timestamp
-function logProgress(jobId: string, step: string, message: string) {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] [Job ${jobId.slice(0, 8)}] [${step}] ${message}`);
-}
-
-// Get service client for background operations
-function getServiceClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    return null;
-  }
-
-  return createServiceClient(supabaseUrl, serviceRoleKey);
-}
-
-// Log to job_logs table for audit trail
-async function logJobEvent(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
-  jobId: string,
-  projectId: string,
-  level: 'debug' | 'info' | 'warn' | 'error',
-  step: string,
-  message: string,
-  metadata: Record<string, unknown> = {},
-  errorMessage?: string,
-  errorStack?: string
-) {
-  try {
-    await supabase.from('job_logs').insert({
-      job_id: jobId,
-      project_id: projectId,
-      level,
-      step,
-      message,
-      metadata,
-      error_message: errorMessage,
-      error_stack: errorStack,
-    });
-  } catch (err) {
-    // Don't fail if logging fails - just console log
-    console.error(`Failed to write job log: ${err}`);
-  }
-}
-
-// Mark job as failed with error details
-async function markJobFailed(
-  jobId: string,
-  projectId: string,
-  errorMessage: string,
-  errorStack?: string
-) {
-  const supabase = getServiceClient();
-  if (!supabase) {
-    console.error(`[Job ${jobId}] Cannot mark job failed - no service client`);
-    return;
-  }
-
-  const now = new Date().toISOString();
-
-  // Log the error
-  await logJobEvent(supabase, jobId, projectId, 'error', 'failed', errorMessage, {}, errorMessage, errorStack);
-
-  // Update job status
-  await supabase
-    .from('jobs')
-    .update({
-      status: 'failed',
-      error: errorMessage,
-      progress: { step: 'failed', percent: 0, details: errorMessage, updated_at: now },
-    })
-    .eq('id', jobId);
-
-  // Update project status
-  await supabase
-    .from('projects')
-    .update({ status: 'failed' })
-    .eq('id', projectId);
-
-  logProgress(jobId, 'error', `Job marked as failed: ${errorMessage}`);
-}
-
-// Background job processor - runs after response is sent
-async function processGenerationJob(
-  projectId: string,
-  jobId: string,
-  userId: string,
-  scriptText: string,
-  pageCount: number,
-  accessToken: string | undefined,
-  voiceOverrides: Record<string, string> = {}
-) {
-  // Use service role client for background processing (not tied to user session)
-  const supabase = getServiceClient();
-
-  if (!supabase) {
-    const error = 'Server configuration error: Missing Supabase credentials';
-    console.error(`[Job ${jobId}] ${error}`);
-    // We can't update the DB without credentials, but try anyway with a fresh attempt
-    await markJobFailed(jobId, projectId, error);
-    throw new Error(error);
-  }
-
-  const updateJobProgress = async (step: string, percent: number, details?: string, metadata: Record<string, unknown> = {}) => {
-    const progressData = {
-      step,
-      percent,
-      details: details || '',
-      updated_at: new Date().toISOString(),
-    };
-    logProgress(jobId, step, `${percent}% - ${details || 'Processing...'}`);
-
-    // Log to job_logs table for audit trail
-    await logJobEvent(supabase, jobId, projectId, 'info', step, details || 'Processing...', { percent, ...metadata });
-
-    await supabase
-      .from('jobs')
-      .update({ progress: progressData })
-      .eq('id', jobId);
-  };
-
-  try {
-    // Step 1: Start processing
-    await supabase
-      .from('jobs')
-      .update({
-        status: 'processing',
-        started_at: new Date().toISOString(),
-      })
-      .eq('id', jobId);
-
-    await updateJobProgress('initializing', 5, 'Starting generation pipeline...');
-
-    // Step 2: Call Director Agent to parse script
-    await updateJobProgress('parsing', 10, 'Parsing script and assigning voices...');
-
-    const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:22002';
-    logProgress(jobId, 'parsing', `Calling orchestrator at ${orchestratorUrl}/generate-scenes`);
-
-    const generateScenesBody: Record<string, unknown> = {
-      project_id: projectId,
-      script_text: scriptText,
-    };
-    if (Object.keys(voiceOverrides).length > 0) {
-      generateScenesBody.voice_overrides = voiceOverrides;
-      logProgress(jobId, 'parsing', `Voice overrides for ${Object.keys(voiceOverrides).length} character(s)`);
-    }
-
-    const directorResponse = await fetch(`${orchestratorUrl}/generate-scenes`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
-      },
-      body: JSON.stringify(generateScenesBody),
-    });
-
-    if (!directorResponse.ok) {
-      const errorBody = await directorResponse.text();
-      logProgress(jobId, 'parsing', `Director Agent error: ${errorBody}`);
-      throw new Error(`Director Agent failed: ${errorBody}`);
-    }
-
-    const directorResponse_json = await directorResponse.json();
-    const directorJson = directorResponse_json.director_json || directorResponse_json;
-
-    const sceneCount = directorJson.scenes?.length || 0;
-    const lineCount = directorJson.scenes?.reduce((acc: number, s: { dialogue?: unknown[] }) => acc + (s.dialogue?.length || 0), 0) || 0;
-
-    await updateJobProgress('parsing_complete', 25, `Parsed ${sceneCount} scenes, ${lineCount} lines`);
-
-    // Save director JSON to project
-    await supabase
-      .from('projects')
-      .update({ director_json: directorJson })
-      .eq('id', projectId);
-
-    // Apply audio overrides from project settings
-    const { data: projectData } = await supabase
-      .from('projects')
-      .select('audio_overrides')
-      .eq('id', projectId)
-      .single();
-
-    const audioOverrides = Array.isArray(projectData?.audio_overrides)
-      ? projectData.audio_overrides.filter(
-          (o: { user_selected?: boolean; file?: string; scene_id?: string }) =>
-            o.user_selected && o.file && o.scene_id
-        )
-      : [];
-
-    if (audioOverrides.length > 0) {
-      for (const override of audioOverrides) {
-        const scene = directorJson.scenes?.find(
-          (s: { scene_id: string }) => s.scene_id === override.scene_id
-        );
-        if (!scene) continue;
-        const cueArray = scene[override.category as string];
-        if (!Array.isArray(cueArray) || override.cue_index >= cueArray.length) continue;
-        cueArray[override.cue_index] = {
-          ...cueArray[override.cue_index],
-          file: override.file,
-          reasoning: 'User override',
-        };
-      }
-      await updateJobProgress('audio_overrides', 27, `Applied ${audioOverrides.length} audio override(s)`);
-    }
-
-    // Step 3: Call Orchestrator to generate audio
-    await updateJobProgress('generating_audio', 30, 'Generating TTS audio for all dialogue...');
-    logProgress(jobId, 'generating_audio', `Calling orchestrator at ${orchestratorUrl}/orchestrate with ${sceneCount} scenes`);
-
-    const orchestratorResponse = await fetch(`${orchestratorUrl}/orchestrate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
-      },
-      body: JSON.stringify({
-        project_id: projectId,
-        scenes: directorJson.scenes || [],
-      }),
-    });
-
-    if (!orchestratorResponse.ok) {
-      const errorBody = await orchestratorResponse.text();
-      logProgress(jobId, 'generating_audio', `Orchestrator error: ${errorBody}`);
-      throw new Error(`Orchestrator failed: ${errorBody}`);
-    }
-
-    const orchestratorResult = await orchestratorResponse.json();
-    await updateJobProgress('mixing', 75, 'Mixing audio tracks...');
-
-    // Step 4: Store audio output records
-    await updateJobProgress('uploading', 85, 'Uploading final audio...');
-
-    const audioUrls = orchestratorResult.audio_urls || [];
-    const manifest = orchestratorResult.playback_manifest;
-
-    for (const audioUrl of audioUrls) {
-      if (!audioUrl) continue;
-      const fileName = audioUrl.split('/').pop() || 'output.mp3';
-      const pathMatch = audioUrl.match(/\/storage\/v1\/object\/public\/(.+)$/);
-      const filePath = pathMatch ? pathMatch[1] : `audio/${projectId}/${fileName}`;
-      await supabase
-        .from('audio_outputs')
-        .insert({
-          project_id: projectId,
-          job_id: jobId,
-          file_name: fileName,
-          file_path: filePath,
-          duration_seconds: manifest?.total_duration || null,
-          format: fileName.endsWith('.m4a') ? 'm4a' : 'mp3',
-        });
-    }
-
-    // Step 5: Increment usage
-    await updateJobProgress('finalizing', 95, 'Finalizing and updating usage...');
-
-    await supabase.rpc('increment_usage', {
-      p_user_id: userId,
-      p_pages: pageCount,
-    });
-
-    // Step 6: Mark job as completed
-    const completionTime = new Date().toISOString();
-    await supabase
-      .from('jobs')
-      .update({
-        status: 'completed',
-        completed_at: completionTime,
-        progress: { step: 'done', percent: 100, details: 'Generation complete!', updated_at: completionTime },
-        result: orchestratorResult,
-      })
-      .eq('id', jobId);
-
-    await supabase
-      .from('projects')
-      .update({ status: 'completed' })
-      .eq('id', projectId);
-
-    logProgress(jobId, 'done', 'Generation completed successfully!');
-
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    logProgress(jobId, 'error', `Generation failed: ${errorMessage}`);
-
-    // Log detailed error to job_logs
-    await logJobEvent(
-      supabase,
-      jobId,
-      projectId,
-      'error',
-      'failed',
-      `Generation failed: ${errorMessage}`,
-      { userId, pageCount },
-      errorMessage,
-      errorStack
-    );
-
-    await supabase
-      .from('jobs')
-      .update({
-        status: 'failed',
-        error: errorMessage,
-        progress: { step: 'failed', percent: 0, details: errorMessage, updated_at: new Date().toISOString() },
-      })
-      .eq('id', jobId);
-
-    await supabase
-      .from('projects')
-      .update({ status: 'failed' })
-      .eq('id', projectId);
-  }
 }
 
 export async function POST(request: Request) {
@@ -471,45 +148,32 @@ export async function POST(request: Request) {
     }
   }
 
-  // Initialize job status immediately
+  // Enqueue job for background processing via the queue worker.
+  // The worker picks up 'queued' jobs, processes them with retry support,
+  // and survives process restarts via lock expiration.
+  const now = new Date().toISOString();
   await supabase
     .from('jobs')
     .update({
-      status: 'processing',
-      started_at: new Date().toISOString(),
-      progress: { step: 'queued', percent: 0, details: 'Job queued, starting soon...', updated_at: new Date().toISOString() },
+      status: 'queued',
+      progress: { step: 'queued', percent: 0, details: 'Job queued, starting soon...', updated_at: now },
+      // Store generation params as metadata for the queue worker to consume
+      result: {
+        metadata: {
+          scriptText: sanitizedScript,
+          pageCount: project.page_count,
+          voiceOverrides,
+          accessToken,
+        },
+      },
     })
     .eq('id', jobId);
 
-  logProgress(jobId, 'start', `Generation started for project ${projectId}`);
+  console.log(`[Generate] Job ${jobId.slice(0, 8)} queued for project ${projectId}`);
 
-  // Schedule background processing - don't await, let it run independently
-  // On Render.com, the Node.js process persists so this will complete even after response is sent
-  // Using setImmediate to ensure response is sent first before heavy processing starts
-  setImmediate(() => {
-    processGenerationJob(
-      projectId,
-      jobId,
-      user.id,
-      sanitizedScript, // Use sanitized script text
-      project.page_count,
-      accessToken,
-      voiceOverrides
-    ).catch(async (error) => {
-      // Ensure job is marked as failed even for unhandled errors
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const errorStack = error instanceof Error ? error.stack : undefined;
-      console.error(`[Background Job Error] Job ${jobId}:`, error);
-
-      // Try to mark the job as failed in the database
-      await markJobFailed(jobId, projectId, errorMessage, errorStack);
-    });
-  });
-
-  // Return immediately - job will continue in background
   return NextResponse.json({
     success: true,
-    message: 'Generation started',
+    message: 'Generation queued',
     jobId,
     projectId,
   });

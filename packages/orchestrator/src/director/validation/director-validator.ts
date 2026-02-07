@@ -7,6 +7,7 @@
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { log } from '../../lib/logger.js';
 import { ValidationError, DirectorValidationErrorTypes } from './validation-error.js';
 import type { DirectorJSON, Scene, DialogueLine } from '../../schemas/director-json.js';
 import { searchVoicesHybrid, getAgeRange, type AgeRange } from '../tools/hybrid-voice-search.js';
@@ -84,9 +85,9 @@ export class DirectorJSONValidator {
       try {
         const catalogJson = readFileSync(VOICE_CATALOG_PATH, 'utf-8');
         this.voiceCatalog = JSON.parse(catalogJson);
-        console.log(`[DirectorValidator] Loaded ${this.voiceCatalog.length} voices for validation`);
+        log.info('DirectorValidator loaded voices for validation', { count: this.voiceCatalog.length });
       } catch (err) {
-        console.warn(`[DirectorValidator] Voice catalog not found: ${err}`);
+        log.warn('DirectorValidator voice catalog not found', { error: String(err) });
         this.voiceCatalog = [];
       }
     }
@@ -99,17 +100,12 @@ export class DirectorJSONValidator {
   validate(directorJson: DirectorJSON): { isValid: boolean; errors: ValidationError[] } {
     this.errors = [];
 
-    console.log('=== STARTING DIRECTOR JSON VALIDATION ===');
-    console.log(`Voice catalog size: ${this.voiceCatalog.length}`);
-    console.log(`Scenes to validate: ${directorJson.scenes?.length || 0}`);
+    log.info('Starting Director JSON validation', { voiceCatalogSize: this.voiceCatalog.length, sceneCount: directorJson.scenes?.length || 0 });
 
     // Extract character metadata from dialogue
     const characters = this.extractCharacterInfo(directorJson);
 
-    console.log(`Characters detected: ${Object.keys(characters).join(', ')}`);
-    for (const [charName, info] of Object.entries(characters)) {
-      console.log(`  ${charName}: age=${info.age}, ethnicity=${info.ethnicity}, voice=${info.voice_key}`);
-    }
+    log.debug('Characters detected', { characters: Object.fromEntries(Object.entries(characters).map(([name, info]) => [name, { age: info.age, ethnicity: info.ethnicity, voice: info.voice_key }])) });
 
     // Check for placeholder voice IDs first (critical error)
     this.validateNoPlaceholderVoices(directorJson);
@@ -120,7 +116,7 @@ export class DirectorJSONValidator {
     // Validate voice uniqueness
     this.validateVoiceUniqueness(directorJson);
 
-    console.log(`Validation complete: ${this.errors.length} errors found`);
+    log.info('Validation complete', { errorCount: this.errors.length });
 
     return { isValid: this.errors.length === 0, errors: this.errors };
   }
@@ -133,11 +129,11 @@ export class DirectorJSONValidator {
     const { isValid, errors } = this.validate(directorJson);
 
     if (isValid) {
-      console.log('No validation errors found - no corrections needed');
+      log.info('No validation errors found - no corrections needed');
       return directorJson;
     }
 
-    console.warn(`Found ${errors.length} validation errors - applying auto-corrections`);
+    log.warn('Found validation errors - applying auto-corrections', { errorCount: errors.length });
 
     let corrected: DirectorJSON = JSON.parse(JSON.stringify(directorJson));
 
@@ -164,9 +160,9 @@ export class DirectorJSONValidator {
     const { errors: remainingErrors } = this.validate(corrected);
 
     if (remainingErrors.length > 0) {
-      console.warn(`Auto-correction incomplete - ${remainingErrors.length} errors remain`);
+      log.warn('Auto-correction incomplete', { remainingErrors: remainingErrors.length });
     } else {
-      console.log('All validation errors successfully corrected');
+      log.info('All validation errors successfully corrected');
     }
 
     return corrected;
@@ -196,17 +192,17 @@ export class DirectorJSONValidator {
           // Extract metadata from this line if present
           if (line.character_age !== undefined) {
             characters[charName].age = line.character_age;
-            console.log(`✓ Found age metadata: ${charName} = ${line.character_age} years old`);
+            log.debug('Found age metadata', { character: charName, age: line.character_age });
           }
 
           if (line.character_gender) {
             characters[charName].gender = line.character_gender;
-            console.log(`✓ Found gender metadata: ${charName} = ${line.character_gender}`);
+            log.debug('Found gender metadata', { character: charName, gender: line.character_gender });
           }
 
           if (line.character_ethnicity) {
             characters[charName].ethnicity = line.character_ethnicity;
-            console.log(`✓ Found ethnicity metadata: ${charName} = ${line.character_ethnicity}`);
+            log.debug('Found ethnicity metadata', { character: charName, ethnicity: line.character_ethnicity });
           }
         }
       }
@@ -222,9 +218,7 @@ export class DirectorJSONValidator {
     for (const scene of directorJson.scenes || []) {
       for (const line of scene.dialogue || []) {
         if (isPlaceholderVoiceId(line.voice_key)) {
-          console.error(
-            `VALIDATION ERROR: Placeholder voice ID detected: "${line.voice_key}" for ${line.character}`
-          );
+          log.error('Validation error: placeholder voice ID detected', undefined, { voiceKey: line.voice_key, character: line.character });
           this.errors.push(
             new ValidationError(
               DirectorValidationErrorTypes.INVALID_VOICE_ID,
@@ -259,12 +253,12 @@ export class DirectorJSONValidator {
       const voiceKey = charInfo.voice_key;
 
       if (!voiceKey) {
-        console.warn(`No voice assigned to ${charName}`);
+        log.warn('No voice assigned to character', { character: charName });
         continue;
       }
 
       if (!voiceMetadata.has(voiceKey)) {
-        console.warn(`Voice ${voiceKey} not found in catalog for ${charName}`);
+        log.warn('Voice not found in catalog', { voiceKey, character: charName });
         continue;
       }
 
@@ -277,9 +271,7 @@ export class DirectorJSONValidator {
       if (charAge !== undefined && charAge >= 17 && charAge <= 19) {
         // Teen character MUST have "Teen" in voice label
         if (!voiceLabel.includes('Teen')) {
-          console.error(
-            `VALIDATION ERROR: ${charName} is ${charAge} years old but has voice '${voiceLabel}' (not Teen)`
-          );
+          log.error('Validation error: teen character has wrong voice label', undefined, { character: charName, age: charAge, voiceLabel });
           this.errors.push(
             new ValidationError(
               DirectorValidationErrorTypes.TEEN_VOICE_WRONG_LABEL,
@@ -300,9 +292,7 @@ export class DirectorJSONValidator {
       const charEthnicity = charInfo.ethnicity;
       if (charEthnicity === 'African American') {
         if (voiceStyle !== 'African American') {
-          console.error(
-            `VALIDATION ERROR: ${charName} is African American but has voice style '${voiceStyle}'`
-          );
+          log.error('Validation error: ethnicity mismatch', undefined, { character: charName, expectedStyle: 'African American', voiceStyle });
           this.errors.push(
             new ValidationError(
               DirectorValidationErrorTypes.ETHNICITY_MISMATCH,
@@ -350,9 +340,7 @@ export class DirectorJSONValidator {
     // Find duplicates
     for (const [voiceKey, characters] of voiceUsage) {
       if (characters.length > 1) {
-        console.error(
-          `VALIDATION ERROR: Voice ${voiceKey} assigned to multiple characters: ${characters.join(', ')}`
-        );
+        log.error('Validation error: duplicate voice assignment', undefined, { voiceKey, characters });
         this.errors.push(
           new ValidationError(
             DirectorValidationErrorTypes.DUPLICATE_VOICE,
@@ -426,9 +414,7 @@ export class DirectorJSONValidator {
 
         if (matchingVoice) {
           newVoice = matchingVoice;
-          console.log(
-            `✓ Found matching voice ${newVoice} for ${charName} (gender=${gender}, age=${age}, ethnicity=${ethnicity})`
-          );
+          log.debug('Found matching voice for character', { voiceId: newVoice, character: charName, gender, age, ethnicity });
         } else {
           // Fallback: any unused voice
           const availableVoice = this.voiceCatalog.find((v) => !excludeVoiceIds.includes(v.voice_id));
@@ -442,7 +428,7 @@ export class DirectorJSONValidator {
       }
 
       characterVoices.set(charName, newVoice);
-      console.log(`✓ Assigned voice ${newVoice} to ${charName}`);
+      log.debug('Assigned voice to character', { voiceId: newVoice, character: charName });
     }
 
     // Now update all lines with the assigned voices
@@ -544,7 +530,7 @@ export class DirectorJSONValidator {
     const charAge = error.fixData.age;
     const currentVoice = error.fixData.current_voice;
 
-    console.log(`Attempting to fix teen voice for ${charName} (age ${charAge}, current: ${currentVoice})`);
+    log.info('Attempting to fix teen voice', { character: charName, age: charAge, currentVoice });
 
     // Get current voice to match gender if possible
     const currentVoiceData = this.voiceCatalog.find((v) => v.voice_id === currentVoice);
@@ -554,7 +540,7 @@ export class DirectorJSONValidator {
     let teenVoices = this.voiceCatalog.filter((v) => v.label?.includes('Teen'));
 
     if (teenVoices.length === 0) {
-      console.warn(`No teen voices available in catalog to fix ${charName}`);
+      log.warn('No teen voices available in catalog', { character: charName });
       return directorJson;
     }
 
@@ -594,9 +580,7 @@ export class DirectorJSONValidator {
       }
     }
 
-    console.log(
-      `✓ Fixed ${charName}: Changed voice from ${currentVoice} to ${newVoice} (${updatedCount} lines updated)`
-    );
+    log.info('Fixed teen voice', { character: charName, oldVoice: currentVoice, newVoice, updatedCount });
     return directorJson;
   }
 
@@ -608,13 +592,13 @@ export class DirectorJSONValidator {
     const expectedStyle = error.fixData.expected_style;
     const currentVoice = error.fixData.current_voice;
 
-    console.log(`Attempting to fix ethnicity for ${charName} (needs ${expectedStyle})`);
+    log.info('Attempting to fix ethnicity mismatch', { character: charName, expectedStyle });
 
     // Find voices matching ethnicity
     const matchingVoices = this.voiceCatalog.filter((v) => v.style === expectedStyle);
 
     if (matchingVoices.length === 0) {
-      console.warn(`No ${expectedStyle} voices available to fix ${charName}`);
+      log.warn('No matching ethnicity voices available', { character: charName, expectedStyle });
       return directorJson;
     }
 
@@ -645,9 +629,7 @@ export class DirectorJSONValidator {
       }
     }
 
-    console.log(
-      `✓ Fixed ${charName}: Changed to ${expectedStyle} voice ${newVoice} (${updatedCount} lines updated)`
-    );
+    log.info('Fixed ethnicity mismatch', { character: charName, expectedStyle, newVoice, updatedCount });
     return directorJson;
   }
 
@@ -658,7 +640,7 @@ export class DirectorJSONValidator {
     const voiceKey = error.fixData.voice_key;
     const characters = error.fixData.characters || [];
 
-    console.log(`Fixing duplicate voice ${voiceKey} used by: ${characters.join(', ')}`);
+    log.info('Fixing duplicate voice assignment', { voiceKey, characters });
 
     // Keep first character with this voice, reassign others
     for (const charName of characters.slice(1)) {
@@ -677,9 +659,7 @@ export class DirectorJSONValidator {
           }
         }
 
-        console.log(
-          `✓ Fixed duplicate: ${charName} reassigned from ${voiceKey} to ${alternative} (${updatedCount} lines)`
-        );
+        log.info('Fixed duplicate voice', { character: charName, oldVoice: voiceKey, newVoice: alternative, updatedCount });
       }
     }
 

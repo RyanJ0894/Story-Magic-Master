@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import path from 'path';
 
 // =============================================================================
 // Helpers
@@ -65,6 +66,9 @@ const envSchema = z.object({
   SENTRY_ENABLED: optionalTrueFalse,
   CHECKLY_PING_URL: optionalUrl,
   LOG_LEVEL: optionalLogLevel,
+
+  // Storage
+  AUDIO_OUTPUT_DIR: optionalString, // Defaults to process.cwd()/output
 
   // Feature Flags
   AUTH_DISABLED: optionalTrueFalse,
@@ -154,6 +158,16 @@ export function getSupabaseUrl(): string | undefined {
 export function getSupabaseAnonKey(): string | undefined {
   const env = getEnv();
   return env.SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+}
+
+/**
+ * Get the audio output base directory.
+ * Render.com mounts persistent disk at AUDIO_OUTPUT_DIR (/var/data/audio).
+ * Falls back to process.cwd()/output for local development.
+ */
+export function getOutputDir(): string {
+  const env = getEnv();
+  return env.AUDIO_OUTPUT_DIR || path.join(process.cwd(), 'output');
 }
 
 /**

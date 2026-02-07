@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import { captureError } from '../lib/sentry.js';
+import { log } from '../lib/logger.js';
 
 // =============================================================================
 // In-Memory Fallback Rate Limiter (used when Redis is unavailable)
@@ -88,9 +89,9 @@ if (redisUrl && redisToken) {
     prefix: 'story-magic',
   });
 
-  console.log('🚦 Rate limiting initialized with Upstash Redis');
+  log.info('Rate limiting initialized with Upstash Redis');
 } else {
-  console.warn('⚠️ Upstash credentials not configured - using in-memory rate limiting');
+  log.warn('Upstash credentials not configured - using in-memory rate limiting');
 }
 
 /**
@@ -134,7 +135,7 @@ export async function rateLimitMiddleware(
       const retryAfter = Math.ceil((reset - Date.now()) / 1000);
       res.setHeader('Retry-After', retryAfter);
 
-      console.warn(`🚫 Rate limit exceeded for ${identifier}`);
+      log.warn('Rate limit exceeded', { identifier });
 
       res.status(429).json({
         error: 'Too Many Requests',
@@ -147,7 +148,7 @@ export async function rateLimitMiddleware(
     next();
   } catch (error) {
     // Log error and use in-memory fallback
-    console.error('❌ Redis rate limit failed, using in-memory fallback:', error);
+    log.error('Redis rate limit failed, using in-memory fallback', error instanceof Error ? error : undefined, { identifier, path: req.path });
     captureError(error as Error, { identifier, path: req.path });
 
     // Use in-memory fallback instead of failing open
@@ -162,7 +163,7 @@ export async function rateLimitMiddleware(
       const retryAfter = Math.ceil((fallbackResult.reset - Date.now()) / 1000);
       res.setHeader('Retry-After', retryAfter);
 
-      console.warn(`🚫 In-memory rate limit exceeded for ${identifier}`);
+      log.warn('In-memory rate limit exceeded', { identifier });
 
       res.status(429).json({
         error: 'Too Many Requests',
@@ -222,7 +223,7 @@ export async function strictRateLimitMiddleware(
       const retryAfter = Math.ceil((reset - Date.now()) / 1000);
       res.setHeader('Retry-After', retryAfter);
 
-      console.warn(`🚫 Strict rate limit exceeded for ${identifier}`);
+      log.warn('Strict rate limit exceeded', { identifier });
 
       res.status(429).json({
         error: 'Too Many Requests',
@@ -234,7 +235,7 @@ export async function strictRateLimitMiddleware(
 
     next();
   } catch (error) {
-    console.error('❌ Redis strict rate limit failed, using in-memory fallback:', error);
+    log.error('Redis strict rate limit failed, using in-memory fallback', error instanceof Error ? error : undefined, { identifier, path: req.path });
     captureError(error as Error, { identifier, path: req.path });
 
     // Use strict in-memory fallback instead of failing open
@@ -249,7 +250,7 @@ export async function strictRateLimitMiddleware(
       const retryAfter = Math.ceil((fallbackResult.reset - Date.now()) / 1000);
       res.setHeader('Retry-After', retryAfter);
 
-      console.warn(`🚫 In-memory strict rate limit exceeded for ${identifier}`);
+      log.warn('In-memory strict rate limit exceeded', { identifier });
 
       res.status(429).json({
         error: 'Too Many Requests',

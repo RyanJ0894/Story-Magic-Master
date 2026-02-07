@@ -7,6 +7,7 @@ import ffprobeStatic from 'ffprobe-static';
 import { execa } from 'execa';
 import { withRetry, RetryableError } from './retry.js';
 import fs from 'fs';
+import { log } from './logger.js';
 
 const ffprobePath = ffprobeStatic.path;
 const ffmpeg = ffmpegStatic as unknown as string;
@@ -119,8 +120,8 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
   let usedFallback = false;
 
   const generateWithVoice = async (vid: string): Promise<Buffer> => {
-    console.log(`🎙️ TTS: Generating with voice_id="${vid}"${usedFallback ? ' (fallback)' : ''}`);
-    console.log('request_body', request_body);
+    log.info('TTS: Generating audio', { voiceId: vid, usedFallback });
+    log.debug('TTS request body', { request_body });
 
     return withRetry(
       async () => {
@@ -170,7 +171,7 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
   } catch (err) {
     // Check if it's a voice_not_found error (404)
     if (err instanceof Error && err.message.includes('404') && err.message.includes('voice_not_found')) {
-      console.warn(`⚠️ TTS: Voice ${voiceId} not found, using fallback voice`);
+      log.warn('TTS: Voice not found, using fallback voice', { voiceId });
       usedFallback = true;
       // Use male voice as default fallback
       return await generateWithVoice(DEFAULT_VOICES.male);

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { OrchestrateRequestSchema, DirectorJSONSchema, OrchestrateResponse, type DirectorJSON } from '../schemas/director-json.js';
 import { processScript } from '../director/pipeline.js';
 import { orchestrate, orchestrateParallel, type PipelineProgress } from '../orchestrator/pipeline.js';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -43,12 +44,12 @@ router.post('/orchestrate', async (req: Request, res: Response): Promise<void> =
   try {
     // If script_text is provided but no scenes, run Director first
     if (script_text && (!scenes || scenes.length === 0)) {
-      console.log(`🎬 [orchestrate] Running Director pipeline for project: ${project_id}`);
+      log.info('Running Director pipeline for orchestration', { projectId: project_id });
 
       const directorResult = await processScript({ project_id, script_text });
       directorJSON = directorResult.director_json;
 
-      console.log(`✅ [orchestrate] Director complete: ${directorJSON.scenes.length} scenes`);
+      log.info('Director pipeline complete', { projectId: project_id, sceneCount: directorJSON.scenes.length });
     } else {
       // Validate provided Director JSON before processing
       directorJSON = { project_id, scenes: scenes || [] };
@@ -64,8 +65,7 @@ router.post('/orchestrate', async (req: Request, res: Response): Promise<void> =
       directorJSON = directorValidation.data;
     }
 
-    console.log(`🎬 [orchestrate] Starting orchestration for project: ${project_id}`);
-    console.log(`📋 Scenes to process: ${directorJSON.scenes.length}`);
+    log.info('Starting orchestration', { projectId: project_id, sceneCount: directorJSON.scenes.length });
 
     // Check if parallel processing is requested (default: true)
     const useParallel = req.query.parallel !== 'false';
@@ -73,7 +73,7 @@ router.post('/orchestrate', async (req: Request, res: Response): Promise<void> =
     // Run the orchestration pipeline
     const result = useParallel
       ? await orchestrateParallel(directorJSON, (progress: PipelineProgress) => {
-          console.log(`📊 [Progress] ${progress.step}: ${progress.percent}% - ${progress.message}`);
+          log.info('Orchestration progress', { projectId: project_id, step: progress.step, percent: progress.percent, message: progress.message });
         })
       : await orchestrate(directorJSON);
 
@@ -84,7 +84,7 @@ router.post('/orchestrate', async (req: Request, res: Response): Promise<void> =
       playback_manifest: result.manifest,
     } as OrchestrateResponse);
   } catch (error) {
-    console.error(`❌ [orchestrate] Error:`, error);
+    log.error('Orchestration failed', error instanceof Error ? error : new Error(String(error)), { projectId: project_id });
     res.status(500).json({
       status: 'error',
       project_id,

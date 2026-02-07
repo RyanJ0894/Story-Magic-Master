@@ -8,6 +8,7 @@
 import { generateText, generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
+import { log } from '../lib/logger.js';
 
 import {
   SCORING_CALIBRATION,
@@ -39,6 +40,29 @@ export interface ScriptScoreProgress {
 }
 
 export type ProgressCallback = (progress: ScriptScoreProgress) => void;
+
+// =============================================================================
+// Analysis Report Return Type
+// =============================================================================
+
+export interface ScriptAnalysisReport {
+  script_id: string;
+  title: string;
+  analyzed_at: string;
+  page_count: number;
+  genre: string[];
+  logline: string;
+  overall_score: number;
+  coverage_verdict: string;
+  writing_quality: z.infer<typeof WritingQualitySchema>;
+  story_quality: z.infer<typeof StoryQualitySchema>;
+  commercial_viability: z.infer<typeof CommercialViabilitySchema>;
+  production_likelihood: z.infer<typeof ProductionLikelihoodSchema>;
+  dialogue_analysis: z.infer<typeof DialogueAnalysisSchema> | null;
+  structural_analysis: unknown;
+  executive_summary: z.infer<typeof SynthesisSchema>['executive_summary'];
+  improvement_roadmap: z.infer<typeof SynthesisSchema>['improvement_roadmap'];
+}
 
 // =============================================================================
 // Zod Schemas for Structured Output
@@ -236,7 +260,7 @@ async function analyzeWithRetry<T>(
       return result.object;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
-      console.warn(`Analysis attempt ${attempt + 1} failed:`, lastError.message);
+      log.warn('Analysis attempt failed', { attempt: attempt + 1, error: lastError.message });
 
       if (attempt < maxRetries) {
         await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
@@ -254,11 +278,11 @@ async function analyzeWithRetry<T>(
 export async function analyzeScript(
   request: ScriptScoreRequest,
   onProgress?: ProgressCallback
-): Promise<any> {
+): Promise<ScriptAnalysisReport> {
   const { script_text, title, include_dialogue_deep_dive, include_structural_analysis } = request;
 
   const report = (phase: string, percent: number, task: string) => {
-    console.log(`[ScriptScore] ${phase}: ${percent}% - ${task}`);
+    log.info('ScriptScore progress', { phase, percent, task });
     if (onProgress) {
       onProgress({ phase, percent, current_task: task });
     }
@@ -310,7 +334,7 @@ export async function analyzeScript(
     try {
       structuralAnalysis = JSON.parse(structureResult.text);
     } catch {
-      console.warn('Could not parse structural analysis as JSON');
+      log.warn('Could not parse structural analysis as JSON');
     }
     report('structure', 85, 'Structural analysis complete');
   }

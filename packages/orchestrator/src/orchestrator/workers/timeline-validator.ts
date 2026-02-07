@@ -2,6 +2,8 @@
  * Timeline Validator - Validates timeline for overlaps and conflicts
  */
 
+import { log } from '../../lib/logger.js';
+
 export interface TimelineEvent {
   type: string;
   at: number;
@@ -232,7 +234,7 @@ export function autoFixTimeline(timeline: Timeline): Timeline {
       if (insMap.has(event.cue_id)) {
         fixed.push(event);
       } else {
-        console.warn(`Removing orphaned ${event.type} event for ${event.cue_id}`);
+        log.warn('Removing orphaned event', { type: event.type, cueId: event.cue_id });
       }
     } else {
       fixed.push(event);

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { createClient } from '@/lib/supabase/server';
+import { validateCsrf } from '@/lib/csrf';
 
 // Trim the API key to remove any accidental whitespace/newlines
 const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -10,6 +12,19 @@ const openai = new OpenAI({
 
 export async function POST(request: Request) {
   try {
+    // CSRF validation
+    const csrfError = validateCsrf(request);
+    if (csrfError) {
+      return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+    }
+
+    // Auth check
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
     const { prompt } = await request.json();
 
     if (!prompt || typeof prompt !== 'string') {

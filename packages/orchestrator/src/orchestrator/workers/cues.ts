@@ -4,6 +4,7 @@
 
 import type { Scene, AudioCue } from '../../schemas/director-json.js';
 import type { AudioCatalog } from '../../lib/catalog-loader.js';
+import { log } from '../../lib/logger.js';
 
 export interface SceneCues {
   music: AudioCue[];
@@ -16,10 +17,14 @@ export interface SceneCues {
  * Returns the scene's pre-selected music, ambience, and SFX
  */
 export async function pickCues(scene: Scene, catalog: AudioCatalog): Promise<SceneCues> {
-  console.log(`\n🔍 DIAGNOSTIC pickCues for scene ${scene.scene_id}:`);
-  console.log(`   Scene has music array:`, !!scene.music, `(length: ${scene.music?.length || 0})`);
-  console.log(`   Scene has ambience array:`, !!scene.ambience);
-  console.log(`   Scene has sfx array:`, !!scene.sfx, `(length: ${scene.sfx?.length || 0})`);
+  log.debug('pickCues input for scene', {
+    sceneId: scene.scene_id,
+    hasMusic: !!scene.music,
+    musicCount: scene.music?.length || 0,
+    hasAmbience: !!scene.ambience,
+    hasSfx: !!scene.sfx,
+    sfxCount: scene.sfx?.length || 0,
+  });
 
   // Return the pre-selected cues from the scene
   // These were selected by AudioDirectorAgent
@@ -29,10 +34,11 @@ export async function pickCues(scene: Scene, catalog: AudioCatalog): Promise<Sce
     sfx: scene.sfx || [],
   };
 
-  console.log(`✅ DIAGNOSTIC pickCues result:`, {
-    music_count: result.music.length,
-    ambience_count: result.ambience.length,
-    sfx_count: result.sfx.length,
+  log.debug('pickCues result', {
+    sceneId: scene.scene_id,
+    musicCount: result.music.length,
+    ambienceCount: result.ambience.length,
+    sfxCount: result.sfx.length,
   });
 
   return result;

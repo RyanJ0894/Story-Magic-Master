@@ -15,6 +15,7 @@
 
 import { embed } from 'ai';
 import { openai } from '@ai-sdk/openai';
+import { log } from '../../lib/logger.js';
 
 // Cache for query embeddings to reduce API calls
 const embeddingCache = new Map<string, number[]>();
@@ -40,7 +41,7 @@ export async function getQueryEmbedding(query: string): Promise<number[]> {
 
     return embedding;
   } catch (err) {
-    console.error('[getQueryEmbedding] Error getting embedding:', err);
+    log.error('Error getting query embedding', err instanceof Error ? err : undefined);
     throw err;
   }
 }

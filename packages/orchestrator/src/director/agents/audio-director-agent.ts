@@ -7,6 +7,7 @@
  */
 
 import { runAgentLoop, structureTextAsJSON } from '../../lib/llm-client.js';
+import { log } from '../../lib/logger.js';
 import { AUDIO_DIRECTOR_SYSTEM_PROMPT } from '../prompts/audio-director-prompt.js';
 import {
   searchMusicTool,
@@ -46,7 +47,7 @@ export class AudioDirectorAgent {
    * Process Director JSON and return Scene Audio JSON
    */
   async run(directorJson: string): Promise<string> {
-    console.log(`[AudioDirectorAgent] Starting with model: ${this.model}`);
+    log.info('AudioDirectorAgent starting', { model: this.model });
 
     const tools = {
       search_music: searchMusicTool,
@@ -66,10 +67,10 @@ export class AudioDirectorAgent {
         temperature: 1,
       });
 
-      console.log(`[AudioDirectorAgent] Completed successfully`);
+      log.info('AudioDirectorAgent completed successfully');
       return result;
     } catch (err) {
-      console.error('[AudioDirectorAgent] Error:', err);
+      log.error('AudioDirectorAgent error', err instanceof Error ? err : undefined);
       throw err;
     }
   }
@@ -94,7 +95,7 @@ export class AudioDirectorAgent {
     const result = await this.run(input);
 
     // Log the raw response for debugging (first 500 chars)
-    console.log('[AudioDirectorAgent] Raw response preview:', result.slice(0, 500));
+    log.debug('AudioDirectorAgent raw response preview', { preview: result.slice(0, 500) });
 
     // Use robust JSON extraction and repair
     const parseResult = parseJSONSafely<unknown>(result);
@@ -103,31 +104,30 @@ export class AudioDirectorAgent {
 
     if (!parseResult.success) {
       // Log the failure
-      console.warn('[AudioDirectorAgent] Initial JSON parse failed:', parseResult.error);
-      console.warn('[AudioDirectorAgent] Response length:', result.length);
+      log.warn('AudioDirectorAgent initial JSON parse failed', { error: parseResult.error, responseLength: result.length });
 
       // Fallback: Use AI SDK structured output to convert the text
-      console.log('[AudioDirectorAgent] Attempting structured output conversion...');
+      log.info('AudioDirectorAgent attempting structured output conversion');
       try {
         const structured = await structureTextAsJSON<SceneAudioJSON>(result, {
           schema: SceneAudioJSONSchema,
           context: `This is output from an audio selection AI agent. Convert it to valid SceneAudioJSON with project_id: "${projectId}".`,
         });
-        console.log('[AudioDirectorAgent] Structured output conversion successful');
+        log.info('AudioDirectorAgent structured output conversion successful');
         return structured;
       } catch (structErr) {
-        console.error('[AudioDirectorAgent] Structured output conversion also failed:', structErr);
+        log.error('AudioDirectorAgent structured output conversion also failed', structErr instanceof Error ? structErr : undefined);
 
         // Try one more approach: extract and repair manually
         const extracted = extractJSON(result);
         if (extracted) {
-          console.error('[AudioDirectorAgent] Extracted JSON preview:', extracted.slice(0, 300));
+          log.debug('AudioDirectorAgent extracted JSON preview', { preview: extracted.slice(0, 300) });
           const repaired = repairJSON(extracted);
-          console.error('[AudioDirectorAgent] Repaired JSON preview:', repaired.slice(0, 300));
+          log.debug('AudioDirectorAgent repaired JSON preview', { preview: repaired.slice(0, 300) });
 
           try {
             parsed = JSON.parse(repaired);
-            console.log('[AudioDirectorAgent] Repaired JSON parsed successfully');
+            log.info('AudioDirectorAgent repaired JSON parsed successfully');
           } catch (repairErr) {
             throw new Error(`Failed to parse JSON from AudioDirectorAgent after all attempts: ${parseResult.error}`);
           }
@@ -142,16 +142,16 @@ export class AudioDirectorAgent {
     // Validate with Zod schema - this provides runtime type safety
     const validation = SceneAudioJSONSchema.safeParse(parsed);
     if (!validation.success) {
-      console.error('[AudioDirectorAgent] Schema validation failed:', validation.error.issues);
+      log.error('AudioDirectorAgent schema validation failed', undefined, { issues: validation.error.issues });
 
       // Final fallback: use structured output to fix schema issues
-      console.log('[AudioDirectorAgent] Attempting schema fix via structured output...');
+      log.info('AudioDirectorAgent attempting schema fix via structured output');
       try {
         const fixed = await structureTextAsJSON<SceneAudioJSON>(JSON.stringify(parsed), {
           schema: SceneAudioJSONSchema,
           context: `Fix this JSON to match the SceneAudioJSON schema. project_id should be "${projectId}".`,
         });
-        console.log('[AudioDirectorAgent] Schema fix successful');
+        log.info('AudioDirectorAgent schema fix successful');
         return fixed;
       } catch (fixErr) {
         throw new Error(
@@ -162,7 +162,7 @@ export class AudioDirectorAgent {
       }
     }
 
-    console.log(`[AudioDirectorAgent] Output validated: ${validation.data.scenes.length} scenes`);
+    log.info('AudioDirectorAgent output validated', { sceneCount: validation.data.scenes.length });
     return validation.data;
   }
 }

@@ -59,7 +59,7 @@ export type Scene = z.infer<typeof SceneSchema>;
 
 // Director JSON schema - the main input/output format
 export const DirectorJSONSchema = z.object({
-  project_id: z.string(),
+  project_id: z.string().uuid('project_id must be a valid UUID'),
   script_id: z.string().optional(),
   scenes: z.array(SceneSchema),
 });
@@ -78,7 +78,7 @@ export type SceneAudioEntry = z.infer<typeof SceneAudioEntrySchema>;
 
 // Scene Audio JSON schema - output from AudioDirectorAgent
 export const SceneAudioJSONSchema = z.object({
-  project_id: z.string(),
+  project_id: z.string().uuid('project_id must be a valid UUID'),
   scenes: z.array(SceneAudioEntrySchema),
 });
 
@@ -147,11 +147,35 @@ export const GenerateScenesResponseSchema = z.object({
 
 export type GenerateScenesResponse = z.infer<typeof GenerateScenesResponseSchema>;
 
+export const ManifestSceneEntrySchema = z.object({
+  scene_id: z.string(),
+  offset: z.number(),
+  duration: z.number(),
+  lines: z
+    .array(
+      z.object({
+        line_id: z.string(),
+        start: z.number(),
+        duration: z.number(),
+      })
+    )
+    .optional(),
+});
+
+export const PlaybackManifestSchema = z.object({
+  project_id: z.string(),
+  order: z.array(ManifestSceneEntrySchema),
+  total: z.number(),
+  public_url: z.string().nullable(),
+});
+
+export type PlaybackManifestZod = z.infer<typeof PlaybackManifestSchema>;
+
 export const OrchestrateResponseSchema = z.object({
   status: z.enum(['success', 'error']),
   project_id: z.string(),
   audio_urls: z.array(z.string()).optional(),
-  playback_manifest: z.any().optional(),
+  playback_manifest: PlaybackManifestSchema.optional(),
   message: z.string().optional(),
 });
 

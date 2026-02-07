@@ -15,6 +15,8 @@ import {
   cleanupExpiredLocks,
 } from './service';
 import { DequeueResult, WorkerConfig, WorkerStatus, JobType } from './types';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { processGenerationJob } from '@/lib/generation/processor';
 
 // =============================================================================
 // Worker Configuration
@@ -262,11 +264,48 @@ async function processJob(job: DequeueResult): Promise<void> {
 // Built-in Processors (can be overridden)
 // =============================================================================
 
-// Default processor for audio generation - calls the existing /api/generate logic
+// Audio generation processor - fetches job metadata and runs the pipeline
 registerProcessor('audio_generation', async (job, context) => {
-  // This will be replaced by the actual generation logic
-  // For now, we delegate to the existing processGenerationJob function
-  throw new Error('Audio generation processor not implemented - use /api/generate directly');
+  // Fetch generation metadata stored by the /api/generate route
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Missing Supabase service role credentials');
+  }
+  const supabase = createServiceClient(supabaseUrl, serviceRoleKey);
+
+  const { data: jobRow, error: fetchError } = await supabase
+    .from('jobs')
+    .select('result')
+    .eq('id', job.jobId)
+    .single();
+
+  if (fetchError || !jobRow) {
+    throw new Error(`Failed to fetch job metadata: ${fetchError?.message || 'not found'}`);
+  }
+
+  const metadata = (jobRow.result as Record<string, unknown>)?.metadata as {
+    scriptText?: string;
+    pageCount?: number;
+    voiceOverrides?: Record<string, string>;
+    accessToken?: string;
+  } | undefined;
+
+  if (!metadata?.scriptText) {
+    throw new Error('Missing generation metadata (scriptText) in job');
+  }
+
+  // Run the generation pipeline
+  // Note: processGenerationJob manages its own status updates (processing → completed/failed)
+  await processGenerationJob(
+    job.projectId,
+    job.jobId,
+    job.userId,
+    metadata.scriptText,
+    metadata.pageCount || 1,
+    metadata.accessToken,
+    metadata.voiceOverrides || {},
+  );
 });
 
 // Default processor for score generation

@@ -4,14 +4,10 @@
 
 import { audioDurationSec } from '../../lib/audio.js';
 import { whisperAlign, mapWordsToText, type WordTimestamp } from './whisper-align.js';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { supabaseClient as sb } from '../../lib/supabase.js';
+import { log } from '../../lib/logger.js';
 import type { Scene, DialogueLine } from '../../schemas/director-json.js';
 import type { StemResult } from './tts.js';
-
-const sb: SupabaseClient | null =
-  process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY
-    ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
-    : null;
 
 export interface LineAlignment {
   line_id: string;
@@ -96,7 +92,9 @@ export async function alignScene(
         }));
       }
     } catch (err) {
-      console.warn(`   ⚠️  Whisper alignment failed for line ${curr.line_id}, using duration fallback`);
+      log.warn('Whisper alignment failed for line, using duration fallback', {
+        lineId: curr.line_id,
+      });
     }
 
     const lineAlignment: LineAlignment = {

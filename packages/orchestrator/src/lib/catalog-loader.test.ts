@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { loadCatalog, getTrackPath, validateSceneTracks, type AudioCatalog } from './catalog-loader.js';
+import { log } from './logger.js';
 
 // Mock fs module
 vi.mock('fs');
@@ -102,16 +103,14 @@ describe('loadCatalog', () => {
       throw new Error('Permission denied');
     });
 
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const logErrorSpy = vi.spyOn(log, 'error').mockImplementation(() => {});
 
     const catalog = loadCatalog();
 
     expect(catalog).toBeDefined();
-    expect(consoleErrorSpy).toHaveBeenCalled();
+    expect(logErrorSpy).toHaveBeenCalled();
 
-    consoleErrorSpy.mockRestore();
-    consoleLogSpy.mockRestore();
+    logErrorSpy.mockRestore();
   });
 });
 

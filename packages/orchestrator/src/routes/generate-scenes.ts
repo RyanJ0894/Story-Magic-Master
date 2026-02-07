@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { GenerateScenesRequestSchema, GenerateScenesResponse } from '../schemas/director-json.js';
 import { processScript } from '../director/pipeline.js';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -39,10 +40,9 @@ router.post('/generate-scenes', async (req: Request, res: Response): Promise<voi
   const { project_id, script_text, voice_overrides } = parsed.data;
 
   try {
-    console.log(`🎬 [generate-scenes] Starting for project: ${project_id}`);
-    console.log(`📄 Script length: ${script_text.length} characters`);
+    log.info('Starting scene generation', { projectId: project_id, scriptLength: script_text.length });
     if (voice_overrides && Object.keys(voice_overrides).length > 0) {
-      console.log(`🎤 Voice overrides for ${Object.keys(voice_overrides).length} character(s):`, Object.keys(voice_overrides));
+      log.info('Voice overrides provided', { projectId: project_id, overrideCount: Object.keys(voice_overrides).length, characters: Object.keys(voice_overrides) });
     }
 
     // Run the full Director pipeline:
@@ -54,8 +54,7 @@ router.post('/generate-scenes', async (req: Request, res: Response): Promise<voi
     const result = await processScript({ project_id, script_text, voice_overrides });
 
     const processingTime = (Date.now() - start) / 1000;
-    console.log(`✅ [generate-scenes] Complete in ${processingTime.toFixed(2)}s`);
-    console.log(`📊 Scenes generated: ${result.director_json.scenes.length}`);
+    log.info('Scene generation complete', { projectId: project_id, processingTimeSeconds: processingTime, sceneCount: result.director_json.scenes.length });
 
     res.json({
       project_id,
@@ -67,7 +66,7 @@ router.post('/generate-scenes', async (req: Request, res: Response): Promise<voi
       validation_report: result.validation_report,
     });
   } catch (error) {
-    console.error(`❌ [generate-scenes] Error:`, error);
+    log.error('Scene generation failed', error instanceof Error ? error : new Error(String(error)), { projectId: project_id });
     res.status(500).json({
       project_id,
       success: false,

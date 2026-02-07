@@ -1,4 +1,5 @@
 import { log } from './logger.js';
+import { getDiskUsage } from './cleanup.js';
 
 const CHECKLY_PING_URL = process.env.CHECKLY_PING_URL;
 
@@ -73,17 +74,26 @@ export function stopMonitoring(): void {
  * Health check data for the /health endpoint
  */
 export function getHealthData() {
+  const mem = process.memoryUsage();
   return {
     status: 'ok',
     timestamp: new Date().toISOString(),
     service: 'story-magic-orchestrator',
     version: process.env.npm_package_version || '2.0.0',
     environment: process.env.NODE_ENV || 'development',
+    uptime_seconds: Math.round(process.uptime()),
+    memory: {
+      rss_mb: Math.round(mem.rss / 1024 / 1024),
+      heap_used_mb: Math.round(mem.heapUsed / 1024 / 1024),
+      heap_total_mb: Math.round(mem.heapTotal / 1024 / 1024),
+      external_mb: Math.round(mem.external / 1024 / 1024),
+    },
     monitoring: {
       checkly: !!CHECKLY_PING_URL,
       sentry: !!process.env.SENTRY_DSN,
       rateLimit: !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN),
     },
+    disk: getDiskUsage(),
     capabilities: {
       director: true,
       orchestrator: true,

@@ -9,6 +9,7 @@
 
 import { tool } from 'ai';
 import { z } from 'zod';
+import { log } from '../../lib/logger.js';
 import {
   searchVoicesHybrid,
   getAgeRange,
@@ -102,7 +103,7 @@ Scoring model (all voices scored, best rises to top):
 
   execute: async ({ query, gender, label, style, tone, top_k = 3 }) => {
     try {
-      console.log(`[searchVoices] Searching: query="${query}", gender=${gender}, label=${label}, style=${style}`);
+      log.debug('searchVoices searching', { query, gender, label, style });
 
       // Determine if this is a narrator search
       const isNarrator = query.toLowerCase().includes('narrator') || label?.toLowerCase().includes('narrator');
@@ -143,7 +144,7 @@ Scoring model (all voices scored, best rises to top):
         personality: extractVoicePersonality(voice),
       }));
 
-      console.log(`[searchVoices] Found ${formattedVoices.length} voices from ${result.source}`);
+      log.debug('searchVoices found voices', { count: formattedVoices.length, source: result.source });
 
       return {
         status: 'success',
@@ -152,7 +153,7 @@ Scoring model (all voices scored, best rises to top):
         source: result.source,
       };
     } catch (err) {
-      console.error('[searchVoices] Error:', err);
+      log.error('searchVoices error', err instanceof Error ? err : undefined);
       return {
         status: 'error',
         message: err instanceof Error ? err.message : 'Search failed',

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { validateCsrf } from '@/lib/csrf';
 
 interface RouteParams {
   params: Promise<{ entryId: string }>;
@@ -62,6 +63,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 // PATCH /api/reader/library/[entryId] - Update library entry
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  const csrfError = validateCsrf(request);
+  if (csrfError) {
+    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   const { entryId } = await params;
   const supabase = await createClient();
 
@@ -131,6 +137,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/reader/library/[entryId] - Remove from library
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  const csrfError = validateCsrf(request);
+  if (csrfError) {
+    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   const { entryId } = await params;
   const supabase = await createClient();
 

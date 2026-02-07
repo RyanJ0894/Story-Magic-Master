@@ -47,7 +47,7 @@ describe('CSRF Protection', () => {
       expect(result).toBeNull();
     });
 
-    it('should allow requests from vercel.app domains', () => {
+    it('should reject requests from arbitrary vercel.app domains', () => {
       const request = new Request('https://example.com/api/test', {
         method: 'POST',
         headers: {
@@ -55,7 +55,8 @@ describe('CSRF Protection', () => {
         },
       });
       const result = validateCsrf(request);
-      expect(result).toBeNull();
+      expect(result).not.toBeNull();
+      expect(result).toContain('not allowed');
     });
 
     it('should reject requests from unknown origins', () => {

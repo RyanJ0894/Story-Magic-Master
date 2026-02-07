@@ -187,10 +187,10 @@ export default async function ProjectPage({
         <Collapsible>
           <Card>
             <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+              <CardHeader className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 transition-colors">
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <FileText className="w-5 h-5" />
+                    <FileText className="w-5 h-5" aria-hidden="true" />
                     Script Preview
                   </div>
                   <ChevronDown className="w-4 h-4 text-muted-foreground" />
@@ -214,10 +214,10 @@ export default async function ProjectPage({
         <Collapsible>
           <Card className="border-red-200 dark:border-red-900/50">
             <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-red-50/50 dark:hover:bg-red-900/10 transition-colors">
+              <CardHeader className="cursor-pointer hover:bg-red-50/50 dark:hover:bg-red-900/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition-colors">
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-                    <Trash2 className="w-5 h-5" />
+                    <Trash2 className="w-5 h-5" aria-hidden="true" />
                     Danger Zone
                   </div>
                   <ChevronDown className="w-4 h-4 text-red-400" />

@@ -1,5 +1,6 @@
 import express, { Request, Response, NextFunction, Express } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
@@ -9,7 +10,7 @@ import { fileURLToPath } from 'url';
 dotenv.config();
 
 // Validate environment variables
-import { validateEnv, printEnvSummary } from './lib/env.js';
+import { validateEnv, printEnvSummary, getOutputDir } from './lib/env.js';
 validateEnv();
 printEnvSummary();
 
@@ -22,6 +23,9 @@ import { httpLogger, log } from './lib/logger.js';
 
 // Initialize monitoring
 import { startMonitoring, stopMonitoring } from './lib/monitoring.js';
+
+// Audio storage cleanup
+import { startCleanupSchedule, stopCleanupSchedule } from './lib/cleanup.js';
 
 // Middleware
 import { authMiddleware, optionalAuthMiddleware } from './middleware/auth.js';
@@ -40,8 +44,31 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = parseInt(process.env.PORT || '22002', 10);
 
-// Middleware
-app.use(cors());
+// CORS - restrict to known origins
+const allowedOrigins = [
+  process.env.WEB_URL,
+  'http://localhost:22000',
+  'http://localhost:3000',
+].filter(Boolean) as string[];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (server-to-server, health checks)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`Origin ${origin} not allowed by CORS`));
+    }
+  },
+  credentials: true,
+}));
+
+// Security headers (HSTS, X-Content-Type-Options, etc.)
+app.use(helmet({
+  contentSecurityPolicy: false, // Not needed for API
+  hsts: { maxAge: 63072000, includeSubDomains: true, preload: true },
+}));
+
 // Limit request body size to prevent memory exhaustion
 // Script text max is 500KB, director JSON should be under 1MB
 app.use(express.json({ limit: '2mb' }));
@@ -69,12 +96,27 @@ app.use('/', previewRouter);
 // Download endpoint - requires auth
 app.get('/download/:project_id/:filename', authMiddleware, (req: Request, res: Response) => {
   const { project_id, filename } = req.params;
-  const outputDir = path.join(process.cwd(), 'output', project_id);
-  const filePath = path.join(outputDir, filename);
 
-  // Sanitize filename to prevent path traversal
-  if (filename.includes('..') || filename.includes('/')) {
+  // Validate project_id is a UUID to prevent path traversal
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(project_id)) {
+    res.status(400).json({ error: 'Invalid project ID format' });
+    return;
+  }
+
+  // Sanitize filename to prevent path traversal (check .., /, \, and encoded variants)
+  if (filename.includes('..') || filename.includes('/') || filename.includes('\\') ||
+      filename.includes('%2e') || filename.includes('%2f') || filename.includes('%5c')) {
     res.status(400).json({ error: 'Invalid filename' });
+    return;
+  }
+
+  const baseOutputDir = path.resolve(getOutputDir());
+  const filePath = path.resolve(baseOutputDir, project_id, filename);
+
+  // Verify resolved path is within output directory (belt-and-suspenders)
+  if (!filePath.startsWith(baseOutputDir + path.sep)) {
+    res.status(400).json({ error: 'Invalid file path' });
     return;
   }
 
@@ -91,7 +133,6 @@ app.get('/download/:project_id/:filename', authMiddleware, (req: Request, res: R
 app.use((req: Request, res: Response) => {
   res.status(404).json({
     error: 'Not found',
-    path: req.path,
   });
 });
 
@@ -114,9 +155,10 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     body: req.body ? JSON.stringify(req.body).slice(0, 1000) : undefined,
   });
 
+  const isProduction = process.env.NODE_ENV === 'production';
   res.status(500).json({
     error: 'Internal server error',
-    message: err.message,
+    message: isProduction ? 'An unexpected error occurred' : err.message,
   });
 });
 
@@ -130,12 +172,16 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 
   // Start Checkly heartbeat monitoring
   startMonitoring();
+
+  // Start audio storage cleanup schedule (every 6 hours)
+  startCleanupSchedule();
 });
 
 // Graceful shutdown
 const shutdown = () => {
   log.info('Shutting down gracefully...');
   stopMonitoring();
+  stopCleanupSchedule();
   server.close(() => {
     log.info('Server closed');
     process.exit(0);

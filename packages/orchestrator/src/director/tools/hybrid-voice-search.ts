@@ -20,6 +20,7 @@
 import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { log } from '../../lib/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -218,11 +219,11 @@ function loadLocalVoiceCatalog(): VoiceMetadata[] {
     if (existsSync(VOICE_CATALOG_PATH)) {
       const data = readFileSync(VOICE_CATALOG_PATH, 'utf-8');
       cachedVoiceCatalog = JSON.parse(data);
-      console.log(`[HybridVoiceSearch] Loaded ${cachedVoiceCatalog!.length} voices from local catalog`);
+      log.info('HybridVoiceSearch loaded voices from local catalog', { count: cachedVoiceCatalog!.length });
       return cachedVoiceCatalog!;
     }
   } catch (err) {
-    console.warn('[HybridVoiceSearch] Failed to load local catalog:', err);
+    log.warn('HybridVoiceSearch failed to load local catalog', { error: err instanceof Error ? err.message : String(err) });
   }
 
   // Return default voices as fallback
@@ -241,7 +242,7 @@ async function fetchElevenLabsVoices(params: {
 }): Promise<VoiceMetadata[]> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
-    console.warn('[HybridVoiceSearch] No ELEVENLABS_API_KEY, skipping API search');
+    log.warn('HybridVoiceSearch no ELEVENLABS_API_KEY, skipping API search');
     return [];
   }
 
@@ -258,7 +259,7 @@ async function fetchElevenLabsVoices(params: {
     });
 
     if (!response.ok) {
-      console.warn(`[HybridVoiceSearch] ElevenLabs API error: ${response.status}`);
+      log.warn('HybridVoiceSearch ElevenLabs API error', { status: response.status });
       return [];
     }
 
@@ -277,7 +278,7 @@ async function fetchElevenLabsVoices(params: {
       preview_url: v.preview_url,
     }));
   } catch (err) {
-    console.error('[HybridVoiceSearch] ElevenLabs API fetch failed:', err);
+    log.error('HybridVoiceSearch ElevenLabs API fetch failed', err instanceof Error ? err : undefined);
     return [];
   }
 }
@@ -309,7 +310,7 @@ export async function searchVoicesHybrid(params: VoiceSearchParams): Promise<Voi
   const ageRange = providedAgeRange || (age ? getAgeRange(age) : undefined);
   const effectiveStyle = style || ethnicity;
 
-  console.log(`[HybridVoiceSearch] Searching for ${characterName}: gender=${gender}, age=${age}, ageRange=${ageRange}, style=${effectiveStyle}, isNarrator=${isNarrator}`);
+  log.debug('HybridVoiceSearch searching', { characterName, gender, age, ageRange, style: effectiveStyle, isNarrator });
 
   const criteria = {
     query: characterName,
@@ -337,7 +338,7 @@ export async function searchVoicesHybrid(params: VoiceSearchParams): Promise<Voi
 
   if (eligible.length > 0 && eligible[0].score > 0) {
     const topVoices = eligible.slice(0, topK).map((s) => s.voice);
-    console.log(`[HybridVoiceSearch] Found ${eligible.length} eligible voices, top score: ${eligible[0].score.toFixed(3)}`);
+    log.debug('HybridVoiceSearch found eligible voices', { eligibleCount: eligible.length, topScore: eligible[0].score.toFixed(3) });
 
     return {
       success: true,
@@ -374,7 +375,7 @@ export async function searchVoicesHybrid(params: VoiceSearchParams): Promise<Voi
   }
 
   // Ultimate fallback: default voice
-  console.warn(`[HybridVoiceSearch] No matches found for ${characterName}, using fallback`);
+  log.warn('HybridVoiceSearch no matches found, using fallback', { characterName });
 
   let fallbackVoice: VoiceMetadata;
   if (isNarrator) {

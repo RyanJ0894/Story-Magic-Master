@@ -38,13 +38,10 @@ export function validateCsrf(request: Request): string | null {
     return null; // Allow requests without origin (non-browser)
   }
 
-  // Check if the origin is in our allowed list
+  // Check if the origin is in our allowed list (exact match only)
   const isAllowed = ALLOWED_ORIGINS.some((allowed) => {
     if (!allowed) return false;
-    // Handle exact match and subdomain match for hosting platforms
-    return requestOrigin === allowed ||
-           requestOrigin.endsWith('.vercel.app') ||
-           requestOrigin.endsWith('.onrender.com');
+    return requestOrigin === allowed;
   });
 
   if (!isAllowed) {

@@ -4,6 +4,7 @@
  * This is the TypeScript port of Python's SceneAudioValidator.
  */
 
+import { log } from '../../lib/logger.js';
 import { ValidationError, AudioValidationErrorTypes } from './validation-error.js';
 import type {
   DirectorJSON,
@@ -56,7 +57,7 @@ export class SceneAudioValidator {
   ): { isValid: boolean; errors: ValidationError[] } {
     this.errors = [];
 
-    console.log('=== STARTING SCENE AUDIO VALIDATION ===');
+    log.info('Starting scene audio validation');
 
     // Validate each scene's audio selections
     for (const sceneAudio of sceneAudioJson.scenes || []) {
@@ -65,11 +66,11 @@ export class SceneAudioValidator {
       // Find corresponding scene in director JSON
       const directorScene = this.findScene(directorJson, sceneId);
       if (!directorScene) {
-        console.warn(`Could not find director scene for ${sceneId}`);
+        log.warn('Could not find director scene', { sceneId });
         continue;
       }
 
-      console.log(`Validating audio for ${sceneId}`);
+      log.debug('Validating audio for scene', { sceneId });
 
       // Validate music
       this.validateMusic(sceneAudio, directorScene, sceneId);
@@ -81,7 +82,7 @@ export class SceneAudioValidator {
       this.validateSfx(sceneAudio, directorScene, sceneId);
     }
 
-    console.log(`Scene audio validation complete: ${this.errors.length} errors found`);
+    log.info('Scene audio validation complete', { errorCount: this.errors.length });
 
     return { isValid: this.errors.length === 0, errors: this.errors };
   }
@@ -96,11 +97,11 @@ export class SceneAudioValidator {
     const { isValid, errors } = this.validate(sceneAudioJson, directorJson);
 
     if (isValid) {
-      console.log('No validation errors found - no corrections needed');
+      log.info('No validation errors found - no corrections needed');
       return sceneAudioJson;
     }
 
-    console.warn(`Found ${errors.length} validation errors - applying auto-corrections`);
+    log.warn('Found validation errors - applying auto-corrections', { errorCount: errors.length });
 
     let corrected: SceneAudioJSON = JSON.parse(JSON.stringify(sceneAudioJson));
 
@@ -119,9 +120,9 @@ export class SceneAudioValidator {
     const { errors: remainingErrors } = this.validate(corrected, directorJson);
 
     if (remainingErrors.length > 0) {
-      console.warn(`Auto-correction incomplete - ${remainingErrors.length} errors remain`);
+      log.warn('Auto-correction incomplete', { remainingErrors: remainingErrors.length });
     } else {
-      console.log('All validation errors successfully corrected');
+      log.info('All validation errors successfully corrected');
     }
 
     return corrected;
@@ -192,7 +193,7 @@ export class SceneAudioValidator {
 
     // RULE 1: Every scene should have music
     if (music.length === 0) {
-      console.warn(`No music selected for ${sceneId}`);
+      log.warn('No music selected for scene', { sceneId });
       this.errors.push(
         new ValidationError(
           AudioValidationErrorTypes.MISSING_MUSIC,
@@ -210,7 +211,7 @@ export class SceneAudioValidator {
 
     // Check for obvious mood contradictions
     if (sceneMood.includes('sad') && (musicFile.includes('uplifting') || musicFile.includes('groovy'))) {
-      console.warn(`Music mood contradiction in ${sceneId}: sad scene has uplifting music`);
+      log.warn('Music mood contradiction: sad scene has uplifting music', { sceneId });
       this.errors.push(
         new ValidationError(
           AudioValidationErrorTypes.MOOD_CONTRADICTION,
@@ -222,7 +223,7 @@ export class SceneAudioValidator {
     }
 
     if (sceneMood.includes('tense') && musicFile.includes('playful')) {
-      console.warn(`Music mood contradiction in ${sceneId}: tense scene has playful music`);
+      log.warn('Music mood contradiction: tense scene has playful music', { sceneId });
       this.errors.push(
         new ValidationError(
           AudioValidationErrorTypes.MOOD_CONTRADICTION,
@@ -250,7 +251,7 @@ export class SceneAudioValidator {
 
     if (requiredAmbience && ambience.length === 0) {
       // Scene header contains mandatory location but no ambience selected
-      console.error(`VALIDATION ERROR: ${sceneId} requires ambience for location but has none`);
+      log.error('Validation error: scene requires ambience for location but has none', undefined, { sceneId });
       this.errors.push(
         new ValidationError(
           AudioValidationErrorTypes.MISSING_AMBIENCE,
@@ -277,7 +278,7 @@ export class SceneAudioValidator {
         const hasOutdoorAmbience = outdoorKeywords.some((kw) => ambienceFile.includes(kw));
 
         if (hasOutdoorAmbience && !sceneHeader.includes('WINDOW')) {
-          console.warn(`Interior scene ${sceneId} has outdoor ambience`);
+          log.warn('Interior scene has outdoor ambience', { sceneId });
           this.errors.push(
             new ValidationError(
               AudioValidationErrorTypes.AMBIENCE_LOCATION_MISMATCH,
@@ -299,13 +300,13 @@ export class SceneAudioValidator {
 
     // RULE: Max 3 SFX per scene
     if (sfx.length > 3) {
-      console.warn(`Scene ${sceneId} has ${sfx.length} SFX - maximum is 3`);
+      log.warn('Scene exceeds maximum SFX count', { sceneId, sfxCount: sfx.length, max: 3 });
     }
 
     // Validate each SFX has a start_at line_id
     for (const effect of sfx) {
       if (!effect.start_at) {
-        console.warn(`SFX in ${sceneId} missing start_at line_id`);
+        log.warn('SFX missing start_at line_id', { sceneId });
         this.errors.push(
           new ValidationError(
             AudioValidationErrorTypes.INVALID_SFX_TRIGGER,
@@ -324,7 +325,7 @@ export class SceneAudioValidator {
   private fixMissingMusic(sceneAudioJson: SceneAudioJSON, error: ValidationError): SceneAudioJSON {
     const sceneId = error.fixData.scene_id;
 
-    console.log(`Fixing missing music for ${sceneId}`);
+    log.info('Fixing missing music', { sceneId });
 
     // Find the scene and add default music
     for (const scene of sceneAudioJson.scenes) {
@@ -335,7 +336,7 @@ export class SceneAudioValidator {
             reasoning: 'Auto-corrected: Added default neutral music',
           },
         ];
-        console.log(`✓ Added default music to ${sceneId}`);
+        log.info('Added default music to scene', { sceneId });
         break;
       }
     }
@@ -353,7 +354,7 @@ export class SceneAudioValidator {
     const sceneId = error.fixData.scene_id;
     const expectedAmbience = error.fixData.expected_ambience;
 
-    console.log(`Fixing missing ambience for ${sceneId}`);
+    log.info('Fixing missing ambience', { sceneId });
 
     // Find the scene and add ambience
     for (const scene of sceneAudioJson.scenes) {
@@ -364,7 +365,7 @@ export class SceneAudioValidator {
             reasoning: 'Auto-corrected: Added required ambience for location',
           },
         ];
-        console.log(`✓ Added ambience ${expectedAmbience} to ${sceneId}`);
+        log.info('Added ambience to scene', { sceneId, ambience: expectedAmbience });
         break;
       }
     }

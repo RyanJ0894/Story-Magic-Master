@@ -8,6 +8,7 @@
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { log } from '../../lib/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -81,17 +82,17 @@ export class EmbeddingStore<T extends Record<string, unknown>> {
     try {
       const embeddingsJson = readFileSync(embeddingsPath, 'utf-8');
       this.embeddings = JSON.parse(embeddingsJson);
-      console.log(`[EmbeddingStore] Loaded ${this.embeddings.length} embeddings (${this.embeddings[0]?.length || 0}-dim)`);
+      log.info('EmbeddingStore loaded embeddings', { count: this.embeddings.length, dimensions: this.embeddings[0]?.length || 0 });
 
       const metadataJson = readFileSync(metadataPath, 'utf-8');
       this.metadata = JSON.parse(metadataJson);
-      console.log(`[EmbeddingStore] Loaded ${this.metadata.length} metadata records`);
+      log.info('EmbeddingStore loaded metadata records', { count: this.metadata.length });
 
       if (this.embeddings.length !== this.metadata.length) {
-        console.warn(`[EmbeddingStore] Warning: embedding count (${this.embeddings.length}) != metadata count (${this.metadata.length})`);
+        log.warn('EmbeddingStore count mismatch', { embeddingCount: this.embeddings.length, metadataCount: this.metadata.length });
       }
     } catch (err) {
-      console.error(`[EmbeddingStore] Error loading data:`, err);
+      log.error('EmbeddingStore error loading data', err instanceof Error ? err : undefined);
       throw err;
     }
   }

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { nanoid } from 'nanoid';
 import { hashPassword } from '@/lib/password';
 import { CreateShareRequestSchema } from '@/lib/api/dto';
+import { validateCsrf } from '@/lib/csrf';
 
 // GET /api/shares - List all shares for current user
 export async function GET(request: NextRequest) {
@@ -45,6 +46,11 @@ export async function GET(request: NextRequest) {
 
 // POST /api/shares - Create a new share link
 export async function POST(request: NextRequest) {
+  const csrfError = validateCsrf(request);
+  if (csrfError) {
+    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -53,7 +59,12 @@ export async function POST(request: NextRequest) {
   }
 
   // Parse and validate request body
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+  }
   const parseResult = CreateShareRequestSchema.safeParse(body);
 
   if (!parseResult.success) {

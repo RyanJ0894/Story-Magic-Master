@@ -17,7 +17,9 @@ import ffprobeStatic from 'ffprobe-static';
 import fs from 'fs';
 import path from 'path';
 import { validateFiltergraph } from '../../lib/ffmpeg-validator.js';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { log } from '../../lib/logger.js';
+import { supabaseClient as sb } from '../../lib/supabase.js';
+import { getOutputDir } from '../../lib/env.js';
 
 const ffmpeg = ffmpegStatic as unknown as string;
 const ffprobePath = ffprobeStatic.path;
@@ -25,11 +27,6 @@ const ffprobePath = ffprobeStatic.path;
 if (!ffmpeg) {
   throw new Error('FFmpeg binary not found. Please ensure ffmpeg-static is installed.');
 }
-
-const sb: SupabaseClient | null =
-  process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY
-    ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
-    : null;
 
 export interface SFXInput {
   file: string;
@@ -126,9 +123,11 @@ async function loopAudioToLength(
 ): Promise<string> {
   const inputDuration = await audioDurationSec(inputPath);
 
-  console.log(
-    `   🔁 Looping ${path.basename(inputPath)}: ${inputDuration.toFixed(2)}s → ${targetDuration.toFixed(2)}s`
-  );
+  log.debug('Looping audio to target duration', {
+    file: path.basename(inputPath),
+    inputDurationSec: parseFloat(inputDuration.toFixed(2)),
+    targetDurationSec: parseFloat(targetDuration.toFixed(2)),
+  });
 
   if (inputDuration >= targetDuration) {
     // No looping needed, just trim to target duration with fade out
@@ -225,7 +224,7 @@ async function analyzeRMSEnvelope(dialoguePath: string, hop: number = 0.05): Pro
     }
 
     if (env.length === 0) {
-      console.warn('   ⚠️  RMS analysis failed, using fallback envelope');
+      log.warn('RMS analysis returned empty, using fallback envelope');
       const duration = await audioDurationSec(dialoguePath);
       const numSamples = Math.ceil(duration / hop);
 
@@ -236,7 +235,7 @@ async function analyzeRMSEnvelope(dialoguePath: string, hop: number = 0.05): Pro
 
     return env;
   } catch (error) {
-    console.warn('   ⚠️  RMS analysis error:', (error as Error).message);
+    log.warn('RMS analysis error, returning default envelope', { error: (error as Error).message });
     return [{ t: 0, rmsDb: -35 }];
   }
 }
@@ -327,7 +326,7 @@ function duckToVolumeFilter(curve: DuckCurvePoint[], targetTrack: 'music' | 'amb
   const duckKey = targetTrack === 'music' ? 'musicDuck' : 'ambienceDuck';
   const segments = downsampleDuckCurve(curve, 0.2, 1);
 
-  console.log(`   📊 Downsampled ${curve.length} points to ${segments.length} segments for ${targetTrack}`);
+  log.debug('Downsampled ducking curve', { inputPoints: curve.length, outputSegments: segments.length, track: targetTrack });
 
   if (segments.length === 0) return 'anull';
 
@@ -364,7 +363,7 @@ async function loudnormTwoPass(
   TP: number = -1.5,
   LRA: number = 8
 ): Promise<void> {
-  console.log(`   📊 Analyzing loudness (target: ${I} LUFS)...`);
+  log.info('Analyzing loudness', { targetLufs: I, truePeakDb: TP, lra: LRA });
 
   try {
     const pass1 = await execa(
@@ -388,10 +387,10 @@ async function loudnormTwoPass(
     const measured_thresh = rx('input_thresh');
     const target_offset = rx('target_offset');
 
-    console.log(`   📊 Measured: ${measured_I} LUFS, ${measured_TP} dBTP, LRA ${measured_LRA}`);
+    log.debug('Loudness measurement complete', { measuredLufs: measured_I, measuredTruePeak: measured_TP, measuredLra: measured_LRA });
 
     if (measured_I && parseFloat(measured_I) > -6) {
-      console.warn(`   ⚠️  WARNING: Input is extremely loud (${measured_I} LUFS)!`);
+      log.warn('Input is extremely loud, applying emergency normalization', { measuredLufs: measured_I });
 
       await execa(
         ffmpeg,
@@ -412,12 +411,12 @@ async function loudnormTwoPass(
         { timeout: 60000 }
       );
 
-      console.log(`   ✅ Emergency normalization applied`);
+      log.info('Emergency normalization applied');
       return;
     }
 
     if (!measured_I || !measured_TP || !measured_LRA || !measured_thresh || !target_offset) {
-      console.warn(`   ⚠️  Incomplete measurement data, using single-pass normalization`);
+      log.warn('Incomplete loudness measurement data, using single-pass normalization');
 
       await execa(
         ffmpeg,
@@ -438,11 +437,11 @@ async function loudnormTwoPass(
         { timeout: 60000 }
       );
 
-      console.log(`   ✅ Single-pass normalization applied`);
+      log.info('Single-pass normalization applied');
       return;
     }
 
-    console.log(`   🔊 Applying loudness normalization...`);
+    log.info('Applying two-pass loudness normalization');
     await execa(
       ffmpeg,
       [
@@ -462,23 +461,23 @@ async function loudnormTwoPass(
       { timeout: 60000 }
     );
 
-    console.log(`   ✅ Normalized to ${I} LUFS`);
+    log.info('Loudness normalization complete', { targetLufs: I });
   } catch (error) {
     const err = error as { timedOut?: boolean; message: string };
     if (err.timedOut) {
-      console.error(`   ❌ Loudness normalization timed out! Using fallback...`);
+      log.error('Loudness normalization timed out, using fallback', error as Error);
     } else {
-      console.error(`   ❌ Loudness normalization failed:`, err.message);
+      log.error('Loudness normalization failed, using fallback', error as Error);
     }
 
-    console.log(`   🔄 Applying fallback normalization...`);
+    log.info('Applying fallback normalization');
     await execa(
       ffmpeg,
       ['-i', inputPath, '-af', `volume=-6dB`, '-ar', '48000', '-c:a', 'aac', '-b:a', '256k', '-y', outPath],
       { timeout: 30000 }
     );
 
-    console.log(`   ✅ Fallback normalization applied`);
+    log.info('Fallback normalization applied');
   }
 }
 
@@ -492,7 +491,7 @@ async function saveMixManifest(project_id: string, scene_id: string, manifest: M
     });
   }
 
-  const localPath = path.join(process.cwd(), 'output', project_id, 'scenes', `${scene_id}-manifest.json`);
+  const localPath = path.join(getOutputDir(), project_id, 'scenes', `${scene_id}-manifest.json`);
   fs.mkdirSync(path.dirname(localPath), { recursive: true });
   fs.writeFileSync(localPath, JSON.stringify(manifest, null, 2));
 }
@@ -507,7 +506,7 @@ async function cleanupTempFiles(tempFiles: string[]): Promise<void> {
         fs.unlinkSync(file);
       }
     } catch (e) {
-      console.warn(`   ⚠️  Could not clean up temp file: ${file}`);
+      log.warn('Could not clean up temp file', { file });
     }
   }
 }
@@ -574,7 +573,7 @@ export async function mixScene(options: MixOptions): Promise<MixManifest> {
     loop_ambience = true,
   } = mixParams;
 
-  console.log(`   🎛️  Professional film mixing for scene ${scene_id}...`);
+  log.info('Starting scene mix', { sceneId: scene_id, projectId: project_id });
 
   // Track temp files for cleanup
   const tempFiles: string[] = [];
@@ -618,20 +617,23 @@ export async function mixScene(options: MixOptions): Promise<MixManifest> {
 
   // Get dialogue duration as scene length reference
   const sceneDuration = await audioDurationSec(inputs.dialogue);
-  console.log(`   ⏱️  Scene duration: ${sceneDuration.toFixed(2)}s`);
+  log.info('Scene duration measured', { sceneId: scene_id, durationSec: parseFloat(sceneDuration.toFixed(2)) });
 
   // Log SFX timing info
   if (normalizedSfx.length > 0) {
-    console.log(`   🔊 SFX tracks with timing:`);
-    for (const sfx of normalizedSfx) {
-      const durStr = sfx.duration ? `${sfx.duration.toFixed(2)}s` : 'full';
-      console.log(`      - ${path.basename(sfx.file)} @ ${sfx.at.toFixed(2)}s (${durStr})`);
-    }
+    log.debug('SFX tracks with timing', {
+      sfxCount: normalizedSfx.length,
+      tracks: normalizedSfx.map((sfx) => ({
+        file: path.basename(sfx.file),
+        atSec: parseFloat(sfx.at.toFixed(2)),
+        duration: sfx.duration ? parseFloat(sfx.duration.toFixed(2)) : null,
+      })),
+    });
   }
 
   // Dialogue-only scene
   if (!inputs.music && !inputs.ambience && normalizedSfx.length === 0) {
-    console.log(`   ℹ️  Dialogue-only scene`);
+    log.info('Dialogue-only scene, skipping multi-track mix', { sceneId: scene_id });
 
     const filterChain = use_dialogue_processing ? buildDialogueChain() : 'anull';
 
@@ -680,7 +682,7 @@ export async function mixScene(options: MixOptions): Promise<MixManifest> {
   // Analyze dialogue for advanced ducking
   let duckCurve: DuckCurvePoint[] | null = null;
   if (use_advanced_ducking) {
-    console.log(`   📊 Analyzing dialogue with 50ms resolution...`);
+    log.info('Analyzing dialogue for advanced ducking', { resolutionMs: 50 });
     try {
       const env = await analyzeRMSEnvelope(inputs.dialogue, 0.05);
 
@@ -691,19 +693,19 @@ export async function mixScene(options: MixOptions): Promise<MixManifest> {
         const testAmbience = downsampleDuckCurve(rawCurve, 0.2, 1);
 
         if (testMusic.length > 500 || testAmbience.length > 500) {
-          console.warn(
-            `   ⚠️  Ducking curve too complex (${Math.max(testMusic.length, testAmbience.length)} segments), using sidechain`
-          );
+          log.warn('Ducking curve too complex, falling back to sidechain', {
+            segments: Math.max(testMusic.length, testAmbience.length),
+          });
           duckCurve = null;
         } else {
           duckCurve = rawCurve;
-          console.log(`   ✅ Generated ${rawCurve.length} ducking control points`);
+          log.debug('Generated ducking control points', { points: rawCurve.length });
         }
       } else {
-        console.warn(`   ⚠️  RMS envelope empty, falling back to sidechain compression`);
+        log.warn('RMS envelope empty, falling back to sidechain compression');
       }
     } catch (error) {
-      console.warn(`   ⚠️  RMS analysis failed, using sidechain compression:`, (error as Error).message);
+      log.warn('RMS analysis failed, using sidechain compression', { error: (error as Error).message });
       duckCurve = null;
     }
   }
@@ -777,7 +779,7 @@ export async function mixScene(options: MixOptions): Promise<MixManifest> {
 
       // Validate SFX file exists
       if (!fs.existsSync(sfxCue.file)) {
-        console.warn(`   ⚠️  SFX file not found: ${sfxCue.file}, skipping`);
+        log.warn('SFX file not found, skipping', { file: sfxCue.file });
         continue;
       }
 
@@ -808,12 +810,12 @@ export async function mixScene(options: MixOptions): Promise<MixManifest> {
   // Final limiter
   filterGraph += `[compensated]alimiter=limit=0.95:attack=5:release=50:level=false[mix]`;
 
-  console.log(`   🎚️  Mix gain compensation: ${mixGainReduction.toFixed(1)}dB for ${numInputs} inputs`);
+  log.debug('Mix gain compensation calculated', { gainReductionDb: parseFloat(mixGainReduction.toFixed(1)), inputCount: numInputs });
 
   // Validate filtergraph
   const validation = validateFiltergraph(filterGraph);
   if (!validation.valid) {
-    console.error('❌ Invalid filtergraph:', validation.errors.join('\n'));
+    log.error('Invalid filtergraph', undefined, { errors: validation.errors });
     await cleanupTempFiles(tempFiles);
     throw new Error('Filtergraph validation failed');
   }
@@ -832,12 +834,12 @@ export async function mixScene(options: MixOptions): Promise<MixManifest> {
 
   ffmpegArgs.push('-filter_complex', filterGraph, '-map', '[mix]', '-c:a', 'pcm_s16le', '-ar', '48000', '-y', outWav);
 
-  console.log(`   🔧 Executing professional mix...`);
+  log.info('Executing mix', { sceneId: scene_id, inputCount: inputCount });
 
   try {
     await execa(ffmpeg, ffmpegArgs, { timeout: 120000 });
   } catch (error) {
-    console.error(`   ❌ Mix failed:`, (error as Error).message);
+    log.error('Mix failed', error as Error, { sceneId: scene_id });
     await cleanupTempFiles(tempFiles);
     throw error;
   }
@@ -861,9 +863,12 @@ export async function mixScene(options: MixOptions): Promise<MixManifest> {
   manifest.true_peak_db = outputTP ? parseFloat(outputTP) : null;
   manifest.lra = outputLRA ? parseFloat(outputLRA) : null;
 
-  console.log(
-    `   ✅ Final: ${manifest.lufs_i?.toFixed(2)} LUFS, ${manifest.true_peak_db?.toFixed(2)} dBTP, LRA ${manifest.lra?.toFixed(2)}`
-  );
+  log.info('Mix complete', {
+    sceneId: scene_id,
+    lufsI: manifest.lufs_i,
+    truePeakDb: manifest.true_peak_db,
+    lra: manifest.lra,
+  });
 
   // Cleanup temp files
   await cleanupTempFiles(tempFiles);

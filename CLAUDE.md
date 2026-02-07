@@ -6,6 +6,8 @@ This file provides guidance to Claude Code when working with this codebase.
 
 Story Magic is an AI-powered audio production platform that transforms screenplays into immersive audio experiences. This monorepo contains all services for the SaaS product.
 
+**Current State (Feb 2026):** MVP ~95% complete. Phases 0-6 done (88 tickets, 236 SP). Phase 7 (MVP Polish & Launch Readiness) in progress. Test suite: 642 tests passing (364 orchestrator + 278 web).
+
 ## Repository Structure
 
 ```
@@ -128,17 +130,18 @@ Key tables:
 ## Testing
 
 ```bash
-pnpm test                 # Run all tests
-pnpm --filter @story-magic/web test
-pnpm --filter @story-magic/orchestrator test
+pnpm test                 # Run all tests (642 tests)
+pnpm --filter @story-magic/web test           # 278 web tests
+pnpm --filter @story-magic/orchestrator test  # 364 orchestrator tests
 ```
 
 ## Deployment
 
-- **Frontend:** Vercel
-- **Director:** Render.com
-- **Orchestrator:** Render.com
+- **Frontend:** Render.com (staging ready, production pending)
+- **Orchestrator:** Render.com (Standard plan provisioned)
 - **Database:** Supabase (managed)
+- **CI/CD:** GitHub Actions
+- **Monitoring:** Sentry + uptime checks
 
 ## Related Documentation
 

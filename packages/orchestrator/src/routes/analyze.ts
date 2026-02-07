@@ -8,6 +8,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { analyzeScript, quickScore } from '../analysis/script-score-service.js';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -64,9 +65,13 @@ router.post('/analyze', async (req: Request, res: Response): Promise<void> => {
   const { project_id, script_text, title, include_dialogue_deep_dive, include_structural_analysis } =
     parsed.data;
 
-  console.log(`[analyze] Starting full analysis for project ${project_id}`);
-  console.log(`[analyze] Script: ${script_text.length} chars, ~${Math.round(script_text.split(/\s+/).length / 250)} pages`);
-  console.log(`[analyze] Options: dialogue=${include_dialogue_deep_dive}, structure=${include_structural_analysis}`);
+  log.info('Starting full script analysis', {
+    projectId: project_id,
+    scriptLength: script_text.length,
+    estimatedPages: Math.round(script_text.split(/\s+/).length / 250),
+    includeDialogueDeepDive: include_dialogue_deep_dive,
+    includeStructuralAnalysis: include_structural_analysis,
+  });
 
   try {
     const startTime = Date.now();
@@ -80,12 +85,12 @@ router.post('/analyze', async (req: Request, res: Response): Promise<void> => {
         include_structural_analysis,
       },
       (progress) => {
-        console.log(`[analyze] Progress: ${progress.phase} - ${progress.percent}% - ${progress.current_task}`);
+        log.info('Analysis progress', { projectId: project_id, phase: progress.phase, percent: progress.percent, currentTask: progress.current_task });
       }
     );
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[analyze] Complete in ${duration}s. Overall score: ${result.overall_score}/10, Verdict: ${result.coverage_verdict}`);
+    log.info('Script analysis complete', { projectId: project_id, durationSeconds: parseFloat(duration), overallScore: result.overall_score, coverageVerdict: result.coverage_verdict });
 
     res.json({
       status: 'success',
@@ -96,7 +101,7 @@ router.post('/analyze', async (req: Request, res: Response): Promise<void> => {
       },
     });
   } catch (error) {
-    console.error('[analyze] Error:', error);
+    log.error('Script analysis failed', error instanceof Error ? error : new Error(String(error)), { projectId: project_id });
     res.status(500).json({
       status: 'error',
       message: error instanceof Error ? error.message : 'Analysis failed',
@@ -132,14 +137,14 @@ router.post('/analyze/quick', async (req: Request, res: Response): Promise<void>
 
   const { script_text, title } = parsed.data;
 
-  console.log(`[analyze/quick] Starting quick score`);
+  log.info('Starting quick score analysis');
 
   try {
     const startTime = Date.now();
     const result = await quickScore(script_text, title);
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
-    console.log(`[analyze/quick] Complete in ${duration}s. Score: ${result.overall_score}/10`);
+    log.info('Quick score complete', { durationSeconds: parseFloat(duration), overallScore: result.overall_score });
 
     res.json({
       status: 'success',
@@ -150,7 +155,7 @@ router.post('/analyze/quick', async (req: Request, res: Response): Promise<void>
       },
     });
   } catch (error) {
-    console.error('[analyze/quick] Error:', error);
+    log.error('Quick score failed', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({
       status: 'error',
       message: error instanceof Error ? error.message : 'Quick score failed',

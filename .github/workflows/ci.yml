@@ -17,7 +17,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 8
+          version: 9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -30,6 +30,12 @@ jobs:
 
       - name: Type check web
         run: pnpm --filter @story-magic/web typecheck
+
+      - name: Type check orchestrator
+        run: pnpm --filter @story-magic/orchestrator typecheck
+
+      - name: Lint orchestrator
+        run: pnpm --filter @story-magic/orchestrator lint
 
       - name: Lint web
         run: pnpm --filter @story-magic/web lint
@@ -44,7 +50,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 8
+          version: 9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -60,6 +66,11 @@ jobs:
         env:
           CI: true
 
+      - name: Run web unit tests
+        run: pnpm --filter @story-magic/web test
+        env:
+          CI: true
+
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -71,7 +82,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 8
+          version: 9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -103,7 +114,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 8
+          version: 9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -121,8 +132,11 @@ jobs:
         run: pnpm --filter @story-magic/web test:e2e --project=chromium
         env:
           CI: true
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          # Use secrets if available, otherwise fall back to placeholder values
+          # for unauthenticated E2E tests (login/signup page rendering, navigation)
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder
 
       - name: Upload test results
         uses: actions/upload-artifact@v4

@@ -11,15 +11,11 @@ import {
 
 // Re-export types for use by other modules
 export type { Timeline, TimelineEvent };
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { supabaseClient as sb } from '../../lib/supabase.js';
+import { log } from '../../lib/logger.js';
 import type { Scene, AudioCue } from '../../schemas/director-json.js';
 import type { SceneAlignment } from './align.js';
 import type { SceneCues } from './cues.js';
-
-const sb: SupabaseClient | null =
-  process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY
-    ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
-    : null;
 
 /**
  * Build scene timeline from alignment and cue choices
@@ -122,20 +118,22 @@ export async function buildTimeline(
         if (targetLine) {
           // SFX should trigger at the START of the line it's attached to
           sfxTimestamp = targetLine.start;
-          console.log(
-            `   🔊 SFX "${sfx.file}" synced to ${sfx.start_at} at ${sfxTimestamp.toFixed(2)}s`
-          );
+          log.debug('SFX synced to line', {
+            sfxFile: sfx.file,
+            lineId: sfx.start_at,
+            timestampSec: sfxTimestamp,
+          });
         } else {
-          console.warn(
-            `   ⚠️  SFX line_id "${sfx.start_at}" not found in alignment, defaulting to 0s`
-          );
+          log.warn('SFX line_id not found in alignment, defaulting to 0s', {
+            sfxLineId: sfx.start_at,
+          });
           sfxTimestamp = 0;
         }
       } else if (typeof sfx.start_at === 'number') {
         // start_at is already a timestamp
         sfxTimestamp = sfx.start_at;
       } else {
-        console.warn(`   ⚠️  Invalid sfx.start_at format: ${sfx.start_at}, defaulting to 0s`);
+        log.warn('Invalid sfx.start_at format, defaulting to 0s', { startAt: sfx.start_at });
         sfxTimestamp = 0;
       }
 
@@ -161,17 +159,17 @@ export async function buildTimeline(
   const validation = validateTimeline(timeline);
 
   if (!validation.valid) {
-    console.error(`   ❌ Timeline validation failed for scene ${scene.scene_id}:`);
-    for (const error of validation.errors) {
-      console.error(`      • ${error}`);
-    }
+    log.error('Timeline validation failed', undefined, {
+      sceneId: scene.scene_id,
+      errors: validation.errors,
+    });
 
-    console.log(`   🔧 Attempting auto-fix...`);
+    log.info('Attempting timeline auto-fix', { sceneId: scene.scene_id });
     const fixed = autoFixTimeline(timeline);
 
     const revalidation = validateTimeline(fixed);
     if (revalidation.valid) {
-      console.log(`   ✅ Timeline auto-fixed successfully`);
+      log.info('Timeline auto-fixed successfully', { sceneId: scene.scene_id });
       return saveTimeline(scene.scene_id, fixed);
     } else {
       throw new Error(`Timeline validation failed and could not be auto-fixed`);
@@ -179,10 +177,10 @@ export async function buildTimeline(
   }
 
   if (validation.warnings.length > 0) {
-    console.warn(`   ⚠️  Timeline warnings for scene ${scene.scene_id}:`);
-    for (const warning of validation.warnings) {
-      console.warn(`      • ${warning}`);
-    }
+    log.warn('Timeline has warnings', {
+      sceneId: scene.scene_id,
+      warnings: validation.warnings,
+    });
   }
 
   return await saveTimeline(scene.scene_id, timeline);

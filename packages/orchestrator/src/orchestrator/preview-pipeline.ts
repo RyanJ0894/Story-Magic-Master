@@ -12,15 +12,16 @@ import { execa } from 'execa';
 import ffmpegStatic from 'ffmpeg-static';
 import fs from 'fs';
 import path from 'path';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-
 import type { Scene } from '../schemas/director-json.js';
 import { ttsForScene, type StemResult } from './workers/tts.js';
 import { alignScene, type SceneAlignment } from './workers/align.js';
 import { pickCues, type SceneCues } from './workers/cues.js';
 import { buildTimeline } from './workers/timeline.js';
-import { mixScene, type MixInputs, type SFXInput } from './workers/mixer.js';
-import { loadCatalog, getTrackPath } from '../lib/catalog-loader.js';
+import { mixScene } from './workers/mixer.js';
+import { loadCatalog } from '../lib/catalog-loader.js';
+import { getOutputDir } from '../lib/env.js';
+import { resolveCuesToMixInputs, getDefaultMixParams } from './shared/resolve-cues.js';
+import { log } from '../lib/logger.js';
 
 const ffmpeg = ffmpegStatic as unknown as string;
 
@@ -28,12 +29,7 @@ if (!ffmpeg) {
   throw new Error('FFmpeg binary not found. Please ensure ffmpeg-static is installed.');
 }
 
-// Supabase client for uploading previews
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
-const supabase: SupabaseClient | null =
-  process.env.SUPABASE_URL && supabaseKey
-    ? createClient(process.env.SUPABASE_URL, supabaseKey)
-    : null;
+import { supabaseServiceClient as supabase } from '../lib/supabase.js';
 
 const PREVIEW_DURATION_SECONDS = 15;
 const FADE_OUT_DURATION = 1;
@@ -80,40 +76,8 @@ function truncateDialogue(scene: Scene, targetSeconds: number): Scene {
   };
 }
 
-/**
- * Concatenate dialogue stems into a single file
- */
-async function concatenateDialogueStems(stems: StemResult[], outputPath: string): Promise<void> {
-  if (!stems || stems.length === 0) {
-    throw new Error('No dialogue stems to concatenate');
-  }
-
-  if (stems.length === 1) {
-    fs.copyFileSync(stems[0].path, outputPath);
-    return;
-  }
-
-  const concatList = stems.map((s) => `file '${s.path}'`).join('\n');
-  const concatFilePath = path.join(path.dirname(outputPath), 'preview-concat-list.txt');
-  fs.writeFileSync(concatFilePath, concatList);
-
-  try {
-    await execa(ffmpeg, [
-      '-f', 'concat',
-      '-safe', '0',
-      '-i', concatFilePath,
-      '-c:a', 'aac',
-      '-b:a', '192k',
-      '-ar', '48000',
-      '-y',
-      outputPath,
-    ]);
-  } finally {
-    if (fs.existsSync(concatFilePath)) {
-      fs.unlinkSync(concatFilePath);
-    }
-  }
-}
+// concatenateDialogueStems extracted to shared/concat-stems.ts
+import { concatenateDialogueStems } from './shared/concat-stems.js';
 
 /**
  * Hard-trim audio to target duration with fade-out
@@ -145,7 +109,7 @@ async function uploadPreview(
   storagePath: string
 ): Promise<string | null> {
   if (!supabase) {
-    console.warn('Supabase not configured - preview will not be uploaded');
+    log.warn('Supabase not configured - preview will not be uploaded');
     return null;
   }
 
@@ -159,7 +123,7 @@ async function uploadPreview(
       });
 
     if (error) {
-      console.error('Preview upload error:', error);
+      log.error('Preview upload error', undefined, { storagePath, uploadError: error });
       return null;
     }
 
@@ -169,7 +133,7 @@ async function uploadPreview(
 
     return urlData.publicUrl;
   } catch (err) {
-    console.error('Preview upload failed:', err);
+    log.error('Preview upload failed', err instanceof Error ? err : undefined, { storagePath });
     return null;
   }
 }
@@ -182,118 +146,60 @@ export async function generatePreview(
   scene: Scene,
   accessToken?: string
 ): Promise<PreviewResult> {
-  console.log(`[Preview] Starting preview for project=${projectId} scene=${scene.scene_id}`);
+  log.info('Starting preview generation', { projectId, sceneId: scene.scene_id });
 
   if (!scene.dialogue || scene.dialogue.length === 0) {
     throw new Error(`Scene ${scene.scene_id} has no dialogue lines to preview`);
   }
 
   // Setup output directories
-  const projectDir = path.join(process.cwd(), 'output', projectId, 'previews');
+  const projectDir = path.join(getOutputDir(), projectId, 'previews');
   const scenesDir = path.join(projectDir, 'scenes');
   fs.mkdirSync(projectDir, { recursive: true });
   fs.mkdirSync(scenesDir, { recursive: true });
 
   // Step 1: Truncate dialogue to ~15s worth of lines
   const truncatedScene = truncateDialogue(scene, PREVIEW_DURATION_SECONDS);
-  console.log(`[Preview] Truncated dialogue: ${truncatedScene.dialogue.length}/${scene.dialogue.length} lines`);
+  log.debug('Truncated dialogue for preview', {
+    truncatedLines: truncatedScene.dialogue.length,
+    totalLines: scene.dialogue.length,
+  });
 
   // Step 2: Load catalog
   const catalog = loadCatalog();
 
   // Step 3: Generate TTS for truncated dialogue
-  console.log('[Preview] Generating TTS...');
+  log.info('Preview: generating TTS', { projectId, sceneId: scene.scene_id });
   const stems = await ttsForScene(projectId, truncatedScene);
-  console.log(`[Preview] TTS complete: ${stems.length} stems`);
+  log.debug('Preview: TTS complete', { stemCount: stems.length });
 
   // Step 4: Compute alignment
-  console.log('[Preview] Computing alignment...');
+  log.debug('Preview: computing alignment');
   const alignment = await alignScene(projectId, truncatedScene, stems);
 
   // Step 5: Pick cues
-  console.log('[Preview] Selecting audio cues...');
+  log.debug('Preview: selecting audio cues');
   const cues = await pickCues(truncatedScene, catalog);
 
   // Step 6: Build timeline
-  console.log('[Preview] Building timeline...');
+  log.debug('Preview: building timeline');
   const timeline = await buildTimeline(truncatedScene, alignment, cues);
 
   // Step 7: Mix scene
-  console.log('[Preview] Mixing scene...');
+  log.debug('Preview: mixing scene');
   const fullMixPath = path.join(projectDir, `scene-${scene.scene_id}-full.m4a`);
   const dialoguePath = path.join(scenesDir, `dialogue-${scene.scene_id}.m4a`);
   const tempWav = path.join(scenesDir, `temp-${scene.scene_id}.wav`);
 
   await concatenateDialogueStems(stems, dialoguePath);
 
-  const mixInputs: MixInputs = { dialogue: dialoguePath };
+  const mixInputs = resolveCuesToMixInputs({
+    cues,
+    alignmentLines: alignment.lines,
+    dialoguePath,
+  });
 
-  // Add music track if present
-  if (cues.music && cues.music.length > 0) {
-    const musicCue = cues.music[0];
-    if (musicCue.file) {
-      const musicPath = getTrackPath(musicCue.file);
-      if (musicPath && fs.existsSync(musicPath)) {
-        mixInputs.music = musicPath;
-      }
-    }
-  }
-
-  // Add ambience track if present
-  if (cues.ambience && cues.ambience.length > 0) {
-    const ambienceCue = cues.ambience[0];
-    if (ambienceCue.file) {
-      const ambiencePath = getTrackPath(ambienceCue.file);
-      if (ambiencePath && fs.existsSync(ambiencePath)) {
-        mixInputs.ambience = ambiencePath;
-      }
-    }
-  }
-
-  // Add SFX tracks if present
-  if (cues.sfx && cues.sfx.length > 0) {
-    const sfxCues: SFXInput[] = [];
-    for (const sfxCue of cues.sfx) {
-      if (sfxCue.file) {
-        const sfxPath = getTrackPath(sfxCue.file);
-        if (sfxPath && fs.existsSync(sfxPath)) {
-          let startAtSeconds = 0;
-          if (typeof sfxCue.start_at === 'string' && sfxCue.start_at.startsWith('line_')) {
-            const lineId = sfxCue.start_at;
-            for (const line of alignment.lines) {
-              if (line.line_id === lineId) {
-                startAtSeconds = line.start;
-                break;
-              }
-            }
-          } else if (typeof sfxCue.start_at === 'number') {
-            startAtSeconds = sfxCue.start_at;
-          }
-
-          sfxCues.push({
-            file: sfxPath,
-            at: startAtSeconds,
-            duration: sfxCue.duration || null,
-          });
-        }
-      }
-    }
-
-    if (sfxCues.length > 0) {
-      mixInputs.sfx = sfxCues;
-    }
-  }
-
-  const mixParams = {
-    music_gain_db: -22,
-    ambience_gain_db: -26,
-    sfx_gain_db: -12,
-    target_lufs: -16,
-    true_peak_db: -1.5,
-    use_dialogue_processing: true,
-    use_advanced_ducking: true,
-    ...(scene.mix || {}),
-  };
+  const mixParams = getDefaultMixParams(scene.mix as Record<string, unknown>);
 
   await mixScene({
     project_id: projectId,
@@ -310,7 +216,7 @@ export async function generatePreview(
   }
 
   // Step 8: Trim to 15s with fade-out
-  console.log('[Preview] Trimming to 15s with fade-out...');
+  log.debug('Preview: trimming to 15s with fade-out');
   const previewPath = path.join(projectDir, `preview-${scene.scene_id}.m4a`);
   await trimWithFadeOut(fullMixPath, previewPath, PREVIEW_DURATION_SECONDS, FADE_OUT_DURATION);
 
@@ -321,7 +227,7 @@ export async function generatePreview(
 
   // Step 9: Upload to Supabase storage
   const storagePath = `previews/${projectId}/${scene.scene_id}.m4a`;
-  console.log(`[Preview] Uploading to ${storagePath}...`);
+  log.debug('Preview: uploading to storage', { storagePath });
   const previewUrl = await uploadPreview(previewPath, storagePath);
 
   // Cleanup local preview file after upload
@@ -333,7 +239,11 @@ export async function generatePreview(
     // Non-critical cleanup failure
   }
 
-  console.log(`[Preview] Preview complete: ${previewUrl || storagePath}`);
+  log.info('Preview generation complete', {
+    projectId,
+    sceneId: scene.scene_id,
+    previewUrl: previewUrl || storagePath,
+  });
 
   return {
     project_id: projectId,

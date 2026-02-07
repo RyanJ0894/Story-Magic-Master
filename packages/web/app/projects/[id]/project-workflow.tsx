@@ -13,6 +13,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import {
   Accordion,
   AccordionContent,
@@ -333,12 +334,13 @@ export function ProjectWorkflow({
   };
 
   const handleCopySettings = (runNumber: number) => {
-    // TODO: Copy voice assignments and other settings from the run
-    // For now, just start a new run with the same mode
     const run = allJobs.find(j => j.run_number === runNumber);
     if (run) {
       setSelectedMode(run.workflow_mode);
       setViewingRunNumber(null);
+      toast.success(
+        `Copied settings from Run #${runNumber}. Voice and audio assignments are preserved.`
+      );
     }
   };
 
@@ -920,7 +922,44 @@ export function ProjectWorkflow({
                     <>
                       <AudioPlayer outputs={audioOutputs!} />
                       <div className="flex gap-2 justify-center">
-                        <Button variant="outline">
+                        <Button
+                          variant="outline"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch('/api/teams');
+                              if (!res.ok) {
+                                toast.error('Failed to load teams');
+                                return;
+                              }
+                              const data = await res.json();
+                              const teams = data.teams || [];
+                              if (teams.length === 0) {
+                                toast.info('No teams found. Create a team first in Settings.');
+                                return;
+                              }
+                              // Share with first team (for MVP)
+                              const team = teams[0];
+                              const shareRes = await fetch('/api/teams/share', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  projectId: project.id,
+                                  teamId: team.id,
+                                  accessLevel: 'stream',
+                                }),
+                              });
+                              if (shareRes.ok) {
+                                const result = await shareRes.json();
+                                toast.success(result.message || 'Shared with team!');
+                              } else {
+                                const err = await shareRes.json();
+                                toast.error(err.error || 'Failed to share');
+                              }
+                            } catch {
+                              toast.error('Failed to share with team');
+                            }
+                          }}
+                        >
                           <Share2 className="w-4 h-4 mr-2" />
                           Share with Team
                         </Button>

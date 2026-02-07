@@ -9,6 +9,7 @@
 
 import { tool } from 'ai';
 import { z } from 'zod';
+import { log } from '../../lib/logger.js';
 import {
   getMusicStore,
   getAmbienceStore,
@@ -99,7 +100,7 @@ Use group filter to narrow results.`,
         items: results.map(formatAudioResult),
       };
     } catch (err) {
-      console.error('[searchMusic] Error:', err);
+      log.error('searchMusic error', err instanceof Error ? err : undefined);
       return {
         status: 'error',
         message: err instanceof Error ? err.message : 'Search failed',
@@ -173,7 +174,7 @@ Groups available: "People in the City", "Suburbs & Countryside", "Interior Space
         items: results.map(formatAudioResult),
       };
     } catch (err) {
-      console.error('[searchAmbience] Error:', err);
+      log.error('searchAmbience error', err instanceof Error ? err : undefined);
       return {
         status: 'error',
         message: err instanceof Error ? err.message : 'Search failed',
@@ -242,7 +243,7 @@ Groups available: "Fighting", "Explosions", "Doors & Impacts", "Vehicles", etc.`
         items: results.map(formatAudioResult),
       };
     } catch (err) {
-      console.error('[searchSfx] Error:', err);
+      log.error('searchSfx error', err instanceof Error ? err : undefined);
       return {
         status: 'error',
         message: err instanceof Error ? err.message : 'Search failed',
@@ -281,7 +282,7 @@ export const listAudioGroupsTool = tool({
         groups,
       };
     } catch (err) {
-      console.error('[listAudioGroups] Error:', err);
+      log.error('listAudioGroups error', err instanceof Error ? err : undefined);
       return {
         status: 'error',
         message: err instanceof Error ? err.message : 'Failed to list groups',
@@ -336,7 +337,7 @@ export const getAudioByIdTool = tool({
         },
       };
     } catch (err) {
-      console.error('[getAudioById] Error:', err);
+      log.error('getAudioById error', err instanceof Error ? err : undefined);
       return {
         status: 'error',
         message: err instanceof Error ? err.message : 'Failed to get audio',

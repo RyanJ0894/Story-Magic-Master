@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { sendTeamInviteEmail } from '@/lib/email';
+import { validateCsrf } from '@/lib/csrf';
 
 // =============================================================================
 // Validation
@@ -121,6 +122,11 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ teamId: string }> }
 ) {
+  const csrfError = validateCsrf(request);
+  if (csrfError) {
+    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   const supabase = await createClient();
   const { teamId } = await params;
 
@@ -194,7 +200,7 @@ export async function POST(
   const { data: existingUser } = await supabase
     .from('profiles')
     .select('id, full_name')
-    .eq('id', email.toLowerCase()) // This won't work - need to look up by email differently
+    .eq('email', email.toLowerCase())
     .single();
 
   // Get inviter's name
@@ -274,6 +280,11 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ teamId: string }> }
 ) {
+  const csrfError = validateCsrf(request);
+  if (csrfError) {
+    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   const supabase = await createClient();
   const { teamId } = await params;
 

@@ -209,7 +209,7 @@ describe('SceneSchema', () => {
 describe('DirectorJSONSchema', () => {
   it('should validate complete Director JSON', () => {
     const directorJson: DirectorJSON = {
-      project_id: 'proj_001',
+      project_id: '00000000-0000-0000-0000-000000000001',
       scenes: [
         {
           scene_id: 'scene_001',
@@ -231,7 +231,7 @@ describe('DirectorJSONSchema', () => {
 
   it('should validate Director JSON with multiple scenes', () => {
     const multiScene = {
-      project_id: 'proj_002',
+      project_id: '00000000-0000-0000-0000-000000000002',
       script_id: 'script_001',
       scenes: [
         {
@@ -267,7 +267,7 @@ describe('DirectorJSONSchema', () => {
 
   it('should accept empty scenes array', () => {
     const emptyScenes = {
-      project_id: 'proj_003',
+      project_id: '00000000-0000-0000-0000-000000000003',
       scenes: [],
     };
 
@@ -279,7 +279,7 @@ describe('DirectorJSONSchema', () => {
 describe('OrchestrateRequestSchema', () => {
   it('should validate request with scenes', () => {
     const request = {
-      project_id: 'proj_001',
+      project_id: '00000000-0000-0000-0000-000000000001',
       scenes: [
         {
           scene_id: 'scene_001',
@@ -296,7 +296,7 @@ describe('OrchestrateRequestSchema', () => {
 
   it('should validate request with script_text and empty scenes', () => {
     const request = {
-      project_id: 'proj_002',
+      project_id: '00000000-0000-0000-0000-000000000002',
       script_text: 'FADE IN:\n\nINT. HOUSE - DAY\n\nJOHN\nHello there.',
       scenes: [], // scenes is required
     };
@@ -307,7 +307,7 @@ describe('OrchestrateRequestSchema', () => {
 
   it('should validate request with both scenes and script_text', () => {
     const request = {
-      project_id: 'proj_003',
+      project_id: '00000000-0000-0000-0000-000000000003',
       script_text: 'Some script...',
       scenes: [],
     };
@@ -329,7 +329,7 @@ describe('OrchestrateRequestSchema', () => {
 describe('GenerateScenesRequestSchema', () => {
   it('should validate valid generate-scenes request', () => {
     const request = {
-      project_id: 'proj_001',
+      project_id: '00000000-0000-0000-0000-000000000001',
       script_text: 'FADE IN:\n\nINT. OFFICE - DAY\n\nBOSS\nWelcome to the company.',
     };
 
@@ -339,7 +339,7 @@ describe('GenerateScenesRequestSchema', () => {
 
   it('should reject request without script_text', () => {
     const invalid = {
-      project_id: 'proj_002',
+      project_id: '00000000-0000-0000-0000-000000000002',
     };
 
     const result = GenerateScenesRequestSchema.safeParse(invalid);
@@ -348,7 +348,7 @@ describe('GenerateScenesRequestSchema', () => {
 
   it('should reject empty script_text', () => {
     const emptyScript = {
-      project_id: 'proj_003',
+      project_id: '00000000-0000-0000-0000-000000000003',
       script_text: '',
     };
 
@@ -384,11 +384,11 @@ describe('Schema Type Inference', () => {
 
   it('should correctly infer DirectorJSON type', () => {
     const json: DirectorJSON = {
-      project_id: 'proj_001',
+      project_id: '00000000-0000-0000-0000-000000000001',
       scenes: [],
     };
 
-    expect(json.project_id).toBe('proj_001');
+    expect(json.project_id).toBe('00000000-0000-0000-0000-000000000001');
     expect(json.scenes).toEqual([]);
   });
 });

@@ -7,7 +7,9 @@ import ffmpegStatic from 'ffmpeg-static';
 import fs from 'fs';
 import path from 'path';
 import { audioDurationSec } from '../../lib/audio.js';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseServiceClient } from '../../lib/supabase.js';
+import { getOutputDir } from '../../lib/env.js';
+import { log } from '../../lib/logger.js';
 
 const ffmpeg = ffmpegStatic as unknown as string;
 
@@ -46,6 +48,7 @@ export interface PlaybackManifest {
   order: ManifestSceneEntry[];
   total: number;
   public_url: string | null;
+  mp3_url?: string | null;
 }
 
 /**
@@ -118,7 +121,9 @@ export async function concatScenesWithCrossfade(
     await execa(ffmpeg, args);
   } catch (err) {
     const error = err as { stderr?: string; message: string };
-    console.error('[Concat Error] FFmpeg failed:', error.stderr || error.message);
+    log.error('FFmpeg concatenation failed', err instanceof Error ? err : undefined, {
+      stderr: error.stderr,
+    });
     throw new Error(`Scene concatenation failed: ${error.message}`);
   }
 }
@@ -152,7 +157,10 @@ export async function makePlaybackManifest(
         start: offset + line.start,
         duration: line.duration,
       }));
-      console.log(`   📍 Scene ${scene.scene_id}: ${sceneEntry.lines.length} lines with timing`);
+      log.debug('Scene line-level timing included', {
+        sceneId: scene.scene_id,
+        lineCount: sceneEntry.lines.length,
+      });
     }
 
     order.push(sceneEntry);
@@ -173,14 +181,12 @@ export async function makePlaybackManifest(
   }
 
   // Upload episode to Supabase Storage
-  const episodePath = path.join(process.cwd(), 'output', project_id, 'episode.m4a');
+  const episodePath = path.join(getOutputDir(), project_id, 'episode.m4a');
   let publicUrl: string | null = null;
 
-  // Use service role key for uploads (bypasses RLS)
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
-  if (fs.existsSync(episodePath) && process.env.SUPABASE_URL && supabaseKey) {
+  if (fs.existsSync(episodePath) && supabaseServiceClient) {
     try {
-      const supabase = createClient(process.env.SUPABASE_URL, supabaseKey);
+      const supabase = supabaseServiceClient;
 
       const episodeBuffer = fs.readFileSync(episodePath);
 
@@ -192,21 +198,52 @@ export async function makePlaybackManifest(
         });
 
       if (uploadError) {
-        console.error('❌ Supabase upload error:', uploadError);
+        log.error('Supabase upload error', undefined, { uploadError });
         throw uploadError;
       }
 
-      console.log('✅ Uploaded to Supabase Storage');
+      log.info('Uploaded episode to Supabase Storage', { projectId: project_id });
 
       const { data: urlData } = supabase.storage
         .from('audio')
         .getPublicUrl(`${project_id}/episode.m4a`);
 
       publicUrl = urlData.publicUrl;
-      console.log(`🔗 Public audio URL: ${publicUrl}`);
+      log.info('Public audio URL generated', { publicUrl });
     } catch (err) {
-      console.error('❌ Failed to upload to Supabase:', err);
+      log.error('Failed to upload to Supabase', err instanceof Error ? err : undefined, {
+        projectId: project_id,
+      });
       // Continue without upload - not fatal
+    }
+  }
+
+  // Also generate MP3 version
+  let mp3Url: string | null = null;
+  if (fs.existsSync(episodePath)) {
+    try {
+      const mp3Path = episodePath.replace('.m4a', '.mp3');
+      await convertToMp3(episodePath, mp3Path);
+
+      if (supabaseServiceClient) {
+        const mp3Buffer = fs.readFileSync(mp3Path);
+        await supabaseServiceClient.storage
+          .from('audio')
+          .upload(`${project_id}/episode.mp3`, mp3Buffer, {
+            contentType: 'audio/mpeg',
+            upsert: true,
+          });
+
+        const { data: mp3UrlData } = supabaseServiceClient.storage
+          .from('audio')
+          .getPublicUrl(`${project_id}/episode.mp3`);
+
+        mp3Url = mp3UrlData.publicUrl;
+        log.info('MP3 version uploaded', { mp3Url });
+      }
+    } catch (err) {
+      log.error('MP3 conversion/upload failed', err instanceof Error ? err : undefined);
+      // Non-fatal: M4A is primary format
     }
   }
 
@@ -215,5 +252,32 @@ export async function makePlaybackManifest(
     order,
     total: totalDuration,
     public_url: publicUrl,
+    mp3_url: mp3Url,
   };
+}
+
+/**
+ * Convert M4A to MP3 using FFmpeg
+ * Outputs broadcast-quality MP3 (192kbps, 48kHz)
+ */
+export async function convertToMp3(inputPath: string, outputPath: string): Promise<void> {
+  const args = [
+    '-i', inputPath,
+    '-c:a', 'libmp3lame',
+    '-b:a', '192k',
+    '-ar', '48000',
+    '-y',
+    outputPath,
+  ];
+
+  try {
+    await execa(ffmpeg, args);
+    log.info('MP3 conversion complete', { inputPath, outputPath });
+  } catch (err) {
+    const error = err as { stderr?: string; message: string };
+    log.error('MP3 conversion failed', err instanceof Error ? err : undefined, {
+      stderr: error.stderr,
+    });
+    throw new Error(`MP3 conversion failed: ${error.message}`);
+  }
 }

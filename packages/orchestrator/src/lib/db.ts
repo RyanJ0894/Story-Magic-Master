@@ -3,15 +3,10 @@
  * Supports Supabase with local JSON fallback
  */
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
-
-// Initialize Supabase client if credentials are available
-const supabase: SupabaseClient | null =
-  process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY
-    ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
-    : null;
+import { supabaseClient as supabase } from './supabase.js';
+import { log } from './logger.js';
 
 const localPath = path.join(process.cwd(), 'data', 'voice_map.json');
 
@@ -61,7 +56,7 @@ export async function getVoiceForCharacter(
       if (error) throw error;
       return data as VoiceMapEntry | null;
     } catch (err) {
-      console.error('DB error:', err);
+      log.error('DB error fetching voice for character', err instanceof Error ? err : undefined, { project_id, character });
     }
   }
 
@@ -99,7 +94,7 @@ export async function upsertVoiceMap(
       if (error) throw error;
       return (data as VoiceMapEntry) || row;
     } catch (err) {
-      console.error('DB upsert error:', err);
+      log.error('DB upsert error', err instanceof Error ? err : undefined, { project_id, character });
     }
   }
 

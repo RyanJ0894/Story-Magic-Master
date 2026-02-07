@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { hashPassword } from '@/lib/password';
 import { UpdateShareRequestSchema } from '@/lib/api/dto';
+import { validateCsrf } from '@/lib/csrf';
 
 interface RouteParams {
   params: Promise<{ shareId: string }>;
@@ -40,6 +41,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 // PATCH /api/shares/[shareId] - Update share settings
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  const csrfError = validateCsrf(request);
+  if (csrfError) {
+    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   const { shareId } = await params;
   const supabase = await createClient();
 
@@ -111,6 +117,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/shares/[shareId] - Revoke/delete share
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  const csrfError = validateCsrf(request);
+  if (csrfError) {
+    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   const { shareId } = await params;
   const supabase = await createClient();
 

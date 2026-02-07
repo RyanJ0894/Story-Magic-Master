@@ -7,6 +7,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { validateCsrf } from '@/lib/csrf';
 
 // =============================================================================
 // GET - List alerts
@@ -120,6 +121,11 @@ export async function GET(request: Request) {
 // =============================================================================
 
 export async function PATCH(request: Request) {
+  const csrfError = validateCsrf(request);
+  if (csrfError) {
+    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   const supabase = await createClient();
 
   const {

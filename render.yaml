@@ -21,7 +21,7 @@ services:
     # Node/pnpm versions
     buildCommand: |
       corepack enable &&
-      corepack prepare pnpm@latest --activate &&
+      corepack prepare pnpm@9.1.0 --activate &&
       pnpm install --frozen-lockfile &&
       pnpm --filter @story-magic/web build
     startCommand: pnpm --filter @story-magic/web start
@@ -36,11 +36,11 @@ services:
       - key: NODE_ENV
         value: production
 
-      # Supabase
+      # Supabase (set in Render dashboard)
       - key: NEXT_PUBLIC_SUPABASE_URL
-        value: https://vycfkqkdaszlhvaedxub.supabase.co
+        sync: false
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
-        value: sb_publishable_iC0xz4Fakt9BNb88nDV2iA_2luzdMt4
+        sync: false
 
       # Stripe
       - key: STRIPE_SECRET_KEY
@@ -50,15 +50,15 @@ services:
       - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
         sync: false
 
-      # Sentry
+      # Sentry (set in Render dashboard)
       - key: NEXT_PUBLIC_SENTRY_DSN
-        value: https://b06f55eedd1ad8fdedc4cabc42c48c12@o4510606462550016.ingest.us.sentry.io/4510733770948608
+        sync: false
       - key: SENTRY_AUTH_TOKEN
         sync: false
 
-      # Orchestrator URL
+      # Orchestrator URL (set in Render dashboard)
       - key: ORCHESTRATOR_URL
-        value: https://story-magic-orchestrator.onrender.com
+        sync: false
 
   # =============================================================================
   # ORCHESTRATOR SERVICE (Node.js/Express)
@@ -67,15 +67,17 @@ services:
     name: story-magic-orchestrator
     runtime: node
     region: oregon
-    plan: starter
+    plan: standard
     branch: main
     autoDeploy: true
+    # Scale up: increase numInstances when traffic demands.
+    # No in-process state - jobs are tracked in Supabase, audio in persistent disk.
     numInstances: 1
 
     # Node/pnpm versions
     buildCommand: |
       corepack enable &&
-      corepack prepare pnpm@latest --activate &&
+      corepack prepare pnpm@9.1.0 --activate &&
       pnpm install --frozen-lockfile &&
       pnpm --filter @story-magic/orchestrator build
     startCommand: pnpm --filter @story-magic/orchestrator start
@@ -98,11 +100,11 @@ services:
       - key: PORT
         value: "10000"
 
-      # Supabase
+      # Supabase (set in Render dashboard)
       - key: SUPABASE_URL
-        value: https://vycfkqkdaszlhvaedxub.supabase.co
+        sync: false
       - key: SUPABASE_ANON_KEY
-        value: sb_publishable_iC0xz4Fakt9BNb88nDV2iA_2luzdMt4
+        sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
 
@@ -114,30 +116,34 @@ services:
       - key: ELEVENLABS_API_KEY
         sync: false
 
-      # Sentry
+      # Sentry (set in Render dashboard)
       - key: SENTRY_DSN
-        value: https://b06f55eedd1ad8fdedc4cabc42c48c12@o4510606462550016.ingest.us.sentry.io/4510733770948608
+        sync: false
 
-      # Rate Limiting (Upstash)
+      # Rate Limiting (Upstash - set in Render dashboard)
       - key: UPSTASH_REDIS_REST_URL
-        value: https://huge-finch-40198.upstash.io
+        sync: false
       - key: UPSTASH_REDIS_REST_TOKEN
         sync: false
 
-      # Monitoring (Checkly)
+      # Monitoring (Checkly - set in Render dashboard)
       - key: CHECKLY_PING_URL
-        value: https://ping.checklyhq.com/a1a3f468-b4d8-4328-968c-548962424c1d
+        sync: false
 
       # Logging
       - key: LOG_LEVEL
         value: info
 
-      # Auth
-      - key: AUTH_DISABLED
-        value: "false"
+      # TTS concurrency (default 6, reduce if memory constrained)
+      - key: TTS_CONCURRENCY
+        value: "6"
 
-      # Audio storage path
-      - key: AUDIO_STORAGE_PATH
+      # Web frontend URL (for CORS allowlist on orchestrator)
+      - key: WEB_URL
+        sync: false
+
+      # Audio output directory (persistent disk mount)
+      - key: AUDIO_OUTPUT_DIR
         value: /var/data/audio
 
 # =============================================================================
@@ -145,17 +151,30 @@ services:
 # =============================================================================
 #
 # Web:
+#   - NEXT_PUBLIC_SUPABASE_URL
+#   - NEXT_PUBLIC_SUPABASE_ANON_KEY
+#   - NEXT_PUBLIC_SENTRY_DSN
+#   - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 #   - STRIPE_SECRET_KEY
 #   - STRIPE_WEBHOOK_SECRET
-#   - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 #   - SENTRY_AUTH_TOKEN
+#   - ORCHESTRATOR_URL
 #
 # Orchestrator:
-#   - SUPABASE_SERVICE_ROLE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ5Y2ZrcWtkYXN6bGh2YWVkeHViIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODczMTA2MywiZXhwIjoyMDg0MzA3MDYzfQ._7kkfZ4frYA_9N8SEXnmpJjMLuyXqQE_WdUnLAtntuw
-#   - OPENAI_API_KEY = (your key)
-#   - GROQ_API_KEY = (your key)
-#   - ELEVENLABS_API_KEY = sk_c6a70b44da155aaff590b5aa6f2feeed4d3bd80c398b463b
-#   - UPSTASH_REDIS_REST_TOKEN = AZ0GAAIncDExODA3M2QzNDNmNGE0OTI0YjY3MDcwOWJlOGNjMWE4OXAxNDAxOTg
+#   - SUPABASE_URL
+#   - SUPABASE_ANON_KEY
+#   - SUPABASE_SERVICE_ROLE_KEY
+#   - OPENAI_API_KEY
+#   - GROQ_API_KEY
+#   - ELEVENLABS_API_KEY
+#   - UPSTASH_REDIS_REST_URL
+#   - UPSTASH_REDIS_REST_TOKEN
+#   - SENTRY_DSN
+#   - CHECKLY_PING_URL
+#   - WEB_URL
+#
+# IMPORTANT: Never put actual secret values in this file.
+# All secrets must be set via the Render dashboard only.
 #
 # =============================================================================
 # PLAN OPTIONS

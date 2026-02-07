@@ -1,6 +1,7 @@
 # Story Magic Documentation
 
 > Comprehensive documentation for the Story Magic audio production platform
+> **Last Updated:** February 1, 2026
 
 ## Quick Links
 
@@ -10,12 +11,14 @@
 | [Architecture](ARCHITECTURE.md) | System design and data flow |
 | [API Reference](API.md) | Complete API documentation |
 | [Data Formats](DATA_FORMATS.md) | JSON schemas and data structures |
+| [Production Readiness](PRODUCTION_READINESS.md) | Deployment assessment |
 
 ## Getting Started
 
 - **New developers:** Start with the [Contributing Guide](guides/CONTRIBUTING.md)
 - **Deploying:** See the [Deployment Guide](guides/DEPLOYMENT.md)
 - **API integration:** Check the [API Reference](API.md)
+- **Current status:** See [Production Readiness](PRODUCTION_READINESS.md)
 
 ---
 
@@ -30,8 +33,9 @@
 | [DATA_FORMATS.md](DATA_FORMATS.md) | JSON schemas, data structures, validation |
 | [REQUIREMENTS.md](REQUIREMENTS.md) | Functional and non-functional requirements |
 | [AUDIO_CATALOG.md](AUDIO_CATALOG.md) | Music, ambience, SFX asset library |
-| [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) | Production readiness assessment and gaps |
-| [TOOLING.md](TOOLING.md) | Recommended production tools (Sentry, Pino, etc.) |
+| [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) | Production readiness assessment |
+| [TOOLING.md](TOOLING.md) | Production tools (Sentry, Pino, Checkly, etc.) |
+| [FEATURE_FLAGS.md](FEATURE_FLAGS.md) | Feature flag strategy |
 
 ### Development Guides
 
@@ -46,14 +50,36 @@
 |----------|---------|
 | [planning/ROADMAP.md](planning/ROADMAP.md) | Development phases and milestones |
 | [planning/MVP_SAAS_PLAN.md](planning/MVP_SAAS_PLAN.md) | Public SaaS launch plan |
-| [planning/ENTERPRISE_READINESS.md](planning/ENTERPRISE_READINESS.md) | Enterprise deployment plan (SOC 2, TPN/MPAA) |
+| [planning/ENTERPRISE_READINESS.md](planning/ENTERPRISE_READINESS.md) | Enterprise deployment (SOC 2, TPN/MPAA) |
 | [planning/AUTOSCORE_PLAN.md](planning/AUTOSCORE_PLAN.md) | AutoScore & AutoEdit feature roadmap |
 
-### Archive
+### Intelligence Features
 
 | Document | Purpose |
 |----------|---------|
-| [archive/CODE_REVIEW_LEGACY.md](archive/CODE_REVIEW_LEGACY.md) | Code review of legacy Python/JS implementation |
+| [STORYSCORE_DESIGN.md](STORYSCORE_DESIGN.md) | 12-dimension script scoring system |
+| [STORY_ADVISER_PLAN.md](STORY_ADVISER_PLAN.md) | Inline editing and AI suggestions |
+| [FULL_CAPABILITY_PLAN.md](FULL_CAPABILITY_PLAN.md) | Full capability roadmap |
+| [BACKLOG.md](BACKLOG.md) | Feature backlog |
+| [BUSINESS_MODEL.md](BUSINESS_MODEL.md) | Revenue model and pricing |
+| [BIBLIOGRAPHY.md](BIBLIOGRAPHY.md) | Research sources |
+
+### Code Reviews
+
+| Document | Purpose |
+|----------|---------|
+| [../code-review/2026-02-01/](../code-review/2026-02-01/) | **Latest:** Full codebase review with requirements sync |
+| [../code-review/2026-01-28-technical-review.md](../code-review/2026-01-28-technical-review.md) | Technical deep-dive (setImmediate, job queue) |
+| [../code-review/2026-01-19.md](../code-review/2026-01-19.md) | Post-consolidation review |
+| [archive/CODE_REVIEW_LEGACY.md](archive/CODE_REVIEW_LEGACY.md) | Pre-consolidation prototype review |
+
+### Session History
+
+| Document | Purpose |
+|----------|---------|
+| [SESSION_CONTEXT.md](SESSION_CONTEXT.md) | Jan 18 production hardening session |
+| [CONSOLIDATION_PROGRESS_REPORT.md](CONSOLIDATION_PROGRESS_REPORT.md) | TypeScript consolidation summary (Jan 19) |
+| [IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md) | Phase-based implementation (Jan 21) |
 
 ---
 
@@ -63,14 +89,11 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Story Magic                               │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │                 Consolidated TypeScript Service           │   │
-│  │                                                           │   │
 │  │  ┌───────────────┐    ┌───────────────────────────────┐  │   │
 │  │  │   Director    │    │        Orchestrator           │  │   │
 │  │  │   Pipeline    │───▶│         Pipeline              │  │   │
-│  │  │               │    │                               │  │   │
 │  │  │ • Script Parse│    │ • TTS Generation              │  │   │
 │  │  │ • Voice Select│    │ • Whisper Alignment           │  │   │
 │  │  │ • Audio Select│    │ • Timeline Building           │  │   │
@@ -78,84 +101,42 @@
 │  │  └───────────────┘    │ • Scene Export                │  │   │
 │  │                       └───────────────────────────────┘  │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                              │                                   │
 │         ┌────────────────────┼────────────────────┐             │
 │         ▼                    ▼                    ▼             │
 │  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐        │
 │  │   Supabase   │   │  ElevenLabs  │   │   OpenAI     │        │
-│  │   Database   │   │     TTS      │   │     LLM      │        │
 │  └──────────────┘   └──────────────┘   └──────────────┘        │
-│                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Current Status
+## Current Status (February 2026)
 
-**Phase:** TypeScript Consolidation Complete - Ready for Production Testing
+**Phase:** Pre-Launch — Fixing blockers before MVP 1.0
 
-| Component | Status |
-|-----------|--------|
-| Director Pipeline | ✅ Complete |
-| Validation System | ✅ Complete |
-| TTS Worker | ✅ Complete |
-| Alignment Worker | ✅ Complete |
-| Timeline Worker | ✅ Complete |
-| Export Worker | ✅ Complete |
-| Mixer Worker | ✅ Complete |
-| Unit Tests | ✅ 204 tests passing |
-| E2E Tests | 🔄 Infrastructure ready |
-| Production Deploy | 🔲 Pending |
+| Area | Score | Status |
+|------|-------|--------|
+| Architecture | 9/10 | Consolidated TypeScript monorepo |
+| Security | 7/10 | Auth + rate limiting; prototype exposure |
+| Code Quality | 8/10 | Strict TypeScript, Zod validation |
+| Test Coverage | 4/10 | ~18% overall; pipeline E2E missing |
+| Deployment | 8/10 | Render.yaml ready; not yet deployed |
+
+**Critical blockers:** Public share page, voice override wiring, prototype deprecation.
+See [code-review/2026-02-01/EXECUTIVE_SUMMARY.md](../code-review/2026-02-01/EXECUTIVE_SUMMARY.md) for full assessment.
 
 ## Technology Stack
 
 | Layer | Technology |
 |-------|------------|
 | Runtime | Node.js 20+ |
-| Language | TypeScript 5+ |
-| Framework | Express.js |
-| Frontend | Next.js 14 |
-| LLM | Vercel AI SDK |
+| Language | TypeScript 5+ (strict) |
+| Framework | Express.js (API), Next.js 14 (frontend) |
+| LLM | Vercel AI SDK (OpenAI, Groq) |
 | TTS | ElevenLabs |
-| Audio | FFmpeg |
+| Audio | FFmpeg (EBU R128, -16 LUFS) |
 | Database | Supabase (PostgreSQL) |
+| Auth | Supabase JWT + SSR |
+| Payments | Stripe |
 | Validation | Zod |
 | Testing | Vitest, Playwright |
-
-## Key Concepts
-
-### Director Pipeline
-
-The Director Pipeline parses screenplays and selects audio:
-
-1. **DirectorAgent** - Parses script into structured dialogue with voice assignments
-2. **AudioDirectorAgent** - Selects music, ambience, and SFX for each scene
-3. **Validators** - Ensures output quality with automatic error correction
-
-### Orchestration Pipeline
-
-The Orchestration Pipeline generates the final audio:
-
-1. **TTS Worker** - Generates speech using ElevenLabs
-2. **Align Worker** - Creates word-level timing with Whisper
-3. **Timeline Worker** - Builds event sequence for mixing
-4. **Mixer Worker** - Professional audio mixing with FFmpeg
-5. **Export Worker** - Concatenates scenes and generates manifest
-
-### Audio Standards
-
-| Parameter | Value |
-|-----------|-------|
-| Target Loudness | -16 LUFS (EBU R128) |
-| True Peak | -1.5 dB |
-| Sample Rate | 48 kHz |
-| Output Format | M4A (AAC) |
-
-## Contributing
-
-See [guides/CONTRIBUTING.md](guides/CONTRIBUTING.md) for development guidelines.
-
-## Support
-
-- **Documentation Issues:** Open a GitHub Issue
-- **Feature Requests:** Open a GitHub Discussion
-- **Security Issues:** Email security@storymagic.ai
+| Monitoring | Sentry, Checkly, Pino |

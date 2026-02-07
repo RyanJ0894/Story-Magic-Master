@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { SceneSchema } from '../schemas/director-json.js';
 import { generatePreview } from '../orchestrator/preview-pipeline.js';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -39,7 +40,7 @@ router.post('/preview', async (req: Request, res: Response): Promise<void> => {
   const { project_id, scene } = parsed.data;
 
   try {
-    console.log(`[Preview Route] Generating preview for project=${project_id} scene=${scene.scene_id}`);
+    log.info('Generating scene preview', { projectId: project_id, sceneId: scene.scene_id });
 
     const result = await generatePreview(project_id, scene);
 
@@ -52,7 +53,7 @@ router.post('/preview', async (req: Request, res: Response): Promise<void> => {
       duration_seconds: result.duration_seconds,
     });
   } catch (error) {
-    console.error('[Preview Route] Error:', error);
+    log.error('Preview generation failed', error instanceof Error ? error : new Error(String(error)), { projectId: project_id, sceneId: scene.scene_id });
     res.status(500).json({
       status: 'error',
       project_id,

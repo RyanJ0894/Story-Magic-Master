@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
+import { validateCsrf } from '@/lib/csrf';
 
 // Query params schema
 const GetUsersQuerySchema = z.object({
@@ -112,6 +113,11 @@ const UpdateUserSchema = z.object({
  * Update a user's profile (for admin actions)
  */
 export async function PATCH(request: Request) {
+  const csrfError = validateCsrf(request);
+  if (csrfError) {
+    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   const supabase = await createClient();
 
   // Verify admin

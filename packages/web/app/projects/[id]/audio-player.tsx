@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Play, Pause, Download, Music } from 'lucide-react';
+import { Play, Pause, Download, Music, Volume2, VolumeX } from 'lucide-react';
 
 interface AudioOutput {
   id: string;
@@ -23,11 +23,15 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
 
   const currentOutput = outputs[currentTrack];
 
-  const togglePlayPause = () => {
+  const togglePlayPause = useCallback(() => {
     if (!audioRef.current) return;
 
     if (isPlaying) {
@@ -36,10 +40,10 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
       audioRef.current.play();
     }
     setIsPlaying(!isPlaying);
-  };
+  }, [isPlaying]);
 
   const handleTimeUpdate = () => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || isDragging) return;
     const progressPercent = (audioRef.current.currentTime / audioRef.current.duration) * 100;
     setProgress(progressPercent || 0);
     setCurrentTime(audioRef.current.currentTime);
@@ -51,15 +55,105 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
     }
   };
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+  const seekTo = useCallback((percentage: number) => {
     if (!audioRef.current) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percentage = x / rect.width;
-    const time = percentage * audioRef.current.duration;
+    const clamped = Math.max(0, Math.min(1, percentage));
+    const time = clamped * audioRef.current.duration;
     audioRef.current.currentTime = time;
-    setProgress(percentage * 100);
+    setProgress(clamped * 100);
+    setCurrentTime(time);
+  }, []);
+
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!audioRef.current || !progressRef.current) return;
+    const rect = progressRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    seekTo(x / rect.width);
   };
+
+  // Drag-to-seek on progress bar
+  const handleProgressMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsDragging(true);
+    handleSeek(e);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!progressRef.current) return;
+      const rect = progressRef.current.getBoundingClientRect();
+      const x = moveEvent.clientX - rect.left;
+      seekTo(x / rect.width);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Progress bar keyboard navigation
+  const handleProgressKeyDown = (e: React.KeyboardEvent) => {
+    if (!audioRef.current) return;
+    const stepPercent = 0.02; // 2% per arrow press
+
+    switch (e.key) {
+      case 'ArrowRight':
+        e.preventDefault();
+        seekTo((audioRef.current.currentTime / audioRef.current.duration) + stepPercent);
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        seekTo((audioRef.current.currentTime / audioRef.current.duration) - stepPercent);
+        break;
+      case 'Home':
+        e.preventDefault();
+        seekTo(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        seekTo(1);
+        break;
+    }
+  };
+
+  // Volume control
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = isMuted ? 0 : volume;
+    }
+  }, [volume, isMuted]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
+
+      switch (e.key) {
+        case ' ':
+        case 'k':
+          e.preventDefault();
+          togglePlayPause();
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setVolume(v => Math.min(1, v + 0.1));
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          setVolume(v => Math.max(0, v - 0.1));
+          break;
+        case 'm':
+          e.preventDefault();
+          setIsMuted(m => !m);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [togglePlayPause]);
 
   const formatTime = (seconds: number) => {
     if (!seconds || !isFinite(seconds)) return '0:00';
@@ -97,7 +191,8 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
         <div className="flex items-center gap-4">
           <button
             onClick={togglePlayPause}
-            className="w-12 h-12 flex items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600 text-white rounded-full hover:from-violet-600 hover:to-purple-700 transition-all shadow-lg shadow-violet-500/25"
+            aria-label={isPlaying ? 'Pause' : 'Play'}
+            className="w-12 h-12 flex items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600 text-white rounded-full hover:from-violet-600 hover:to-purple-700 transition-all shadow-lg shadow-violet-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
             data-testid="audio-play-pause-button"
           >
             {isPlaying ? (
@@ -110,11 +205,20 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
           <div className="flex-1 space-y-1">
             {/* Progress bar */}
             <div
-              onClick={handleSeek}
-              className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer overflow-hidden"
+              ref={progressRef}
+              role="slider"
+              tabIndex={0}
+              aria-label="Seek"
+              aria-valuemin={0}
+              aria-valuemax={Math.round(duration)}
+              aria-valuenow={Math.round(currentTime)}
+              aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
+              onMouseDown={handleProgressMouseDown}
+              onKeyDown={handleProgressKeyDown}
+              className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
             >
               <div
-                className="h-full bg-gradient-to-r from-violet-500 to-purple-600 rounded-full transition-all duration-100"
+                className="h-full bg-gradient-to-r from-violet-500 to-purple-600 rounded-full transition-all duration-100 pointer-events-none"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -130,18 +234,46 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
               </span>
             </div>
           </div>
+
+          {/* Volume */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsMuted(!isMuted)}
+              aria-label={isMuted || volume === 0 ? 'Unmute' : 'Mute'}
+              className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+            >
+              {isMuted || volume === 0 ? (
+                <VolumeX className="w-4 h-4" />
+              ) : (
+                <Volume2 className="w-4 h-4" />
+              )}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={isMuted ? 0 : Math.round(volume * 100)}
+              onChange={(e) => {
+                setVolume(Number(e.target.value) / 100);
+                setIsMuted(false);
+              }}
+              aria-label="Volume"
+              className="w-16 h-1 accent-violet-500"
+            />
+          </div>
         </div>
       </Card>
 
       {/* Download Section */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-          <Music className="w-4 h-4" />
+          <Music className="w-4 h-4" aria-hidden="true" />
           <span>{currentOutput.file_name}</span>
         </div>
         <Button variant="outline" size="sm" asChild data-testid="download-button">
           <a href={audioUrl} download={currentOutput.file_name}>
-            <Download className="w-4 h-4 mr-2" />
+            <Download className="w-4 h-4 mr-2" aria-hidden="true" />
             Download
           </a>
         </Button>
@@ -151,17 +283,19 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
       {outputs.length > 1 && (
         <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
           <h4 className="text-sm font-medium text-slate-900 dark:text-white mb-3">All Outputs</h4>
-          <div className="space-y-1">
+          <div className="space-y-1" role="listbox" aria-label="Audio tracks">
             {outputs.map((output, index) => (
               <button
                 key={output.id}
+                role="option"
+                aria-selected={index === currentTrack}
                 onClick={() => {
                   setCurrentTrack(index);
                   setIsPlaying(false);
                   setProgress(0);
                   setCurrentTime(0);
                 }}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition text-left ${
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 ${
                   index === currentTrack
                     ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300'
                     : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
@@ -171,7 +305,7 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
                   index === currentTrack
                     ? 'bg-violet-500 text-white'
                     : 'bg-slate-200 dark:bg-slate-700'
-                }`}>
+                }`} aria-hidden="true">
                   {index === currentTrack && isPlaying ? (
                     <Pause className="w-3 h-3" />
                   ) : (

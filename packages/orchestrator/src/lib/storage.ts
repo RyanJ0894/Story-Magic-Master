@@ -3,17 +3,10 @@
  * Supports local filesystem with Supabase fallback
  */
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
-
-// Initialize Supabase client with service role key (bypasses RLS for server-side uploads)
-// Falls back to anon key if service role key is not available
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
-const supabase: SupabaseClient | null =
-  process.env.SUPABASE_URL && supabaseKey
-    ? createClient(process.env.SUPABASE_URL, supabaseKey)
-    : null;
+import { supabaseServiceClient as supabase } from './supabase.js';
+import { log } from './logger.js';
 
 const localBase = path.join(process.cwd(), 'data', 'stems');
 
@@ -48,7 +41,7 @@ export async function readStemByKey(key: string): Promise<StemResult | null> {
 
       return { path: localPath };
     } catch (err) {
-      console.error('Supabase download error:', err);
+      log.error('Supabase download error', err instanceof Error ? err : undefined, { key });
       return null;
     }
   }
@@ -82,7 +75,7 @@ export async function writeStem(
         upsert: true,
       });
     } catch (err) {
-      console.error('Supabase upload error:', err);
+      log.error('Supabase upload error', err instanceof Error ? err : undefined, { filename });
     }
   }
 

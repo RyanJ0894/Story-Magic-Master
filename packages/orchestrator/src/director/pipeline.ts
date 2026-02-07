@@ -9,6 +9,7 @@ import { DirectorAgent } from './agents/director-agent.js';
 import { AudioDirectorAgent } from './agents/audio-director-agent.js';
 import { DirectorJSONValidator } from './validation/director-validator.js';
 import { SceneAudioValidator } from './validation/audio-validator.js';
+import { log } from '../lib/logger.js';
 import type {
   DirectorJSON,
   SceneAudioJSON,
@@ -53,21 +54,21 @@ export async function processScript(
   const directorValidator = new DirectorJSONValidator();
   const audioValidator = new SceneAudioValidator();
 
-  console.log(`[Pipeline] Starting script processing for project: ${input.project_id}`);
+  log.info('Pipeline starting script processing', { projectId: input.project_id });
 
   // Phase 1: Run DirectorAgent
   // Agent now returns validated DirectorJSON (Zod-validated at boundary)
-  console.log('[Pipeline] Phase 1: Running DirectorAgent...');
+  log.info('Pipeline Phase 1: Running DirectorAgent');
   let directorJson = await directorAgent.process(input);
 
   // Phase 1b: Apply user voice overrides (if any)
   if (input.voice_overrides && Object.keys(input.voice_overrides).length > 0) {
-    console.log('[Pipeline] Phase 1b: Applying user voice overrides...');
+    log.info('Pipeline Phase 1b: Applying user voice overrides');
     directorJson = applyVoiceOverrides(directorJson, input.voice_overrides);
   }
 
   // Phase 2: Validate and auto-correct Director JSON (business rules)
-  console.log('[Pipeline] Phase 2: Validating Director JSON...');
+  log.info('Pipeline Phase 2: Validating Director JSON');
   const directorValidation = directorValidator.validate(directorJson);
   const directorValidationReport: ValidationReport = {
     is_valid: directorValidation.isValid,
@@ -76,18 +77,18 @@ export async function processScript(
   };
 
   if (!directorValidation.isValid) {
-    console.log('[Pipeline] Phase 2b: Auto-correcting Director JSON...');
+    log.info('Pipeline Phase 2b: Auto-correcting Director JSON');
     directorJson = directorValidator.autoCorrect(directorJson);
     directorValidationReport.auto_corrected = true;
   }
 
   // Phase 3: Run AudioDirectorAgent
   // Agent now returns validated SceneAudioJSON (Zod-validated at boundary)
-  console.log('[Pipeline] Phase 3: Running AudioDirectorAgent...');
+  log.info('Pipeline Phase 3: Running AudioDirectorAgent');
   let sceneAudioJson = await audioDirectorAgent.process(directorJson);
 
   // Phase 4: Validate and auto-correct Scene Audio JSON (business rules)
-  console.log('[Pipeline] Phase 4: Validating Scene Audio JSON...');
+  log.info('Pipeline Phase 4: Validating Scene Audio JSON');
   const audioValidation = audioValidator.validate(sceneAudioJson, directorJson);
   const audioValidationReport: ValidationReport = {
     is_valid: audioValidation.isValid,
@@ -96,16 +97,16 @@ export async function processScript(
   };
 
   if (!audioValidation.isValid) {
-    console.log('[Pipeline] Phase 4b: Auto-correcting Scene Audio JSON...');
+    log.info('Pipeline Phase 4b: Auto-correcting Scene Audio JSON');
     sceneAudioJson = audioValidator.autoCorrect(sceneAudioJson, directorJson);
     audioValidationReport.auto_corrected = true;
   }
 
   // Phase 5: Merge results
-  console.log('[Pipeline] Phase 5: Merging results...');
+  log.info('Pipeline Phase 5: Merging results');
   const mergedResult = mergeDirectorAndAudio(directorJson, sceneAudioJson);
 
-  console.log('[Pipeline] Complete');
+  log.info('Pipeline complete');
 
   return {
     project_id: input.project_id,
@@ -146,7 +147,7 @@ function applyVoiceOverrides(
     }
   }
 
-  console.log(`[Pipeline] Applied ${overrideCount} voice override(s) across ${Object.keys(overrides).length} character(s)`);
+  log.info('Pipeline applied voice overrides', { overrideCount, characterCount: Object.keys(overrides).length });
   return result;
 }
 
