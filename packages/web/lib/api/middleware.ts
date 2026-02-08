@@ -148,7 +148,7 @@ export function withProjectAuth(
       );
     }
 
-    return handler(request, { user, supabase, projectId, project });
+    return handler(request, { user, supabase, projectId, project: project as unknown as Record<string, unknown> });
   };
 }
 

@@ -13,7 +13,6 @@ const ffmpeg = ffmpegStatic as unknown as string;
 
 export interface Stem {
   path: string;
-  [key: string]: unknown;
 }
 
 /**
