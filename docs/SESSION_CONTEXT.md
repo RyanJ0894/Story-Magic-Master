@@ -1,5 +1,7 @@
 # Session Context - January 18, 2026
 
+> **ARCHIVED** (2026-02-07) — Historical session context. See [`docs/ROADMAP-2026-02-07.md`](ROADMAP-2026-02-07.md) for current status.
+
 ## Summary
 
 Completed MVP 1.0 production readiness for Story Magic. All P0 and P1 items done.

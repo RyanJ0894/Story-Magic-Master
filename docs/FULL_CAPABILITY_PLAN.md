@@ -1,7 +1,9 @@
 # Story Magic: Full Capability Implementation Plan
 
+> **ARCHIVED** (2026-02-07) — Superseded by [`docs/ROADMAP-2026-02-07.md`](ROADMAP-2026-02-07.md). Week 1 items done; remaining phases mapped to consolidated roadmap Phases A-D.
+
 **Created:** 2026-01-23
-**Status:** In Progress
+**Status:** ARCHIVED
 **Current State:** Advanced Prototype (75% Complete)
 
 ---

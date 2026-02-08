@@ -1,8 +1,10 @@
 # Story Magic Implementation Roadmap
 
+> **ARCHIVED** (2026-02-07) — StoryScore and Story-Adviser items mapped to Phase A of [`docs/ROADMAP-2026-02-07.md`](ROADMAP-2026-02-07.md).
+
 **Version:** 1.0
 **Date:** 2026-01-21
-**Status:** Planning Complete, Ready for Implementation
+**Status:** ARCHIVED
 
 ---
 

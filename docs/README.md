@@ -1,17 +1,18 @@
 # Story Magic Documentation
 
 > Comprehensive documentation for the Story Magic audio production platform
-> **Last Updated:** February 1, 2026
+> **Last Updated:** February 7, 2026
 
 ## Quick Links
 
 | Document | Description |
 |----------|-------------|
-| [Project README](../README.md) | Project overview and quick start |
+| [Consolidated Roadmap](ROADMAP-2026-02-07.md) | **Single source of truth** for go-forward plan |
+| [Production TODO](TODO_PRODUCTION_LAUNCH.md) | Detailed ticket tracker (96 tickets, all complete) |
+| [Production Readiness](PRODUCTION_READINESS.md) | Deployment assessment and health scorecard |
 | [Architecture](ARCHITECTURE.md) | System design and data flow |
 | [API Reference](API.md) | Complete API documentation |
-| [Data Formats](DATA_FORMATS.md) | JSON schemas and data structures |
-| [Production Readiness](PRODUCTION_READINESS.md) | Deployment assessment |
+| [Deploy Runbook](../scripts/deploy-runbook.md) | Step-by-step deployment procedures |
 
 ## Getting Started
 
@@ -48,21 +49,23 @@
 
 | Document | Purpose |
 |----------|---------|
-| [planning/ROADMAP.md](planning/ROADMAP.md) | Development phases and milestones |
-| [planning/MVP_SAAS_PLAN.md](planning/MVP_SAAS_PLAN.md) | Public SaaS launch plan |
+| [ROADMAP-2026-02-07.md](ROADMAP-2026-02-07.md) | **Consolidated go-forward plan** (single source of truth) |
+| [TODO_PRODUCTION_LAUNCH.md](TODO_PRODUCTION_LAUNCH.md) | Detailed ticket tracker (96 tickets, 254 SP) |
 | [planning/ENTERPRISE_READINESS.md](planning/ENTERPRISE_READINESS.md) | Enterprise deployment (SOC 2, TPN/MPAA) |
 | [planning/AUTOSCORE_PLAN.md](planning/AUTOSCORE_PLAN.md) | AutoScore & AutoEdit feature roadmap |
+| [planning/ROADMAP.md](planning/ROADMAP.md) | ARCHIVED — Phase history |
+| [planning/MVP_SAAS_PLAN.md](planning/MVP_SAAS_PLAN.md) | ARCHIVED — Launch checklists extracted |
 
-### Intelligence Features
+### Intelligence Features & Business
 
 | Document | Purpose |
 |----------|---------|
-| [STORYSCORE_DESIGN.md](STORYSCORE_DESIGN.md) | 12-dimension script scoring system |
-| [STORY_ADVISER_PLAN.md](STORY_ADVISER_PLAN.md) | Inline editing and AI suggestions |
-| [FULL_CAPABILITY_PLAN.md](FULL_CAPABILITY_PLAN.md) | Full capability roadmap |
-| [BACKLOG.md](BACKLOG.md) | Feature backlog |
+| [STORYSCORE_DESIGN.md](STORYSCORE_DESIGN.md) | 12-dimension script scoring system (Phase A reference) |
+| [STORY_ADVISER_PLAN.md](STORY_ADVISER_PLAN.md) | Inline editing and AI suggestions (Phase A reference) |
 | [BUSINESS_MODEL.md](BUSINESS_MODEL.md) | Revenue model and pricing |
 | [BIBLIOGRAPHY.md](BIBLIOGRAPHY.md) | Research sources |
+| [FULL_CAPABILITY_PLAN.md](FULL_CAPABILITY_PLAN.md) | ARCHIVED — Absorbed into consolidated roadmap |
+| [BACKLOG.md](BACKLOG.md) | ARCHIVED — Absorbed into Phase 4 |
 
 ### Code Reviews
 
@@ -109,20 +112,19 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Current Status (February 2026)
+## Current Status (February 7, 2026)
 
-**Phase:** Pre-Launch — Fixing blockers before MVP 1.0
+**Phase:** MVP Complete — Ready for staging deployment
 
 | Area | Score | Status |
 |------|-------|--------|
 | Architecture | 9/10 | Consolidated TypeScript monorepo |
-| Security | 7/10 | Auth + rate limiting; prototype exposure |
-| Code Quality | 8/10 | Strict TypeScript, Zod validation |
-| Test Coverage | 4/10 | ~18% overall; pipeline E2E missing |
-| Deployment | 8/10 | Render.yaml ready; not yet deployed |
+| Security | 9/10 | CORS, CSRF, Helmet/HSTS, path traversal, auth guards |
+| Code Quality | 8/10 | Strict TypeScript, Zod validation, Pino logging |
+| Test Coverage | 7/10 | 642 tests (364 orchestrator + 278 web) |
+| Deployment | 9/10 | Staging config ready, CI pipeline, cleanup scheduler |
 
-**Critical blockers:** Public share page, voice override wiring, prototype deprecation.
-See [code-review/2026-02-01/EXECUTIVE_SUMMARY.md](../code-review/2026-02-01/EXECUTIVE_SUMMARY.md) for full assessment.
+**All 96 tickets complete** across 8 phases (254 SP). See [Consolidated Roadmap](ROADMAP-2026-02-07.md) for go-forward plan.
 
 ## Technology Stack
 

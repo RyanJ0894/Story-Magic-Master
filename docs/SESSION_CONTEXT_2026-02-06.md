@@ -1,5 +1,7 @@
 # Session Context - 2026-02-06
 
+> **ARCHIVED** (2026-02-07) — Historical session context. All 3 blockers resolved. See [`docs/ROADMAP-2026-02-07.md`](ROADMAP-2026-02-07.md) for current status.
+
 **Project:** Story Magic
 **Path:** `/Users/admin/dev2/clients/RyanJae`
 **Monorepo:** `story-magic/` (pnpm workspace)

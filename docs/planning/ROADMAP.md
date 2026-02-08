@@ -1,5 +1,7 @@
 # Roadmap
 
+> **ARCHIVED** (2026-02-07) — Phases 1-9 complete. Phase 10 partial. All active items consolidated into [`docs/ROADMAP-2026-02-07.md`](../ROADMAP-2026-02-07.md).
+
 > Development timeline and milestones for Story Magic
 
 ## Overview

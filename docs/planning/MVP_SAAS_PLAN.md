@@ -1,5 +1,7 @@
 # MVP SaaS 1.0 Launch Plan
 
+> **ARCHIVED** (2026-02-07) — Launch checklists extracted to [`docs/ROADMAP-2026-02-07.md`](../ROADMAP-2026-02-07.md). Business model details remain in `BUSINESS_MODEL.md`.
+
 **Product:** Story Magic
 **Target:** Public SaaS Launch
 **Goal:** Establish brand, acquire early customers, validate market
