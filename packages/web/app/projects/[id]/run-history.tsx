@@ -60,7 +60,7 @@ interface RunHistoryProps {
 }
 
 const statusConfig = {
-  queued: { icon: Clock, label: 'Queued', color: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' },
+  queued: { icon: Clock, label: 'Queued', color: 'bg-muted text-muted-foreground' },
   processing: { icon: Loader2, label: 'Processing', color: 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400' },
   completed: { icon: CheckCircle, label: 'Completed', color: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' },
   failed: { icon: XCircle, label: 'Failed', color: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' },
@@ -155,7 +155,7 @@ export function RunHistory({
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <Card>
         <CollapsibleTrigger asChild>
-          <CardHeader className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+          <CardHeader className="cursor-pointer hover:bg-accent transition-colors">
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <History className="w-5 h-5" />
@@ -179,7 +179,7 @@ export function RunHistory({
           <CardContent className="space-y-4">
             {/* Compare Mode Toggle */}
             {canCompare && (
-              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-lg">
+              <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                 <div className="flex items-center gap-2">
                   <GitCompare className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm font-medium">Compare Mode</span>
@@ -286,7 +286,7 @@ export function RunHistory({
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {/* Audio Player */}
                       {run.status === 'completed' && run.audio_outputs && run.audio_outputs.length > 0 && (
-                        <div className="flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">
+                        <div className="flex items-center gap-1 px-2 py-1 bg-muted rounded">
                           <Volume2 className="w-3 h-3 text-muted-foreground" />
                           <MiniAudioPlayer
                             src={run.audio_outputs[0].file_path}

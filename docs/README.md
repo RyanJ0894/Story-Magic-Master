@@ -112,9 +112,9 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Current Status (February 7, 2026)
+## Current Status (February 8, 2026)
 
-**Phase:** MVP Complete — Ready for staging deployment
+**Phase:** MVP Complete — **Deployed to Production** (Render.com)
 
 | Area | Score | Status |
 |------|-------|--------|
@@ -122,9 +122,9 @@
 | Security | 9/10 | CORS, CSRF, Helmet/HSTS, path traversal, auth guards |
 | Code Quality | 8/10 | Strict TypeScript, Zod validation, Pino logging |
 | Test Coverage | 7/10 | 642 tests (364 orchestrator + 278 web) |
-| Deployment | 9/10 | Staging config ready, CI pipeline, cleanup scheduler |
+| Deployment | 10/10 | Both services live, Sentry/Checkly/rate-limiting active |
 
-**All 96 tickets complete** across 8 phases (254 SP). See [Consolidated Roadmap](ROADMAP-2026-02-07.md) for go-forward plan.
+**All 96 tickets complete** across 8 phases (254 SP). Both services deployed to Render.com (Feb 8, 2026). See [Consolidated Roadmap](ROADMAP-2026-02-07.md) for go-forward plan.
 
 ## Technology Stack
 

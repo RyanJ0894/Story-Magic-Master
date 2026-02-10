@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createClient } from '@/lib/supabase/server';
 import { validateCsrf } from '@/lib/csrf';
+import { rateLimit, getClientIp } from '@/lib/api/rate-limit';
+import { log } from '@/lib/logger';
 
 // Trim the API key to remove any accidental whitespace/newlines
 const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -11,6 +13,11 @@ const openai = new OpenAI({
 });
 
 export async function POST(request: Request) {
+  // Rate limit: strict (5/min) — LLM call
+  const ip = getClientIp(request);
+  const limited = await rateLimit(`demo-script:${ip}`, 'strict');
+  if (limited) return limited;
+
   try {
     // CSRF validation
     const csrfError = validateCsrf(request);
@@ -83,7 +90,7 @@ Output ONLY the screenplay text, no explanations.`,
       description: prompt,
     });
   } catch (error) {
-    console.error('Demo script generation error:', error);
+    log.error('Demo script generation error', error);
     return NextResponse.json(
       { error: 'Failed to generate script' },
       { status: 500 }

@@ -56,12 +56,12 @@ export default function ResetPasswordPage() {
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 mb-4">
             <Sparkles className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Story Magic
           </h1>
         </div>
 
-        <Card className="border-slate-200 dark:border-slate-800 shadow-xl">
+        <Card className="border-border shadow-xl">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl text-center">Set new password</CardTitle>
             <CardDescription className="text-center">
@@ -83,7 +83,7 @@ export default function ResetPasswordPage() {
                   className="h-11"
                   autoFocus
                 />
-                <p className="text-xs text-slate-500">At least 6 characters</p>
+                <p className="text-xs text-muted-foreground">At least 6 characters</p>
               </div>
 
               <div className="space-y-2">
@@ -119,7 +119,7 @@ export default function ResetPasswordPage() {
               </Button>
             </form>
 
-            <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
+            <p className="mt-6 text-center text-sm text-muted-foreground">
               Remember your password?{' '}
               <Link
                 href="/login"

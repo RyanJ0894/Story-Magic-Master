@@ -349,7 +349,7 @@ export function ProtectedPlayer({
 
       <CardContent className="p-0">
         {/* Now Playing Info */}
-        <div className="p-4 border-b bg-slate-50 dark:bg-slate-900">
+        <div className="p-4 border-b bg-muted">
           <div className="flex items-center justify-between">
             <div className="min-w-0">
               <h3 className="font-semibold truncate">{projectName}</h3>
@@ -374,7 +374,7 @@ export function ProtectedPlayer({
                 onClick={() => setShowSceneList(!showSceneList)}
                 aria-expanded={showSceneList}
                 aria-label="Toggle scene list"
-                className={showSceneList ? 'bg-slate-200 dark:bg-slate-800' : ''}
+                className={showSceneList ? 'bg-muted' : ''}
               >
                 <List className="w-4 h-4 mr-2" aria-hidden="true" />
                 <span className="hidden sm:inline">Scenes</span>
@@ -393,7 +393,7 @@ export function ProtectedPlayer({
                 role="option"
                 aria-selected={currentScene?.scene_id === scene.scene_id}
                 onClick={() => jumpToScene(scene)}
-                className={`w-full text-left px-4 py-2 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 ${
+                className={`w-full text-left px-4 py-2 flex items-center justify-between hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 ${
                   currentScene?.scene_id === scene.scene_id
                     ? 'bg-violet-50 dark:bg-violet-950 border-l-2 border-violet-500'
                     : ''
@@ -423,11 +423,11 @@ export function ProtectedPlayer({
           aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
           onMouseDown={handleProgressMouseDown}
           onKeyDown={handleProgressKeyDown}
-          className="h-2 bg-slate-200 dark:bg-slate-800 cursor-pointer relative group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+          className="h-2 bg-muted cursor-pointer relative group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
         >
           {/* Buffered */}
           <div
-            className="absolute h-full bg-slate-300 dark:bg-slate-700 pointer-events-none"
+            className="absolute h-full bg-muted-foreground/30 pointer-events-none"
             style={{ width: `${buffered}%` }}
           />
           {/* Progress */}
@@ -444,7 +444,7 @@ export function ProtectedPlayer({
           {scenes.map((scene) => (
             <div
               key={scene.scene_id}
-              className="absolute top-0 w-0.5 h-full bg-slate-400 dark:bg-slate-600 opacity-50 pointer-events-none"
+              className="absolute top-0 w-0.5 h-full bg-muted-foreground opacity-50 pointer-events-none"
               style={{ left: `${(scene.start_time / duration) * 100}%` }}
             />
           ))}
@@ -535,7 +535,7 @@ export function ProtectedPlayer({
                   <DropdownMenuItem
                     key={rate}
                     onClick={() => setPlaybackRate(rate)}
-                    className={playbackRate === rate ? 'bg-slate-100 dark:bg-slate-800' : ''}
+                    className={playbackRate === rate ? 'bg-muted' : ''}
                   >
                     {rate}x
                   </DropdownMenuItem>

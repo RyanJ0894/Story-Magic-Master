@@ -172,7 +172,7 @@ export function ScriptAnnotator({
                 onClick={() => hasSuggestions && handleLineClick(lineNumber)}
               >
                 {/* Line number */}
-                <span className="w-12 flex-shrink-0 text-right pr-4 text-slate-400 dark:text-slate-600 select-none">
+                <span className="w-12 flex-shrink-0 text-right pr-4 text-muted-foreground select-none">
                   {lineNumber}
                 </span>
 

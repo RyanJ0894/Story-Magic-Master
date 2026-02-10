@@ -22,16 +22,16 @@ export const metadata = {
 
 export default function GuidePage() {
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-muted">
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur">
+      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <Link href="/dashboard" className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <span className="font-bold text-lg text-slate-900 dark:text-white">Story Magic</span>
+              <span className="font-bold text-lg text-foreground">Story Magic</span>
             </Link>
 
             <Link href="/dashboard">
@@ -53,10 +53,10 @@ export default function GuidePage() {
               <BookOpen className="w-6 h-6 text-violet-600 dark:text-violet-400" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+              <h1 className="text-3xl font-bold tracking-tight text-foreground">
                 User Guide
               </h1>
-              <p className="text-slate-600 dark:text-slate-400">
+              <p className="text-muted-foreground">
                 Everything you need to know about Story Magic
               </p>
             </div>
@@ -81,11 +81,11 @@ export default function GuidePage() {
                 <a
                   key={item.href}
                   href={item.href}
-                  className="flex items-center gap-3 px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-violet-300 dark:hover:border-violet-700 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg border border-border hover:border-violet-300 dark:hover:border-violet-700 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
                 >
                   <item.icon className="w-5 h-5 text-violet-600 dark:text-violet-400" />
-                  <span className="font-medium text-slate-900 dark:text-white">{item.label}</span>
-                  <ChevronRight className="w-4 h-4 ml-auto text-slate-400" />
+                  <span className="font-medium text-foreground">{item.label}</span>
+                  <ChevronRight className="w-4 h-4 ml-auto text-muted-foreground" />
                 </a>
               ))}
             </div>
@@ -98,7 +98,7 @@ export default function GuidePage() {
             <div className="w-10 h-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
               <Sparkles className="w-5 h-5 text-violet-600 dark:text-violet-400" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Getting Started</h2>
+            <h2 className="text-2xl font-bold text-foreground">Getting Started</h2>
           </div>
 
           <Card>
@@ -157,7 +157,7 @@ export default function GuidePage() {
             <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
               <BarChart3 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">StoryScore Analysis</h2>
+            <h2 className="text-2xl font-bold text-foreground">StoryScore Analysis</h2>
           </div>
 
           <Card>
@@ -196,12 +196,12 @@ export default function GuidePage() {
                 ].map((dim, i) => (
                   <div
                     key={i}
-                    className="p-4 rounded-lg border border-slate-200 dark:border-slate-700"
+                    className="p-4 rounded-lg border border-border"
                   >
-                    <h4 className="font-semibold text-slate-900 dark:text-white mb-1">
+                    <h4 className="font-semibold text-foreground mb-1">
                       {dim.title}
                     </h4>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 m-0">
+                    <p className="text-sm text-muted-foreground m-0">
                       {dim.description}
                     </p>
                   </div>
@@ -240,7 +240,7 @@ export default function GuidePage() {
             <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
               <Lightbulb className="w-5 h-5 text-green-600 dark:text-green-400" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Story-Adviser</h2>
+            <h2 className="text-2xl font-bold text-foreground">Story-Adviser</h2>
           </div>
 
           <Card>
@@ -298,7 +298,7 @@ export default function GuidePage() {
             <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
               <GitBranch className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Revision System</h2>
+            <h2 className="text-2xl font-bold text-foreground">Revision System</h2>
           </div>
 
           <Card>
@@ -362,7 +362,7 @@ export default function GuidePage() {
             <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
               <Volume2 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Audio Generation</h2>
+            <h2 className="text-2xl font-bold text-foreground">Audio Generation</h2>
           </div>
 
           <Card>
@@ -434,10 +434,10 @@ export default function GuidePage() {
         {/* Billing */}
         <section id="billing" className="mb-12 scroll-mt-20">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-              <CreditCard className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+            <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+              <CreditCard className="w-5 h-5 text-muted-foreground" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Billing & Plans</h2>
+            <h2 className="text-2xl font-bold text-foreground">Billing & Plans</h2>
           </div>
 
           <Card>
@@ -474,15 +474,15 @@ export default function GuidePage() {
                 ].map((plan, i) => (
                   <div
                     key={i}
-                    className="p-4 rounded-lg border border-slate-200 dark:border-slate-700"
+                    className="p-4 rounded-lg border border-border"
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-semibold text-slate-900 dark:text-white">{plan.name}</h4>
+                      <h4 className="font-semibold text-foreground">{plan.name}</h4>
                       <span className="text-sm text-violet-600 dark:text-violet-400 font-medium">
                         {plan.pages}
                       </span>
                     </div>
-                    <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1">
+                    <ul className="text-sm text-muted-foreground space-y-1">
                       {plan.features.map((f, j) => (
                         <li key={j}>• {f}</li>
                       ))}
@@ -512,7 +512,7 @@ export default function GuidePage() {
             <div className="w-10 h-10 rounded-lg bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center">
               <HelpCircle className="w-5 h-5 text-rose-600 dark:text-rose-400" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Need Help?</h2>
+            <h2 className="text-2xl font-bold text-foreground">Need Help?</h2>
           </div>
 
           <Card>
@@ -547,10 +547,10 @@ export default function GuidePage() {
                 ].map((faq, i) => (
                   <div
                     key={i}
-                    className="p-4 rounded-lg border border-slate-200 dark:border-slate-700"
+                    className="p-4 rounded-lg border border-border"
                   >
-                    <h4 className="font-semibold text-slate-900 dark:text-white mb-1">{faq.q}</h4>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 m-0">{faq.a}</p>
+                    <h4 className="font-semibold text-foreground mb-1">{faq.q}</h4>
+                    <p className="text-sm text-muted-foreground m-0">{faq.a}</p>
                   </div>
                 ))}
               </div>
@@ -570,8 +570,8 @@ export default function GuidePage() {
       </main>
 
       {/* Footer */}
-      <footer className="py-8 border-t border-slate-200 dark:border-slate-800 mt-12">
-        <div className="max-w-4xl mx-auto px-4 text-center text-slate-600 dark:text-slate-400">
+      <footer className="py-8 border-t border-border mt-12">
+        <div className="max-w-4xl mx-auto px-4 text-center text-muted-foreground">
           <p className="mb-2">
             <a
               href="https://www.storymagicapp.net"

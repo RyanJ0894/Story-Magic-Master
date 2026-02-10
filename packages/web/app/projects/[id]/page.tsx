@@ -129,9 +129,9 @@ export default async function ProjectPage({
   const StatusIcon = status.icon;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-muted">
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur">
+      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center gap-4">
@@ -141,14 +141,14 @@ export default async function ProjectPage({
                   Dashboard
                 </Button>
               </Link>
-              <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+              <div className="h-6 w-px bg-muted" />
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                  <FileText className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                  <FileText className="w-4 h-4 text-muted-foreground" />
                 </div>
                 <div>
-                  <h1 className="font-semibold text-slate-900 dark:text-white leading-none">{project.name}</h1>
-                  <p className="text-xs text-slate-500 mt-0.5">{project.page_count} pages</p>
+                  <h1 className="font-semibold text-foreground leading-none">{project.name}</h1>
+                  <p className="text-xs text-muted-foreground mt-0.5">{project.page_count} pages</p>
                 </div>
               </div>
             </div>
@@ -187,7 +187,7 @@ export default async function ProjectPage({
         <Collapsible>
           <Card>
             <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 transition-colors">
+              <CardHeader className="cursor-pointer hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 transition-colors">
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <FileText className="w-5 h-5" aria-hidden="true" />
@@ -202,7 +202,7 @@ export default async function ProjectPage({
             </CollapsibleTrigger>
             <CollapsibleContent>
               <CardContent>
-                <pre className="whitespace-pre-wrap font-mono text-sm bg-slate-50 dark:bg-slate-900 p-4 rounded-lg overflow-auto max-h-96 border border-slate-200 dark:border-slate-700">
+                <pre className="whitespace-pre-wrap font-mono text-sm bg-muted p-4 rounded-lg overflow-auto max-h-96 border border-border">
                   {project.script_text}
                 </pre>
               </CardContent>

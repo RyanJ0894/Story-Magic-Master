@@ -182,10 +182,10 @@ export function AlertsDropdown() {
 
         {loading ? (
           <div className="py-8 text-center">
-            <Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-400" />
+            <Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
           </div>
         ) : alerts.length === 0 ? (
-          <div className="py-8 text-center text-slate-500">
+          <div className="py-8 text-center text-muted-foreground">
             <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No notifications yet</p>
           </div>
@@ -200,7 +200,7 @@ export function AlertsDropdown() {
                   key={alert.id}
                   asChild
                   className={cn(
-                    'cursor-pointer p-3 focus:bg-slate-50 dark:focus:bg-slate-800',
+                    'cursor-pointer p-3 focus:bg-accent',
                     !alert.is_read && 'bg-violet-50/50 dark:bg-violet-900/10'
                   )}
                 >
@@ -219,7 +219,7 @@ export function AlertsDropdown() {
                           'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0',
                           !alert.is_read
                             ? 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400'
-                            : 'bg-slate-100 text-slate-500 dark:bg-slate-800'
+                            : 'bg-muted text-muted-foreground'
                         )}
                       >
                         <Icon className="w-4 h-4" />
@@ -229,13 +229,13 @@ export function AlertsDropdown() {
                           className={cn(
                             'text-sm line-clamp-2',
                             !alert.is_read
-                              ? 'font-medium text-slate-900 dark:text-white'
-                              : 'text-slate-600 dark:text-slate-400'
+                              ? 'font-medium text-foreground'
+                              : 'text-muted-foreground'
                           )}
                         >
                           {alert.title}
                         </p>
-                        <p className="text-xs text-slate-500 mt-0.5">
+                        <p className="text-xs text-muted-foreground mt-0.5">
                           {formatDistanceToNow(new Date(alert.created_at), {
                             addSuffix: true,
                           })}

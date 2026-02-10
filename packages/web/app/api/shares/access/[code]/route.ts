@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyPassword, isBcryptHash, hashPassword } from '@/lib/password';
 import { VerifySharePasswordRequestSchema } from '@/lib/api/dto';
+import { rateLimit, getClientIp } from '@/lib/api/rate-limit';
 
 interface RouteParams {
   params: Promise<{ code: string }>;
@@ -173,6 +174,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // POST /api/shares/access/[code] - Verify password for protected share
 export async function POST(request: NextRequest, { params }: RouteParams) {
   const { code } = await params;
+
+  // Rate limit: strict (5/min) per IP+code to prevent brute-force password guessing
+  const ip = getClientIp(request);
+  const limited = await rateLimit(`share-pw:${code}:${ip}`, 'strict');
+  if (limited) return limited;
+
   const supabase = await createClient();
 
   // Parse and validate request body

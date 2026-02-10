@@ -62,16 +62,16 @@ export default async function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-muted">
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <Link href="/dashboard" className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <span className="font-bold text-lg text-slate-900 dark:text-white">Story Magic</span>
+              <span className="font-bold text-lg text-foreground">Story Magic</span>
             </Link>
 
             <div className="flex items-center gap-4">
@@ -79,10 +79,10 @@ export default async function DashboardPage() {
               <AlertsDropdown />
 
               {/* Usage indicator */}
-              <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800" data-testid="usage-indicator">
+              <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-lg bg-muted" data-testid="usage-indicator">
                 <div className="text-right">
-                  <p className="text-xs text-slate-500" data-testid="subscription-tier">{tierNames[tier]} Plan</p>
-                  <p className="text-sm font-medium text-slate-900 dark:text-white">
+                  <p className="text-xs text-muted-foreground" data-testid="subscription-tier">{tierNames[tier]} Plan</p>
+                  <p className="text-sm font-medium text-foreground">
                     {remaining} / {limit} pages
                   </p>
                 </div>
@@ -114,10 +114,10 @@ export default async function DashboardPage() {
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Your Projects
             </h1>
-            <p className="mt-1 text-slate-600 dark:text-slate-400">
+            <p className="mt-1 text-muted-foreground">
               Create and manage your audio productions
             </p>
           </div>
@@ -134,7 +134,7 @@ export default async function DashboardPage() {
           <CardContent className="py-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium">{tierNames[tier]} Plan</span>
-              <span className="text-sm text-slate-600 dark:text-slate-400">
+              <span className="text-sm text-muted-foreground">
                 {remaining} / {limit} pages
               </span>
             </div>
@@ -152,8 +152,8 @@ export default async function DashboardPage() {
                   <Card className="h-full transition-all hover:shadow-md hover:border-violet-300 dark:hover:border-violet-700 cursor-pointer" data-testid="project-card">
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
-                        <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                          <FileText className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                          <FileText className="w-5 h-5 text-muted-foreground" />
                         </div>
                         <Badge variant={status.variant} className={status.className} data-testid="project-status">{status.label}</Badge>
                       </div>
@@ -163,7 +163,7 @@ export default async function DashboardPage() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="pt-0">
-                      <div className="flex items-center justify-between text-sm text-slate-500">
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
                         <span>{project.page_count || 0} pages</span>
                         <span>
                           {new Date(project.updated_at).toLocaleDateString()}
@@ -178,13 +178,13 @@ export default async function DashboardPage() {
         ) : (
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-16">
-              <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4">
-                <Folder className="w-8 h-8 text-slate-400" />
+              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                <Folder className="w-8 h-8 text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
+              <h3 className="text-lg font-semibold text-foreground mb-1">
                 No projects yet
               </h3>
-              <p className="text-slate-600 dark:text-slate-400 text-center mb-6 max-w-sm">
+              <p className="text-muted-foreground text-center mb-6 max-w-sm">
                 Create your first project to start transforming scripts into immersive audio experiences.
               </p>
               <Link href="/projects/new">

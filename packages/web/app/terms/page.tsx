@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-12 px-4">
+    <div className="min-h-screen bg-muted py-12 px-4">
       <div className="max-w-3xl mx-auto">
         <Link href="/signup">
           <Button variant="ghost" className="mb-8">
@@ -13,12 +13,12 @@ export default function TermsPage() {
           </Button>
         </Link>
 
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-8">
+        <h1 className="text-3xl font-bold text-foreground mb-8">
           Terms of Service
         </h1>
 
         <div className="prose dark:prose-invert max-w-none">
-          <p className="text-slate-600 dark:text-slate-400">
+          <p className="text-muted-foreground">
             Last updated: January 2026
           </p>
 

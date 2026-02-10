@@ -241,8 +241,8 @@ export function ShareModal({
           {/* QR Code Tab */}
           <TabsContent value="qr" className="space-y-4 mt-4">
             <div className="flex flex-col items-center gap-4">
-              <div className="w-48 h-48 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center border-2 border-dashed">
-                <QrCode className="w-24 h-24 text-slate-400" />
+              <div className="w-48 h-48 bg-muted rounded-lg flex items-center justify-center border-2 border-dashed">
+                <QrCode className="w-24 h-24 text-muted-foreground" />
               </div>
               <p className="text-sm text-muted-foreground text-center">
                 Perfect for in-person pitches. Show this QR code for instant access.
@@ -290,7 +290,7 @@ export function ShareModal({
               {existingShares.slice(0, 5).map((share) => (
                 <div
                   key={share.id}
-                  className="flex items-center justify-between text-sm p-2 rounded-lg bg-slate-50 dark:bg-slate-900"
+                  className="flex items-center justify-between text-sm p-2 rounded-lg bg-muted"
                 >
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 text-muted-foreground" />

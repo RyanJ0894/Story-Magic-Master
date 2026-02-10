@@ -210,7 +210,7 @@ export function PreviewButton({
         return (
           <>
             <Pause className="w-3.5 h-3.5" />
-            <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+            <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
               <div
                 className="h-full bg-violet-500 rounded-full transition-all duration-100"
                 style={{ width: `${progress}%` }}
@@ -222,7 +222,7 @@ export function PreviewButton({
         return (
           <>
             <Play className="w-3.5 h-3.5" />
-            <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+            <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
               <div
                 className="h-full bg-violet-500 rounded-full"
                 style={{ width: `${progress}%` }}

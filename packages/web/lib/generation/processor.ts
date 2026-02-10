@@ -26,9 +26,10 @@ function getServiceClient() {
 // Logging Helpers
 // =============================================================================
 
+import { log } from '@/lib/logger';
+
 function logProgress(jobId: string, step: string, message: string) {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] [Job ${jobId.slice(0, 8)}] [${step}] ${message}`);
+  log.info(message, { jobId: jobId.slice(0, 8), step });
 }
 
 async function logJobEvent(
@@ -55,7 +56,7 @@ async function logJobEvent(
       error_stack: errorStack,
     });
   } catch (err) {
-    console.error(`Failed to write job log: ${err}`);
+    log.error('Failed to write job log', err);
   }
 }
 
@@ -67,7 +68,7 @@ async function markJobFailed(
 ) {
   const supabase = getServiceClient();
   if (!supabase) {
-    console.error(`[Job ${jobId}] Cannot mark job failed - no service client`);
+    log.error('Cannot mark job failed - no service client', undefined, { jobId });
     return;
   }
 
@@ -109,7 +110,7 @@ export async function processGenerationJob(
 
   if (!supabase) {
     const error = 'Server configuration error: Missing Supabase credentials';
-    console.error(`[Job ${jobId}] ${error}`);
+    log.error(error, undefined, { jobId });
     await markJobFailed(jobId, projectId, error);
     throw new Error(error);
   }

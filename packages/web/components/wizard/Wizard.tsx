@@ -282,7 +282,7 @@ export function Wizard({
                           ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300'
                           : isCompleted
                           ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                          : 'bg-muted text-muted-foreground'
                       }
                       ${canNavigate ? 'cursor-pointer hover:opacity-80' : 'cursor-not-allowed'}
                     `}

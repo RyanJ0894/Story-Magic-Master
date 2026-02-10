@@ -42,6 +42,7 @@ import {
   Search,
   Loader2,
   Volume2,
+  RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type {
@@ -109,7 +110,7 @@ const MATCH_LABEL_COLORS: Record<MatchLabel, string> = {
   Excellent: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
   Good: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   Fair: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-  Low: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+  Low: 'bg-muted text-muted-foreground',
 };
 
 // =============================================================================
@@ -220,7 +221,7 @@ function AudioTrackCard({
   return (
     <div className={cn(
       'flex items-center gap-3 p-3 rounded-lg border',
-      isUserSelected ? 'border-violet-300 dark:border-violet-700 bg-violet-50/50 dark:bg-violet-950/20' : 'border-slate-200 dark:border-slate-700',
+      isUserSelected ? 'border-violet-300 dark:border-violet-700 bg-violet-50/50 dark:bg-violet-950/20' : 'border-border',
     )}>
       <button
         type="button"
@@ -399,6 +400,8 @@ function SceneAudioCard({
   projectId,
   remainingPreviews,
   onRemainingPreviewsChanged,
+  regeneratingScene,
+  onRegenerateScene,
 }: {
   scene: NonNullable<AudioChooserProps['directorJson']>['scenes'] extends (infer S)[] | undefined ? S : never;
   sceneIndex: number;
@@ -411,6 +414,8 @@ function SceneAudioCard({
   projectId: string;
   remainingPreviews: number;
   onRemainingPreviewsChanged?: (remaining: number) => void;
+  regeneratingScene: number | null;
+  onRegenerateScene: (sceneIndex: number) => void;
 }) {
   const sceneId = scene.scene_id;
   const sceneOverrides = overrides.filter(o => o.scene_id === sceneId);
@@ -447,6 +452,26 @@ function SceneAudioCard({
               {overrideCount} override{overrideCount !== 1 ? 's' : ''}
             </Badge>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onRegenerateScene(sceneIndex)}
+            disabled={disabled || regeneratingScene !== null}
+            className="h-8 text-xs"
+            title="Regenerate this scene's audio"
+          >
+            {regeneratingScene === sceneIndex ? (
+              <>
+                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                Regenerating...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-3 h-3 mr-1" />
+                Regen
+              </>
+            )}
+          </Button>
           <PreviewButton
             projectId={projectId}
             sceneId={scene.scene_id}
@@ -627,7 +652,7 @@ function AudioSelectionDialog({
             {scoredAndFiltered.map(({ track, score, matchLabel }) => (
               <div
                 key={track.id}
-                className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 group"
+                className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent group"
               >
                 <button
                   type="button"
@@ -684,6 +709,7 @@ export function AudioChooser({ projectId, directorJson, disabled, remainingPrevi
   const [overrides, setOverrides] = useState<AudioOverride[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [regeneratingScene, setRegeneratingScene] = useState<number | null>(null);
   const [dialogState, setDialogState] = useState<SelectionDialogState>({
     open: false,
     sceneId: '',
@@ -817,6 +843,28 @@ export function AudioChooser({ projectId, directorJson, disabled, remainingPrevi
     onRemainingPreviewsChanged?.(remaining);
   }, [onRemainingPreviewsChanged]);
 
+  // Regenerate a single scene's audio
+  const handleRegenerateScene = useCallback(async (sceneIndex: number) => {
+    setRegeneratingScene(sceneIndex);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/regenerate-scene`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sceneIndex }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to queue scene regeneration');
+      }
+      // Poll for job completion could be added here
+      // For now, user refreshes to see updated audio
+    } catch {
+      // Error handling — toast could be added here
+    } finally {
+      setRegeneratingScene(null);
+    }
+  }, [projectId]);
+
   // Add SFX cue (opens dialog for a new cue at the end)
   const handleAddCue = useCallback((sceneId: string, category: AudioCategory) => {
     const scene = scenes.find(s => s.scene_id === sceneId);
@@ -894,6 +942,8 @@ export function AudioChooser({ projectId, directorJson, disabled, remainingPrevi
           projectId={projectId}
           remainingPreviews={remainingPreviews}
           onRemainingPreviewsChanged={handleRemainingPreviewsChanged}
+          regeneratingScene={regeneratingScene}
+          onRegenerateScene={handleRegenerateScene}
         />
       ))}
 

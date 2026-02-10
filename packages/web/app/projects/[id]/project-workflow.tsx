@@ -181,8 +181,8 @@ function WorkflowProgress({ steps }: { steps: WorkflowStep[] }) {
               'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all',
               step.status === 'complete' && 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
               step.status === 'in-progress' && 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400 ring-2 ring-violet-500',
-              step.status === 'available' && 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
-              step.status === 'skipped' && 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 opacity-60',
+              step.status === 'available' && 'bg-muted text-muted-foreground',
+              step.status === 'skipped' && 'bg-muted text-muted-foreground opacity-60',
             )}>
               {step.status === 'complete' ? (
                 <CheckCircle className="w-4 h-4" />
@@ -746,8 +746,8 @@ export function ProjectWorkflow({
                   'w-10 h-10 rounded-lg flex items-center justify-center',
                   step.status === 'complete' && 'bg-green-100 dark:bg-green-900/30',
                   step.status === 'in-progress' && 'bg-violet-100 dark:bg-violet-900/30',
-                  step.status === 'available' && 'bg-slate-100 dark:bg-slate-800',
-                  step.status === 'skipped' && 'bg-slate-100 dark:bg-slate-800',
+                  step.status === 'available' && 'bg-muted',
+                  step.status === 'skipped' && 'bg-muted',
                 )}>
                   {step.icon}
                 </div>

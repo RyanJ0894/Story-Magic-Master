@@ -45,6 +45,8 @@ export function validateCsrf(request: Request): string | null {
   });
 
   if (!isAllowed) {
+    // Structured logging import would add a circular dep risk here,
+    // so keep a simple console.warn — this is a security event visible in logs
     console.warn(`CSRF validation failed: origin ${requestOrigin} not in allowed list`);
     return `Origin ${requestOrigin} is not allowed`;
   }

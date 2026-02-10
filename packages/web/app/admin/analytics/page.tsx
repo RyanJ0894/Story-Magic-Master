@@ -99,8 +99,8 @@ export default async function AdminAnalyticsPage() {
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Analytics</h1>
-        <p className="text-slate-600 dark:text-slate-400">Platform performance and growth metrics</p>
+        <h1 className="text-3xl font-bold text-foreground">Analytics</h1>
+        <p className="text-muted-foreground">Platform performance and growth metrics</p>
       </div>
 
       {/* Key Metrics */}
@@ -260,7 +260,7 @@ export default async function AdminAnalyticsPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-muted-foreground">Total Projects</p>
-              <FileText className="w-4 h-4 text-slate-600" />
+              <FileText className="w-4 h-4 text-muted-foreground" />
             </div>
             <p className="text-2xl font-bold">{totalProjects || 0}</p>
             <p className="text-xs text-muted-foreground mt-1">
@@ -273,7 +273,7 @@ export default async function AdminAnalyticsPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-muted-foreground">Total Shares</p>
-              <Share2 className="w-4 h-4 text-slate-600" />
+              <Share2 className="w-4 h-4 text-muted-foreground" />
             </div>
             <p className="text-2xl font-bold">{totalShares || 0}</p>
             <p className="text-xs text-muted-foreground mt-1">
@@ -286,7 +286,7 @@ export default async function AdminAnalyticsPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-muted-foreground">Active Subscriptions</p>
-              <CreditCard className="w-4 h-4 text-slate-600" />
+              <CreditCard className="w-4 h-4 text-muted-foreground" />
             </div>
             <p className="text-2xl font-bold">{activeSubscriptions || 0}</p>
             <p className="text-xs text-muted-foreground mt-1">
@@ -299,7 +299,7 @@ export default async function AdminAnalyticsPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-muted-foreground">Avg Projects/User</p>
-              <Activity className="w-4 h-4 text-slate-600" />
+              <Activity className="w-4 h-4 text-muted-foreground" />
             </div>
             <p className="text-2xl font-bold">
               {totalWriters ? ((totalProjects || 0) / totalWriters).toFixed(1) : '0'}

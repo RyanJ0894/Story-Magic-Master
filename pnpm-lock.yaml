@@ -94,7 +94,7 @@ importers:
     devDependencies:
       '@vitest/coverage-v8':
         specifier: ^4.0.17
-        version: 4.0.17(vitest@4.0.17(@opentelemetry/api@1.9.0)(@types/node@20.19.30)(jiti@1.21.7)(jsdom@27.4.0)(msw@2.12.7(@types/node@20.19.30)(typescript@5.9.3))(terser@5.46.0)(tsx@4.21.0))
+        version: 4.0.17(vitest@4.0.17(@opentelemetry/api@1.9.0)(@types/node@20.19.30)(happy-dom@20.6.0)(jiti@1.21.7)(jsdom@27.4.0)(msw@2.12.7(@types/node@20.19.30)(typescript@5.9.3))(terser@5.46.0)(tsx@4.21.0))
       eslint:
         specifier: ^8.56.0
         version: 8.57.1
@@ -106,7 +106,7 @@ importers:
         version: 4.21.0
       vitest:
         specifier: ^4.0.17
-        version: 4.0.17(@opentelemetry/api@1.9.0)(@types/node@20.19.30)(jiti@1.21.7)(jsdom@27.4.0)(msw@2.12.7(@types/node@20.19.30)(typescript@5.9.3))(terser@5.46.0)(tsx@4.21.0)
+        version: 4.0.17(@opentelemetry/api@1.9.0)(@types/node@20.19.30)(happy-dom@20.6.0)(jiti@1.21.7)(jsdom@27.4.0)(msw@2.12.7(@types/node@20.19.30)(typescript@5.9.3))(terser@5.46.0)(tsx@4.21.0)
 
   packages/web:
     dependencies:
@@ -221,6 +221,12 @@ importers:
       '@types/swagger-ui-react':
         specifier: ^5.18.0
         version: 5.18.0
+      '@upstash/ratelimit':
+        specifier: ^2.0.8
+        version: 2.0.8(@upstash/redis@1.36.1)
+      '@upstash/redis':
+        specifier: ^1.36.1
+        version: 1.36.1
       autoprefixer:
         specifier: ^10.4.16
         version: 10.4.23(postcss@8.5.6)
@@ -248,6 +254,9 @@ importers:
       next:
         specifier: ^14.1.0
         version: 14.2.35(@babel/core@7.28.6)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      next-themes:
+        specifier: ^0.4.6
+        version: 0.4.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       openai:
         specifier: ^6.16.0
         version: 6.16.0(ws@8.19.0)(zod@3.25.76)
@@ -315,6 +324,9 @@ importers:
       eslint-config-next:
         specifier: ^14.1.0
         version: 14.2.35(eslint@8.57.1)(typescript@5.9.3)
+      happy-dom:
+        specifier: ^20.6.0
+        version: 20.6.0
       jsdom:
         specifier: ^27.4.0
         version: 27.4.0
@@ -323,7 +335,7 @@ importers:
         version: 2.12.7(@types/node@20.19.30)(typescript@5.9.3)
       vitest:
         specifier: ^4.0.17
-        version: 4.0.17(@opentelemetry/api@1.9.0)(@types/node@20.19.30)(jiti@1.21.7)(jsdom@27.4.0)(msw@2.12.7(@types/node@20.19.30)(typescript@5.9.3))(terser@5.46.0)(tsx@4.21.0)
+        version: 4.0.17(@opentelemetry/api@1.9.0)(@types/node@20.19.30)(happy-dom@20.6.0)(jiti@1.21.7)(jsdom@27.4.0)(msw@2.12.7(@types/node@20.19.30)(typescript@5.9.3))(terser@5.46.0)(tsx@4.21.0)
 
 packages:
 
@@ -2540,6 +2552,9 @@ packages:
   '@types/use-sync-external-store@0.0.6':
     resolution: {integrity: sha512-zFDAD+tlpf2r4asuHEj0XH6pY6i0g5NeAHPn+15wk3BV6JA69eERFXC1gyGThDkVa1zCyKr5jox1+2LbV/AMLg==}
 
+  '@types/whatwg-mimetype@3.0.2':
+    resolution: {integrity: sha512-c2AKvDT8ToxLIOUlN51gTiHXflsfIFisS4pO7pDPoKouJCESkhZnEy623gwP9laCy5lnLDAw1vAzu2vM2YLOrA==}
+
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
@@ -3926,6 +3941,10 @@ packages:
     resolution: {integrity: sha512-DKKrynuQRne0PNpEbzuEdHlYOMksHSUI8Zc9Unei5gTsMNA2/vMpoMz/yKba50pejK56qj98qM0SjYxAKi13gQ==}
     engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
 
+  happy-dom@20.6.0:
+    resolution: {integrity: sha512-a+Sz2bPai3rajDuE82Y4B0OxlXJ19ckUjyfWDmeCAs8ZbEbnqtwzV9d4CVhQjWIuOBTOw8rhlxNeaSCHeknXRQ==}
+    engines: {node: '>=20.0.0'}
+
   has-bigints@1.1.0:
     resolution: {integrity: sha512-R3pbpkcIqv2Pm3dUwgjclDRVmWpTJW2DcMzcIhEXEx1oh/CEMObMm3KLmRJOdvhM7o4uQBnwr8pzRK2sJWIqfg==}
     engines: {node: '>= 0.4'}
@@ -4562,6 +4581,12 @@ packages:
   neotraverse@0.6.18:
     resolution: {integrity: sha512-Z4SmBUweYa09+o6pG+eASabEpP6QkQ70yHj351pQoEXIs8uHbaU2DWVmzBANKgflPa47A50PtB2+NgRpQvr7vA==}
     engines: {node: '>= 10'}
+
+  next-themes@0.4.6:
+    resolution: {integrity: sha512-pZvgD5L0IEvX5/9GWyHMf3m8BKiVQwsCMHfoFosXtXBMnaS0ZnIJ9ST4b4NqLVKDEm8QBxoNNGNaBv2JNF6XNA==}
+    peerDependencies:
+      react: ^16.8 || ^17 || ^18 || ^19 || ^19.0.0-rc
+      react-dom: ^16.8 || ^17 || ^18 || ^19 || ^19.0.0-rc
 
   next@14.2.35:
     resolution: {integrity: sha512-KhYd2Hjt/O1/1aZVX3dCwGXM1QmOV4eNM2UTacK5gipDdPN/oHHK/4oVGy7X8GMfPMsUTUEmGlsy0EY1YGAkig==}
@@ -5963,6 +5988,10 @@ packages:
     peerDependenciesMeta:
       webpack-cli:
         optional: true
+
+  whatwg-mimetype@3.0.0:
+    resolution: {integrity: sha512-nt+N2dzIutVRxARx1nghPKGv1xHikU7HKdfafKkLNLindmPU/ch3U31NOCGGA/dmPcmb1VlofO0vnKAcsm0o/Q==}
+    engines: {node: '>=12'}
 
   whatwg-mimetype@4.0.0:
     resolution: {integrity: sha512-QaKxh0eNIi2mE9p2vEdzfagOKHCcj1pJ56EEHGQOVxp8r9/iszLUUV7v89x9O1p/T+NlTM5W7jW6+cz4Fq1YVg==}
@@ -8707,6 +8736,8 @@ snapshots:
 
   '@types/use-sync-external-store@0.0.6': {}
 
+  '@types/whatwg-mimetype@3.0.2': {}
+
   '@types/ws@8.18.1':
     dependencies:
       '@types/node': 20.19.30
@@ -8888,7 +8919,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@vitest/coverage-v8@4.0.17(vitest@4.0.17(@opentelemetry/api@1.9.0)(@types/node@20.19.30)(jiti@1.21.7)(jsdom@27.4.0)(msw@2.12.7(@types/node@20.19.30)(typescript@5.9.3))(terser@5.46.0)(tsx@4.21.0))':
+  '@vitest/coverage-v8@4.0.17(vitest@4.0.17(@opentelemetry/api@1.9.0)(@types/node@20.19.30)(happy-dom@20.6.0)(jiti@1.21.7)(jsdom@27.4.0)(msw@2.12.7(@types/node@20.19.30)(typescript@5.9.3))(terser@5.46.0)(tsx@4.21.0))':
     dependencies:
       '@bcoe/v8-coverage': 1.0.2
       '@vitest/utils': 4.0.17
@@ -8900,7 +8931,7 @@ snapshots:
       obug: 2.1.1
       std-env: 3.10.0
       tinyrainbow: 3.0.3
-      vitest: 4.0.17(@opentelemetry/api@1.9.0)(@types/node@20.19.30)(jiti@1.21.7)(jsdom@27.4.0)(msw@2.12.7(@types/node@20.19.30)(typescript@5.9.3))(terser@5.46.0)(tsx@4.21.0)
+      vitest: 4.0.17(@opentelemetry/api@1.9.0)(@types/node@20.19.30)(happy-dom@20.6.0)(jiti@1.21.7)(jsdom@27.4.0)(msw@2.12.7(@types/node@20.19.30)(typescript@5.9.3))(terser@5.46.0)(tsx@4.21.0)
 
   '@vitest/expect@4.0.17':
     dependencies:
@@ -10336,6 +10367,18 @@ snapshots:
 
   graphql@16.12.0: {}
 
+  happy-dom@20.6.0:
+    dependencies:
+      '@types/node': 20.19.30
+      '@types/whatwg-mimetype': 3.0.2
+      '@types/ws': 8.18.1
+      entities: 6.0.1
+      whatwg-mimetype: 3.0.0
+      ws: 8.19.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   has-bigints@1.1.0: {}
 
   has-flag@4.0.0: {}
@@ -10960,6 +11003,11 @@ snapshots:
   neo-async@2.6.2: {}
 
   neotraverse@0.6.18: {}
+
+  next-themes@0.4.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+    dependencies:
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
 
   next@14.2.35(@babel/core@7.28.6)(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
@@ -12417,7 +12465,7 @@ snapshots:
       terser: 5.46.0
       tsx: 4.21.0
 
-  vitest@4.0.17(@opentelemetry/api@1.9.0)(@types/node@20.19.30)(jiti@1.21.7)(jsdom@27.4.0)(msw@2.12.7(@types/node@20.19.30)(typescript@5.9.3))(terser@5.46.0)(tsx@4.21.0):
+  vitest@4.0.17(@opentelemetry/api@1.9.0)(@types/node@20.19.30)(happy-dom@20.6.0)(jiti@1.21.7)(jsdom@27.4.0)(msw@2.12.7(@types/node@20.19.30)(typescript@5.9.3))(terser@5.46.0)(tsx@4.21.0):
     dependencies:
       '@vitest/expect': 4.0.17
       '@vitest/mocker': 4.0.17(msw@2.12.7(@types/node@20.19.30)(typescript@5.9.3))(vite@7.3.1(@types/node@20.19.30)(jiti@1.21.7)(terser@5.46.0)(tsx@4.21.0))
@@ -12442,6 +12490,7 @@ snapshots:
     optionalDependencies:
       '@opentelemetry/api': 1.9.0
       '@types/node': 20.19.30
+      happy-dom: 20.6.0
       jsdom: 27.4.0
     transitivePeerDependencies:
       - jiti
@@ -12511,6 +12560,8 @@ snapshots:
       - '@swc/core'
       - esbuild
       - uglify-js
+
+  whatwg-mimetype@3.0.0: {}
 
   whatwg-mimetype@4.0.0: {}
 

@@ -60,7 +60,7 @@ function CustomTooltip({
 
   const data = payload[0].payload;
   return (
-    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg p-3 min-w-[140px]">
+    <div className="bg-background border border-border rounded-lg shadow-lg p-3 min-w-[140px]">
       <p className="text-xs text-muted-foreground mb-1">{data.formattedDate}</p>
       <div className="flex items-center justify-between gap-4">
         <span className="text-sm font-medium">Version {data.versionNumber}</span>
@@ -133,15 +133,15 @@ export function ScoreTrajectoryChart({
       case 'stable':
         return {
           icon: <Minus className="w-4 h-4" />,
-          color: 'text-slate-600 dark:text-slate-400',
-          bg: 'bg-slate-100 dark:bg-slate-800',
+          color: 'text-muted-foreground',
+          bg: 'bg-muted',
           label: 'Stable',
         };
       default:
         return {
           icon: <Activity className="w-4 h-4" />,
-          color: 'text-slate-500',
-          bg: 'bg-slate-100 dark:bg-slate-800',
+          color: 'text-muted-foreground',
+          bg: 'bg-muted',
           label: 'Insufficient Data',
         };
     }
@@ -291,7 +291,7 @@ export function ScoreTrajectoryChart({
                   ? 'text-green-600 dark:text-green-400'
                   : stats.totalChange < 0
                   ? 'text-red-600 dark:text-red-400'
-                  : 'text-slate-500'
+                  : 'text-muted-foreground'
               }`}
             >
               {stats.totalChange > 0 ? '+' : ''}

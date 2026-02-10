@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateCsrf } from '@/lib/csrf';
+import { rateLimit, getClientIp } from '@/lib/api/rate-limit';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Constants
@@ -57,6 +59,11 @@ function validateScriptContent(text: string): { valid: boolean; error?: string }
 }
 
 export async function POST(request: Request) {
+  // Rate limit: strict (5/min) — expensive LLM + TTS pipeline
+  const ip = getClientIp(request);
+  const limited = await rateLimit(`generate:${ip}`, 'strict');
+  if (limited) return limited;
+
   // CSRF protection - validate origin header
   const csrfError = validateCsrf(request);
   if (csrfError) {
@@ -169,7 +176,7 @@ export async function POST(request: Request) {
     })
     .eq('id', jobId);
 
-  console.log(`[Generate] Job ${jobId.slice(0, 8)} queued for project ${projectId}`);
+  log.info('Job queued', { jobId: jobId.slice(0, 8), projectId, type: 'generation' });
 
   return NextResponse.json({
     success: true,

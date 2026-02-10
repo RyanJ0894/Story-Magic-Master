@@ -263,7 +263,7 @@ function ScriptEditorPreview() {
     <Card className="border-dashed border-2 opacity-60">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Edit3 className="w-5 h-5 text-slate-500" />
+          <Edit3 className="w-5 h-5 text-muted-foreground" />
           Script Editor
           <Badge variant="outline" className="ml-2">
             <FlaskConical className="w-3 h-3 mr-1" />

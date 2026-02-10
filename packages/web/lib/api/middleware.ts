@@ -13,6 +13,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { validateCsrf } from '@/lib/csrf';
+import { rateLimit, getClientIp, type RateLimitTier } from '@/lib/api/rate-limit';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 
 // ---------------------------------------------------------------------------
@@ -32,6 +33,8 @@ export interface ProjectAuthContext extends AuthContext {
 export interface WithAuthOptions {
   /** Validate CSRF origin header. Default: true for POST/PUT/PATCH/DELETE */
   csrf?: boolean;
+  /** Rate limit tier. Default: 'normal'. Set to false to disable. */
+  rateLimit?: RateLimitTier | false;
 }
 
 type RouteParams = { params: Promise<Record<string, string>> };
@@ -76,6 +79,14 @@ export function withAuth(
       }
     }
 
+    // Rate limiting (after CSRF, before auth — blocks abusive IPs early)
+    if (options.rateLimit !== false) {
+      const tier = options.rateLimit || 'normal';
+      const ip = getClientIp(request);
+      const limited = await rateLimit(`api:${ip}`, tier);
+      if (limited) return limited;
+    }
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -111,6 +122,14 @@ export function withProjectAuth(
           { status: 403 },
         );
       }
+    }
+
+    // Rate limiting
+    if (options.rateLimit !== false) {
+      const tier = options.rateLimit || 'normal';
+      const ip = getClientIp(request);
+      const limited = await rateLimit(`api:${ip}`, tier);
+      if (limited) return limited;
     }
 
     const supabase = await createClient();

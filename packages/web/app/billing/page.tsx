@@ -48,9 +48,9 @@ export default async function BillingPage({
   const hasActiveSubscription = tier !== 'free' && subscriptionStatus === 'active';
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-muted">
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur">
+      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center gap-4">
             <Link href="/dashboard">
@@ -59,12 +59,12 @@ export default async function BillingPage({
                 Dashboard
               </Button>
             </Link>
-            <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+            <div className="h-6 w-px bg-border" />
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <h1 className="font-semibold text-slate-900 dark:text-white">Billing</h1>
+              <h1 className="font-semibold text-foreground">Billing</h1>
             </div>
           </div>
         </div>
@@ -105,30 +105,30 @@ export default async function BillingPage({
           <CardContent className="space-y-6">
             {/* Plan Details */}
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-900">
-                <p className="text-sm text-slate-500 mb-1">Monthly Price</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white">
+              <div className="p-4 rounded-lg bg-muted">
+                <p className="text-sm text-muted-foreground mb-1">Monthly Price</p>
+                <p className="text-2xl font-bold text-foreground">
                   ${tierConfig?.monthlyPrice || 0}
-                  <span className="text-sm font-normal text-slate-500">/month</span>
+                  <span className="text-sm font-normal text-muted-foreground">/month</span>
                 </p>
               </div>
 
-              <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-900">
-                <p className="text-sm text-slate-500 mb-1">Page Allowance</p>
+              <div className="p-4 rounded-lg bg-muted">
+                <p className="text-sm text-muted-foreground mb-1">Page Allowance</p>
                 <p className="text-2xl font-bold text-violet-600 dark:text-violet-400">
                   {tierConfig?.pages.toLocaleString() || 3}
-                  <span className="text-sm font-normal text-slate-500"> pages/month</span>
+                  <span className="text-sm font-normal text-muted-foreground"> pages/month</span>
                 </p>
               </div>
             </div>
 
             {/* Billing Period */}
             {hasActiveSubscription && currentPeriodEnd && (
-              <div className="flex items-center gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-900">
-                <Calendar className="w-5 h-5 text-slate-400" />
+              <div className="flex items-center gap-3 p-4 rounded-lg bg-muted">
+                <Calendar className="w-5 h-5 text-muted-foreground" />
                 <div>
-                  <p className="text-sm text-slate-500">Current billing period ends</p>
-                  <p className="font-medium text-slate-900 dark:text-white">
+                  <p className="text-sm text-muted-foreground">Current billing period ends</p>
+                  <p className="font-medium text-foreground">
                     {currentPeriodEnd.toLocaleDateString('en-US', {
                       month: 'long',
                       day: 'numeric',
@@ -153,7 +153,7 @@ export default async function BillingPage({
             )}
 
             {/* Actions */}
-            <div className="flex flex-wrap gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+            <div className="flex flex-wrap gap-3 pt-4 border-t border-border">
               {hasActiveSubscription ? (
                 <ManageSubscriptionButton />
               ) : (
@@ -184,17 +184,17 @@ export default async function BillingPage({
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-600 dark:text-slate-400">
+                <span className="text-sm text-muted-foreground">
                   Pages used
                 </span>
-                <span className="font-medium text-slate-900 dark:text-white">
+                <span className="font-medium text-foreground">
                   {usedPages} / {pageLimit}
                 </span>
               </div>
 
               <Progress value={usagePercent} className="h-3" />
 
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-muted-foreground">
                 {remaining} pages remaining this month
               </p>
 
@@ -227,7 +227,7 @@ export default async function BillingPage({
                 {tierConfig.features.map((feature) => (
                   <li key={feature} className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-green-500" />
-                    <span className="text-sm text-slate-600 dark:text-slate-400">{feature}</span>
+                    <span className="text-sm text-muted-foreground">{feature}</span>
                   </li>
                 ))}
               </ul>

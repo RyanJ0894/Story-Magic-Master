@@ -284,7 +284,7 @@ export function ScriptSyncPlayer({
 
   if (!currentOutput) {
     return (
-      <div className="flex items-center justify-center p-8 text-slate-500">
+      <div className="flex items-center justify-center p-8 text-muted-foreground">
         <Music className="w-5 h-5 mr-2" aria-hidden="true" />
         No audio available
       </div>
@@ -313,14 +313,14 @@ export function ScriptSyncPlayer({
         )}
       >
         {/* Controls Header */}
-        <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+        <div className="p-4 border-b border-border bg-muted">
           <div className="flex items-center gap-4">
             {/* Play Controls */}
             <div className="flex items-center gap-2" role="group" aria-label="Playback controls">
               <button
                 onClick={skipBackward}
                 aria-label="Skip back 10 seconds"
-                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+                className="p-2 rounded-full hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
               >
                 <SkipBack className="w-4 h-4" aria-hidden="true" />
               </button>
@@ -338,7 +338,7 @@ export function ScriptSyncPlayer({
               <button
                 onClick={skipForward}
                 aria-label="Skip forward 10 seconds"
-                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+                className="p-2 rounded-full hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
               >
                 <SkipForward className="w-4 h-4" aria-hidden="true" />
               </button>
@@ -357,14 +357,14 @@ export function ScriptSyncPlayer({
                 aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
                 onMouseDown={handleProgressMouseDown}
                 onKeyDown={handleProgressKeyDown}
-                className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+                className="h-2 bg-muted rounded-full cursor-pointer overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
               >
                 <div
                   className="h-full bg-gradient-to-r from-violet-500 to-purple-600 rounded-full transition-all duration-100 pointer-events-none"
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <div className="flex justify-between text-xs text-slate-500">
+              <div className="flex justify-between text-xs text-muted-foreground">
                 <span>{formatTime(currentTime)}</span>
                 <span>{formatTime(duration)}</span>
               </div>
@@ -375,7 +375,7 @@ export function ScriptSyncPlayer({
               <button
                 onClick={toggleMute}
                 aria-label={muted ? 'Unmute' : 'Mute'}
-                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+                className="p-2 rounded-full hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
               >
                 {muted ? <VolumeX className="w-4 h-4" aria-hidden="true" /> : <Volume2 className="w-4 h-4" aria-hidden="true" />}
               </button>
@@ -388,7 +388,7 @@ export function ScriptSyncPlayer({
               <button
                 onClick={() => setExpanded(!expanded)}
                 aria-label={expanded ? 'Exit fullscreen' : 'Enter fullscreen'}
-                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+                className="p-2 rounded-full hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
               >
                 {expanded ? (
                   <Minimize2 className="w-4 h-4" aria-hidden="true" />
@@ -421,7 +421,7 @@ export function ScriptSyncPlayer({
                     {scenes.map((scene, sceneIndex) => (
                       <div key={scene.scene_id || sceneIndex} className="space-y-3">
                         {scene.scene_header && (
-                          <h3 className="text-sm font-bold uppercase text-slate-500 dark:text-slate-400">
+                          <h3 className="text-sm font-bold uppercase text-muted-foreground">
                             {scene.scene_header}
                           </h3>
                         )}
@@ -446,7 +446,7 @@ export function ScriptSyncPlayer({
                                 'p-3 rounded-lg cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2',
                                 isActive
                                   ? 'bg-violet-100 dark:bg-violet-900/30 ring-2 ring-violet-500 scale-[1.02]'
-                                  : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+                                  : 'hover:bg-accent'
                               )}
                             >
                               <div className="flex items-start gap-3">
@@ -455,7 +455,7 @@ export function ScriptSyncPlayer({
                                     'text-xs font-bold uppercase shrink-0 w-24',
                                     isActive
                                       ? 'text-violet-600 dark:text-violet-400'
-                                      : 'text-slate-500'
+                                      : 'text-muted-foreground'
                                   )}
                                 >
                                   {line.character}
@@ -464,8 +464,8 @@ export function ScriptSyncPlayer({
                                   className={cn(
                                     'text-sm leading-relaxed',
                                     isActive
-                                      ? 'text-slate-900 dark:text-white font-medium'
-                                      : 'text-slate-700 dark:text-slate-300'
+                                      ? 'text-foreground font-medium'
+                                      : 'text-muted-foreground'
                                   )}
                                 >
                                   {line.text}
@@ -492,7 +492,7 @@ export function ScriptSyncPlayer({
                               <p className="text-sm font-bold uppercase text-violet-600 dark:text-violet-400">
                                 {line.character}
                               </p>
-                              <p className="text-xl text-slate-900 dark:text-white leading-relaxed">
+                              <p className="text-xl text-foreground leading-relaxed">
                                 &ldquo;{line.text}&rdquo;
                               </p>
                             </div>
@@ -500,7 +500,7 @@ export function ScriptSyncPlayer({
                       )}
                     </div>
                   ) : (
-                    <div className="text-slate-500">
+                    <div className="text-muted-foreground">
                       <Music className="w-12 h-12 mx-auto mb-4 opacity-50" aria-hidden="true" />
                       <p>Press play to see the current line</p>
                     </div>

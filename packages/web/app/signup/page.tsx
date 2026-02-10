@@ -137,16 +137,16 @@ export default function SignupPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 px-4">
-        <Card className="w-full max-w-md border-slate-200 dark:border-slate-800 shadow-xl" data-testid="signup-success-card">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background to-muted dark:from-background dark:to-muted px-4">
+        <Card className="w-full max-w-md border-border shadow-xl" data-testid="signup-success-card">
           <CardContent className="pt-6 text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 mb-4">
               <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+            <h2 className="text-2xl font-bold text-foreground mb-2">
               Check your email
             </h2>
-            <p className="text-slate-600 dark:text-slate-400 mb-6">
+            <p className="text-muted-foreground mb-6">
               We sent a confirmation link to <strong>{email}</strong>. Click the link to activate your account.
             </p>
             <Link href="/login">
@@ -161,19 +161,19 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background to-muted dark:from-background dark:to-muted px-4">
       <div className="w-full max-w-md">
         {/* Logo/Brand */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 mb-4">
             <Sparkles className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Story Magic
           </h1>
         </div>
 
-        <Card className="border-slate-200 dark:border-slate-800 shadow-xl">
+        <Card className="border-border shadow-xl">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl text-center">Create your account</CardTitle>
             <CardDescription className="text-center">
@@ -241,7 +241,7 @@ export default function SignupPage() {
                 {touched.password && errors.password ? (
                   <p id="password-help" className="text-xs text-red-500" role="alert">{errors.password}</p>
                 ) : (
-                  <p id="password-help" className="text-xs text-slate-500">At least 6 characters</p>
+                  <p id="password-help" className="text-xs text-muted-foreground">At least 6 characters</p>
                 )}
                 {/* Password strength indicator */}
                 {password.length > 0 && (
@@ -251,12 +251,12 @@ export default function SignupPage() {
                         <div
                           key={level}
                           className={`h-1 flex-1 rounded-full transition-colors ${
-                            passwordStrength.score >= level ? passwordStrength.color : 'bg-slate-200 dark:bg-slate-700'
+                            passwordStrength.score >= level ? passwordStrength.color : 'bg-muted'
                           }`}
                         />
                       ))}
                     </div>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted-foreground">
                       Password strength: <span className="font-medium">{passwordStrength.label}</span>
                     </p>
                   </div>
@@ -280,7 +280,7 @@ export default function SignupPage() {
               </Button>
             </form>
 
-            <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
+            <p className="mt-6 text-center text-sm text-muted-foreground">
               Already have an account?{' '}
               <Link
                 href="/login"
@@ -290,11 +290,11 @@ export default function SignupPage() {
               </Link>
             </p>
 
-            <p className="mt-4 text-center text-xs text-slate-500">
+            <p className="mt-4 text-center text-xs text-muted-foreground">
               By signing up, you agree to our{' '}
-              <Link href="/terms" className="underline hover:text-slate-700">Terms of Service</Link>
+              <Link href="/terms" className="underline hover:text-foreground">Terms of Service</Link>
               {' '}and{' '}
-              <Link href="/privacy" className="underline hover:text-slate-700">Privacy Policy</Link>
+              <Link href="/privacy" className="underline hover:text-foreground">Privacy Policy</Link>
             </p>
           </CardContent>
         </Card>

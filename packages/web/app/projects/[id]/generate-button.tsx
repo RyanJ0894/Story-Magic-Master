@@ -329,7 +329,7 @@ export default function GenerateButton({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin text-violet-500" />
-            <span className="font-medium text-slate-700 dark:text-slate-200">
+            <span className="font-medium text-foreground">
               {getStepLabel(jobStatus?.progress?.step || 'initializing')}
             </span>
             {jobStatus?.progress?.retryAttempt && (
@@ -338,7 +338,7 @@ export default function GenerateButton({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-sm text-slate-500">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Clock className="w-4 h-4" />
             <span>{formatTime(elapsedTime)}</span>
           </div>
@@ -348,7 +348,7 @@ export default function GenerateButton({
         <div className="relative">
           <Progress
             value={displayProgress}
-            className="h-3 bg-slate-200 dark:bg-slate-700"
+            className="h-3 bg-muted"
           />
           <div
             className="absolute top-0 left-0 h-3 bg-violet-500/20 rounded-full transition-all duration-100"
@@ -358,10 +358,10 @@ export default function GenerateButton({
 
         {/* Progress Details */}
         <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-600 dark:text-slate-400">
+          <span className="text-muted-foreground">
             {jobStatus?.progress?.details || 'Processing...'}
           </span>
-          <span className="font-medium text-slate-700 dark:text-slate-300">
+          <span className="font-medium text-foreground">
             {Math.round(displayProgress)}%
           </span>
         </div>

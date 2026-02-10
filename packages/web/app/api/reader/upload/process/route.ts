@@ -2,9 +2,16 @@ import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { nanoid } from 'nanoid';
 import { validateCsrf } from '@/lib/csrf';
+import { rateLimit, getClientIp } from '@/lib/api/rate-limit';
+import { log } from '@/lib/logger';
 
 // POST /api/reader/upload/process - Process uploaded PDF
 export async function POST(request: NextRequest) {
+  // Rate limit: strict (5/min) — expensive processing pipeline
+  const ip = getClientIp(request);
+  const limited = await rateLimit(`upload:${ip}`, 'strict');
+  if (limited) return limited;
+
   const csrfError = validateCsrf(request);
   if (csrfError) {
     return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
@@ -49,7 +56,7 @@ export async function POST(request: NextRequest) {
       });
 
     if (uploadError) {
-      console.error('Upload error:', uploadError);
+      log.error('Upload error', uploadError);
       return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
     }
 
@@ -74,7 +81,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (projectError) {
-      console.error('Project creation error:', projectError);
+      log.error('Project creation error', projectError);
       return NextResponse.json({ error: 'Failed to create project' }, { status: 500 });
     }
 
@@ -89,7 +96,7 @@ export async function POST(request: NextRequest) {
       });
 
     if (libraryError) {
-      console.error('Library entry error:', libraryError);
+      log.warn('Library entry error', { error: libraryError });
     }
 
     // Create job record
@@ -110,7 +117,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (jobError) {
-      console.error('Job creation error:', jobError);
+      log.error('Job creation error', jobError);
       return NextResponse.json({ error: 'Failed to create job' }, { status: 500 });
     }
 
@@ -123,7 +130,7 @@ export async function POST(request: NextRequest) {
       status: 'processing',
     });
   } catch (error) {
-    console.error('Processing error:', error);
+    log.error('Processing error', error);
     return NextResponse.json(
       { error: 'Failed to process upload' },
       { status: 500 }
@@ -244,7 +251,7 @@ async function triggerProcessing(
       .eq('id', jobId);
 
   } catch (error) {
-    console.error('Processing error:', error);
+    log.error('Processing error', error);
     const supabase = await createClient();
     await supabase
       .from('jobs')

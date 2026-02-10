@@ -37,15 +37,15 @@ export default function ForgotPasswordPage() {
   if (success) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 px-4">
-        <Card className="w-full max-w-md border-slate-200 dark:border-slate-800 shadow-xl">
+        <Card className="w-full max-w-md border-border shadow-xl">
           <CardContent className="pt-6 text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 mb-4">
               <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+            <h2 className="text-2xl font-bold text-foreground mb-2">
               Check your email
             </h2>
-            <p className="text-slate-600 dark:text-slate-400 mb-6">
+            <p className="text-muted-foreground mb-6">
               We sent a password reset link to <strong>{email}</strong>. Click the link to reset your password.
             </p>
             <Link href="/login">
@@ -68,12 +68,12 @@ export default function ForgotPasswordPage() {
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 mb-4">
             <Sparkles className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Story Magic
           </h1>
         </div>
 
-        <Card className="border-slate-200 dark:border-slate-800 shadow-xl">
+        <Card className="border-border shadow-xl">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl text-center">Forgot password?</CardTitle>
             <CardDescription className="text-center">
@@ -115,7 +115,7 @@ export default function ForgotPasswordPage() {
               </Button>
             </form>
 
-            <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
+            <p className="mt-6 text-center text-sm text-muted-foreground">
               Remember your password?{' '}
               <Link
                 href="/login"

@@ -1,5 +1,7 @@
 # Story Magic: Consolidation Progress Report
 
+> **ARCHIVED** (2026-02-08) — Historical sprint report. Consolidation is complete. See [`docs/ROADMAP-2026-02-07.md`](ROADMAP-2026-02-07.md) for current status.
+
 **Date:** January 19, 2026
 **Period:** January 15-19, 2026 (4 days)
 **Author:** Engineering Team

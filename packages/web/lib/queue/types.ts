@@ -10,7 +10,7 @@
 
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed';
 
-export type JobType = 'audio_generation' | 'pdf_extract' | 'ocr_extract' | 'score_generation' | 'suggestion_generation';
+export type JobType = 'audio_generation' | 'scene_regeneration' | 'pdf_extract' | 'ocr_extract' | 'score_generation' | 'suggestion_generation';
 
 export interface Job {
   id: string;

@@ -124,7 +124,7 @@ function RadarChart({ scores }: { scores: StoryScoreType }) {
 
   return (
     <div className="flex justify-center">
-      <svg width={300} height={300} className="text-slate-400 dark:text-slate-600">
+      <svg width={300} height={300} className="text-muted-foreground">
         {/* Background circles */}
         {circles}
         {/* Axis lines */}
@@ -414,7 +414,7 @@ export function StoryScore({
             </CardDescription>
           </div>
           <div className="text-right">
-            <div className="text-4xl font-bold text-slate-900 dark:text-white">
+            <div className="text-4xl font-bold text-foreground">
               {score.overallScore.toFixed(1)}
             </div>
             <Badge className={`${ratingConfig.bgColor} text-white`}>

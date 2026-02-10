@@ -53,7 +53,7 @@ export function SubscriptionCard({ subscription, limits, onUpgrade, onManage }: 
         <CardContent>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-lg border bg-slate-50 dark:bg-slate-900">
+              <div className="p-4 rounded-lg border bg-muted">
                 <div className="font-semibold">Basic</div>
                 <div className="text-2xl font-bold">$10<span className="text-sm font-normal text-muted-foreground">/mo</span></div>
                 <ul className="mt-2 text-sm text-muted-foreground space-y-1">

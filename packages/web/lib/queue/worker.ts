@@ -17,6 +17,7 @@ import {
 import { DequeueResult, WorkerConfig, WorkerStatus, JobType } from './types';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { processGenerationJob } from '@/lib/generation/processor';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Worker Configuration
@@ -78,7 +79,7 @@ let config: WorkerConfig = DEFAULT_CONFIG;
  */
 function startWorker(customConfig?: Partial<WorkerConfig>): void {
   if (isRunning) {
-    console.log('[Worker] Already running');
+    log.info('Worker already running');
     return;
   }
 
@@ -88,9 +89,11 @@ function startWorker(customConfig?: Partial<WorkerConfig>): void {
   startedAt = new Date();
   jobsProcessed = 0;
 
-  console.log(`[Worker] Starting worker ${config.workerId}`);
-  console.log(`[Worker] Poll interval: ${config.pollIntervalMs}ms`);
-  console.log(`[Worker] Lock duration: ${config.lockDurationSeconds}s`);
+  log.info('Worker starting', {
+    workerId: config.workerId,
+    pollIntervalMs: config.pollIntervalMs,
+    lockDurationSeconds: config.lockDurationSeconds,
+  });
 
   // Start polling
   poll();
@@ -100,10 +103,10 @@ function startWorker(customConfig?: Partial<WorkerConfig>): void {
     try {
       const cleaned = await cleanupExpiredLocks();
       if (cleaned > 0) {
-        console.log(`[Worker] Cleaned up ${cleaned} expired locks`);
+        log.info('Cleaned up expired locks', { count: cleaned });
       }
     } catch (error) {
-      console.error('[Worker] Cleanup error:', error);
+      log.error('Worker cleanup error', error);
     }
   }, 60000);
 }
@@ -116,7 +119,7 @@ async function stopWorker(): Promise<void> {
     return;
   }
 
-  console.log('[Worker] Stopping worker...');
+  log.info('Worker stopping');
   shouldStop = true;
 
   // Clear timers
@@ -135,13 +138,13 @@ async function stopWorker(): Promise<void> {
 
   // Release current job lock if any
   if (currentJobId) {
-    console.log(`[Worker] Releasing lock for job ${currentJobId}`);
+    log.info('Releasing lock for job', { jobId: currentJobId });
     await releaseJobLock(currentJobId, config.workerId);
     currentJobId = null;
   }
 
   isRunning = false;
-  console.log('[Worker] Worker stopped');
+  log.info('Worker stopped');
 }
 
 /**
@@ -176,14 +179,14 @@ async function poll(): Promise<void> {
     if (job) {
       // Check if we should process this job type
       if (config.jobTypes && !config.jobTypes.includes(job.jobType)) {
-        console.log(`[Worker] Skipping job ${job.jobId} (type: ${job.jobType})`);
+        log.info('Skipping job (wrong type)', { jobId: job.jobId, jobType: job.jobType });
         await releaseJobLock(job.jobId, config.workerId);
       } else {
         await processJob(job);
       }
     }
   } catch (error) {
-    console.error('[Worker] Poll error:', error);
+    log.error('Worker poll error', error);
   }
 
   // Schedule next poll
@@ -197,7 +200,7 @@ async function poll(): Promise<void> {
 // =============================================================================
 
 async function processJob(job: DequeueResult): Promise<void> {
-  console.log(`[Worker] Processing job ${job.jobId} (type: ${job.jobType}, retry: ${job.retryCount})`);
+  log.info('Processing job', { jobId: job.jobId, jobType: job.jobType, retryCount: job.retryCount });
   currentJobId = job.jobId;
 
   // Start lock renewal timer
@@ -205,7 +208,7 @@ async function processJob(job: DequeueResult): Promise<void> {
     if (currentJobId === job.jobId) {
       const renewed = await extendJobLock(job.jobId, config.workerId, config.lockDurationSeconds);
       if (!renewed) {
-        console.warn(`[Worker] Failed to renew lock for job ${job.jobId}`);
+        log.warn('Failed to renew lock for job', { jobId: job.jobId });
       }
     }
   }, (config.lockDurationSeconds * 1000) / 2); // Renew at half the lock duration
@@ -237,18 +240,18 @@ async function processJob(job: DequeueResult): Promise<void> {
     // Mark as completed
     await completeJob(job.jobId, result || undefined);
     jobsProcessed++;
-    console.log(`[Worker] Job ${job.jobId} completed successfully`);
+    log.info('Job completed successfully', { jobId: job.jobId });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`[Worker] Job ${job.jobId} failed:`, errorMessage);
+    log.error('Job failed', error, { jobId: job.jobId });
 
     // Mark as failed (with retry if applicable)
     const { retrying, retryCount } = await failJob(job.jobId, errorMessage);
 
     if (retrying) {
-      console.log(`[Worker] Job ${job.jobId} will retry (attempt ${retryCount})`);
+      log.info('Job will retry', { jobId: job.jobId, retryCount });
     } else {
-      console.log(`[Worker] Job ${job.jobId} permanently failed`);
+      log.warn('Job permanently failed', { jobId: job.jobId });
     }
   } finally {
     // Clear lock renewal timer
@@ -306,6 +309,90 @@ registerProcessor('audio_generation', async (job, context) => {
     metadata.accessToken,
     metadata.voiceOverrides || {},
   );
+});
+
+// Scene regeneration processor — sends a single scene to the orchestrator
+registerProcessor('scene_regeneration', async (job, context) => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Missing Supabase service role credentials');
+  }
+  const supabase = createServiceClient(supabaseUrl, serviceRoleKey);
+
+  // Fetch job metadata stored by the regenerate-scene route
+  const { data: jobRow, error: fetchError } = await supabase
+    .from('jobs')
+    .select('result')
+    .eq('id', job.jobId)
+    .single();
+
+  if (fetchError || !jobRow) {
+    throw new Error(`Failed to fetch job metadata: ${fetchError?.message || 'not found'}`);
+  }
+
+  const metadata = (jobRow.result as Record<string, unknown>)?.metadata as {
+    sceneIndex?: number;
+    scene?: Record<string, unknown>;
+    accessToken?: string;
+  } | undefined;
+
+  if (metadata?.sceneIndex === undefined || !metadata?.scene) {
+    throw new Error('Missing scene regeneration metadata (sceneIndex, scene)');
+  }
+
+  await context.updateProgress('generating_audio', 10, `Regenerating scene ${metadata.sceneIndex + 1}...`);
+
+  const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:22002';
+  const orchestratorResponse = await fetch(`${orchestratorUrl}/orchestrate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(metadata.accessToken && { 'Authorization': `Bearer ${metadata.accessToken}` }),
+    },
+    body: JSON.stringify({
+      project_id: job.projectId,
+      scenes: [metadata.scene],
+    }),
+  });
+
+  if (!orchestratorResponse.ok) {
+    const errorBody = await orchestratorResponse.text();
+    throw new Error(`Orchestrator failed: ${errorBody}`);
+  }
+
+  const orchestratorResult = await orchestratorResponse.json();
+  await context.updateProgress('uploading', 80, 'Storing regenerated audio...');
+
+  // Store new audio output records for this scene
+  const audioUrls = (orchestratorResult.audio_urls || []) as string[];
+  const manifest = orchestratorResult.playback_manifest;
+
+  for (const audioUrl of audioUrls) {
+    if (!audioUrl) continue;
+    const fileName = audioUrl.split('/').pop() || 'output.mp3';
+    const pathMatch = audioUrl.match(/\/storage\/v1\/object\/public\/(.+)$/);
+    const filePath = pathMatch ? pathMatch[1] : `audio/${job.projectId}/${fileName}`;
+    await supabase
+      .from('audio_outputs')
+      .insert({
+        project_id: job.projectId,
+        job_id: job.jobId,
+        file_name: fileName,
+        file_path: filePath,
+        duration_seconds: manifest?.total_duration || null,
+        format: fileName.endsWith('.m4a') ? 'm4a' : 'mp3',
+        scene_index: metadata.sceneIndex,
+      });
+  }
+
+  log.info('Scene regeneration complete', {
+    jobId: job.jobId.slice(0, 8),
+    projectId: job.projectId,
+    sceneIndex: metadata.sceneIndex,
+  });
+
+  return { sceneIndex: metadata.sceneIndex, audioUrls };
 });
 
 // Default processor for score generation

@@ -119,7 +119,7 @@ export function DiffView({
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
-              <GitCompare className="w-5 h-5 text-slate-500" />
+              <GitCompare className="w-5 h-5 text-muted-foreground" />
               Compare Revisions
             </CardTitle>
             {onClose && (
@@ -205,7 +205,7 @@ export function DiffView({
                   ? 'text-green-600 dark:text-green-400'
                   : scoreComparison.change < 0
                   ? 'text-red-600 dark:text-red-400'
-                  : 'text-slate-500'
+                  : 'text-muted-foreground'
               }`}
             >
               {scoreComparison.change > 0 ? (
@@ -255,7 +255,7 @@ function UnifiedDiffView({ diff }: DiffViewChildProps) {
           className={`flex ${getLineBackground(line.type)}`}
         >
           {/* Line numbers */}
-          <div className="flex-shrink-0 w-20 flex text-xs text-slate-400 border-r border-slate-200 dark:border-slate-700">
+          <div className="flex-shrink-0 w-20 flex text-xs text-muted-foreground border-r border-border">
             <span className="w-10 px-1 text-right">
               {line.lineNumber.from || ''}
             </span>
@@ -335,8 +335,8 @@ function SplitDiffView({ diff }: DiffViewChildProps) {
   return (
     <div className="flex font-mono text-sm">
       {/* Left side (old) */}
-      <div className="flex-1 border-r border-slate-300 dark:border-slate-600">
-        <div className="sticky top-0 bg-slate-100 dark:bg-slate-800 px-2 py-1 text-xs font-semibold border-b border-slate-200 dark:border-slate-700">
+      <div className="flex-1 border-r border-border">
+        <div className="sticky top-0 bg-muted px-2 py-1 text-xs font-semibold border-b border-border">
           Original
         </div>
         {leftLines.map(({ line, index }) => (
@@ -346,7 +346,7 @@ function SplitDiffView({ diff }: DiffViewChildProps) {
 
       {/* Right side (new) */}
       <div className="flex-1">
-        <div className="sticky top-0 bg-slate-100 dark:bg-slate-800 px-2 py-1 text-xs font-semibold border-b border-slate-200 dark:border-slate-700">
+        <div className="sticky top-0 bg-muted px-2 py-1 text-xs font-semibold border-b border-border">
           Modified
         </div>
         {rightLines.map(({ line, index }) => (
@@ -365,8 +365,8 @@ interface SplitDiffLineProps {
 function SplitDiffLine({ line, side }: SplitDiffLineProps) {
   if (!line) {
     return (
-      <div className="flex bg-slate-50 dark:bg-slate-800/50 min-h-[24px]">
-        <div className="w-10 px-1 text-right text-xs text-slate-300 dark:text-slate-600 border-r border-slate-200 dark:border-slate-700" />
+      <div className="flex bg-muted min-h-[24px]">
+        <div className="w-10 px-1 text-right text-xs text-muted-foreground border-r border-border" />
         <div className="flex-1 px-2 py-0.5" />
       </div>
     );
@@ -376,7 +376,7 @@ function SplitDiffLine({ line, side }: SplitDiffLineProps) {
 
   return (
     <div className={`flex ${getLineBackground(line.type)}`}>
-      <div className="w-10 px-1 text-right text-xs text-slate-400 border-r border-slate-200 dark:border-slate-700">
+      <div className="w-10 px-1 text-right text-xs text-muted-foreground border-r border-border">
         {lineNumber}
       </div>
       <div className="flex-1 px-2 py-0.5 whitespace-pre-wrap break-all">
@@ -412,7 +412,7 @@ function getLineColor(type: DiffLine['type']): string {
     case 'modified':
       return 'text-amber-600 dark:text-amber-400';
     default:
-      return 'text-slate-400';
+      return 'text-muted-foreground';
   }
 }
 

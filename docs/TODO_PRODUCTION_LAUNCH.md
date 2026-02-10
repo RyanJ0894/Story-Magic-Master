@@ -25,8 +25,8 @@
 | **5** | Infrastructure & Deployment | 10 | 22 | COMPLETE |
 | **6** | Feature Completion | 12 | 38 | COMPLETE |
 | **7** | MVP Polish & Launch Readiness | 8 | 18 | COMPLETE |
-| **BL** | Post-Launch Backlog | 48 | ~90 | DEFERRED |
-| | **Total (Phases 0-7)** | **88** | **236** | |
+| **BL** | Post-Launch Backlog | 47 | ~85 | DEFERRED (BL-09, BL-10, BL-16, BL-33 done) |
+| | **Total (Phases 0-7)** | **96** | **254** | **ALL COMPLETE** |
 
 **Timeline:** 8-10 weeks (Phases 0-7)
 **Velocity assumption:** 25-30 SP/week (solo developer)
@@ -38,66 +38,66 @@
 > **Gate:** NOTHING deploys to production until Phase 0 is complete.
 > **Rationale:** Hardcoded secrets in git, wildcard CORS, auth bypass toggle, and missing CSRF create immediate exploit vectors.
 
-- [ ] **P0-01** Rotate all exposed secrets (Supabase service role, ElevenLabs, Upstash) `[TD-001] [2 SP]`
+- [x] **P0-01** Rotate all exposed secrets (Supabase service role, ElevenLabs, Upstash) `[TD-001] [2 SP]` <!-- 2026-02-07 -->
   - Rotate via Supabase dashboard, ElevenLabs dashboard, Upstash console
   - Remove all secret values from `render.yaml` comments (lines 154-158)
   - Scrub git history with BFG Repo-Cleaner
   - Install `gitleaks` pre-commit hook
   - Files: `render.yaml:154-158`, `.env:24`
 
-- [ ] **P0-02** Move Supabase anon key to Render secrets `[TD-002] [1 SP]`
+- [x] **P0-02** Move Supabase anon key to Render secrets `[TD-002] [1 SP]` <!-- 2026-02-07 -->
   - Remove inline values from `render.yaml:43,105`
   - Configure in Render dashboard with `sync: false`
   - Files: `render.yaml:43,105`
 
-- [ ] **P0-03** Lock down CORS on orchestrator `[TD-003] [2 SP]`
+- [x] **P0-03** Lock down CORS on orchestrator `[TD-003] [2 SP]` <!-- 2026-02-07 -->
   - Replace `app.use(cors())` with explicit origin allowlist
   - Add `WEB_URL` env var to orchestrator config
   - Set `credentials: true`
   - Files: `packages/orchestrator/src/index.ts:44`
 
-- [ ] **P0-04** Remove AUTH_DISABLED toggle `[TD-004] [1 SP]`
+- [x] **P0-04** Remove AUTH_DISABLED toggle `[TD-004] [1 SP]` <!-- 2026-02-07 -->
   - Guard with `NODE_ENV !== 'production'` or remove entirely
   - Same for `RATE_LIMIT_DISABLED`
   - Add startup check: refuse to start if `AUTH_DISABLED=true` in production
   - Files: `packages/orchestrator/src/middleware/auth.ts:49-52`, `render.yaml:136-137`
 
-- [ ] **P0-05** Fix path traversal vulnerabilities `[TD-005] [2 SP]`
+- [x] **P0-05** Fix path traversal vulnerabilities `[TD-005] [2 SP]` <!-- 2026-02-07 -->
   - Change `project_id` schema to `z.string().uuid()`
   - Add `path.resolve()` containment in download endpoint
   - Check backslash and URL-encoded characters
   - Verify project ownership before serving files
   - Files: `packages/orchestrator/src/orchestrator/pipeline.ts:125`, `src/index.ts:70-87`, `src/schemas/director-json.ts:62`
 
-- [ ] **P0-06** Add CSRF to all 14 unprotected routes `[TD-013] [3 SP]`
+- [x] **P0-06** Add CSRF to all 14 unprotected routes `[TD-013] [3 SP]` <!-- 2026-02-07 -->
   - Apply `validateCsrf(request)` to: shares, teams, team members, invites, admin (users/subscriptions/corpus), generate-demo-script, jobs/cancel, reader upload/payment, alerts
   - Files: 14 route files (see SEC-008 for full list)
 
-- [ ] **P0-07** Fix CSRF wildcard domain matching `[TD-014] [2 SP]`
+- [x] **P0-07** Fix CSRF wildcard domain matching `[TD-014] [2 SP]` <!-- 2026-02-07 -->
   - Remove `*.vercel.app` and `*.onrender.com` suffix checks
   - Use exact origin matching only
   - Files: `packages/web/lib/csrf.ts:46-47`
 
-- [ ] **P0-08** Expand middleware protected paths `[TD-017] [2 SP]`
+- [x] **P0-08** Expand middleware protected paths `[TD-017] [2 SP]` <!-- 2026-02-07 -->
   - Add `/admin`, `/billing`, `/writer`, `/reader` to protected paths array
   - Files: `packages/web/middleware.ts:93`
 
-- [ ] **P0-09** Add auth to demo script endpoint `[TD-018] [2 SP]`
+- [x] **P0-09** Add auth to demo script endpoint `[TD-018] [2 SP]` <!-- 2026-02-07 -->
   - Require authentication on `/api/generate-demo-script`
   - Add rate limiting (currently calls OpenAI without any guard)
   - Files: `packages/web/app/api/generate-demo-script/route.ts:11`
 
-- [ ] **P0-10** Stop leaking error messages in production `[TD-019] [1 SP]`
+- [x] **P0-10** Stop leaking error messages in production `[TD-019] [1 SP]` <!-- 2026-02-07 -->
   - Sanitize error responses when `NODE_ENV === 'production'`
   - Replace stack traces with generic messages + correlation IDs
   - Files: orchestrator error handlers, web API catch blocks
 
-- [ ] **P0-11** Fix qs DoS vulnerability `[TD-020] [1 SP]`
+- [x] **P0-11** Fix qs DoS vulnerability `[TD-020] [1 SP]` <!-- 2026-02-07 -->
   - Upgrade Express or pin `qs` to patched version
   - Run `pnpm audit fix`
   - Files: `packages/orchestrator/package.json`
 
-- [ ] **P0-12** Guard `request.json()` in shares route `[TD-075] [1 SP]`
+- [x] **P0-12** Guard `request.json()` in shares route `[TD-075] [1 SP]` <!-- 2026-02-07 -->
   - Wrap in try/catch (only POST route missing it)
   - Files: `packages/web/app/api/shares/route.ts:56`
 
@@ -110,41 +110,41 @@
 > **Gate:** App must not show raw errors to users or lose jobs on crash.
 > **Rationale:** Zero error boundaries, zero loading states, and fragile `setImmediate()` jobs.
 
-- [ ] **P1-01** Add `error.tsx` boundaries to all route segments `[TD-009] [5 SP]`
+- [x] **P1-01** Add `error.tsx` boundaries to all route segments `[TD-009] [5 SP]` <!-- 2026-02-07 -->
   - Create: `app/error.tsx` (global), `app/dashboard/error.tsx`, `app/projects/[id]/error.tsx`, `app/admin/error.tsx`
   - Each shows branded error + `reset()` retry button
   - Files: `packages/web/app/` (zero error.tsx files exist)
 
-- [ ] **P1-02** Add `loading.tsx` to all route segments `[TD-008] [5 SP]`
+- [x] **P1-02** Add `loading.tsx` to all route segments `[TD-008] [5 SP]` <!-- 2026-02-07 -->
   - Create skeleton UIs for: dashboard, projects/[id], admin, admin sub-routes
   - Use existing `Skeleton` component from `components/ui/skeleton.tsx`
   - Files: `packages/web/app/` (zero loading.tsx files exist)
 
-- [ ] **P1-03** Wire queue system into generate route `[TD-006] [5 SP]`
+- [x] **P1-03** Wire queue system into generate route `[TD-006] [5 SP]` <!-- 2026-02-07 -->
   - Replace `setImmediate()` with existing queue (`lib/queue/service.ts`)
   - Jobs survive process restarts via lock expiration
   - Cancel API actually stops running jobs
   - Files: `packages/web/app/api/generate/route.ts:489-506`, `lib/queue/service.ts`, `lib/queue/worker.ts`
 
-- [ ] **P1-04** Consolidate duplicate CSP headers `[TD-048] [2 SP]`
+- [x] **P1-04** Consolidate duplicate CSP headers `[TD-048] [2 SP]` <!-- 2026-02-07 -->
   - Remove CSP from `next.config.js` (keep in `middleware.ts` only)
   - Verify headers aren't duplicated in production
   - Files: `packages/web/next.config.js:59-75`, `packages/web/middleware.ts:11-26`
 
-- [ ] **P1-05** Create custom 404 page `[TD-080] [2 SP]`
+- [x] **P1-05** Create custom 404 page `[TD-080] [2 SP]` <!-- 2026-02-07 -->
   - Create `app/not-found.tsx` with branded design
   - Files: `packages/web/app/`
 
-- [ ] **P1-06** Wrap useSearchParams in Suspense `[TD-081] [3 SP]`
+- [x] **P1-06** Wrap useSearchParams in Suspense `[TD-081] [3 SP]` <!-- 2026-02-07 -->
   - Audit all `useSearchParams()` calls
   - Wrap in `<Suspense>` boundaries to prevent SSR hydration warnings
   - Files: multiple page/component files
 
-- [ ] **P1-07** Fix Dockerfile port mismatch `[TD-096] [1 SP]`
+- [x] **P1-07** Fix Dockerfile port mismatch `[TD-096] [1 SP]` <!-- 2026-02-07 -->
   - Align Dockerfile EXPOSE with actual service port
   - Files: `packages/orchestrator/Dockerfile`
 
-- [ ] **P1-08** Fix Procfile references `[TD-098] [1 SP]`
+- [x] **P1-08** Fix Procfile references `[TD-098] [1 SP]` <!-- 2026-02-07 -->
   - Ensure Procfile matches current build output paths
   - Files: root `Procfile`
 
@@ -587,16 +587,16 @@
 - [ ] **BL-06** Long-script chunking for Pro tier `[TD-049] [8 SP]`
 - [ ] **BL-07** Scene-level regeneration `[TD-106] [5 SP]`
 - [ ] **BL-08** Stem export capability `[TD-107] [3 SP]`
-- [ ] **BL-09** Audio preview/partial generation `[TD-109] [5 SP]`
+- [x] **BL-09** Audio preview/partial generation `[TD-109] [5 SP]` <!-- 2026-01-31 Scene Preview feature (commit f4da1cd) -->
 
 ### Code Quality Polish
-- [ ] **BL-10** Rate-limit share password verification `[TD-058] [2 SP]`
+- [x] **BL-10** Rate-limit share password verification `[TD-058] [2 SP]` <!-- 2026-02-09 Sprint 1 -->
 - [ ] **BL-11** Implement nonce-based CSP `[TD-059] [3 SP]`
 - [ ] **BL-12** Scope voice search state per-request `[TD-064] [2 SP]`
 - [ ] **BL-13** Add agent loop cancellation `[TD-066] [3 SP]`
 - [ ] **BL-14** Standardize admin authorization `[TD-057] [2 SP]`
 - [ ] **BL-15** Create withAdminAuth wrapper `[TD-074] [2 SP]`
-- [ ] **BL-16** Add web package structured logging `[TD-078] [3 SP]`
+- [x] **BL-16** Add web package structured logging `[TD-078] [3 SP]` <!-- 2026-02-09 Sprint 1 -->
 - [ ] **BL-17** Review bare catch blocks `[TD-076] [2 SP]`
 - [ ] **BL-18** Centralize FFmpeg path resolution `[TD-116] [1 SP]`
 - [ ] **BL-19** Fix logger ESM interop types `[TD-117] [1 SP]`
@@ -617,7 +617,7 @@
 - [ ] **BL-32** Mandate next/image usage standard `[TD-129] [1 SP]`
 
 ### Infrastructure Polish
-- [ ] **BL-33** Add rate limiting to web API routes `[TD-112] [3 SP]`
+- [x] **BL-33** Add rate limiting to web API routes `[TD-112] [3 SP]` <!-- 2026-02-09 Sprint 1 -->
 - [ ] **BL-34** Harden Docker Compose defaults `[TD-113] [1 SP]`
 - [ ] **BL-35** Restrict health endpoint detail level `[TD-114] [1 SP]`
 - [ ] **BL-36** Remove hardcoded Sentry DSN fallbacks `[TD-132] [1 SP]`
@@ -671,4 +671,4 @@ This TODO supersedes and reconciles the following documents. They should be cons
 
 ---
 
-*Last updated: 2026-02-07*
+*Last updated: 2026-02-09 — All 96 tickets complete. Post-launch Sprint 1 done (BL-10, BL-33, BL-16). 664 tests passing. Deployed to Render.com.*

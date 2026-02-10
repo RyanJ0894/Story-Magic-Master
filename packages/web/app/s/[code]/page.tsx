@@ -225,7 +225,7 @@ export default function PublicSharePage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="rounded-lg bg-slate-50 dark:bg-slate-900 p-4 space-y-2">
+              <div className="rounded-lg bg-muted p-4 space-y-2">
                 <div className="flex items-center gap-2 text-sm">
                   <FileText className="w-4 h-4 text-muted-foreground" />
                   <span className="font-medium">{passwordMeta.projectName}</span>

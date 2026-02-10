@@ -103,7 +103,7 @@ function ScoreAnalysisStep({ context }: { context: WizardContext }) {
               return (
                 <div
                   key={dim}
-                  className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg"
+                  className="p-3 bg-muted rounded-lg"
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-medium capitalize">
@@ -343,7 +343,7 @@ function RevisionsStep({ context }: { context: WizardContext }) {
         </p>
       </div>
 
-      <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-6">
+      <div className="bg-muted rounded-lg p-6">
         <h5 className="font-medium mb-4">Recommended Workflow:</h5>
         <ol className="space-y-3">
           <li className="flex items-start gap-3">
@@ -406,7 +406,7 @@ function CompareStep({ context }: { context: WizardContext }) {
       </div>
 
       {initialScore && (
-        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-6">
+        <div className="bg-muted rounded-lg p-6">
           <div className="flex items-center justify-between mb-4">
             <span className="font-medium">Starting Score</span>
             <span className="text-2xl font-bold text-violet-600 dark:text-violet-400">

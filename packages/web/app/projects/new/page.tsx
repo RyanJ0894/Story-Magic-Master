@@ -124,9 +124,9 @@ export default function NewProjectPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-muted">
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur">
+      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center gap-4">
             <Link href="/dashboard">
@@ -135,12 +135,12 @@ export default function NewProjectPage() {
                 Back
               </Button>
             </Link>
-            <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+            <div className="h-6 w-px bg-border" />
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <h1 className="font-semibold text-slate-900 dark:text-white">New Project</h1>
+              <h1 className="font-semibold text-foreground">New Project</h1>
             </div>
           </div>
         </div>
@@ -207,7 +207,7 @@ export default function NewProjectPage() {
                 <div className="flex items-center justify-between">
                   <Label htmlFor="script">Script *</Label>
                   <div className="flex items-center gap-4 text-sm">
-                    <span className="text-slate-500">
+                    <span className="text-muted-foreground">
                       {wordCount.toLocaleString()} words
                     </span>
                     <span className="px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium" data-testid="page-count-display">
@@ -237,9 +237,9 @@ The door CHIMES. MARCUS (40s, distinguished) enters...`}
                 />
               </div>
 
-              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-4 pt-6 border-t border-slate-200 dark:border-slate-700">
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  This will use <strong className="text-slate-900 dark:text-white">{pageCount}</strong> page{pageCount !== 1 ? 's' : ''} from your quota.
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-4 pt-6 border-t border-border">
+                <p className="text-sm text-muted-foreground">
+                  This will use <strong className="text-foreground">{pageCount}</strong> page{pageCount !== 1 ? 's' : ''} from your quota.
                 </p>
                 <div className="flex gap-3">
                   <Link href="/dashboard">
@@ -290,7 +290,7 @@ The door CHIMES. MARCUS (40s, distinguished) enters...`}
               className="resize-none"
               disabled={generatingScript}
             />
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               The AI will generate a ~1 page scene with proper screenplay formatting.
             </p>
           </div>

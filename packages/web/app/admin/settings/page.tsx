@@ -25,8 +25,8 @@ export default async function AdminSettingsPage() {
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Settings</h1>
-        <p className="text-slate-600 dark:text-slate-400">Manage platform configuration</p>
+        <h1 className="text-3xl font-bold text-foreground">Settings</h1>
+        <p className="text-muted-foreground">Manage platform configuration</p>
       </div>
 
       <div className="grid gap-6 max-w-4xl">
@@ -34,7 +34,7 @@ export default async function AdminSettingsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <Globe className="w-5 h-5 text-slate-600" />
+              <Globe className="w-5 h-5 text-muted-foreground" />
               <div>
                 <CardTitle>General Settings</CardTitle>
                 <CardDescription>Platform name, branding, and general options</CardDescription>
@@ -65,7 +65,7 @@ export default async function AdminSettingsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <Shield className="w-5 h-5 text-slate-600" />
+              <Shield className="w-5 h-5 text-muted-foreground" />
               <div>
                 <CardTitle>Security</CardTitle>
                 <CardDescription>Authentication and access control settings</CardDescription>
@@ -106,7 +106,7 @@ export default async function AdminSettingsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <Mail className="w-5 h-5 text-slate-600" />
+              <Mail className="w-5 h-5 text-muted-foreground" />
               <div>
                 <CardTitle>Email Configuration</CardTitle>
                 <CardDescription>Transactional email settings</CardDescription>
@@ -137,7 +137,7 @@ export default async function AdminSettingsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <Bell className="w-5 h-5 text-slate-600" />
+              <Bell className="w-5 h-5 text-muted-foreground" />
               <div>
                 <CardTitle>Admin Notifications</CardTitle>
                 <CardDescription>Configure admin alerts and notifications</CardDescription>
@@ -181,7 +181,7 @@ export default async function AdminSettingsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <CreditCard className="w-5 h-5 text-slate-600" />
+              <CreditCard className="w-5 h-5 text-muted-foreground" />
               <div>
                 <CardTitle>Billing & Payments</CardTitle>
                 <CardDescription>Stripe and subscription settings</CardDescription>
@@ -217,7 +217,7 @@ export default async function AdminSettingsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <Key className="w-5 h-5 text-slate-600" />
+              <Key className="w-5 h-5 text-muted-foreground" />
               <div>
                 <CardTitle>API & Integrations</CardTitle>
                 <CardDescription>External service connections</CardDescription>
@@ -225,9 +225,9 @@ export default async function AdminSettingsPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded bg-white dark:bg-slate-800 flex items-center justify-center text-lg font-bold">
+                <div className="w-10 h-10 rounded bg-card flex items-center justify-center text-lg font-bold">
                   S
                 </div>
                 <div>
@@ -237,9 +237,9 @@ export default async function AdminSettingsPage() {
               </div>
               <Badge variant="default">Connected</Badge>
             </div>
-            <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded bg-white dark:bg-slate-800 flex items-center justify-center text-lg font-bold">
+                <div className="w-10 h-10 rounded bg-card flex items-center justify-center text-lg font-bold">
                   11
                 </div>
                 <div>
@@ -251,9 +251,9 @@ export default async function AdminSettingsPage() {
                 {process.env.ELEVENLABS_API_KEY ? 'Connected' : 'Not Configured'}
               </Badge>
             </div>
-            <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded bg-white dark:bg-slate-800 flex items-center justify-center text-lg">
+                <div className="w-10 h-10 rounded bg-card flex items-center justify-center text-lg">
                   <CreditCard className="w-5 h-5" />
                 </div>
                 <div>
@@ -272,7 +272,7 @@ export default async function AdminSettingsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <Server className="w-5 h-5 text-slate-600" />
+              <Server className="w-5 h-5 text-muted-foreground" />
               <div>
                 <CardTitle>System Information</CardTitle>
                 <CardDescription>Platform version and deployment info</CardDescription>

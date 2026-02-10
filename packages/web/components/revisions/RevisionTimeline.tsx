@@ -113,7 +113,7 @@ export function RevisionTimeline({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <History className="w-5 h-5 text-slate-500" />
+            <History className="w-5 h-5 text-muted-foreground" />
             Revision History
           </CardTitle>
         </CardHeader>
@@ -136,15 +136,15 @@ export function RevisionTimeline({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <History className="w-5 h-5 text-slate-500" />
+            <History className="w-5 h-5 text-muted-foreground" />
             Revision History
           </CardTitle>
           <CardDescription>Track changes to your script over time</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center text-center py-8">
-            <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
-              <GitBranch className="w-8 h-8 text-slate-400" />
+            <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+              <GitBranch className="w-8 h-8 text-muted-foreground" />
             </div>
             <h3 className="font-semibold text-lg mb-1">No Revisions Yet</h3>
             <p className="text-muted-foreground text-sm max-w-sm">
@@ -165,7 +165,7 @@ export function RevisionTimeline({
       case 'declining':
         return <TrendingDown className="w-4 h-4 text-red-500" />;
       default:
-        return <Minus className="w-4 h-4 text-slate-400" />;
+        return <Minus className="w-4 h-4 text-muted-foreground" />;
     }
   };
 
@@ -282,14 +282,14 @@ function RevisionEntry({
     <div
       className={`
         relative pl-6 pb-3 border-l-2 last:border-l-transparent
-        ${isSelected ? 'border-l-violet-500' : 'border-l-slate-200 dark:border-l-slate-700'}
+        ${isSelected ? 'border-l-violet-500' : 'border-l-border'}
       `}
     >
       {/* Timeline dot */}
       <div
         className={`
           absolute left-[-5px] top-0 w-2 h-2 rounded-full
-          ${isLatest ? 'bg-violet-500' : 'bg-slate-300 dark:bg-slate-600'}
+          ${isLatest ? 'bg-violet-500' : 'bg-muted-foreground'}
           ${isSelected ? 'ring-2 ring-violet-500 ring-offset-2' : ''}
         `}
       />
@@ -299,7 +299,7 @@ function RevisionEntry({
           p-3 rounded-lg border transition-colors cursor-pointer
           ${isSelected
             ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'
-            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+            : 'border-border hover:border-border'
           }
         `}
         onClick={onSelect}

@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateCsrf } from '@/lib/csrf';
+import { rateLimit, getClientIp } from '@/lib/api/rate-limit';
+import { log } from '@/lib/logger';
 
 const PreviewRequestSchema = z.object({
   projectId: z.string().uuid('Invalid project ID format'),
@@ -9,6 +11,11 @@ const PreviewRequestSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  // Rate limit: strict (5/min) — expensive TTS preview
+  const ip = getClientIp(request);
+  const limited = await rateLimit(`preview:${ip}`, 'strict');
+  if (limited) return limited;
+
   // CSRF protection
   const csrfError = validateCsrf(request);
   if (csrfError) {
@@ -94,7 +101,7 @@ export async function POST(request: Request) {
   );
 
   if (budgetError) {
-    console.error('Budget check error:', budgetError);
+    log.error('Budget check error', budgetError);
     return NextResponse.json({
       error: 'Failed to check preview budget',
       code: 'INTERNAL_ERROR',
@@ -162,7 +169,7 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error('Orchestrator preview error:', errorBody);
+      log.error('Orchestrator preview error', undefined, { errorBody });
       return NextResponse.json({
         error: 'Preview generation failed',
         code: 'INTERNAL_ERROR',
@@ -178,7 +185,7 @@ export async function POST(request: Request) {
     );
 
     if (incrementError) {
-      console.error('Failed to increment preview usage:', incrementError);
+      log.warn('Failed to increment preview usage', { error: incrementError });
       // Don't fail the request - preview was generated successfully
     }
 
@@ -195,7 +202,7 @@ export async function POST(request: Request) {
       remainingPreviews: updatedRemaining ?? 0,
     });
   } catch (error) {
-    console.error('Preview generation error:', error);
+    log.error('Preview generation error', error);
     return NextResponse.json({
       error: 'Failed to generate preview',
       code: 'INTERNAL_ERROR',

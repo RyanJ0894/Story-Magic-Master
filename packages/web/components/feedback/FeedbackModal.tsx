@@ -79,7 +79,7 @@ const RATING_OPTIONS: Array<{
     value: 'not_helpful',
     label: 'Not Helpful',
     icon: ThumbsDown,
-    color: 'text-slate-600 dark:text-slate-400',
+    color: 'text-muted-foreground',
   },
   {
     value: 'harmful',
@@ -204,7 +204,7 @@ export function FeedbackModal({
                           ${
                             isSelected
                               ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'
-                              : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                              : 'border-border hover:border-border'
                           }
                         `}
                       >
@@ -238,7 +238,7 @@ export function FeedbackModal({
                         ${
                           rejectionReason === key
                             ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'
-                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                            : 'border-border hover:border-border'
                         }
                       `}
                       onClick={() => setRejectionReason(key as RejectionReason)}

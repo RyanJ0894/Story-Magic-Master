@@ -68,7 +68,7 @@ function LoginForm() {
   };
 
   return (
-    <Card className="border-slate-200 dark:border-slate-800 shadow-xl">
+    <Card className="border-border shadow-xl">
       <CardHeader className="space-y-1">
         <CardTitle className="text-2xl text-center">Welcome back</CardTitle>
         <CardDescription className="text-center">
@@ -132,10 +132,10 @@ function LoginForm() {
 
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-slate-200 dark:border-slate-700" />
+            <span className="w-full border-t border-border" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-white dark:bg-slate-950 px-2 text-slate-500">
+            <span className="bg-background px-2 text-muted-foreground">
               Or continue with
             </span>
           </div>
@@ -162,7 +162,7 @@ function LoginForm() {
           )}
         </Button>
 
-        <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
+        <p className="mt-6 text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{' '}
           <Link
             href="/signup"
@@ -178,7 +178,7 @@ function LoginForm() {
 
 function LoginFormFallback() {
   return (
-    <Card className="border-slate-200 dark:border-slate-800 shadow-xl">
+    <Card className="border-border shadow-xl">
       <CardHeader className="space-y-1">
         <CardTitle className="text-2xl text-center">Welcome back</CardTitle>
         <CardDescription className="text-center">
@@ -204,14 +204,14 @@ function LoginFormFallback() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background to-muted dark:from-background dark:to-muted px-4">
       <div className="w-full max-w-md">
         {/* Logo/Brand */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 mb-4">
             <Sparkles className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Story Magic
           </h1>
         </div>

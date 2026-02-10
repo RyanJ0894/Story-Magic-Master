@@ -214,7 +214,7 @@ export function ScriptReadStatusCompact({
                 'p-1.5 rounded-md transition-colors',
                 status === 'like'
                   ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
-                  : 'text-slate-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
+                  : 'text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
               )}
               onClick={() => handleStatusChange('like')}
               disabled={loading}
@@ -232,7 +232,7 @@ export function ScriptReadStatusCompact({
                 'p-1.5 rounded-md transition-colors',
                 status === 'pass'
                   ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                  : 'text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'
+                  : 'text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'
               )}
               onClick={() => handleStatusChange('pass')}
               disabled={loading}
@@ -250,7 +250,7 @@ export function ScriptReadStatusCompact({
                 'p-1.5 rounded-md transition-colors',
                 status === 'undecided'
                   ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
-                  : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+                  : 'text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20'
               )}
               onClick={() => handleStatusChange('undecided')}
               disabled={loading}

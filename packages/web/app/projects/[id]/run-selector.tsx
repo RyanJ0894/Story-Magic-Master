@@ -53,7 +53,7 @@ interface RunSelectorProps {
 }
 
 const statusConfig = {
-  queued: { icon: Clock, label: 'Queued', className: 'text-slate-500' },
+  queued: { icon: Clock, label: 'Queued', className: 'text-muted-foreground' },
   processing: { icon: Loader2, label: 'Processing', className: 'text-violet-500' },
   completed: { icon: CheckCircle, label: 'Completed', className: 'text-green-500' },
   failed: { icon: XCircle, label: 'Failed', className: 'text-red-500' },
@@ -152,7 +152,7 @@ export function RunSelector({
                 run.status === 'completed' && 'bg-green-100 dark:bg-green-900/30',
                 run.status === 'failed' && 'bg-red-100 dark:bg-red-900/30',
                 run.status === 'processing' && 'bg-violet-100 dark:bg-violet-900/30',
-                run.status === 'queued' && 'bg-slate-100 dark:bg-slate-800',
+                run.status === 'queued' && 'bg-muted',
               )}>
                 <StatusIcon className={cn(
                   'w-4 h-4',

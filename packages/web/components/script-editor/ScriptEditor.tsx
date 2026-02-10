@@ -351,7 +351,7 @@ export function ScriptEditor({
   return (
     <div
       ref={containerRef}
-      className={`h-full border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden ${className}`}
+      className={`h-full border border-border rounded-lg overflow-hidden ${className}`}
     />
   );
 }

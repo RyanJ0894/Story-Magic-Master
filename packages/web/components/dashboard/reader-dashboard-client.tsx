@@ -297,7 +297,7 @@ export function ReaderDashboardClient({
                     <p className="text-sm text-muted-foreground mb-4">
                       Share your reader code with writers to receive their scripts
                     </p>
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-muted rounded-lg">
                       <span className="font-mono font-bold">{readerCode}</span>
                       <Button
                         variant="ghost"
@@ -445,7 +445,7 @@ export function ReaderDashboardClient({
                     .map(entry => (
                       <div
                         key={entry.id}
-                        className="flex items-center gap-2 p-2 rounded hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer"
+                        className="flex items-center gap-2 p-2 rounded hover:bg-accent cursor-pointer"
                         onClick={() => handlePlay(entry)}
                       >
                         <div className="w-8 h-8 rounded bg-violet-100 dark:bg-violet-900 flex items-center justify-center">
@@ -476,10 +476,10 @@ export function ReaderDashboardClient({
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center p-6">
-            <div className="w-48 h-48 bg-white rounded-lg p-4 mb-4">
+            <div className="w-48 h-48 bg-card rounded-lg p-4 mb-4">
               {/* QR Code placeholder - would use react-qr-code in production */}
-              <div className="w-full h-full flex items-center justify-center border-2 border-dashed border-slate-300 rounded">
-                <QrCode className="w-16 h-16 text-slate-400" />
+              <div className="w-full h-full flex items-center justify-center border-2 border-dashed border-border rounded">
+                <QrCode className="w-16 h-16 text-muted-foreground" />
               </div>
             </div>
             <p className="text-center text-sm text-muted-foreground mb-4">

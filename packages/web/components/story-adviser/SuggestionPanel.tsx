@@ -141,8 +141,8 @@ export function SuggestionPanel({
           </Card>
           <Card className="p-3">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                <XCircle className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                <XCircle className="w-4 h-4 text-muted-foreground" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.rejected + stats.dismissed}</p>

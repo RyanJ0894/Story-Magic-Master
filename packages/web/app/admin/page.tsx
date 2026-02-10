@@ -101,8 +101,8 @@ export default async function AdminDashboardPage() {
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Admin Dashboard</h1>
-        <p className="text-slate-600 dark:text-slate-400">Platform overview and key metrics</p>
+        <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
+        <p className="text-muted-foreground">Platform overview and key metrics</p>
       </div>
 
       {/* Stats Grid */}
@@ -140,7 +140,7 @@ export default async function AdminDashboardPage() {
               {recentUsers?.map((user) => (
                 <div key={user.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-sm font-medium">
+                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
                       {user.full_name?.[0]?.toUpperCase() || '?'}
                     </div>
                     <div>
@@ -215,30 +215,30 @@ export default async function AdminDashboardPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <a
               href="/admin/users"
-              className="p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 transition-colors text-center"
+              className="p-4 border rounded-lg hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 transition-colors text-center"
             >
-              <Users className="w-6 h-6 mx-auto mb-2 text-slate-600" aria-hidden="true" />
+              <Users className="w-6 h-6 mx-auto mb-2 text-muted-foreground" aria-hidden="true" />
               <p className="font-medium">Manage Users</p>
             </a>
             <a
               href="/admin/subscriptions"
-              className="p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 transition-colors text-center"
+              className="p-4 border rounded-lg hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 transition-colors text-center"
             >
-              <CreditCard className="w-6 h-6 mx-auto mb-2 text-slate-600" aria-hidden="true" />
+              <CreditCard className="w-6 h-6 mx-auto mb-2 text-muted-foreground" aria-hidden="true" />
               <p className="font-medium">Subscriptions</p>
             </a>
             <a
               href="/admin/analytics"
-              className="p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 transition-colors text-center"
+              className="p-4 border rounded-lg hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 transition-colors text-center"
             >
-              <TrendingUp className="w-6 h-6 mx-auto mb-2 text-slate-600" aria-hidden="true" />
+              <TrendingUp className="w-6 h-6 mx-auto mb-2 text-muted-foreground" aria-hidden="true" />
               <p className="font-medium">Analytics</p>
             </a>
             <a
               href="/admin/audit-log"
-              className="p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 transition-colors text-center"
+              className="p-4 border rounded-lg hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 transition-colors text-center"
             >
-              <FileText className="w-6 h-6 mx-auto mb-2 text-slate-600" aria-hidden="true" />
+              <FileText className="w-6 h-6 mx-auto mb-2 text-muted-foreground" aria-hidden="true" />
               <p className="font-medium">Audit Log</p>
             </a>
           </div>

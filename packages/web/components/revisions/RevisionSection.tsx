@@ -27,7 +27,7 @@ function RevisionPreview() {
     <Card className="border-dashed border-2 opacity-60">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <History className="w-5 h-5 text-slate-500" />
+          <History className="w-5 h-5 text-muted-foreground" />
           Revision History
           <Badge variant="outline" className="ml-2">
             <FlaskConical className="w-3 h-3 mr-1" />

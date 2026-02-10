@@ -107,7 +107,7 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
     };
 
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${colors[subPlan] || 'bg-slate-100 text-slate-800'}`}>
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${colors[subPlan] || 'bg-muted text-foreground'}`}>
         {subPlan}
       </span>
     );
@@ -116,8 +116,8 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Subscriptions</h1>
-        <p className="text-slate-600 dark:text-slate-400">Manage platform subscriptions and billing</p>
+        <h1 className="text-3xl font-bold text-foreground">Subscriptions</h1>
+        <p className="text-muted-foreground">Manage platform subscriptions and billing</p>
       </div>
 
       {/* Stats */}

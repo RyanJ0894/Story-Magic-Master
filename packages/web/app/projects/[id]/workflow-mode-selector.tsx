@@ -123,7 +123,7 @@ export function WorkflowModeSelector({
           <Sparkles className="w-3 h-3 mr-1" />
           Run #{nextRunNumber}
         </Badge>
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+        <h2 className="text-2xl font-bold text-foreground">
           How would you like to generate?
         </h2>
         <p className="text-muted-foreground max-w-md mx-auto">
@@ -144,7 +144,7 @@ export function WorkflowModeSelector({
                 'relative cursor-pointer transition-all hover:shadow-md',
                 isSelected
                   ? 'ring-2 ring-violet-500 border-violet-300 dark:border-violet-700'
-                  : 'hover:border-slate-300 dark:hover:border-slate-600',
+                  : 'hover:border-border',
               )}
               onClick={() => setSelectedMode(option.id)}
             >
@@ -162,7 +162,7 @@ export function WorkflowModeSelector({
                     'w-12 h-12 rounded-xl flex items-center justify-center',
                     isSelected
                       ? 'bg-violet-100 dark:bg-violet-900/30'
-                      : 'bg-slate-100 dark:bg-slate-800',
+                      : 'bg-muted',
                   )}>
                     <Icon className={cn('w-6 h-6', option.iconColor)} />
                   </div>
@@ -170,7 +170,7 @@ export function WorkflowModeSelector({
                     'w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all',
                     isSelected
                       ? 'border-violet-500 bg-violet-500'
-                      : 'border-slate-300 dark:border-slate-600',
+                      : 'border-border',
                   )}>
                     {isSelected && <CheckCircle className="w-4 h-4 text-white" />}
                   </div>
@@ -195,7 +195,7 @@ export function WorkflowModeSelector({
                     <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
                       <CheckCircle className={cn(
                         'w-4 h-4 flex-shrink-0',
-                        isSelected ? 'text-violet-500' : 'text-slate-400',
+                        isSelected ? 'text-violet-500' : 'text-muted-foreground',
                       )} />
                       {feature}
                     </li>

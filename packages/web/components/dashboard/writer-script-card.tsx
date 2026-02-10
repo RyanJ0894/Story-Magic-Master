@@ -63,14 +63,14 @@ export function WriterScriptCard({
         <div className="flex items-start justify-between gap-4">
           {/* Script Info */}
           <div className="flex items-start gap-3 flex-1 min-w-0">
-            <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
-              <FileText className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+            <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+              <FileText className="w-5 h-5 text-muted-foreground" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <Link
                   href={`/projects/${script.project_id}`}
-                  className="font-medium text-slate-900 dark:text-white hover:underline truncate"
+                  className="font-medium text-foreground hover:underline truncate"
                 >
                   {script.name}
                 </Link>
@@ -171,10 +171,10 @@ export function WriterScriptCardCompact({
   const StatusIcon = status.icon;
 
   return (
-    <div className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
+    <div className="flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors">
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-8 h-8 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
-          <FileText className="w-4 h-4 text-slate-500" />
+        <div className="w-8 h-8 rounded bg-muted flex items-center justify-center flex-shrink-0">
+          <FileText className="w-4 h-4 text-muted-foreground" />
         </div>
         <div className="min-w-0">
           <Link

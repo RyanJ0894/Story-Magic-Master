@@ -110,8 +110,8 @@ export default async function AdminAuditLogPage({ searchParams }: Props) {
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Audit Log</h1>
-        <p className="text-slate-600 dark:text-slate-400">Track all platform activity and changes</p>
+        <h1 className="text-3xl font-bold text-foreground">Audit Log</h1>
+        <p className="text-muted-foreground">Track all platform activity and changes</p>
       </div>
 
       {tableNotExists ? (
@@ -123,7 +123,7 @@ export default async function AdminAuditLogPage({ searchParams }: Props) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="bg-slate-100 dark:bg-slate-900 rounded-lg p-4 font-mono text-sm overflow-x-auto">
+            <div className="bg-muted rounded-lg p-4 font-mono text-sm overflow-x-auto">
               <pre>{`-- Run this SQL in your Supabase SQL Editor:
 
 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -233,8 +233,8 @@ CREATE POLICY "Service role can insert audit logs" ON audit_logs
                       <TableRow key={log.id}>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                              <Icon className="w-4 h-4 text-slate-600" />
+                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                              <Icon className="w-4 h-4 text-muted-foreground" />
                             </div>
                             <Badge variant={getActionBadgeVariant(log.action)}>
                               {log.action}
@@ -263,7 +263,7 @@ CREATE POLICY "Service role can insert audit logs" ON audit_logs
                         </TableCell>
                         <TableCell>
                           {details && Object.keys(details).length > 0 ? (
-                            <code className="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
+                            <code className="text-xs bg-muted px-2 py-1 rounded">
                               {JSON.stringify(details).slice(0, 50)}
                               {JSON.stringify(details).length > 50 ? '...' : ''}
                             </code>

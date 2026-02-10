@@ -207,7 +207,7 @@ export function RewriteModal({
 
           <div>
             <p className="text-sm font-medium mb-1">Original text:</p>
-            <pre className="text-sm bg-slate-100 dark:bg-slate-900 p-3 rounded-lg whitespace-pre-wrap font-mono max-h-32 overflow-y-auto">
+            <pre className="text-sm bg-muted p-3 rounded-lg whitespace-pre-wrap font-mono max-h-32 overflow-y-auto">
               {suggestion.location.excerpt}
             </pre>
           </div>
@@ -337,7 +337,7 @@ export function RewriteModal({
                           )}
                         </Button>
                       </div>
-                      <pre className="text-sm whitespace-pre-wrap font-mono bg-white dark:bg-slate-900 p-2 rounded">
+                      <pre className="text-sm whitespace-pre-wrap font-mono bg-background p-2 rounded">
                         {rewrite.rewrittenText}
                       </pre>
                       {rewrite.explanation && (

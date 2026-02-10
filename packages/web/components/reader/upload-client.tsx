@@ -218,10 +218,10 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
     <div className="max-w-2xl mx-auto">
       {/* Step indicator */}
       <div className="flex items-center gap-2 mb-8">
-        <div className={`flex items-center gap-2 ${step === 'select' ? 'text-violet-600' : 'text-slate-400'}`}>
+        <div className={`flex items-center gap-2 ${step === 'select' ? 'text-violet-600' : 'text-muted-foreground'}`}>
           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
             step === 'select' ? 'bg-violet-100 text-violet-600' :
-            ['preview', 'payment', 'processing', 'complete'].includes(step) ? 'bg-green-100 text-green-600' : 'bg-slate-100'
+            ['preview', 'payment', 'processing', 'complete'].includes(step) ? 'bg-green-100 text-green-600' : 'bg-muted'
           }`}>
             {['preview', 'payment', 'processing', 'complete'].includes(step) ? (
               <CheckCircle className="w-4 h-4" />
@@ -229,11 +229,11 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
           </div>
           <span className="text-sm font-medium">Select</span>
         </div>
-        <div className="flex-1 h-px bg-slate-200" />
-        <div className={`flex items-center gap-2 ${step === 'preview' ? 'text-violet-600' : 'text-slate-400'}`}>
+        <div className="flex-1 h-px bg-border" />
+        <div className={`flex items-center gap-2 ${step === 'preview' ? 'text-violet-600' : 'text-muted-foreground'}`}>
           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
             step === 'preview' ? 'bg-violet-100 text-violet-600' :
-            ['payment', 'processing', 'complete'].includes(step) ? 'bg-green-100 text-green-600' : 'bg-slate-100'
+            ['payment', 'processing', 'complete'].includes(step) ? 'bg-green-100 text-green-600' : 'bg-muted'
           }`}>
             {['payment', 'processing', 'complete'].includes(step) ? (
               <CheckCircle className="w-4 h-4" />
@@ -241,11 +241,11 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
           </div>
           <span className="text-sm font-medium">Review</span>
         </div>
-        <div className="flex-1 h-px bg-slate-200" />
-        <div className={`flex items-center gap-2 ${step === 'payment' ? 'text-violet-600' : 'text-slate-400'}`}>
+        <div className="flex-1 h-px bg-border" />
+        <div className={`flex items-center gap-2 ${step === 'payment' ? 'text-violet-600' : 'text-muted-foreground'}`}>
           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
             step === 'payment' ? 'bg-violet-100 text-violet-600' :
-            ['processing', 'complete'].includes(step) ? 'bg-green-100 text-green-600' : 'bg-slate-100'
+            ['processing', 'complete'].includes(step) ? 'bg-green-100 text-green-600' : 'bg-muted'
           }`}>
             {['processing', 'complete'].includes(step) ? (
               <CheckCircle className="w-4 h-4" />
@@ -253,11 +253,11 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
           </div>
           <span className="text-sm font-medium">Pay</span>
         </div>
-        <div className="flex-1 h-px bg-slate-200" />
-        <div className={`flex items-center gap-2 ${['processing', 'complete'].includes(step) ? 'text-violet-600' : 'text-slate-400'}`}>
+        <div className="flex-1 h-px bg-border" />
+        <div className={`flex items-center gap-2 ${['processing', 'complete'].includes(step) ? 'text-violet-600' : 'text-muted-foreground'}`}>
           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
             step === 'complete' ? 'bg-green-100 text-green-600' :
-            step === 'processing' ? 'bg-violet-100 text-violet-600' : 'bg-slate-100'
+            step === 'processing' ? 'bg-violet-100 text-violet-600' : 'bg-muted'
           }`}>
             {step === 'complete' ? <CheckCircle className="w-4 h-4" /> : '4'}
           </div>
@@ -279,13 +279,13 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
               className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
                 isDragging
                   ? 'border-violet-500 bg-violet-50 dark:bg-violet-950'
-                  : 'border-slate-300 dark:border-slate-700 hover:border-violet-400'
+                  : 'border-border hover:border-violet-400'
               }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+              <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-lg font-medium mb-2">
                 Drag and drop your PDF here
               </p>
@@ -305,7 +305,7 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
               </label>
             </div>
 
-            <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
+            <div className="mt-6 p-4 bg-muted rounded-lg">
               <h4 className="font-medium flex items-center gap-2 mb-3">
                 <Info className="w-4 h-4 text-blue-500" />
                 Pricing
@@ -336,7 +336,7 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
           </CardHeader>
           <CardContent className="space-y-6">
             {/* File info */}
-            <div className="flex items-start gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
+            <div className="flex items-start gap-4 p-4 bg-muted rounded-lg">
               <div className="w-12 h-12 rounded-lg bg-violet-100 dark:bg-violet-900 flex items-center justify-center flex-shrink-0">
                 <FileText className="w-6 h-6 text-violet-600" />
               </div>
@@ -414,7 +414,7 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Order summary */}
-            <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg space-y-3">
+            <div className="p-4 bg-muted rounded-lg space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">{scriptName}</span>
                 <span>${price}.00</span>

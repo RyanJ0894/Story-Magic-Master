@@ -83,19 +83,19 @@ export function ReaderScriptCard({
             <div
               className={`w-16 h-16 rounded-lg flex items-center justify-center cursor-pointer transition-colors ${
                 isArchived
-                  ? 'bg-slate-200 dark:bg-slate-800'
+                  ? 'bg-muted'
                   : isPlaying
                   ? 'bg-violet-100 dark:bg-violet-900'
-                  : 'bg-slate-100 dark:bg-slate-800 hover:bg-violet-50 dark:hover:bg-violet-900/50'
+                  : 'bg-muted hover:bg-violet-50 dark:hover:bg-violet-900/50'
               }`}
               onClick={isArchived ? onUnlock : isPlaying ? onPause : onPlay}
             >
               {isArchived ? (
-                <Lock className="w-6 h-6 text-slate-400" />
+                <Lock className="w-6 h-6 text-muted-foreground" />
               ) : isPlaying ? (
                 <Pause className="w-6 h-6 text-violet-600" />
               ) : (
-                <Play className="w-6 h-6 text-slate-600 dark:text-slate-400" />
+                <Play className="w-6 h-6 text-muted-foreground" />
               )}
             </div>
             {entry.is_favorited && (
@@ -163,7 +163,7 @@ export function ReaderScriptCard({
 
             {/* Notes Preview */}
             {entry.notes && (
-              <div className="mt-2 p-2 rounded bg-slate-50 dark:bg-slate-900 text-xs text-muted-foreground flex items-start gap-2">
+              <div className="mt-2 p-2 rounded bg-muted text-xs text-muted-foreground flex items-start gap-2">
                 <StickyNote className="w-3 h-3 mt-0.5 flex-shrink-0" />
                 <span className="line-clamp-2">{entry.notes}</span>
               </div>
@@ -244,7 +244,7 @@ export function ReaderScriptCardCompact({
 
   return (
     <div
-      className={`flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors cursor-pointer ${
+      className={`flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors cursor-pointer ${
         isArchived ? 'opacity-60' : ''
       }`}
       onClick={isArchived ? undefined : onPlay}
@@ -252,12 +252,12 @@ export function ReaderScriptCardCompact({
       <div
         className={`w-10 h-10 rounded flex items-center justify-center flex-shrink-0 ${
           isArchived
-            ? 'bg-slate-200 dark:bg-slate-800'
+            ? 'bg-muted'
             : 'bg-violet-100 dark:bg-violet-900'
         }`}
       >
         {isArchived ? (
-          <Lock className="w-4 h-4 text-slate-400" />
+          <Lock className="w-4 h-4 text-muted-foreground" />
         ) : (
           <Play className="w-4 h-4 text-violet-600" />
         )}

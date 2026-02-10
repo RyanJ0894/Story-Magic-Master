@@ -60,10 +60,10 @@ function PricingContent() {
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
       {/* Page Header */}
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-5xl">
+        <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
           Simple, transparent pricing
         </h1>
-        <p className="mt-4 text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
+        <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
           Choose the plan that fits your needs. All plans include our core audio generation features.
         </p>
 
@@ -74,7 +74,7 @@ function PricingContent() {
             className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
               interval === 'monthly'
                 ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             Monthly
@@ -84,7 +84,7 @@ function PricingContent() {
             className={`px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
               interval === 'yearly'
                 ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             Yearly
@@ -127,24 +127,24 @@ function PricingContent() {
                 {/* Price */}
                 <div>
                   <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-bold text-slate-900 dark:text-white">
+                    <span className="text-4xl font-bold text-foreground">
                       ${price === 0 ? '0' : monthlyEquivalent}
                     </span>
-                    <span className="text-slate-600 dark:text-slate-400">/month</span>
+                    <span className="text-muted-foreground">/month</span>
                   </div>
                   {interval === 'yearly' && price > 0 && (
-                    <p className="text-sm text-slate-500 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       ${price} billed yearly
                     </p>
                   )}
                 </div>
 
                 {/* Pages */}
-                <div className="py-4 border-y border-slate-200 dark:border-slate-700">
+                <div className="py-4 border-y border-border">
                   <p className="text-2xl font-bold text-violet-600 dark:text-violet-400">
                     {tier.pages.toLocaleString()}
                   </p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-sm text-muted-foreground">
                     pages per month
                   </p>
                 </div>
@@ -154,7 +154,7 @@ function PricingContent() {
                   {tier.features.map((feature) => (
                     <li key={feature} className="flex items-start gap-2">
                       <Check className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                      <span className="text-sm text-slate-600 dark:text-slate-400">
+                      <span className="text-sm text-muted-foreground">
                         {feature}
                       </span>
                     </li>
@@ -191,7 +191,7 @@ function PricingContent() {
 
       {/* FAQ or Additional Info */}
       <div className="mt-16 text-center">
-        <p className="text-slate-600 dark:text-slate-400">
+        <p className="text-muted-foreground">
           All plans include a 14-day money-back guarantee.{' '}
           <Link href="/contact" className="text-violet-600 hover:underline">
             Contact us
@@ -207,10 +207,10 @@ function PricingContentFallback() {
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-5xl">
+        <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
           Simple, transparent pricing
         </h1>
-        <p className="mt-4 text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
+        <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
           Choose the plan that fits your needs. All plans include our core audio generation features.
         </p>
       </div>
@@ -235,16 +235,16 @@ function PricingContentFallback() {
 
 export default function PricingPage() {
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-muted">
       {/* Header */}
-      <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+      <header className="border-b border-border bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <span className="font-bold text-lg text-slate-900 dark:text-white">Story Magic</span>
+              <span className="font-bold text-lg text-foreground">Story Magic</span>
             </Link>
 
             <div className="flex items-center gap-4">

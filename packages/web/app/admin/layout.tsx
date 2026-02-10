@@ -45,7 +45,7 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
+    <div className="min-h-screen bg-muted">
       {/* Sidebar */}
       <aside className="fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 dark:bg-slate-950 border-r border-slate-800">
         <div className="flex h-16 items-center gap-3 px-6 border-b border-slate-800">

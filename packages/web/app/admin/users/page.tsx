@@ -112,8 +112,8 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">User Management</h1>
-        <p className="text-slate-600 dark:text-slate-400">View and manage all platform users</p>
+        <h1 className="text-3xl font-bold text-foreground">User Management</h1>
+        <p className="text-muted-foreground">View and manage all platform users</p>
       </div>
 
       {/* Filters */}
@@ -177,7 +177,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                 <TableRow key={user.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-sm font-medium">
+                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
                         {user.full_name?.[0]?.toUpperCase() || '?'}
                       </div>
                       <div>
@@ -188,7 +188,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   </TableCell>
                   <TableCell>{getUserTypeBadge(user.user_type)}</TableCell>
                   <TableCell>
-                    <code className="text-sm bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
+                    <code className="text-sm bg-muted px-2 py-1 rounded">
                       {user.writer_code || user.reader_code || '-'}
                     </code>
                   </TableCell>
