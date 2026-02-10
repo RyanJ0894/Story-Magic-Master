@@ -1,8 +1,8 @@
 # Production Readiness Assessment
 
 **Assessment Date:** January 18, 2026
-**Last Updated:** February 8, 2026
-**Status:** MVP 1.0 DEPLOYED — Both services live on Render.com (96 tickets, 254 SP)
+**Last Updated:** February 10, 2026
+**Status:** MVP 1.0 DEPLOYED — Both services live on Render.com (96 tickets, 254 SP) + 2 post-launch sprints complete
 
 ---
 
@@ -20,11 +20,32 @@
 **Orchestrator health:** `status: ok`, Sentry active, Checkly active, rate limiting active, 106 MB RSS
 **Web headers:** CSP, HSTS, Permissions-Policy, Referrer-Policy all active
 
+## February 10, 2026 — Post-Launch Sprint 2 Complete
+
+> Sprint 2 delivered 3 items (~18 SP): component test infrastructure, scene-level regeneration, and full dark mode.
+
+### Testing — 718 Tests Passing
+
+| Package | Tests | Coverage Thresholds (stmts/branch/func/lines) |
+|---------|-------|-----------------------------------------------|
+| Orchestrator | 364 | 40 / 35 / 40 / 40 |
+| Web (unit) | 308 | 15 / 10 / 15 / 15 |
+| Web (component) | 46 | — (separate vitest config with happy-dom) |
+| **Total** | **718** | — |
+
+### New Capabilities (Sprint 2)
+
+| Feature | Details |
+|---------|---------|
+| Component tests | `vitest.config.component.mts` with happy-dom, 5 test files |
+| Scene regeneration | `POST /api/projects/[id]/regenerate-scene`, strict rate limit, queue worker |
+| Dark mode | `next-themes` ThemeProvider, ThemeToggle (light/dark/system cycle), ~60 files converted to semantic CSS tokens |
+
 ## February 7, 2026 Status Update
 
 > Phases 0 through 6 are complete. 88 tickets closed, 236 story points delivered.
 
-### Testing — 642 Tests Passing
+### Testing — 642 Tests (at time of Phase 6 completion)
 
 | Package | Tests | Coverage Thresholds (stmts/branch/func/lines) |
 |---------|-------|-----------------------------------------------|
@@ -97,7 +118,7 @@ The Story Magic platform is **production ready for MVP 1.0**. All P0 and P1 item
 
 | Category | Status | Notes |
 |----------|--------|-------|
-| Unit Testing | ✅ 642 tests passing | 364 orchestrator + 278 web |
+| Unit Testing | ✅ 718 tests passing | 364 orchestrator + 308 web unit + 46 web component |
 | E2E Testing | ✅ Configured | Graceful Supabase fallback |
 | CI/CD Pipeline | ✅ GitHub Actions configured | Lint + typecheck + tests |
 | Data Test IDs | ✅ All key components | 25+ test IDs added |

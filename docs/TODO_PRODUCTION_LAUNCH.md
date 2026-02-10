@@ -25,7 +25,7 @@
 | **5** | Infrastructure & Deployment | 10 | 22 | COMPLETE |
 | **6** | Feature Completion | 12 | 38 | COMPLETE |
 | **7** | MVP Polish & Launch Readiness | 8 | 18 | COMPLETE |
-| **BL** | Post-Launch Backlog | 47 | ~85 | DEFERRED (BL-09, BL-10, BL-16, BL-33 done) |
+| **BL** | Post-Launch Backlog | 47 | ~85 | DEFERRED (BL-07, BL-09, BL-10, BL-16, BL-22, BL-33 done) |
 | | **Total (Phases 0-7)** | **96** | **254** | **ALL COMPLETE** |
 
 **Timeline:** 8-10 weeks (Phases 0-7)
@@ -185,10 +185,10 @@
   - Added to GitHub Actions workflow
   - Files: `.github/workflows/ci.yml`
 
-- [ ] **P2-08** Add React component tests (top 5 components) `[TD-040] [5 SP]` ⛔ Deferred: vitest uses `environment: 'node'`, needs jsdom migration
-  - Priority: AudioPlayer, ScriptSyncPlayer, AudioChooser, VoiceChooser, ProjectWorkflow
-  - Use React Testing Library
-  - Files: `packages/web/app/projects/[id]/`
+- [x] **P2-08** Add React component tests (top 5 components) `[TD-040] [5 SP]` <!-- 2026-02-10 Sprint 2 -->
+  - Created separate `vitest.config.component.mts` with happy-dom environment
+  - 46 tests across 5 files: audio-player (10), writer-script-card (14), login-form (8), mobile-nav (7), theme-toggle (7)
+  - Files: `packages/web/vitest.config.component.mts`, `tests/setup-component.tsx`, `tests/component/*.test.tsx`
 
 - [x] **P2-09** Fix E2E test Supabase dependency `[TD-041] [3 SP]` <!-- 2026-02-07 -->
   - Auth setup skips gracefully when no credentials; CI uses fallback env vars
@@ -585,7 +585,7 @@
 
 ### Pipeline Enhancements (from Roadmap Phase 3)
 - [ ] **BL-06** Long-script chunking for Pro tier `[TD-049] [8 SP]`
-- [ ] **BL-07** Scene-level regeneration `[TD-106] [5 SP]`
+- [x] **BL-07** Scene-level regeneration `[TD-106] [5 SP]` <!-- 2026-02-10 Sprint 2 -->
 - [ ] **BL-08** Stem export capability `[TD-107] [3 SP]`
 - [x] **BL-09** Audio preview/partial generation `[TD-109] [5 SP]` <!-- 2026-01-31 Scene Preview feature (commit f4da1cd) -->
 
@@ -604,7 +604,7 @@
 - [ ] **BL-21** Audit whisper-align dead code `[TD-119] [1 SP]`
 
 ### UI/UX Polish
-- [ ] **BL-22** Resolve dark mode conflicts `[TD-085] [2 SP]`
+- [x] **BL-22** Full dark mode (next-themes + semantic tokens) `[TD-085] [8 SP]` <!-- 2026-02-10 Sprint 2 -->
 - [ ] **BL-23** Fix heading hierarchy `[TD-086] [1 SP]`
 - [ ] **BL-24** Add footer touch target padding `[TD-082] [1 SP]`
 - [ ] **BL-25** Add tablet breakpoint to pricing grid `[TD-083] [1 SP]`
@@ -671,4 +671,4 @@ This TODO supersedes and reconciles the following documents. They should be cons
 
 ---
 
-*Last updated: 2026-02-09 — All 96 tickets complete. Post-launch Sprint 1 done (BL-10, BL-33, BL-16). 664 tests passing. Deployed to Render.com.*
+*Last updated: 2026-02-10 — All 96 tickets complete. Post-launch Sprint 1 (BL-10, BL-33, BL-16) and Sprint 2 (P2-08, BL-07, BL-22) done. 718 tests passing (364 orchestrator + 308 web unit + 46 web component). Deployed to Render.com.*
