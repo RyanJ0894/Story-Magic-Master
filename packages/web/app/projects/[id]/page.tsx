@@ -3,6 +3,10 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import DeleteProjectButton from './delete-button';
 import { ProjectWorkflow } from './project-workflow';
+import { StoryScoreSection } from '@/components/storyscore';
+import { StoryAdviserSection } from '@/components/story-adviser';
+import { RevisionSection } from '@/components/revisions';
+import { ComparableSection } from '@/components/comparable';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -182,6 +186,21 @@ export default async function ProjectPage({
           audioOverrides={audioOverrideStats}
           remainingPreviews={remainingPreviews ?? 0}
         />
+
+        {/* Intelligence Features */}
+        <StoryScoreSection
+          projectId={project.id}
+          scriptText={project.script_text || ''}
+        />
+
+        <StoryAdviserSection
+          projectId={project.id}
+          scriptText={project.script_text || ''}
+        />
+
+        <RevisionSection projectId={project.id} />
+
+        <ComparableSection projectId={project.id} hasScore={!!storyScore} />
 
         {/* Script Preview - Collapsible */}
         <Collapsible>

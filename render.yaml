@@ -60,6 +60,28 @@ services:
       - key: ORCHESTRATOR_URL
         sync: false
 
+      # OpenAI (needed for intelligence features on web)
+      - key: OPENAI_API_KEY
+        sync: false
+
+      # Upstash Redis (Rate Limiting - shared with orchestrator)
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+
+      # Feature Flags (Intelligence Features)
+      - key: NEXT_PUBLIC_FF_STORY_SCORE
+        value: "true"
+      - key: NEXT_PUBLIC_FF_STORY_ADVISER
+        value: "true"
+      - key: NEXT_PUBLIC_FF_REVISION_TRACKING
+        value: "true"
+      - key: NEXT_PUBLIC_FF_COMPARABLE_SCRIPTS
+        value: "true"
+      - key: NEXT_PUBLIC_FF_EXPORT_REPORTS
+        value: "true"
+
   # =============================================================================
   # ORCHESTRATOR SERVICE (Node.js/Express)
   # =============================================================================

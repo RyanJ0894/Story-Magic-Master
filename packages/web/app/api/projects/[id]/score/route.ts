@@ -6,11 +6,10 @@
  * GET /api/projects/[id]/score?history=true - Get all score versions
  */
 
-import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
 import { isFeatureEnabled } from '@/lib/features';
+import { withProjectAuth, parseBody } from '@/lib/api/middleware';
 import {
   generateScore,
   getLatestScore,
@@ -33,189 +32,126 @@ const GenerateScoreRequestSchema = z.object({
 // GET - Fetch scores
 // =============================================================================
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  // Check feature flag
-  if (!isFeatureEnabled('STORY_SCORE')) {
-    return NextResponse.json(
-      { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
-      { status: 403 }
-    );
-  }
-
-  const supabase = await createClient();
-  const { id: projectId } = await params;
-
-  // Verify authentication
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  // Verify project ownership
-  const { data: project, error: projectError } = await supabase
-    .from('projects')
-    .select('id, user_id')
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-    .single();
-
-  if (projectError || !project) {
-    return NextResponse.json(
-      { error: 'Project not found', code: 'PROJECT_NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
-  // Check if requesting history
-  const url = new URL(request.url);
-  const requestHistory = url.searchParams.get('history') === 'true';
-
-  try {
-    if (requestHistory) {
-      const scores = await getScoreHistory(projectId);
-      return NextResponse.json({ scores });
-    } else {
-      const score = await getLatestScore(projectId);
-      if (!score) {
-        return NextResponse.json(
-          { score: null, message: 'No score exists for this project' },
-          { status: 200 }
-        );
-      }
-      return NextResponse.json({ score });
+export const GET = withProjectAuth(
+  async (request, { projectId }) => {
+    // Check feature flag
+    if (!isFeatureEnabled('STORY_SCORE')) {
+      return NextResponse.json(
+        { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
+        { status: 403 }
+      );
     }
-  } catch (error) {
-    console.error('[StoryScore] Error fetching score:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to fetch score',
-        code: 'FETCH_ERROR',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
-  }
-}
+
+    // Check if requesting history
+    const url = new URL(request.url);
+    const requestHistory = url.searchParams.get('history') === 'true';
+
+    try {
+      if (requestHistory) {
+        const scores = await getScoreHistory(projectId);
+        return NextResponse.json({ scores });
+      } else {
+        const score = await getLatestScore(projectId);
+        if (!score) {
+          return NextResponse.json(
+            { score: null, message: 'No score exists for this project' },
+            { status: 200 }
+          );
+        }
+        return NextResponse.json({ score });
+      }
+    } catch (error) {
+      console.error('[StoryScore] Error fetching score:', error);
+      return NextResponse.json(
+        {
+          error: 'Failed to fetch score',
+          code: 'FETCH_ERROR',
+        },
+        { status: 500 }
+      );
+    }
+  },
+  { rateLimit: 'normal' }
+);
 
 // =============================================================================
 // POST - Generate new score
 // =============================================================================
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  // Check feature flag
-  if (!isFeatureEnabled('STORY_SCORE')) {
-    return NextResponse.json(
-      { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
-      { status: 403 }
-    );
-  }
+export const POST = withProjectAuth(
+  async (request, { projectId, project }) => {
+    // Check feature flag
+    if (!isFeatureEnabled('STORY_SCORE')) {
+      return NextResponse.json(
+        { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
+        { status: 403 }
+      );
+    }
 
-  // CSRF protection
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
+    // Parse request body
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      body = {}; // Allow empty body
+    }
 
-  const supabase = await createClient();
-  const { id: projectId } = await params;
+    const parseResult = GenerateScoreRequestSchema.safeParse(body);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        {
+          error: 'Invalid request parameters',
+          code: 'VALIDATION_ERROR',
+          details: parseResult.error.flatten().fieldErrors,
+        },
+        { status: 400 }
+      );
+    }
 
-  // Verify authentication
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
+    // Validate script text exists
+    const scriptText = project.script_text as string | undefined;
+    if (!scriptText || scriptText.trim().length < 100) {
+      return NextResponse.json(
+        {
+          error: 'Script text is too short for evaluation (minimum 100 characters)',
+          code: 'SCRIPT_TOO_SHORT',
+        },
+        { status: 400 }
+      );
+    }
 
-  // Parse request body
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    body = {}; // Allow empty body
-  }
+    // Check OpenAI API key
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json(
+        { error: 'OpenAI API key not configured', code: 'CONFIG_ERROR' },
+        { status: 500 }
+      );
+    }
 
-  const parseResult = GenerateScoreRequestSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json(
-      {
-        error: 'Invalid request parameters',
-        code: 'VALIDATION_ERROR',
-        details: parseResult.error.flatten().fieldErrors,
-      },
-      { status: 400 }
-    );
-  }
+    try {
+      const score = await generateScore(projectId, scriptText, {
+        title: parseResult.data.title || (project.name as string),
+        genre: parseResult.data.genre,
+        logline: parseResult.data.logline,
+        model: parseResult.data.model,
+      });
 
-  // Fetch project with script text
-  const { data: project, error: projectError } = await supabase
-    .from('projects')
-    .select('id, user_id, name, script_text')
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-    .single();
+      const response: GenerateScoreResponse = {
+        success: true,
+        score,
+      };
 
-  if (projectError || !project) {
-    return NextResponse.json(
-      { error: 'Project not found', code: 'PROJECT_NOT_FOUND' },
-      { status: 404 }
-    );
-  }
+      return NextResponse.json(response);
+    } catch (error) {
+      console.error('[StoryScore] Error generating score:', error);
 
-  // Validate script text exists
-  if (!project.script_text || project.script_text.trim().length < 100) {
-    return NextResponse.json(
-      {
-        error: 'Script text is too short for evaluation (minimum 100 characters)',
-        code: 'SCRIPT_TOO_SHORT',
-      },
-      { status: 400 }
-    );
-  }
+      const response: GenerateScoreResponse = {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to generate score',
+      };
 
-  // Check OpenAI API key
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json(
-      { error: 'OpenAI API key not configured', code: 'CONFIG_ERROR' },
-      { status: 500 }
-    );
-  }
-
-  try {
-    const score = await generateScore(projectId, project.script_text, {
-      title: parseResult.data.title || project.name,
-      genre: parseResult.data.genre,
-      logline: parseResult.data.logline,
-      model: parseResult.data.model,
-    });
-
-    const response: GenerateScoreResponse = {
-      success: true,
-      score,
-    };
-
-    return NextResponse.json(response);
-  } catch (error) {
-    console.error('[StoryScore] Error generating score:', error);
-
-    const response: GenerateScoreResponse = {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to generate score',
-    };
-
-    return NextResponse.json(response, { status: 500 });
-  }
-}
+      return NextResponse.json(response, { status: 500 });
+    }
+  },
+  { rateLimit: 'strict', select: 'id, user_id, name, script_text' }
+);
