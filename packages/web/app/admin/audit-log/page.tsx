@@ -77,7 +77,7 @@ export default async function AdminAuditLogPage({ searchParams }: Props) {
     where.resourceType = resourceFilter;
   }
 
-  let logs: Awaited<ReturnType<typeof prisma.auditLog.findMany>> | null = null;
+  let logs: (Awaited<ReturnType<typeof prisma.auditLog.findMany>>[number] & { user?: { fullName: string | null } | null })[] | null = null;
   let count = 0;
   let tableNotExists = false;
 
