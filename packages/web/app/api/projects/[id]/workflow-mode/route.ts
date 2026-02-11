@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
 
@@ -11,11 +12,9 @@ export async function POST(
     return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
   }
 
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
 
   const { mode } = await request.json();
@@ -28,61 +27,57 @@ export async function POST(
   }
 
   // Verify project belongs to user
-  const { data: project, error: projectError } = await supabase
-    .from('projects')
-    .select('id, user_id')
-    .eq('id', params.id)
-    .single();
+  const project = await prisma.project.findUnique({
+    where: { id: params.id },
+    select: { id: true, userId: true },
+  });
 
-  if (projectError || !project) {
+  if (!project) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
-  if (project.user_id !== user.id) {
+  if (project.userId !== userId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // Update preferred workflow mode
-  const { error: updateError } = await supabase
-    .from('projects')
-    .update({ preferred_workflow_mode: mode })
-    .eq('id', params.id);
+  try {
+    // Update preferred workflow mode
+    await prisma.project.update({
+      where: { id: params.id },
+      data: { preferredWorkflowMode: mode },
+    });
 
-  if (updateError) {
-    console.error('Error updating workflow mode:', updateError);
+    return NextResponse.json({ success: true, mode });
+  } catch (error) {
+    console.error('Error updating workflow mode:', error);
     return NextResponse.json(
       { error: 'Failed to update workflow mode' },
       { status: 500 }
     );
   }
-
-  return NextResponse.json({ success: true, mode });
 }
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
 
   // Get project with workflow mode
-  const { data: project, error } = await supabase
-    .from('projects')
-    .select('id, preferred_workflow_mode, current_run_number')
-    .eq('id', params.id)
-    .single();
+  const project = await prisma.project.findUnique({
+    where: { id: params.id },
+    select: { id: true, preferredWorkflowMode: true, currentRunNumber: true },
+  });
 
-  if (error || !project) {
+  if (!project) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
   return NextResponse.json({
-    preferredMode: project.preferred_workflow_mode,
-    currentRunNumber: project.current_run_number,
+    preferredMode: project.preferredWorkflowMode,
+    currentRunNumber: project.currentRunNumber,
   });
 }

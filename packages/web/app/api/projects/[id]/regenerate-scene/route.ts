@@ -9,6 +9,7 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { auth } from '@clerk/nextjs/server';
 import { withProjectAuth, parseBody } from '@/lib/api/middleware';
 import { enqueue } from '@/lib/queue/service';
 import { log } from '@/lib/logger';
@@ -18,7 +19,7 @@ const RegenerateSceneSchema = z.object({
 });
 
 export const POST = withProjectAuth(
-  async (request, { user, supabase, projectId, project }) => {
+  async (request, { userId, projectId, project }) => {
     // Parse and validate body
     const parsed = await parseBody(request, RegenerateSceneSchema);
     if ('error' in parsed) return parsed.error;
@@ -49,18 +50,19 @@ export const POST = withProjectAuth(
     const targetScene = directorJson.scenes[sceneIndex];
 
     // Get session token for orchestrator API calls
-    const { data: { session } } = await supabase.auth.getSession();
+    const { getToken } = await auth();
+    const accessToken = await getToken();
 
     // Enqueue a scene_regeneration job
     const result = await enqueue({
       projectId,
-      userId: user.id,
+      userId,
       jobType: 'scene_regeneration',
       priority: 1, // Higher priority than full generations
       metadata: {
         sceneIndex,
         scene: targetScene,
-        accessToken: session?.access_token,
+        accessToken,
       },
     });
 
@@ -76,5 +78,5 @@ export const POST = withProjectAuth(
       sceneIndex,
     });
   },
-  { rateLimit: 'strict', select: 'id, user_id, director_json' },
+  { rateLimit: 'strict' },
 );

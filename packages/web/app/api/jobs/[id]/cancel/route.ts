@@ -4,7 +4,8 @@
  * POST /api/jobs/[id]/cancel - Cancel a queued job
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { cancelJob } from '@/lib/queue/service';
 import { validateCsrf } from '@/lib/csrf';
@@ -18,14 +19,10 @@ export async function POST(
     return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
   }
 
-  const supabase = await createClient();
   const { id: jobId } = await params;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json(
       { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
       { status: 401 }
@@ -33,11 +30,10 @@ export async function POST(
   }
 
   // Verify user owns this job and it's cancellable
-  const { data: job } = await supabase
-    .from('jobs')
-    .select('id, user_id, status, project_id')
-    .eq('id', jobId)
-    .single();
+  const job = await prisma.job.findUnique({
+    where: { id: jobId },
+    select: { id: true, userId: true, status: true, projectId: true },
+  });
 
   if (!job) {
     return NextResponse.json(
@@ -46,7 +42,7 @@ export async function POST(
     );
   }
 
-  if (job.user_id !== user.id) {
+  if (job.userId !== userId) {
     return NextResponse.json(
       { error: 'Forbidden', code: 'FORBIDDEN' },
       { status: 403 }
@@ -65,7 +61,7 @@ export async function POST(
   }
 
   try {
-    const cancelled = await cancelJob(jobId, user.id);
+    const cancelled = await cancelJob(jobId, userId);
 
     if (!cancelled) {
       return NextResponse.json(
@@ -75,10 +71,10 @@ export async function POST(
     }
 
     // Reset project status to draft
-    await supabase
-      .from('projects')
-      .update({ status: 'draft' })
-      .eq('id', job.project_id);
+    await prisma.project.update({
+      where: { id: job.projectId },
+      data: { status: 'draft' },
+    });
 
     return NextResponse.json({
       success: true,

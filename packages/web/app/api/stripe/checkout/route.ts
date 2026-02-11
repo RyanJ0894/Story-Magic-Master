@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { createCheckoutSession } from '@/lib/stripe/server';
 import { STRIPE_CONFIG } from '@/lib/stripe/config';
 import { NextResponse } from 'next/server';
@@ -12,15 +13,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const supabase = await createClient();
-
-    // Verify user is authenticated
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
     }
 
     const { tier, interval } = await request.json();
@@ -47,13 +42,19 @@ export async function POST(request: Request) {
       );
     }
 
+    // Get user email from profile for Stripe
+    const profile = await prisma.profile.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+
     // Create checkout session
     const origin = request.headers.get('origin') || 'http://localhost:22000';
 
     const session = await createCheckoutSession({
       priceId,
-      userId: user.id,
-      userEmail: user.email || '',
+      userId,
+      userEmail: profile?.email || '',
       successUrl: `${origin}/billing?success=true`,
       cancelUrl: `${origin}/pricing?canceled=true`,
     });

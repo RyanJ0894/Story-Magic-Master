@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
 
@@ -14,21 +15,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const { entryId } = await params;
-  const supabase = await createClient();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
 
   // Verify ownership
-  const { data: existingEntry } = await supabase
-    .from('reader_library')
-    .select('id, reader_id')
-    .eq('id', entryId)
-    .single();
+  const existingEntry = await prisma.readerLibrary.findFirst({
+    where: { id: entryId },
+    select: { id: true, readerId: true, projectId: true },
+  });
 
-  if (!existingEntry || existingEntry.reader_id !== user.id) {
+  if (!existingEntry || existingEntry.readerId !== userId) {
     return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
   }
 
@@ -40,9 +38,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const updates: Record<string, unknown> = {
-    play_position_seconds: Math.floor(position),
-    last_played_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    playPositionSeconds: Math.floor(position),
+    lastPlayedAt: new Date(),
   };
 
   // Mark as completed if near the end
@@ -50,31 +47,29 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     updates.completed = true;
   }
 
-  const { data: entry, error } = await supabase
-    .from('reader_library')
-    .update(updates)
-    .eq('id', entryId)
-    .select()
-    .single();
+  try {
+    const entry = await prisma.readerLibrary.update({
+      where: { id: entryId },
+      data: updates,
+    });
 
-  if (error) {
+    // Log access for analytics
+    await prisma.contentAccessLog.create({
+      data: {
+        userId,
+        projectId: existingEntry.projectId,
+        accessType: 'stream',
+        durationSeconds: Math.floor(position),
+      },
+    });
+
+    return NextResponse.json({
+      entry,
+      position: entry.playPositionSeconds,
+      completed: entry.completed,
+    });
+  } catch (error) {
     console.error('Error updating position:', error);
     return NextResponse.json({ error: 'Failed to update position' }, { status: 500 });
   }
-
-  // Log access for analytics
-  await supabase
-    .from('content_access_log')
-    .insert({
-      user_id: user.id,
-      project_id: existingEntry.id,
-      access_type: 'stream',
-      session_duration_seconds: Math.floor(position),
-    });
-
-  return NextResponse.json({
-    entry,
-    position: entry.play_position_seconds,
-    completed: entry.completed,
-  });
 }

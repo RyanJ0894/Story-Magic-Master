@@ -6,7 +6,7 @@
  */
 
 import OpenAI from 'openai';
-import { createClient } from '@/lib/supabase/server';
+import { prisma } from '@/lib/db';
 import { getLatestScore } from '@/lib/scoring';
 import {
   Suggestion,
@@ -56,16 +56,13 @@ export async function generateSuggestions(
 ): Promise<Suggestion[]> {
   const model = options?.model || 'gpt-4o';
   const maxSuggestions = options?.maxSuggestions || 15;
-  const supabase = await createClient();
 
   // Get StoryScore if available (to focus on weak areas)
   let storyScore = null;
   if (options?.scoreId) {
-    const { data } = await supabase
-      .from('story_scores')
-      .select('*')
-      .eq('id', options.scoreId)
-      .single();
+    const data = await prisma.storyScore.findFirst({
+      where: { id: options.scoreId },
+    });
 
     if (data) {
       // Convert to StoryScore type (simplified for this use)
@@ -110,11 +107,12 @@ export async function generateSuggestions(
   }
 
   // Clear existing pending suggestions for this project
-  await supabase
-    .from('suggestions')
-    .delete()
-    .eq('project_id', projectId)
-    .eq('status', 'pending');
+  await prisma.suggestion.deleteMany({
+    where: {
+      projectId,
+      status: 'pending',
+    },
+  });
 
   // Process and store suggestions
   const suggestions: Suggestion[] = [];
@@ -144,18 +142,29 @@ export async function generateSuggestions(
 
     const row = suggestionToRow(suggestion);
 
-    const { data: inserted, error } = await supabase
-      .from('suggestions')
-      .insert(row)
-      .select()
-      .single();
+    try {
+      const inserted = await prisma.suggestion.create({
+        data: {
+          projectId: row.project_id,
+          scoreId: row.score_id || null,
+          startLine: row.start_line,
+          endLine: row.end_line,
+          excerpt: row.excerpt,
+          category: row.category,
+          severity: row.severity,
+          title: row.title,
+          explanation: row.explanation,
+          suggestion: row.suggestion,
+          status: row.status,
+          confidence: row.confidence,
+        },
+      });
 
-    if (error) {
-      console.error('Failed to insert suggestion:', error);
+      suggestions.push(rowToSuggestion(inserted as unknown as SuggestionRow));
+    } catch (err) {
+      console.error('Failed to insert suggestion:', err);
       continue;
     }
-
-    suggestions.push(rowToSuggestion(inserted as SuggestionRow));
   }
 
   return sortSuggestions(suggestions);
@@ -175,49 +184,37 @@ export async function getSuggestions(
     category?: SuggestionCategory;
   }
 ): Promise<Suggestion[]> {
-  const supabase = await createClient();
-
-  let query = supabase
-    .from('suggestions')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('start_line', { ascending: true });
+  const where: Record<string, unknown> = { projectId };
 
   if (options?.status) {
-    query = query.eq('status', options.status);
+    where.status = options.status;
   }
 
   if (options?.category) {
-    query = query.eq('category', options.category);
+    where.category = options.category;
   }
 
-  const { data, error } = await query;
+  const data = await prisma.suggestion.findMany({
+    where,
+    orderBy: { startLine: 'asc' },
+  });
 
-  if (error) {
-    throw new Error(`Failed to fetch suggestions: ${error.message}`);
-  }
-
-  return sortSuggestions((data as SuggestionRow[]).map(rowToSuggestion));
+  return sortSuggestions((data as unknown as SuggestionRow[]).map(rowToSuggestion));
 }
 
 /**
  * Get a single suggestion by ID
  */
 export async function getSuggestion(suggestionId: string): Promise<Suggestion | null> {
-  const supabase = await createClient();
+  const data = await prisma.suggestion.findFirst({
+    where: { id: suggestionId },
+  });
 
-  const { data, error } = await supabase
-    .from('suggestions')
-    .select('*')
-    .eq('id', suggestionId)
-    .single();
-
-  if (error) {
-    if (error.code === 'PGRST116') return null;
-    throw new Error(`Failed to fetch suggestion: ${error.message}`);
+  if (!data) {
+    return null;
   }
 
-  return rowToSuggestion(data as SuggestionRow);
+  return rowToSuggestion(data as unknown as SuggestionRow);
 }
 
 // =============================================================================
@@ -232,39 +229,32 @@ export async function respondToSuggestion(
   status: 'accepted' | 'rejected' | 'dismissed',
   feedback?: string
 ): Promise<Suggestion> {
-  const supabase = await createClient();
+  try {
+    const data = await prisma.suggestion.update({
+      where: { id: suggestionId },
+      data: {
+        status,
+        userFeedback: feedback || null,
+        respondedAt: new Date(),
+      },
+    });
 
-  const { data, error } = await supabase
-    .from('suggestions')
-    .update({
-      status,
-      user_feedback: feedback || null,
-      responded_at: new Date().toISOString(),
-    })
-    .eq('id', suggestionId)
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to update suggestion: ${error.message}`);
+    return rowToSuggestion(data as unknown as SuggestionRow);
+  } catch (err) {
+    throw new Error(`Failed to update suggestion: ${err instanceof Error ? err.message : String(err)}`);
   }
-
-  return rowToSuggestion(data as SuggestionRow);
 }
 
 /**
  * Delete a suggestion
  */
 export async function deleteSuggestion(suggestionId: string): Promise<void> {
-  const supabase = await createClient();
-
-  const { error } = await supabase
-    .from('suggestions')
-    .delete()
-    .eq('id', suggestionId);
-
-  if (error) {
-    throw new Error(`Failed to delete suggestion: ${error.message}`);
+  try {
+    await prisma.suggestion.delete({
+      where: { id: suggestionId },
+    });
+  } catch (err) {
+    throw new Error(`Failed to delete suggestion: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -286,7 +276,6 @@ export async function generateRewrites(
   const model = options?.model || 'gpt-4o';
   const count = options?.count || 3;
   const style = options?.style || 'moderate';
-  const supabase = await createClient();
 
   // Get the suggestion
   const suggestion = await getSuggestion(suggestionId);
@@ -295,13 +284,12 @@ export async function generateRewrites(
   }
 
   // Check if rewrites already exist
-  const { data: existing } = await supabase
-    .from('rewrites')
-    .select('*')
-    .eq('suggestion_id', suggestionId);
+  const existing = await prisma.rewrite.findMany({
+    where: { suggestionId },
+  });
 
   if (existing && existing.length >= count) {
-    return (existing as RewriteRow[]).map(rowToRewrite);
+    return (existing as unknown as RewriteRow[]).map(rowToRewrite);
   }
 
   // Build prompt
@@ -346,24 +334,22 @@ export async function generateRewrites(
   const rewrites: Rewrite[] = [];
 
   for (const raw of parsed.rewrites) {
-    const { data: inserted, error } = await supabase
-      .from('rewrites')
-      .insert({
-        suggestion_id: suggestionId,
-        original_text: suggestion.location.excerpt,
-        rewritten_text: raw.rewrittenText,
-        explanation: raw.explanation,
-        selected: false,
-      })
-      .select()
-      .single();
+    try {
+      const inserted = await prisma.rewrite.create({
+        data: {
+          suggestionId,
+          originalText: suggestion.location.excerpt,
+          rewrittenText: raw.rewrittenText,
+          explanation: raw.explanation,
+          selected: false,
+        },
+      });
 
-    if (error) {
-      console.error('Failed to insert rewrite:', error);
+      rewrites.push(rowToRewrite(inserted as unknown as RewriteRow));
+    } catch (err) {
+      console.error('Failed to insert rewrite:', err);
       continue;
     }
-
-    rewrites.push(rowToRewrite(inserted as RewriteRow));
   }
 
   return rewrites;
@@ -373,66 +359,53 @@ export async function generateRewrites(
  * Get rewrites for a suggestion
  */
 export async function getRewrites(suggestionId: string): Promise<Rewrite[]> {
-  const supabase = await createClient();
+  const data = await prisma.rewrite.findMany({
+    where: { suggestionId },
+    orderBy: { createdAt: 'asc' },
+  });
 
-  const { data, error } = await supabase
-    .from('rewrites')
-    .select('*')
-    .eq('suggestion_id', suggestionId)
-    .order('created_at', { ascending: true });
-
-  if (error) {
-    throw new Error(`Failed to fetch rewrites: ${error.message}`);
-  }
-
-  return (data as RewriteRow[]).map(rowToRewrite);
+  return (data as unknown as RewriteRow[]).map(rowToRewrite);
 }
 
 /**
  * Select a rewrite (mark as chosen)
  */
 export async function selectRewrite(rewriteId: string): Promise<Rewrite> {
-  const supabase = await createClient();
+  // Get the rewrite to find suggestionId
+  const rewrite = await prisma.rewrite.findFirst({
+    where: { id: rewriteId },
+  });
 
-  // Get the rewrite to find suggestion_id
-  const { data: rewrite, error: fetchError } = await supabase
-    .from('rewrites')
-    .select('*')
-    .eq('id', rewriteId)
-    .single();
-
-  if (fetchError || !rewrite) {
+  if (!rewrite) {
     throw new Error('Rewrite not found');
   }
 
   // Deselect all other rewrites for this suggestion
-  await supabase
-    .from('rewrites')
-    .update({ selected: false })
-    .eq('suggestion_id', rewrite.suggestion_id);
+  await prisma.rewrite.updateMany({
+    where: { suggestionId: rewrite.suggestionId },
+    data: { selected: false },
+  });
 
   // Select this one
-  const { data, error } = await supabase
-    .from('rewrites')
-    .update({ selected: true })
-    .eq('id', rewriteId)
-    .select()
-    .single();
+  try {
+    const data = await prisma.rewrite.update({
+      where: { id: rewriteId },
+      data: { selected: true },
+    });
 
-  if (error) {
-    throw new Error(`Failed to select rewrite: ${error.message}`);
+    // Mark the suggestion as accepted
+    await prisma.suggestion.update({
+      where: { id: rewrite.suggestionId },
+      data: {
+        status: 'accepted',
+        respondedAt: new Date(),
+      },
+    });
+
+    return rowToRewrite(data as unknown as RewriteRow);
+  } catch (err) {
+    throw new Error(`Failed to select rewrite: ${err instanceof Error ? err.message : String(err)}`);
   }
-
-  // Mark the suggestion as accepted
-  await supabase
-    .from('suggestions')
-    .update({
-      status: 'accepted',
-      responded_at: new Date().toISOString(),
-    })
-    .eq('id', rewrite.suggestion_id);
-
-  return rowToRewrite(data as RewriteRow);
 }
 
 // =============================================================================
@@ -452,24 +425,32 @@ export async function getSuggestionStats(projectId: string): Promise<{
   important: number;
   minor: number;
 }> {
-  const supabase = await createClient();
+  try {
+    const data = await prisma.$queryRaw<[{
+      total: bigint;
+      pending: bigint;
+      accepted: bigint;
+      rejected: bigint;
+      dismissed: bigint;
+      critical: bigint;
+      important: bigint;
+      minor: bigint;
+    }]>`
+      SELECT * FROM get_suggestion_stats(${projectId}::uuid)
+    `;
 
-  const { data, error } = await supabase.rpc('get_suggestion_stats', {
-    p_project_id: projectId,
-  });
-
-  if (error) {
-    throw new Error(`Failed to get stats: ${error.message}`);
+    const row = data?.[0];
+    return {
+      total: Number(row?.total ?? 0),
+      pending: Number(row?.pending ?? 0),
+      accepted: Number(row?.accepted ?? 0),
+      rejected: Number(row?.rejected ?? 0),
+      dismissed: Number(row?.dismissed ?? 0),
+      critical: Number(row?.critical ?? 0),
+      important: Number(row?.important ?? 0),
+      minor: Number(row?.minor ?? 0),
+    };
+  } catch (err) {
+    throw new Error(`Failed to get stats: ${err instanceof Error ? err.message : String(err)}`);
   }
-
-  return data?.[0] || {
-    total: 0,
-    pending: 0,
-    accepted: 0,
-    rejected: 0,
-    dismissed: 0,
-    critical: 0,
-    important: 0,
-    minor: 0,
-  };
 }

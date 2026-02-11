@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { supabaseClient as supabase } from '../lib/supabase.js';
+import { verifyToken } from '@clerk/backend';
 import { captureError } from '../lib/sentry.js';
 import { log } from '../lib/logger.js';
 
@@ -16,12 +16,14 @@ declare global {
   }
 }
 
-if (!supabase) {
-  log.warn('Supabase credentials not configured - auth middleware will reject all requests');
+const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+
+if (!clerkSecretKey) {
+  log.warn('CLERK_SECRET_KEY not configured - auth middleware will reject all requests');
 }
 
 /**
- * Authentication middleware that verifies Supabase JWT tokens
+ * Authentication middleware that verifies Clerk JWT tokens
  *
  * Usage:
  *   app.use('/api/protected', authMiddleware);
@@ -52,8 +54,8 @@ export async function authMiddleware(
     return next();
   }
 
-  // Check if Supabase is configured
-  if (!supabase) {
+  // Check if Clerk is configured
+  if (!clerkSecretKey) {
     res.status(503).json({
       error: 'Service unavailable',
       message: 'Authentication service not configured',
@@ -74,35 +76,28 @@ export async function authMiddleware(
   const token = authHeader.replace('Bearer ', '');
 
   try {
-    // Verify the JWT with Supabase
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-
-    if (error || !user) {
-      res.status(401).json({
-        error: 'Unauthorized',
-        message: error?.message || 'Invalid or expired token',
-      });
-      return;
-    }
+    // Verify the JWT with Clerk
+    const claims = await verifyToken(token, {
+      secretKey: clerkSecretKey,
+    });
 
     // Attach user to request
     req.user = {
-      id: user.id,
-      email: user.email,
-      role: user.role,
+      id: claims.sub,
+      email: (claims as Record<string, unknown>).email as string | undefined,
     };
 
     // Log successful auth (minimal info)
-    log.info('Auth: user verified', { emailPrefix: user.email?.slice(0, 3) });
+    log.info('Auth: user verified', { userId: claims.sub.slice(0, 8) + '...' });
 
     next();
   } catch (error) {
     log.error('Auth error', error instanceof Error ? error : undefined, { path: req.path });
     captureError(error as Error, { path: req.path });
 
-    res.status(500).json({
-      error: 'Authentication failed',
-      message: 'Error verifying token',
+    res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Invalid or expired token',
     });
   }
 }
@@ -117,21 +112,20 @@ export async function optionalAuthMiddleware(
 ): Promise<void> {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ') || !supabase) {
+  if (!authHeader || !authHeader.startsWith('Bearer ') || !clerkSecretKey) {
     return next();
   }
 
   const token = authHeader.replace('Bearer ', '');
 
   try {
-    const { data: { user } } = await supabase.auth.getUser(token);
-    if (user) {
-      req.user = {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      };
-    }
+    const claims = await verifyToken(token, {
+      secretKey: clerkSecretKey,
+    });
+    req.user = {
+      id: claims.sub,
+      email: (claims as Record<string, unknown>).email as string | undefined,
+    };
   } catch {
     // Ignore errors for optional auth
   }

@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateCsrf } from '@/lib/csrf';
@@ -73,11 +74,9 @@ export async function POST(request: Request) {
     }, { status: 403 });
   }
 
-  const supabase = await createClient();
-
   // Verify user is authenticated and get session for API calls
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId, getToken } = await auth();
+  if (!userId) {
     return NextResponse.json({
       error: 'Unauthorized',
       code: 'AUTH_REQUIRED',
@@ -85,8 +84,7 @@ export async function POST(request: Request) {
   }
 
   // Get session token for orchestrator API calls
-  const { data: { session } } = await supabase.auth.getSession();
-  const accessToken = session?.access_token;
+  const accessToken = await getToken();
 
   // Parse and validate request body
   let body: unknown;
@@ -111,14 +109,11 @@ export async function POST(request: Request) {
   const { projectId, jobId } = parseResult.data;
 
   // Fetch project
-  const { data: project, error: projectError } = await supabase
-    .from('projects')
-    .select('*')
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-    .single();
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId },
+  });
 
-  if (projectError || !project) {
+  if (!project) {
     return NextResponse.json({
       error: 'Project not found',
       code: 'PROJECT_NOT_FOUND',
@@ -126,7 +121,7 @@ export async function POST(request: Request) {
   }
 
   // Validate script content
-  const scriptValidation = validateScriptContent(project.script_text);
+  const scriptValidation = validateScriptContent(project.scriptText as string);
   if (!scriptValidation.valid) {
     return NextResponse.json({
       error: scriptValidation.error,
@@ -135,7 +130,7 @@ export async function POST(request: Request) {
   }
 
   // Validate page count
-  if (project.page_count > MAX_PAGE_COUNT) {
+  if (project.pageCount > MAX_PAGE_COUNT) {
     return NextResponse.json({
       error: `Script exceeds maximum of ${MAX_PAGE_COUNT} pages`,
       code: 'SCRIPT_TOO_LONG',
@@ -143,12 +138,13 @@ export async function POST(request: Request) {
   }
 
   // Sanitize script text before processing
-  const sanitizedScript = sanitizeScriptText(project.script_text);
+  const sanitizedScript = sanitizeScriptText(project.scriptText as string);
 
   // Get voice assignments (user-selected voice overrides)
   const voiceOverrides: Record<string, string> = {};
-  if (Array.isArray(project.voice_assignments)) {
-    for (const assignment of project.voice_assignments) {
+  const voiceAssignments = project.voiceAssignments as unknown[];
+  if (Array.isArray(voiceAssignments)) {
+    for (const assignment of voiceAssignments as Array<{ user_selected?: boolean; voice_id?: string; character_name?: string }>) {
       if (assignment.user_selected && assignment.voice_id && assignment.character_name) {
         voiceOverrides[assignment.character_name] = assignment.voice_id;
       }
@@ -159,22 +155,22 @@ export async function POST(request: Request) {
   // The worker picks up 'queued' jobs, processes them with retry support,
   // and survives process restarts via lock expiration.
   const now = new Date().toISOString();
-  await supabase
-    .from('jobs')
-    .update({
+  await prisma.job.update({
+    where: { id: jobId },
+    data: {
       status: 'queued',
       progress: { step: 'queued', percent: 0, details: 'Job queued, starting soon...', updated_at: now },
       // Store generation params as metadata for the queue worker to consume
       result: {
         metadata: {
           scriptText: sanitizedScript,
-          pageCount: project.page_count,
+          pageCount: project.pageCount,
           voiceOverrides,
           accessToken,
         },
       },
-    })
-    .eq('id', jobId);
+    },
+  });
 
   log.info('Job queued', { jobId: jobId.slice(0, 8), projectId, type: 'generation' });
 

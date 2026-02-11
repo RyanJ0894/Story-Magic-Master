@@ -4,7 +4,7 @@
  * Handles creating, retrieving, and comparing script revisions.
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { prisma } from '@/lib/db';
 import {
   Revision,
   RevisionRow,
@@ -39,17 +39,15 @@ export async function createRevision(
     userId?: string;
   }
 ): Promise<Revision> {
-  const supabase = await createClient();
-
   // Get the next version number
-  const { data: versionData, error: versionError } = await supabase
-    .rpc('get_next_version_number', { p_project_id: projectId });
+  const versionResult = await prisma.$queryRaw<[{ get_next_version_number: number }]>`
+    SELECT get_next_version_number(${projectId}::uuid)
+  `;
 
-  if (versionError) {
-    throw new Error(`Failed to get version number: ${versionError.message}`);
+  const versionNumber = versionResult?.[0]?.get_next_version_number;
+  if (versionNumber == null) {
+    throw new Error('Failed to get version number');
   }
-
-  const versionNumber = versionData as number;
 
   // Calculate text metrics
   const wordCount = calculateWordCount(scriptText);
@@ -58,46 +56,46 @@ export async function createRevision(
   // Get previous revision for change calculation
   let changesSummary: RevisionChanges | null = null;
   if (versionNumber > 1) {
-    const { data: prevRevision } = await supabase
-      .from('revisions')
-      .select('script_text, overall_score')
-      .eq('project_id', projectId)
-      .eq('version_number', versionNumber - 1)
-      .single();
+    const prevRevision = await prisma.revision.findFirst({
+      where: {
+        projectId,
+        versionNumber: versionNumber - 1,
+      },
+      select: { scriptText: true, overallScore: true },
+    });
 
     if (prevRevision) {
-      changesSummary = calculateChanges(prevRevision.script_text, scriptText);
+      changesSummary = calculateChanges(prevRevision.scriptText, scriptText);
     }
   }
 
   // Insert the revision
-  const { data: revision, error } = await supabase
-    .from('revisions')
-    .insert({
-      project_id: projectId,
-      version_number: versionNumber,
-      label: options?.label || null,
-      script_text: scriptText,
-      word_count: wordCount,
-      page_count: pageCount,
-      changes_summary: changesSummary,
-      created_by: options?.userId || null,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to create revision: ${error.message}`);
+  let revision;
+  try {
+    revision = await prisma.revision.create({
+      data: {
+        projectId,
+        versionNumber,
+        label: options?.label || null,
+        scriptText,
+        wordCount,
+        pageCount,
+        changesSummary: changesSummary as object | null,
+        createdBy: options?.userId || null,
+      },
+    });
+  } catch (err) {
+    throw new Error(`Failed to create revision: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // Also update the project's script_text
-  await supabase
-    .from('projects')
-    .update({
-      script_text: scriptText,
-      page_count: pageCount,
-    })
-    .eq('id', projectId);
+  await prisma.project.update({
+    where: { id: projectId },
+    data: {
+      scriptText,
+      pageCount,
+    },
+  });
 
   // Optionally generate a StoryScore for this revision
   if (options?.autoScore) {
@@ -105,32 +103,34 @@ export async function createRevision(
       const score = await generateScore(projectId, scriptText);
 
       // Update revision with score
-      await supabase
-        .from('revisions')
-        .update({
-          score_id: score.id,
-          overall_score: score.overallScore,
-        })
-        .eq('id', revision.id);
+      await prisma.revision.update({
+        where: { id: revision.id },
+        data: {
+          scoreId: score.id,
+          overallScore: score.overallScore,
+        },
+      });
 
-      revision.score_id = score.id;
-      revision.overall_score = score.overallScore;
+      // Mutate for return value
+      (revision as Record<string, unknown>).scoreId = score.id;
+      (revision as Record<string, unknown>).overallScore = score.overallScore;
 
       // Update changes_summary with score change if previous had score
       if (changesSummary) {
-        const { data: prevRevision } = await supabase
-          .from('revisions')
-          .select('overall_score')
-          .eq('project_id', projectId)
-          .eq('version_number', versionNumber - 1)
-          .single();
+        const prevRevision = await prisma.revision.findFirst({
+          where: {
+            projectId,
+            versionNumber: versionNumber - 1,
+          },
+          select: { overallScore: true },
+        });
 
-        if (prevRevision?.overall_score) {
-          changesSummary.scoreChange = score.overallScore - prevRevision.overall_score;
-          await supabase
-            .from('revisions')
-            .update({ changes_summary: changesSummary })
-            .eq('id', revision.id);
+        if (prevRevision?.overallScore) {
+          changesSummary.scoreChange = score.overallScore - prevRevision.overallScore;
+          await prisma.revision.update({
+            where: { id: revision.id },
+            data: { changesSummary: changesSummary as object },
+          });
         }
       }
     } catch (err) {
@@ -139,7 +139,7 @@ export async function createRevision(
     }
   }
 
-  return rowToRevision(revision as RevisionRow);
+  return rowToRevision(revision as unknown as RevisionRow);
 }
 
 // =============================================================================
@@ -150,59 +150,43 @@ export async function createRevision(
  * Get a single revision by ID
  */
 export async function getRevision(revisionId: string): Promise<Revision | null> {
-  const supabase = await createClient();
+  const data = await prisma.revision.findFirst({
+    where: { id: revisionId },
+  });
 
-  const { data, error } = await supabase
-    .from('revisions')
-    .select('*')
-    .eq('id', revisionId)
-    .single();
-
-  if (error || !data) {
+  if (!data) {
     return null;
   }
 
-  return rowToRevision(data as RevisionRow);
+  return rowToRevision(data as unknown as RevisionRow);
 }
 
 /**
  * Get all revisions for a project
  */
 export async function getRevisions(projectId: string): Promise<Revision[]> {
-  const supabase = await createClient();
+  const data = await prisma.revision.findMany({
+    where: { projectId },
+    orderBy: { versionNumber: 'desc' },
+  });
 
-  const { data, error } = await supabase
-    .from('revisions')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('version_number', { ascending: false });
-
-  if (error) {
-    throw new Error(`Failed to fetch revisions: ${error.message}`);
-  }
-
-  return (data || []).map((row) => rowToRevision(row as RevisionRow));
+  return (data || []).map((row) => rowToRevision(row as unknown as RevisionRow));
 }
 
 /**
  * Get the latest revision for a project
  */
 export async function getLatestRevision(projectId: string): Promise<Revision | null> {
-  const supabase = await createClient();
+  const data = await prisma.revision.findFirst({
+    where: { projectId },
+    orderBy: { versionNumber: 'desc' },
+  });
 
-  const { data, error } = await supabase
-    .from('revisions')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('version_number', { ascending: false })
-    .limit(1)
-    .single();
-
-  if (error || !data) {
+  if (!data) {
     return null;
   }
 
-  return rowToRevision(data as RevisionRow);
+  return rowToRevision(data as unknown as RevisionRow);
 }
 
 // =============================================================================
@@ -213,17 +197,8 @@ export async function getLatestRevision(projectId: string): Promise<Revision | n
  * Get revision timeline for a project
  */
 export async function getRevisionTimeline(projectId: string): Promise<RevisionTimeline> {
-  const supabase = await createClient();
-
   // Get timeline entries
-  const { data: timelineData, error } = await supabase
-    .rpc('get_revision_timeline', { p_project_id: projectId });
-
-  if (error) {
-    throw new Error(`Failed to fetch timeline: ${error.message}`);
-  }
-
-  const entries: RevisionTimelineEntry[] = (timelineData || []).map((row: {
+  const timelineData = await prisma.$queryRaw<Array<{
     id: string;
     version_number: number;
     label: string | null;
@@ -232,7 +207,11 @@ export async function getRevisionTimeline(projectId: string): Promise<RevisionTi
     overall_score: number | null;
     changes_summary: RevisionChanges | null;
     created_at: string;
-  }) => ({
+  }>>`
+    SELECT * FROM get_revision_timeline(${projectId}::uuid)
+  `;
+
+  const entries: RevisionTimelineEntry[] = (timelineData || []).map((row) => ({
     id: row.id,
     versionNumber: row.version_number,
     label: row.label || undefined,
@@ -248,17 +227,18 @@ export async function getRevisionTimeline(projectId: string): Promise<RevisionTi
   }));
 
   // Get score trajectory
-  const { data: trajectoryData } = await supabase
-    .rpc('get_score_trajectory', { p_project_id: projectId });
+  const trajectoryData = await prisma.$queryRaw<Array<{
+    revision_id: string;
+    version_number: number;
+    score: number;
+    created_at: string;
+  }>>`
+    SELECT * FROM get_score_trajectory(${projectId}::uuid)
+  `;
 
   let scoreTrajectory: ScoreTrajectory | undefined;
   if (trajectoryData && trajectoryData.length > 0) {
-    const dataPoints = trajectoryData.map((row: {
-      revision_id: string;
-      version_number: number;
-      score: number;
-      created_at: string;
-    }) => ({
+    const dataPoints = trajectoryData.map((row) => ({
       revisionId: row.revision_id,
       versionNumber: row.version_number,
       score: row.score,
@@ -347,20 +327,16 @@ export async function updateRevisionLabel(
   revisionId: string,
   label: string
 ): Promise<Revision> {
-  const supabase = await createClient();
+  try {
+    const data = await prisma.revision.update({
+      where: { id: revisionId },
+      data: { label },
+    });
 
-  const { data, error } = await supabase
-    .from('revisions')
-    .update({ label })
-    .eq('id', revisionId)
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to update revision: ${error.message}`);
+    return rowToRevision(data as unknown as RevisionRow);
+  } catch (err) {
+    throw new Error(`Failed to update revision: ${err instanceof Error ? err.message : String(err)}`);
   }
-
-  return rowToRevision(data as RevisionRow);
 }
 
 // =============================================================================
@@ -371,25 +347,21 @@ export async function updateRevisionLabel(
  * Delete a revision (cannot delete version 1)
  */
 export async function deleteRevision(revisionId: string): Promise<void> {
-  const supabase = await createClient();
-
   // Check if it's version 1
-  const { data: revision } = await supabase
-    .from('revisions')
-    .select('version_number')
-    .eq('id', revisionId)
-    .single();
+  const revision = await prisma.revision.findFirst({
+    where: { id: revisionId },
+    select: { versionNumber: true },
+  });
 
-  if (revision?.version_number === 1) {
+  if (revision?.versionNumber === 1) {
     throw new Error('Cannot delete the initial revision');
   }
 
-  const { error } = await supabase
-    .from('revisions')
-    .delete()
-    .eq('id', revisionId);
-
-  if (error) {
-    throw new Error(`Failed to delete revision: ${error.message}`);
+  try {
+    await prisma.revision.delete({
+      where: { id: revisionId },
+    });
+  } catch (err) {
+    throw new Error(`Failed to delete revision: ${err instanceof Error ? err.message : String(err)}`);
   }
 }

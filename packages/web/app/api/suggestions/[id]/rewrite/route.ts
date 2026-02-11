@@ -4,7 +4,8 @@
  * POST /api/suggestions/[id]/rewrite - Generate rewrite options
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateCsrf } from '@/lib/csrf';
@@ -32,20 +33,16 @@ async function verifySuggestionOwnership(
   suggestionId: string,
   userId: string
 ): Promise<boolean> {
-  const supabase = await createClient();
+  const suggestion = await prisma.suggestion.findUnique({
+    where: { id: suggestionId },
+    select: {
+      project: { select: { userId: true } },
+    },
+  });
 
-  const { data } = await supabase
-    .from('suggestions')
-    .select('project_id, projects!inner(user_id)')
-    .eq('id', suggestionId)
-    .single();
+  if (!suggestion) return false;
 
-  if (!data) return false;
-
-  const projectData = data as unknown as { project_id: string; projects: { user_id: string } | { user_id: string }[] };
-  const projects = projectData.projects;
-  const projectUserId = Array.isArray(projects) ? projects[0]?.user_id : projects?.user_id;
-  return projectUserId === userId;
+  return suggestion.project.userId === userId;
 }
 
 // =============================================================================
@@ -63,20 +60,17 @@ export async function GET(
     );
   }
 
-  const supabase = await createClient();
-  const { id: suggestionId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json(
       { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
       { status: 401 }
     );
   }
 
-  const owned = await verifySuggestionOwnership(suggestionId, user.id);
+  const { id: suggestionId } = await params;
+
+  const owned = await verifySuggestionOwnership(suggestionId, userId);
   if (!owned) {
     return NextResponse.json(
       { error: 'Suggestion not found', code: 'NOT_FOUND' },
@@ -126,20 +120,17 @@ export async function POST(
     );
   }
 
-  const supabase = await createClient();
-  const { id: suggestionId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json(
       { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
       { status: 401 }
     );
   }
 
-  const owned = await verifySuggestionOwnership(suggestionId, user.id);
+  const { id: suggestionId } = await params;
+
+  const owned = await verifySuggestionOwnership(suggestionId, userId);
   if (!owned) {
     return NextResponse.json(
       { error: 'Suggestion not found', code: 'NOT_FOUND' },

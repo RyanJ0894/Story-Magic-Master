@@ -7,7 +7,7 @@
  * Uses in-memory caching to avoid excessive ElevenLabs API calls.
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
 // Voice type matching the frontend
@@ -160,11 +160,8 @@ async function getVoices(): Promise<Voice[]> {
 }
 
 export async function GET(request: Request) {
-  const supabase = await createClient();
-
-  // Verify authentication
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json(
       { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
       { status: 401 }

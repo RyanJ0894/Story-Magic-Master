@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { prisma } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -60,7 +61,6 @@ const getActionBadgeVariant = (action: string): 'default' | 'secondary' | 'destr
 
 export default async function AdminAuditLogPage({ searchParams }: Props) {
   const params = await searchParams;
-  const supabase = await createClient();
 
   const page = parseInt(params.page || '1');
   const actionFilter = params.action || '';
@@ -68,39 +68,37 @@ export default async function AdminAuditLogPage({ searchParams }: Props) {
   const limit = 30;
   const offset = (page - 1) * limit;
 
-  // Build query
-  let query = supabase
-    .from('audit_logs')
-    .select(`
-      id,
-      user_id,
-      action,
-      resource_type,
-      resource_id,
-      details,
-      ip_address,
-      user_agent,
-      created_at,
-      profiles(full_name)
-    `, { count: 'exact' });
-
-  // Apply filters
+  // Build where clause
+  const where: Prisma.AuditLogWhereInput = {};
   if (actionFilter) {
-    query = query.ilike('action', `%${actionFilter}%`);
+    where.action = { contains: actionFilter, mode: 'insensitive' };
   }
   if (resourceFilter) {
-    query = query.eq('resource_type', resourceFilter);
+    where.resourceType = resourceFilter;
   }
 
-  // Apply pagination and ordering
-  query = query
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+  let logs: Awaited<ReturnType<typeof prisma.auditLog.findMany>> | null = null;
+  let count = 0;
+  let tableNotExists = false;
 
-  const { data: logs, count, error } = await query;
-
-  // If table doesn't exist yet, show empty state with setup instructions
-  const tableNotExists = error?.code === '42P01'; // PostgreSQL "undefined table" error
+  try {
+    [logs, count] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        include: { user: { select: { fullName: true } } },
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit,
+      }),
+      prisma.auditLog.count({ where }),
+    ]);
+  } catch (error: unknown) {
+    // Check if table doesn't exist
+    const errMsg = error instanceof Error ? error.message : '';
+    if (errMsg.includes('does not exist') || errMsg.includes('42P01')) {
+      tableNotExists = true;
+    }
+  }
 
   const totalPages = Math.ceil((count || 0) / limit);
 
@@ -119,49 +117,13 @@ export default async function AdminAuditLogPage({ searchParams }: Props) {
           <CardHeader>
             <CardTitle>Audit Logging Not Configured</CardTitle>
             <CardDescription>
-              The audit_logs table needs to be created in your Supabase database.
+              The audit_logs table needs to be created in your database.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="bg-muted rounded-lg p-4 font-mono text-sm overflow-x-auto">
-              <pre>{`-- Run this SQL in your Supabase SQL Editor:
-
-CREATE TABLE IF NOT EXISTS audit_logs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-  action TEXT NOT NULL,
-  resource_type TEXT NOT NULL,
-  resource_id TEXT,
-  details JSONB DEFAULT '{}',
-  ip_address TEXT,
-  user_agent TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Create index for faster queries
-CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at DESC);
-CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
-CREATE INDEX idx_audit_logs_action ON audit_logs(action);
-CREATE INDEX idx_audit_logs_resource_type ON audit_logs(resource_type);
-
--- Enable RLS
-ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
-
--- Only admins can view audit logs
-CREATE POLICY "Admins can view audit logs" ON audit_logs
-  FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.user_type = 'admin'
-    )
-  );
-
--- Service role can insert (for logging from API routes)
-CREATE POLICY "Service role can insert audit logs" ON audit_logs
-  FOR INSERT
-  WITH CHECK (true);`}</pre>
+              <pre>{`-- Run the Prisma migration to create the audit_logs table:
+npx prisma migrate dev`}</pre>
             </div>
           </CardContent>
         </Card>
@@ -224,8 +186,6 @@ CREATE POLICY "Service role can insert audit logs" ON audit_logs
                 </TableHeader>
                 <TableBody>
                   {logs?.map((log) => {
-                    const profileData = log.profiles;
-                    const profile = (Array.isArray(profileData) ? profileData[0] : profileData) as { full_name: string | null } | null;
                     const Icon = getActionIcon(log.action);
                     const details = log.details as Record<string, unknown> | null;
 
@@ -243,20 +203,20 @@ CREATE POLICY "Service role can insert audit logs" ON audit_logs
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium text-sm">{profile?.full_name || 'System'}</p>
-                            {log.user_id && (
+                            <p className="font-medium text-sm">{log.user?.fullName || 'System'}</p>
+                            {log.userId && (
                               <p className="text-xs text-muted-foreground font-mono">
-                                {log.user_id.slice(0, 8)}...
+                                {log.userId.slice(0, 8)}...
                               </p>
                             )}
                           </div>
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="text-sm">{log.resource_type}</p>
-                            {log.resource_id && (
+                            <p className="text-sm">{log.resourceType}</p>
+                            {log.resourceId && (
                               <p className="text-xs text-muted-foreground font-mono">
-                                {log.resource_id.slice(0, 12)}...
+                                {log.resourceId.slice(0, 12)}...
                               </p>
                             )}
                           </div>
@@ -272,15 +232,15 @@ CREATE POLICY "Service role can insert audit logs" ON audit_logs
                           )}
                         </TableCell>
                         <TableCell>
-                          <code className="text-xs">{log.ip_address || '-'}</code>
+                          <code className="text-xs">{log.ipAddress || '-'}</code>
                         </TableCell>
                         <TableCell>
                           <div>
                             <p className="text-sm">
-                              {new Date(log.created_at).toLocaleDateString()}
+                              {new Date(log.createdAt).toLocaleDateString()}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {new Date(log.created_at).toLocaleTimeString()}
+                              {new Date(log.createdAt).toLocaleTimeString()}
                             </p>
                           </div>
                         </TableCell>

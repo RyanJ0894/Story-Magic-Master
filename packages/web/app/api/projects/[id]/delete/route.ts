@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
 
@@ -12,23 +13,23 @@ export async function POST(
     return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
   }
 
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Delete project (cascade will handle jobs and audio_outputs)
-  const { error } = await supabase
-    .from('projects')
-    .delete()
-    .eq('id', params.id)
-    .eq('user_id', user.id);
+  try {
+    // Delete project (cascade will handle jobs and audio_outputs)
+    const deleted = await prisma.project.deleteMany({
+      where: { id: params.id, userId },
+    });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (deleted.count === 0) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Delete failed' }, { status: 500 });
   }
-
-  return NextResponse.redirect(new URL('/dashboard', request.url));
 }

@@ -1,9 +1,12 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { nanoid } from 'nanoid';
 import { validateCsrf } from '@/lib/csrf';
 import { rateLimit, getClientIp } from '@/lib/api/rate-limit';
 import { log } from '@/lib/logger';
+import fs from 'fs';
+import path from 'path';
 
 // POST /api/reader/upload/process - Process uploaded PDF
 export async function POST(request: NextRequest) {
@@ -17,11 +20,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
   }
 
-  const supabase = await createClient();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { userId, getToken } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
 
   const formData = await request.formData();
@@ -45,84 +46,52 @@ export async function POST(request: NextRequest) {
     // Generate unique project ID
     const projectId = nanoid();
 
-    // Upload file to Supabase storage
-    const fileName = `${projectId}/${file.name}`;
-    const fileBuffer = await file.arrayBuffer();
+    // Save file to local storage
+    const uploadsDir = path.join(process.cwd(), 'uploads', projectId);
+    fs.mkdirSync(uploadsDir, { recursive: true });
 
-    const { error: uploadError } = await supabase.storage
-      .from('scripts')
-      .upload(fileName, fileBuffer, {
-        contentType: 'application/pdf',
-      });
-
-    if (uploadError) {
-      log.error('Upload error', uploadError);
-      return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
-    }
-
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('scripts')
-      .getPublicUrl(fileName);
+    const fileName = file.name;
+    const filePath = path.join(uploadsDir, fileName);
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    fs.writeFileSync(filePath, fileBuffer);
 
     // Create project record
-    const { data: project, error: projectError } = await supabase
-      .from('projects')
-      .insert({
+    const project = await prisma.project.create({
+      data: {
         id: projectId,
-        user_id: user.id,
+        userId,
         name,
         status: 'processing',
-        source_type: 'reader_upload',
-        source_url: publicUrl,
-        created_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (projectError) {
-      log.error('Project creation error', projectError);
-      return NextResponse.json({ error: 'Failed to create project' }, { status: 500 });
-    }
+      },
+    });
 
     // Add to reader's library
-    const { error: libraryError } = await supabase
-      .from('reader_library')
-      .insert({
-        reader_id: user.id,
-        project_id: projectId,
-        source: 'uploaded',
-        status: 'active',
+    try {
+      await prisma.readerLibrary.create({
+        data: {
+          readerId: userId,
+          projectId,
+          source: 'uploaded',
+          status: 'active',
+        },
       });
-
-    if (libraryError) {
+    } catch (libraryError) {
       log.warn('Library entry error', { error: libraryError });
     }
 
     // Create job record
-    const { data: job, error: jobError } = await supabase
-      .from('jobs')
-      .insert({
-        project_id: projectId,
-        user_id: user.id,
-        job_type: needsOCR ? 'ocr_extract' : 'pdf_extract',
+    const job = await prisma.job.create({
+      data: {
+        projectId,
+        userId,
+        jobType: needsOCR ? 'ocr_extract' : 'pdf_extract',
         status: 'queued',
-        metadata: {
-          needsOCR,
-          fileName: file.name,
-          fileSize: file.size,
-        },
-      })
-      .select()
-      .single();
+      },
+    });
 
-    if (jobError) {
-      log.error('Job creation error', jobError);
-      return NextResponse.json({ error: 'Failed to create job' }, { status: 500 });
-    }
-
-    // Trigger async processing (in production, this would queue a job)
-    triggerProcessing(projectId, job.id, publicUrl, needsOCR);
+    // Trigger async processing
+    const accessToken = await getToken();
+    triggerProcessing(projectId, job.id, filePath, needsOCR, accessToken);
 
     return NextResponse.json({
       projectId,
@@ -138,82 +107,68 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Trigger async processing: download PDF, extract text, queue for generation
+// Trigger async processing: read PDF from disk, extract text, queue for generation
 async function triggerProcessing(
   projectId: string,
   jobId: string,
-  fileUrl: string,
-  needsOCR: boolean
+  filePath: string,
+  needsOCR: boolean,
+  accessToken: string | null
 ) {
   const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:22002';
 
   try {
-    const supabase = await createClient();
-
     // Update job status to processing
-    await supabase
-      .from('jobs')
-      .update({
+    await prisma.job.update({
+      where: { id: jobId },
+      data: {
         status: 'processing',
-        started_at: new Date().toISOString(),
-        progress: { step: 'downloading', percent: 5, details: 'Downloading PDF...' },
-      })
-      .eq('id', jobId);
+        startedAt: new Date(),
+        progress: { step: 'downloading', percent: 5, details: 'Reading PDF...' },
+      },
+    });
 
-    // Download PDF from Supabase storage
-    const { data: fileData, error: downloadError } = await supabase.storage
-      .from('scripts')
-      .download(`${projectId}/${fileUrl.split('/').pop()}`);
-
-    if (downloadError || !fileData) {
-      throw new Error(`Failed to download PDF: ${downloadError?.message}`);
-    }
-
-    // Extract text by sending to orchestrator's /generate-scenes endpoint
-    // The orchestrator accepts script_text - we need to extract text from PDF first
-    // For now, use a basic text extraction approach
-    const pdfText = await fileData.text();
+    // Read PDF from local disk
+    const fileData = fs.readFileSync(filePath);
+    const pdfText = fileData.toString('utf-8');
 
     if (!pdfText || pdfText.trim().length < 50) {
-      await supabase
-        .from('jobs')
-        .update({
+      await prisma.job.update({
+        where: { id: jobId },
+        data: {
           status: 'failed',
           error: 'Could not extract text from PDF. The file may be scanned/image-based and require OCR.',
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', jobId);
+          completedAt: new Date(),
+        },
+      });
 
-      await supabase
-        .from('projects')
-        .update({ status: 'failed' })
-        .eq('id', projectId);
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { status: 'failed' },
+      });
       return;
     }
 
     // Update project with extracted text
     const pageCount = Math.max(1, Math.ceil(pdfText.length / 3000));
-    await supabase
-      .from('projects')
-      .update({
-        script_text: pdfText,
-        page_count: pageCount,
+    await prisma.project.update({
+      where: { id: projectId },
+      data: {
+        scriptText: pdfText,
+        pageCount,
         status: 'ready',
-      })
-      .eq('id', projectId);
+      },
+    });
 
     // Update job progress
-    await supabase
-      .from('jobs')
-      .update({
+    await prisma.job.update({
+      where: { id: jobId },
+      data: {
         progress: { step: 'text_extracted', percent: 20, details: `Extracted ${pageCount} page(s) of text` },
-      })
-      .eq('id', jobId);
+      },
+    });
 
     // Call orchestrator to parse into director JSON
-    const { data: { session } } = await supabase.auth.getSession();
-    const accessToken = session?.access_token;
-
     const response = await fetch(`${orchestratorUrl}/generate-scenes`, {
       method: 'POST',
       headers: {
@@ -235,36 +190,44 @@ async function triggerProcessing(
     const directorJson = result.director_json || result;
 
     // Save director JSON to project
-    await supabase
-      .from('projects')
-      .update({ director_json: directorJson, status: 'analyzed' })
-      .eq('id', projectId);
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { directorJson, status: 'analyzed' },
+    });
 
     // Mark job as completed
-    await supabase
-      .from('jobs')
-      .update({
+    await prisma.job.update({
+      where: { id: jobId },
+      data: {
         status: 'completed',
-        completed_at: new Date().toISOString(),
+        completedAt: new Date(),
         progress: { step: 'complete', percent: 100, details: 'Script processed successfully' },
-      })
-      .eq('id', jobId);
+      },
+    });
+
+    // Cleanup uploaded file
+    try {
+      fs.unlinkSync(filePath);
+      const dir = path.dirname(filePath);
+      if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
+    } catch {
+      // Non-fatal cleanup error
+    }
 
   } catch (error) {
     log.error('Processing error', error);
-    const supabase = await createClient();
-    await supabase
-      .from('jobs')
-      .update({
+    await prisma.job.update({
+      where: { id: jobId },
+      data: {
         status: 'failed',
         error: error instanceof Error ? error.message : 'Unknown processing error',
-        completed_at: new Date().toISOString(),
-      })
-      .eq('id', jobId);
+        completedAt: new Date(),
+      },
+    });
 
-    await supabase
-      .from('projects')
-      .update({ status: 'failed' })
-      .eq('id', projectId);
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { status: 'failed' },
+    });
   }
 }

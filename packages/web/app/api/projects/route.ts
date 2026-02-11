@@ -5,7 +5,8 @@
  * POST /api/projects - Create a new project
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateCsrf } from '@/lib/csrf';
@@ -25,30 +26,36 @@ const CreateProjectSchema = z.object({
 // =============================================================================
 
 export async function GET(request: Request) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json(
       { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
       { status: 401 }
     );
   }
 
-  const { data: projects, error } = await supabase
-    .from('projects')
-    .select('id, name, script_text, page_count, voice_assignments, created_at, updated_at')
-    .eq('user_id', user.id)
-    .order('updated_at', { ascending: false });
+  try {
+    const projects = await prisma.project.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        name: true,
+        scriptText: true,
+        pageCount: true,
+        voiceAssignments: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
 
-  if (error) {
+    return NextResponse.json({ projects });
+  } catch {
     return NextResponse.json(
       { error: 'Failed to fetch projects', code: 'FETCH_ERROR' },
       { status: 500 }
     );
   }
-
-  return NextResponse.json({ projects: projects || [] });
 }
 
 // =============================================================================
@@ -65,10 +72,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json(
       { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
       { status: 401 }
@@ -99,23 +104,21 @@ export async function POST(request: Request) {
 
   const { name, script_text, page_count } = parseResult.data;
 
-  const { data: project, error } = await supabase
-    .from('projects')
-    .insert({
-      user_id: user.id,
-      name,
-      script_text: script_text || null,
-      page_count: page_count || 0,
-    })
-    .select()
-    .single();
+  try {
+    const project = await prisma.project.create({
+      data: {
+        userId,
+        name,
+        scriptText: script_text || null,
+        pageCount: page_count || 0,
+      },
+    });
 
-  if (error) {
+    return NextResponse.json({ project }, { status: 201 });
+  } catch {
     return NextResponse.json(
       { error: 'Failed to create project', code: 'CREATE_ERROR' },
       { status: 500 }
     );
   }
-
-  return NextResponse.json({ project }, { status: 201 });
 }

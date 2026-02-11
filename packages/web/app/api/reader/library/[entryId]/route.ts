@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
 
@@ -9,51 +10,46 @@ interface RouteParams {
 // GET /api/reader/library/[entryId] - Get single library entry
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const { entryId } = await params;
-  const supabase = await createClient();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
 
-  const { data: entry, error } = await supabase
-    .from('reader_library')
-    .select(`
-      *,
-      projects (
-        id,
-        name,
-        page_count,
-        status,
-        user_id,
-        director_json,
-        profiles:user_id (
-          full_name,
-          writer_code
-        )
-      ),
-      script_shares (
-        id,
-        shared_by,
-        access_level
-      )
-    `)
-    .eq('id', entryId)
-    .eq('reader_id', user.id)
-    .single();
+  const entry = await prisma.readerLibrary.findFirst({
+    where: {
+      id: entryId,
+      readerId: userId,
+    },
+    include: {
+      project: {
+        include: {
+          user: {
+            select: {
+              fullName: true,
+              writerCode: true,
+            },
+          },
+        },
+      },
+      share: {
+        select: {
+          id: true,
+          sharedBy: true,
+          accessLevel: true,
+        },
+      },
+    },
+  });
 
-  if (error || !entry) {
+  if (!entry) {
     return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
   }
 
   // Get audio output
-  const { data: audioOutput } = await supabase
-    .from('audio_outputs')
-    .select('*')
-    .eq('project_id', entry.project_id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
+  const audioOutput = await prisma.audioOutput.findFirst({
+    where: { projectId: entry.projectId },
+    orderBy: { createdAt: 'desc' },
+  });
 
   return NextResponse.json({
     entry,
@@ -69,21 +65,18 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   }
 
   const { entryId } = await params;
-  const supabase = await createClient();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
 
   // Verify ownership
-  const { data: existingEntry } = await supabase
-    .from('reader_library')
-    .select('id, reader_id')
-    .eq('id', entryId)
-    .single();
+  const existingEntry = await prisma.readerLibrary.findFirst({
+    where: { id: entryId },
+    select: { id: true, readerId: true },
+  });
 
-  if (!existingEntry || existingEntry.reader_id !== user.id) {
+  if (!existingEntry || existingEntry.readerId !== userId) {
     return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
   }
 
@@ -101,8 +94,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (notes !== undefined) updates.notes = notes;
   if (tags !== undefined) updates.tags = tags;
   if (play_position_seconds !== undefined) {
-    updates.play_position_seconds = play_position_seconds;
-    updates.last_played_at = new Date().toISOString();
+    updates.playPositionSeconds = play_position_seconds;
+    updates.lastPlayedAt = new Date();
   }
   if (completed !== undefined) updates.completed = completed;
 
@@ -114,25 +107,21 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         { status: 400 }
       );
     }
-    updates.read_status = readStatus;
-    updates.read_status_updated_at = new Date().toISOString();
+    updates.readStatus = readStatus;
+    updates.readStatusUpdatedAt = new Date();
   }
 
-  updates.updated_at = new Date().toISOString();
+  try {
+    const entry = await prisma.readerLibrary.update({
+      where: { id: entryId },
+      data: updates,
+    });
 
-  const { data: entry, error } = await supabase
-    .from('reader_library')
-    .update(updates)
-    .eq('id', entryId)
-    .select()
-    .single();
-
-  if (error) {
+    return NextResponse.json({ entry });
+  } catch (error) {
     console.error('Error updating entry:', error);
     return NextResponse.json({ error: 'Failed to update entry' }, { status: 500 });
   }
-
-  return NextResponse.json({ entry });
 }
 
 // DELETE /api/reader/library/[entryId] - Remove from library
@@ -143,37 +132,31 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   }
 
   const { entryId } = await params;
-  const supabase = await createClient();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
 
   // Verify ownership
-  const { data: existingEntry } = await supabase
-    .from('reader_library')
-    .select('id, reader_id')
-    .eq('id', entryId)
-    .single();
+  const existingEntry = await prisma.readerLibrary.findFirst({
+    where: { id: entryId },
+    select: { id: true, readerId: true },
+  });
 
-  if (!existingEntry || existingEntry.reader_id !== user.id) {
+  if (!existingEntry || existingEntry.readerId !== userId) {
     return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
   }
 
-  // Soft delete by setting status to removed
-  const { error } = await supabase
-    .from('reader_library')
-    .update({
-      status: 'removed',
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', entryId);
+  try {
+    // Soft delete by setting status to removed
+    await prisma.readerLibrary.update({
+      where: { id: entryId },
+      data: { status: 'removed' },
+    });
 
-  if (error) {
+    return NextResponse.json({ success: true });
+  } catch (error) {
     console.error('Error removing entry:', error);
     return NextResponse.json({ error: 'Failed to remove entry' }, { status: 500 });
   }
-
-  return NextResponse.json({ success: true });
 }

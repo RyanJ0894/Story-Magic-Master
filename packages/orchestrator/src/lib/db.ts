@@ -1,11 +1,11 @@
 /**
  * Database utilities for voice mapping
- * Supports Supabase with local JSON fallback
+ * Uses Prisma raw SQL with local JSON fallback
  */
 
 import fs from 'fs';
 import path from 'path';
-import { supabaseClient as supabase } from './supabase.js';
+import { prisma } from './prisma.js';
 import { log } from './logger.js';
 
 const localPath = path.join(process.cwd(), 'data', 'voice_map.json');
@@ -44,20 +44,18 @@ export async function getVoiceForCharacter(
   project_id: string,
   character: string
 ): Promise<VoiceMapEntry | null> {
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('voice_map')
-        .select('*')
-        .eq('project_id', project_id)
-        .eq('character', character)
-        .maybeSingle();
+  try {
+    const rows = await prisma.$queryRaw<VoiceMapEntry[]>`
+      SELECT project_id, character, voice_id, provider, params_json
+      FROM voice_map
+      WHERE project_id = ${project_id}
+        AND character = ${character}
+      LIMIT 1
+    `;
 
-      if (error) throw error;
-      return data as VoiceMapEntry | null;
-    } catch (err) {
-      log.error('DB error fetching voice for character', err instanceof Error ? err : undefined, { project_id, character });
-    }
+    if (rows.length > 0) return rows[0];
+  } catch (err) {
+    log.error('DB error fetching voice for character', err instanceof Error ? err : undefined, { project_id, character });
   }
 
   // Fallback to local
@@ -83,19 +81,27 @@ export async function upsertVoiceMap(
     },
   };
 
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('voice_map')
-        .upsert(row)
-        .select('*')
-        .maybeSingle();
+  try {
+    await prisma.$executeRaw`
+      INSERT INTO voice_map (project_id, character, voice_id, provider, params_json)
+      VALUES (${row.project_id}, ${row.character}, ${row.voice_id}, ${row.provider}, ${JSON.stringify(row.params_json)}::jsonb)
+      ON CONFLICT (project_id, character)
+      DO UPDATE SET voice_id = ${row.voice_id}, provider = ${row.provider}, params_json = ${JSON.stringify(row.params_json)}::jsonb
+    `;
 
-      if (error) throw error;
-      return (data as VoiceMapEntry) || row;
-    } catch (err) {
-      log.error('DB upsert error', err instanceof Error ? err : undefined, { project_id, character });
-    }
+    // Read back the upserted row
+    const rows = await prisma.$queryRaw<VoiceMapEntry[]>`
+      SELECT project_id, character, voice_id, provider, params_json
+      FROM voice_map
+      WHERE project_id = ${row.project_id}
+        AND character = ${row.character}
+      LIMIT 1
+    `;
+
+    if (rows.length > 0) return rows[0];
+    return row;
+  } catch (err) {
+    log.error('DB upsert error', err instanceof Error ? err : undefined, { project_id, character });
   }
 
   // Fallback to local

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { prisma } from '@/lib/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -15,64 +15,72 @@ import {
 } from 'lucide-react';
 
 export default async function AdminAnalyticsPage() {
-  const supabase = await createClient();
-
   // Calculate date ranges
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
   const last7Days = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
   const last30Days = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
   const previousMonth = new Date(today.getTime() - 60 * 24 * 60 * 60 * 1000);
 
   // Fetch comprehensive stats in parallel
   const [
-    // User stats
-    { count: totalUsers },
-    { count: newUsersToday },
-    { count: newUsersWeek },
-    { count: newUsersMonth },
-    { count: totalWriters },
-    { count: totalReaders },
-    // Subscription stats
-    { count: activeSubscriptions },
-    { count: newSubsThisMonth },
-    { count: newSubsLastMonth },
-    { count: canceledThisMonth },
-    // Project stats
-    { count: totalProjects },
-    { count: projectsThisMonth },
-    // Share stats
-    { count: totalShares },
-    { count: sharesThisMonth },
-    // Recent activity
-    { data: recentProjects },
-    { data: recentShares },
-    { data: dailySignups },
+    totalUsers,
+    newUsersToday,
+    newUsersWeek,
+    newUsersMonth,
+    totalWriters,
+    totalReaders,
+    activeSubscriptions,
+    newSubsThisMonth,
+    newSubsLastMonth,
+    canceledThisMonth,
+    totalProjects,
+    projectsThisMonth,
+    totalShares,
+    sharesThisMonth,
+    recentProjects,
+    recentShares,
+    dailySignups,
   ] = await Promise.all([
-    // User counts
-    supabase.from('profiles').select('*', { count: 'exact', head: true }),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', today.toISOString()),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', last7Days.toISOString()),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', last30Days.toISOString()),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('user_type', 'writer'),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('user_type', 'reader'),
-    // Subscription counts
-    supabase.from('subscriptions').select('*', { count: 'exact', head: true }).in('status', ['active', 'trialing']),
-    supabase.from('subscriptions').select('*', { count: 'exact', head: true }).gte('created_at', last30Days.toISOString()),
-    supabase.from('subscriptions').select('*', { count: 'exact', head: true }).gte('created_at', previousMonth.toISOString()).lt('created_at', last30Days.toISOString()),
-    supabase.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'canceled').gte('updated_at', last30Days.toISOString()),
-    // Project counts
-    supabase.from('projects').select('*', { count: 'exact', head: true }),
-    supabase.from('projects').select('*', { count: 'exact', head: true }).gte('created_at', last30Days.toISOString()),
-    // Share counts
-    supabase.from('script_shares').select('*', { count: 'exact', head: true }),
-    supabase.from('script_shares').select('*', { count: 'exact', head: true }).gte('created_at', last30Days.toISOString()),
-    // Recent activity
-    supabase.from('projects').select('id, name, created_at, profiles(full_name)').order('created_at', { ascending: false }).limit(5),
-    supabase.from('script_shares').select('id, share_code, created_at, view_count, play_count').order('created_at', { ascending: false }).limit(5),
-    // Daily signups for chart
-    supabase.from('profiles').select('created_at').gte('created_at', last30Days.toISOString()).order('created_at', { ascending: true }),
+    prisma.profile.count(),
+    prisma.profile.count({ where: { createdAt: { gte: today } } }),
+    prisma.profile.count({ where: { createdAt: { gte: last7Days } } }),
+    prisma.profile.count({ where: { createdAt: { gte: last30Days } } }),
+    prisma.profile.count({ where: { userType: 'writer' } }),
+    prisma.profile.count({ where: { userType: 'reader' } }),
+    prisma.subscription.count({ where: { status: { in: ['active', 'trialing'] } } }),
+    prisma.subscription.count({ where: { createdAt: { gte: last30Days } } }),
+    prisma.subscription.count({ where: { createdAt: { gte: previousMonth, lt: last30Days } } }),
+    prisma.subscription.count({ where: { status: 'canceled', updatedAt: { gte: last30Days } } }),
+    prisma.project.count(),
+    prisma.project.count({ where: { createdAt: { gte: last30Days } } }),
+    prisma.scriptShare.count(),
+    prisma.scriptShare.count({ where: { createdAt: { gte: last30Days } } }),
+    prisma.project.findMany({
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        user: { select: { fullName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    }),
+    prisma.scriptShare.findMany({
+      select: {
+        id: true,
+        shareToken: true,
+        createdAt: true,
+        viewCount: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    }),
+    prisma.profile.findMany({
+      select: { createdAt: true },
+      where: { createdAt: { gte: last30Days } },
+      orderBy: { createdAt: 'asc' },
+    }),
   ]);
 
   // Calculate growth percentages
@@ -84,7 +92,7 @@ export default async function AdminAnalyticsPage() {
   // Process daily signups for a simple bar representation
   const signupsByDay = new Map<string, number>();
   dailySignups?.forEach(signup => {
-    const day = new Date(signup.created_at).toLocaleDateString();
+    const day = new Date(signup.createdAt).toLocaleDateString();
     signupsByDay.set(day, (signupsByDay.get(day) || 0) + 1);
   });
   const last7DaysSignups = Array.from({ length: 7 }, (_, i) => {
@@ -319,14 +327,12 @@ export default async function AdminAnalyticsPage() {
           <CardContent>
             <div className="space-y-4">
               {recentProjects?.map((project) => {
-                const profileData = project.profiles;
-                const profile = (Array.isArray(profileData) ? profileData[0] : profileData) as { full_name: string | null } | null;
                 return (
                   <div key={project.id} className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">{project.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        by {profile?.full_name || 'Unknown'} • {new Date(project.created_at).toLocaleDateString()}
+                        by {project.user?.fullName || 'Unknown'} • {new Date(project.createdAt).toLocaleDateString()}
                       </p>
                     </div>
                     <Badge variant="outline">New</Badge>
@@ -350,13 +356,13 @@ export default async function AdminAnalyticsPage() {
               {recentShares?.map((share) => (
                 <div key={share.id} className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium font-mono">{share.share_code}</p>
+                    <p className="font-medium font-mono">{share.shareToken}</p>
                     <p className="text-sm text-muted-foreground">
-                      {share.view_count} views • {share.play_count} plays
+                      {share.viewCount} views
                     </p>
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    {new Date(share.created_at).toLocaleDateString()}
+                    {new Date(share.createdAt).toLocaleDateString()}
                   </span>
                 </div>
               ))}

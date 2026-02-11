@@ -4,7 +4,7 @@
 
 import { audioDurationSec } from '../../lib/audio.js';
 import { whisperAlign, mapWordsToText, type WordTimestamp } from './whisper-align.js';
-import { supabaseClient as sb } from '../../lib/supabase.js';
+import { prisma } from '../../lib/prisma.js';
 import { log } from '../../lib/logger.js';
 import type { Scene, DialogueLine } from '../../schemas/director-json.js';
 import type { StemResult } from './tts.js';
@@ -119,19 +119,23 @@ export async function alignScene(
 }
 
 /**
- * Save alignment to database
+ * Save alignment to database via Prisma raw SQL
  */
 async function saveAlignment(
   project_id: string,
   scene_id: string,
   alignment: SceneAlignment
 ): Promise<void> {
-  if (sb) {
-    await sb.from('alignments').upsert({
-      project_id,
-      scene_id,
-      alignment_json: alignment,
-      created_at: new Date().toISOString(),
+  try {
+    await prisma.$executeRaw`
+      INSERT INTO alignments (project_id, scene_id, alignment_json, created_at)
+      VALUES (${project_id}, ${scene_id}, ${JSON.stringify(alignment)}::jsonb, NOW())
+      ON CONFLICT (project_id, scene_id)
+      DO UPDATE SET alignment_json = ${JSON.stringify(alignment)}::jsonb, created_at = NOW()
+    `;
+  } catch (err) {
+    log.error('Failed to save alignment to DB', err instanceof Error ? err : undefined, {
+      project_id, scene_id,
     });
   }
 }

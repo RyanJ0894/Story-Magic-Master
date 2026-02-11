@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { validateCsrf } from '@/lib/csrf';
@@ -19,11 +20,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
   }
 
-  const supabase = await createClient();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
 
   const body = await request.json();
@@ -43,7 +42,7 @@ export async function POST(request: NextRequest) {
       amount: price * 100, // Convert to cents
       currency: 'usd',
       metadata: {
-        user_id: user.id,
+        user_id: userId,
         type: 'reader_upload',
         needs_ocr: String(needsOCR),
       },
@@ -53,15 +52,15 @@ export async function POST(request: NextRequest) {
     });
 
     // Record purchase intent
-    await supabase
-      .from('purchases')
-      .insert({
-        user_id: user.id,
-        purchase_type: needsOCR ? 'upload_ocr' : 'upload',
-        amount_cents: price * 100,
-        stripe_payment_intent_id: paymentIntent.id,
+    await prisma.purchase.create({
+      data: {
+        userId,
+        purchaseType: needsOCR ? 'upload_ocr' : 'upload',
+        amountCents: price * 100,
+        stripePaymentIntentId: paymentIntent.id,
         status: 'pending',
-      });
+      },
+    });
 
     return NextResponse.json({
       clientSecret: paymentIntent.client_secret,

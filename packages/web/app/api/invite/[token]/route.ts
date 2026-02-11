@@ -5,7 +5,8 @@
  * POST /api/invite/[token] - Accept invite
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
 
@@ -17,36 +18,38 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ token: string }> }
 ) {
-  const supabase = await createClient();
   const { token } = await params;
 
   try {
-    const { data: invite, error } = await supabase
-      .from('team_members')
-      .select(
-        `
-        id,
-        status,
-        role,
-        invited_email,
-        invited_at,
-        teams (
-          id,
-          name,
-          description,
-          profiles:owner_id (
-            full_name
-          )
-        ),
-        inviter:invited_by (
-          full_name
-        )
-      `
-      )
-      .eq('invite_token', token)
-      .single();
+    const invite = await prisma.teamMember.findFirst({
+      where: { inviteToken: token },
+      select: {
+        id: true,
+        status: true,
+        role: true,
+        invitedEmail: true,
+        invitedAt: true,
+        team: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            owner: {
+              select: {
+                fullName: true,
+              },
+            },
+          },
+        },
+        inviter: {
+          select: {
+            fullName: true,
+          },
+        },
+      },
+    });
 
-    if (error || !invite) {
+    if (!invite) {
       return NextResponse.json(
         { error: 'Invite not found or expired', code: 'NOT_FOUND' },
         { status: 404 }
@@ -70,10 +73,10 @@ export async function GET(
     return NextResponse.json({
       invite: {
         id: invite.id,
-        email: invite.invited_email,
+        email: invite.invitedEmail,
         role: invite.role,
-        invitedAt: invite.invited_at,
-        team: invite.teams,
+        invitedAt: invite.invitedAt,
+        team: invite.team,
         inviter: invite.inviter,
       },
     });
@@ -103,13 +106,10 @@ export async function POST(
     return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
   }
 
-  const supabase = await createClient();
   const { token } = await params;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json(
       {
         error: 'Please sign in to accept this invite',
@@ -122,25 +122,24 @@ export async function POST(
 
   try {
     // Get invite
-    const { data: invite, error: inviteError } = await supabase
-      .from('team_members')
-      .select(
-        `
-        id,
-        team_id,
-        status,
-        invited_email,
-        teams (
-          id,
-          name,
-          owner_id
-        )
-      `
-      )
-      .eq('invite_token', token)
-      .single();
+    const invite = await prisma.teamMember.findFirst({
+      where: { inviteToken: token },
+      select: {
+        id: true,
+        teamId: true,
+        status: true,
+        invitedEmail: true,
+        team: {
+          select: {
+            id: true,
+            name: true,
+            ownerId: true,
+          },
+        },
+      },
+    });
 
-    if (inviteError || !invite) {
+    if (!invite) {
       return NextResponse.json(
         { error: 'Invite not found or expired', code: 'NOT_FOUND' },
         { status: 404 }
@@ -161,35 +160,32 @@ export async function POST(
     }
 
     // Accept the invite
-    const { error: updateError } = await supabase
-      .from('team_members')
-      .update({
-        user_id: user.id,
+    await prisma.teamMember.update({
+      where: { id: invite.id },
+      data: {
+        userId,
         status: 'accepted',
-        accepted_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', invite.id);
-
-    if (updateError) throw updateError;
+        acceptedAt: new Date(),
+      },
+    });
 
     // Get user's name for alert
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('full_name')
-      .eq('id', user.id)
-      .single();
+    const profile = await prisma.profile.findUnique({
+      where: { id: userId },
+      select: { fullName: true },
+    });
 
     // Notify team owner
-    // The teams field is a single object from the foreign key relation
-    const team = invite.teams as unknown as { id: string; name: string; owner_id: string };
-    await supabase.rpc('create_alert', {
-      p_user_id: team.owner_id,
-      p_alert_type: 'team_member_joined',
-      p_title: `${profile?.full_name || 'Someone'} joined ${team.name}`,
-      p_message: `${profile?.full_name || invite.invited_email} accepted your team invitation.`,
-      p_team_id: team.id,
-      p_related_user_id: user.id,
+    const team = invite.team!;
+    await prisma.alert.create({
+      data: {
+        userId: team.ownerId,
+        alertType: 'team_member_joined',
+        title: `${profile?.fullName || 'Someone'} joined ${team.name}`,
+        message: `${profile?.fullName || invite.invitedEmail} accepted your team invitation.`,
+        teamId: team.id,
+        relatedUserId: userId,
+      },
     });
 
     return NextResponse.json({

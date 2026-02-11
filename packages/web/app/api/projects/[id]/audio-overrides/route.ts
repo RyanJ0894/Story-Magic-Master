@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextResponse, NextRequest } from 'next/server';
 import { z } from 'zod';
 import { validateCsrf } from '@/lib/csrf';
@@ -27,26 +28,23 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: projectId } = await params;
-  const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
 
-  const { data: project, error } = await supabase
-    .from('projects')
-    .select('audio_overrides')
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-    .single();
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId },
+    select: { audioOverrides: true },
+  });
 
-  if (error || !project) {
+  if (!project) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
   return NextResponse.json({
-    overrides: project.audio_overrides || [],
+    overrides: project.audioOverrides || [],
   });
 }
 
@@ -64,11 +62,10 @@ export async function PUT(
   }
 
   const { id: projectId } = await params;
-  const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
 
   let body: unknown;
@@ -88,15 +85,18 @@ export async function PUT(
 
   const { overrides } = parseResult.data;
 
-  const { error } = await supabase
-    .from('projects')
-    .update({ audio_overrides: overrides })
-    .eq('id', projectId)
-    .eq('user_id', user.id);
+  try {
+    const updated = await prisma.project.updateMany({
+      where: { id: projectId, userId },
+      data: { audioOverrides: overrides as unknown as [] },
+    });
 
-  if (error) {
+    if (updated.count === 0) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, overrides });
+  } catch {
     return NextResponse.json({ error: 'Failed to save audio overrides' }, { status: 500 });
   }
-
-  return NextResponse.json({ success: true, overrides });
 }

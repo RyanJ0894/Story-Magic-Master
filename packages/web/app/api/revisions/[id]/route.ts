@@ -6,7 +6,8 @@
  * DELETE /api/revisions/[id] - Delete revision
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateCsrf } from '@/lib/csrf';
@@ -33,20 +34,16 @@ async function verifyRevisionOwnership(
   revisionId: string,
   userId: string
 ): Promise<boolean> {
-  const supabase = await createClient();
+  const revision = await prisma.revision.findUnique({
+    where: { id: revisionId },
+    select: {
+      project: { select: { userId: true } },
+    },
+  });
 
-  const { data } = await supabase
-    .from('revisions')
-    .select('project_id, projects!inner(user_id)')
-    .eq('id', revisionId)
-    .single();
+  if (!revision) return false;
 
-  if (!data) return false;
-
-  const revisionData = data as unknown as { project_id: string; projects: { user_id: string } | { user_id: string }[] };
-  const projects = revisionData.projects;
-  const projectUserId = Array.isArray(projects) ? projects[0]?.user_id : projects?.user_id;
-  return projectUserId === userId;
+  return revision.project.userId === userId;
 }
 
 // =============================================================================
@@ -64,20 +61,17 @@ export async function GET(
     );
   }
 
-  const supabase = await createClient();
-  const { id: revisionId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json(
       { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
       { status: 401 }
     );
   }
 
-  const owned = await verifyRevisionOwnership(revisionId, user.id);
+  const { id: revisionId } = await params;
+
+  const owned = await verifyRevisionOwnership(revisionId, userId);
   if (!owned) {
     return NextResponse.json(
       { error: 'Revision not found', code: 'NOT_FOUND' },
@@ -131,20 +125,17 @@ export async function PUT(
     );
   }
 
-  const supabase = await createClient();
-  const { id: revisionId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json(
       { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
       { status: 401 }
     );
   }
 
-  const owned = await verifyRevisionOwnership(revisionId, user.id);
+  const { id: revisionId } = await params;
+
+  const owned = await verifyRevisionOwnership(revisionId, userId);
   if (!owned) {
     return NextResponse.json(
       { error: 'Revision not found', code: 'NOT_FOUND' },
@@ -216,20 +207,17 @@ export async function DELETE(
     );
   }
 
-  const supabase = await createClient();
-  const { id: revisionId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json(
       { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
       { status: 401 }
     );
   }
 
-  const owned = await verifyRevisionOwnership(revisionId, user.id);
+  const { id: revisionId } = await params;
+
+  const owned = await verifyRevisionOwnership(revisionId, userId);
   if (!owned) {
     return NextResponse.json(
       { error: 'Revision not found', code: 'NOT_FOUND' },

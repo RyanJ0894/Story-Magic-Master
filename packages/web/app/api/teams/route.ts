@@ -5,7 +5,8 @@
  * POST /api/teams - Create a new team
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateCsrf } from '@/lib/csrf';
@@ -26,64 +27,60 @@ const CreateTeamSchema = z.object({
 // =============================================================================
 
 export async function GET() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
 
   try {
     // Get teams user owns
-    const { data: ownedTeams, error: ownedError } = await supabase
-      .from('teams')
-      .select(
-        `
-        *,
-        team_members (
-          id,
-          user_id,
-          invited_email,
-          role,
-          status,
-          profiles:user_id (
-            full_name,
-            avatar_url
-          )
-        )
-      `
-      )
-      .eq('owner_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (ownedError) throw ownedError;
+    const ownedTeams = await prisma.team.findMany({
+      where: { ownerId: userId },
+      include: {
+        members: {
+          select: {
+            id: true,
+            userId: true,
+            invitedEmail: true,
+            role: true,
+            status: true,
+            user: {
+              select: {
+                fullName: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
     // Get teams user is a member of
-    const { data: memberships, error: memberError } = await supabase
-      .from('team_members')
-      .select(
-        `
-        id,
-        role,
-        status,
-        teams (
-          *,
-          profiles:owner_id (
-            full_name,
-            avatar_url
-          )
-        )
-      `
-      )
-      .eq('user_id', user.id)
-      .eq('status', 'accepted');
+    const memberships = await prisma.teamMember.findMany({
+      where: {
+        userId,
+        status: 'accepted',
+      },
+      select: {
+        id: true,
+        role: true,
+        status: true,
+        team: {
+          include: {
+            owner: {
+              select: {
+                fullName: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
+    });
 
-    if (memberError) throw memberError;
-
-    const memberTeams = memberships?.map((m) => ({
-      ...m.teams,
+    const memberTeams = memberships.map((m) => ({
+      ...m.team,
       membership: {
         id: m.id,
         role: m.role,
@@ -92,8 +89,8 @@ export async function GET() {
     }));
 
     return NextResponse.json({
-      owned: ownedTeams || [],
-      member: memberTeams || [],
+      owned: ownedTeams,
+      member: memberTeams,
     });
   } catch (error) {
     console.error('[Teams] Error listing:', error);
@@ -118,12 +115,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
   }
 
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
 
@@ -149,19 +142,15 @@ export async function POST(request: Request) {
   const { name, description, defaultShareAccess, autoShareNewProjects } = parseResult.data;
 
   try {
-    const { data: team, error } = await supabase
-      .from('teams')
-      .insert({
-        owner_id: user.id,
+    const team = await prisma.team.create({
+      data: {
+        ownerId: userId,
         name,
         description: description || null,
-        default_share_access: defaultShareAccess || 'stream',
-        auto_share_new_projects: autoShareNewProjects || false,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
+        defaultShareAccess: defaultShareAccess || 'stream',
+        autoShareNewProjects: autoShareNewProjects || false,
+      },
+    });
 
     return NextResponse.json({ team }, { status: 201 });
   } catch (error) {

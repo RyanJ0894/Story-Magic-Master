@@ -69,7 +69,7 @@ export const GET = withProjectAuth(
 // =============================================================================
 
 export const POST = withProjectAuth(
-  async (request, { projectId, user }) => {
+  async (request, { projectId, userId }) => {
     if (!isFeatureEnabled('REVISION_TRACKING')) {
       return NextResponse.json(
         { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
@@ -103,7 +103,7 @@ export const POST = withProjectAuth(
       const revision = await createRevision(projectId, parseResult.data.scriptText, {
         label: parseResult.data.label,
         autoScore: parseResult.data.autoScore,
-        userId: user.id,
+        userId,
       });
 
       return NextResponse.json({

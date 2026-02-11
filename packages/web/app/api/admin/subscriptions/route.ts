@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
 import { validateCsrf } from '@/lib/csrf';
 
@@ -17,21 +19,17 @@ const GetSubscriptionsQuerySchema = z.object({
  * List all subscriptions with filtering and pagination
  */
 export async function GET(request: Request) {
-  const supabase = await createClient();
-
-  // Verify admin
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('user_type')
-    .eq('id', user.id)
-    .single();
+  const profile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { userType: true },
+  });
 
-  if (profile?.user_type !== 'admin') {
+  if (profile?.userType !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -51,70 +49,53 @@ export async function GET(request: Request) {
   const { page, limit, status, plan } = parseResult.data;
   const offset = (page - 1) * limit;
 
-  // Build query
-  let query = supabase
-    .from('subscriptions')
-    .select(`
-      id,
-      user_id,
-      stripe_customer_id,
-      stripe_subscription_id,
-      plan,
-      status,
-      current_period_start,
-      current_period_end,
-      cancel_at_period_end,
-      created_at,
-      updated_at,
-      profiles(id, full_name, user_type)
-    `, { count: 'exact' });
-
-  // Apply filters
+  // Build where clause
+  const where: Prisma.SubscriptionWhereInput = {};
   if (status) {
-    query = query.eq('status', status);
+    where.status = status;
   }
   if (plan) {
-    query = query.eq('plan', plan);
+    where.plan = plan;
   }
 
-  // Apply pagination and ordering
-  query = query
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+  try {
+    const [subscriptions, count, totalActive, totalTrialing, totalCanceled] = await Promise.all([
+      prisma.subscription.findMany({
+        where,
+        include: {
+          user: {
+            select: { id: true, fullName: true, userType: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit,
+      }),
+      prisma.subscription.count({ where }),
+      prisma.subscription.count({ where: { status: 'active' } }),
+      prisma.subscription.count({ where: { status: 'trialing' } }),
+      prisma.subscription.count({ where: { status: 'canceled' } }),
+    ]);
 
-  const { data: subscriptions, count, error } = await query;
-
-  if (error) {
+    return NextResponse.json({
+      data: subscriptions,
+      summary: {
+        active: totalActive,
+        trialing: totalTrialing,
+        canceled: totalCanceled,
+      },
+      pagination: {
+        total: count,
+        page,
+        limit,
+        totalPages: Math.ceil(count / limit),
+        hasMore: page * limit < count,
+      },
+    });
+  } catch (error) {
     console.error('Error fetching subscriptions:', error);
     return NextResponse.json({ error: 'Failed to fetch subscriptions' }, { status: 500 });
   }
-
-  // Get summary stats
-  const [
-    { count: totalActive },
-    { count: totalTrialing },
-    { count: totalCanceled },
-  ] = await Promise.all([
-    supabase.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-    supabase.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'trialing'),
-    supabase.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'canceled'),
-  ]);
-
-  return NextResponse.json({
-    data: subscriptions,
-    summary: {
-      active: totalActive || 0,
-      trialing: totalTrialing || 0,
-      canceled: totalCanceled || 0,
-    },
-    pagination: {
-      total: count || 0,
-      page,
-      limit,
-      totalPages: Math.ceil((count || 0) / limit),
-      hasMore: page * limit < (count || 0),
-    },
-  });
 }
 
 // Update subscription schema
@@ -134,21 +115,17 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
   }
 
-  const supabase = await createClient();
-
-  // Verify admin
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('user_type')
-    .eq('id', user.id)
-    .single();
+  const adminProfile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { userType: true },
+  });
 
-  if (profile?.user_type !== 'admin') {
+  if (adminProfile?.userType !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -171,33 +148,25 @@ export async function PATCH(request: Request) {
   const { subscriptionId, action, plan } = parseResult.data;
 
   // Get current subscription
-  const { data: subscription, error: fetchError } = await supabase
-    .from('subscriptions')
-    .select('*')
-    .eq('id', subscriptionId)
-    .single();
+  const subscription = await prisma.subscription.findUnique({
+    where: { id: subscriptionId },
+  });
 
-  if (fetchError || !subscription) {
+  if (!subscription) {
     return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
   }
 
-  let updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  let updates: Prisma.SubscriptionUpdateInput = {};
   let auditAction: string = AuditActions.ADMIN_SUBSCRIPTION_MODIFY;
 
   switch (action) {
     case 'cancel':
-      updates = {
-        ...updates,
-        cancel_at_period_end: true,
-      };
+      updates = { cancelAtPeriodEnd: true };
       auditAction = AuditActions.SUBSCRIPTION_CANCEL;
       break;
 
     case 'resume':
-      updates = {
-        ...updates,
-        cancel_at_period_end: false,
-      };
+      updates = { cancelAtPeriodEnd: false };
       auditAction = AuditActions.SUBSCRIPTION_RESUME;
       break;
 
@@ -205,41 +174,34 @@ export async function PATCH(request: Request) {
       if (!plan) {
         return NextResponse.json({ error: 'Plan is required for update_plan action' }, { status: 400 });
       }
-      updates = {
-        ...updates,
-        plan,
-      };
+      updates = { plan };
       break;
   }
 
-  // Perform update
-  const { data: updatedSubscription, error: updateError } = await supabase
-    .from('subscriptions')
-    .update(updates)
-    .eq('id', subscriptionId)
-    .select()
-    .single();
+  try {
+    const updatedSubscription = await prisma.subscription.update({
+      where: { id: subscriptionId },
+      data: updates,
+    });
 
-  if (updateError) {
-    console.error('Error updating subscription:', updateError);
+    // Log audit event
+    const requestInfo = extractRequestInfo(request);
+    await logAuditEvent({
+      user_id: userId,
+      action: auditAction,
+      resource_type: ResourceTypes.SUBSCRIPTION,
+      resource_id: subscriptionId,
+      details: {
+        action,
+        changes: updates,
+        target_user_id: subscription.userId,
+      },
+      ...requestInfo,
+    });
+
+    return NextResponse.json(updatedSubscription);
+  } catch (error) {
+    console.error('Error updating subscription:', error);
     return NextResponse.json({ error: 'Failed to update subscription' }, { status: 500 });
   }
-
-  // Log audit event
-  const requestInfo = extractRequestInfo(request);
-  await logAuditEvent({
-    user_id: user.id,
-    action: auditAction,
-    resource_type: ResourceTypes.SUBSCRIPTION,
-    resource_id: subscriptionId,
-    details: {
-      action,
-      changes: updates,
-      admin_email: user.email,
-      target_user_id: subscription.user_id,
-    },
-    ...requestInfo,
-  });
-
-  return NextResponse.json(updatedSubscription);
 }

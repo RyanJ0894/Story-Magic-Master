@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,15 +12,11 @@ import {
   Bell,
   CreditCard,
   Server,
-  Database,
   Key,
 } from 'lucide-react';
 
 export default async function AdminSettingsPage() {
-  const supabase = await createClient();
-
-  // Get current user
-  const { data: { user } } = await supabase.auth.getUser();
+  const { userId } = await auth();
 
   return (
     <div className="p-8">
@@ -295,7 +291,7 @@ export default async function AdminSettingsPage() {
               </div>
               <div>
                 <p className="text-muted-foreground">Admin User</p>
-                <p className="font-medium">{user?.email}</p>
+                <p className="font-medium">{userId}</p>
               </div>
             </div>
           </CardContent>

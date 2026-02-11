@@ -1,0 +1,694 @@
+// Story Magic - Prisma Schema
+// Migrated from Supabase PostgreSQL
+// User IDs are String (Clerk IDs) instead of UUID
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector"), pgcrypto]
+}
+
+// =============================================================================
+// AUTH & PROFILES
+// =============================================================================
+
+model Profile {
+  id                   String    @id // Clerk user ID (string)
+  email                String?
+  fullName             String?   @map("full_name")
+  avatarUrl            String?   @map("avatar_url")
+  subscriptionTier     String    @default("free") @map("subscription_tier")
+  stripeCustomerId     String?   @map("stripe_customer_id")
+  stripeSubscriptionId String?   @map("stripe_subscription_id")
+  subscriptionStatus   String    @default("inactive") @map("subscription_status")
+  currentPeriodEnd     DateTime? @map("current_period_end")
+  userType             String    @default("writer") @map("user_type")
+  suspended            Boolean   @default(false)
+  writerCode           String?   @unique @map("writer_code")
+  readerCode           String?   @unique @map("reader_code")
+  externalId           String?   @unique @map("external_id") // Old Supabase UUID during migration
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  // Relations
+  projects          Project[]
+  jobs              Job[]
+  usage             Usage[]
+  subscriptions     Subscription[]
+  scriptSharesBy    ScriptShare[]      @relation("SharedBy")
+  scriptSharesWith  ScriptShare[]      @relation("SharedWith")
+  readerLibrary     ReaderLibrary[]
+  purchases         Purchase[]
+  contentAccessLogs ContentAccessLog[]
+  teamsOwned        Team[]
+  teamMemberships   TeamMember[]       @relation("MemberUser")
+  teamInvitesSent   TeamMember[]       @relation("InvitedBy")
+  teamSharesBy      TeamShare[]
+  alerts            Alert[]            @relation("AlertUser")
+  alertsRelated     Alert[]            @relation("RelatedUser")
+  alertPreferences  AlertPreference?
+  revisions         Revision[]
+  scriptCorpus      ScriptCorpus[]
+  auditLogs         AuditLog[]
+
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+  @@map("profiles")
+}
+
+// =============================================================================
+// PROJECTS
+// =============================================================================
+
+model Project {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String   @map("user_id")
+  name                  String
+  description           String?
+  status                String   @default("draft")
+  scriptText            String?  @map("script_text")
+  pageCount             Int      @default(0) @map("page_count")
+  directorJson          Json?    @map("director_json")
+  preferredWorkflowMode String   @default("automatic") @map("preferred_workflow_mode")
+  currentRunNumber      Int      @default(0) @map("current_run_number")
+  voiceAssignments      Json     @default("[]") @map("voice_assignments")
+  audioOverrides        Json     @default("[]") @map("audio_overrides")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at")
+
+  // Relations
+  user              Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs              Job[]
+  jobLogs           JobLog[]
+  audioOutputs      AudioOutput[]
+  scriptShares      ScriptShare[]
+  readerLibrary     ReaderLibrary[]
+  purchases         Purchase[]
+  contentAccessLogs ContentAccessLog[]
+  storyScores       StoryScore[]
+  suggestions       Suggestion[]
+  revisions         Revision[]
+  teamShares        TeamShare[]
+  alerts            Alert[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("projects")
+}
+
+// =============================================================================
+// JOBS & QUEUE
+// =============================================================================
+
+model Job {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId           String    @map("project_id") @db.Uuid
+  userId              String    @map("user_id")
+  status              String    @default("queued")
+  progress            Json      @default("{\"step\": \"queued\", \"percent\": 0}")
+  result              Json?
+  error               String?
+  createdAt           DateTime  @default(now()) @map("created_at")
+  startedAt           DateTime? @map("started_at")
+  completedAt         DateTime? @map("completed_at")
+  priority            Int       @default(0)
+  queuedAt            DateTime? @map("queued_at")
+  processingLock      String?   @map("processing_lock") @db.Uuid
+  lockExpiresAt       DateTime? @map("lock_expires_at")
+  workerId            String?   @map("worker_id")
+  retryCount          Int       @default(0) @map("retry_count")
+  maxRetries          Int       @default(3) @map("max_retries")
+  lastError           String?   @map("last_error")
+  jobType             String    @default("audio_generation") @map("job_type")
+  estimatedDurationMs Int?      @map("estimated_duration_ms")
+  actualDurationMs    Int?      @map("actual_duration_ms")
+  runNumber           Int?      @map("run_number")
+  workflowMode        String    @default("automatic") @map("workflow_mode")
+
+  // Relations
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user         Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobLogs      JobLog[]
+  audioOutputs AudioOutput[]
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@index([jobType])
+  @@index([projectId, runNumber])
+  @@map("jobs")
+}
+
+model JobLog {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobId        String   @map("job_id") @db.Uuid
+  projectId    String   @map("project_id") @db.Uuid
+  level        String   @default("info")
+  step         String
+  message      String
+  metadata     Json     @default("{}")
+  errorMessage String?  @map("error_message")
+  errorStack   String?  @map("error_stack")
+  createdAt    DateTime @default(now()) @map("created_at")
+  durationMs   Int?     @map("duration_ms")
+
+  // Relations
+  job     Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([projectId])
+  @@index([jobId, createdAt])
+  @@index([createdAt(sort: Desc)])
+  @@map("job_logs")
+}
+
+// =============================================================================
+// AUDIO OUTPUTS
+// =============================================================================
+
+model AudioOutput {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId       String   @map("project_id") @db.Uuid
+  jobId           String?  @map("job_id") @db.Uuid
+  fileName        String   @map("file_name")
+  filePath        String   @map("file_path")
+  fileSize        Int?     @map("file_size")
+  durationSeconds Decimal? @map("duration_seconds") @db.Decimal(10, 2)
+  format          String   @default("mp3")
+  storageBucket   String   @default("audio-outputs") @map("storage_bucket")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  job     Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@map("audio_outputs")
+}
+
+// =============================================================================
+// USAGE & BILLING
+// =============================================================================
+
+model Usage {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id")
+  period       String // format: 'YYYY-MM'
+  pagesUsed    Int      @default(0) @map("pages_used")
+  pagesLimit   Int      @default(3) @map("pages_limit")
+  previewsUsed Int      @default(0) @map("previews_used")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+
+  // Relations
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, period])
+  @@index([userId, period])
+  @@map("usage")
+}
+
+model Subscription {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String    @map("user_id")
+  plan                 String
+  status               String    @default("active")
+  stripeCustomerId     String?   @map("stripe_customer_id")
+  stripeSubscriptionId String?   @unique @map("stripe_subscription_id")
+  stripePriceId        String?   @map("stripe_price_id")
+  currentPeriodStart   DateTime? @map("current_period_start")
+  currentPeriodEnd     DateTime? @map("current_period_end")
+  cancelAtPeriodEnd    Boolean   @default(false) @map("cancel_at_period_end")
+  generationsUsed      Int       @default(0) @map("generations_used")
+  generationsLimit     Int       @default(5) @map("generations_limit")
+  downloadsUsed        Int       @default(0) @map("downloads_used")
+  downloadsLimit       Int       @default(1) @map("downloads_limit")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  // Relations
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([stripeSubscriptionId])
+  @@map("subscriptions")
+}
+
+model Purchase {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String   @map("user_id")
+  projectId             String?  @map("project_id") @db.Uuid
+  purchaseType          String   @map("purchase_type")
+  amountCents           Int      @map("amount_cents")
+  currency              String   @default("usd")
+  stripePaymentIntentId String?  @map("stripe_payment_intent_id")
+  stripeInvoiceId       String?  @map("stripe_invoice_id")
+  status                String   @default("completed")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user    Profile  @relation(fields: [userId], references: [id])
+  project Project? @relation(fields: [projectId], references: [id])
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([stripePaymentIntentId])
+  @@map("purchases")
+}
+
+// =============================================================================
+// SHARING
+// =============================================================================
+
+model ScriptShare {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId      String    @map("project_id") @db.Uuid
+  sharedBy       String    @map("shared_by")
+  sharedWith     String?   @map("shared_with")
+  shareToken     String?   @unique @map("share_token")
+  shareCode      String?   @unique @map("share_code")
+  accessLevel    String    @default("stream") @map("access_level")
+  viaReaderCode  String?   @map("via_reader_code")
+  expiresAt      DateTime? @map("expires_at")
+  passwordHash   String?   @map("password_hash")
+  maxPlays       Int?      @map("max_plays")
+  playCount      Int       @default(0) @map("play_count")
+  viewCount      Int       @default(0) @map("view_count")
+  isActive       Boolean   @default(true) @map("is_active")
+  recipientEmail String?   @map("recipient_email")
+  recipientName  String?   @map("recipient_name")
+  lastViewedAt   DateTime? @map("last_viewed_at")
+  lastAccessedAt DateTime? @map("last_accessed_at")
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sharedByUser      Profile            @relation("SharedBy", fields: [sharedBy], references: [id])
+  sharedWithUser    Profile?           @relation("SharedWith", fields: [sharedWith], references: [id])
+  readerLibrary     ReaderLibrary[]
+  contentAccessLogs ContentAccessLog[]
+
+  @@index([shareToken])
+  @@index([shareCode])
+  @@index([projectId])
+  @@index([sharedBy])
+  @@index([sharedWith])
+  @@map("script_shares")
+}
+
+model ReaderLibrary {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  readerId            String    @map("reader_id")
+  projectId           String    @map("project_id") @db.Uuid
+  source              String
+  shareId             String?   @map("share_id") @db.Uuid
+  status              String    @default("active")
+  isFavorited         Boolean   @default(false) @map("is_favorited")
+  notes               String?
+  tags                String[]  @default([])
+  lastPlayedAt        DateTime? @map("last_played_at")
+  playPositionSeconds Int       @default(0) @map("play_position_seconds")
+  completed           Boolean   @default(false)
+  readStatus          String    @default("undecided") @map("read_status")
+  readStatusUpdatedAt DateTime? @map("read_status_updated_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  // Relations
+  reader  Profile      @relation(fields: [readerId], references: [id], onDelete: Cascade)
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  share   ScriptShare? @relation(fields: [shareId], references: [id])
+
+  @@unique([readerId, projectId])
+  @@index([readerId])
+  @@index([readerId, status])
+  @@index([readerId, readStatus])
+  @@map("reader_library")
+}
+
+model ContentAccessLog {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String?  @map("user_id")
+  projectId            String   @map("project_id") @db.Uuid
+  shareId              String?  @map("share_id") @db.Uuid
+  accessType           String   @map("access_type")
+  startPositionSeconds Int?     @map("start_position_seconds")
+  endPositionSeconds   Int?     @map("end_position_seconds")
+  durationSeconds      Int?     @map("duration_seconds")
+  ipAddress            String?  @map("ip_address")
+  userAgent            String?  @map("user_agent")
+  deviceType           String?  @map("device_type")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user    Profile?     @relation(fields: [userId], references: [id])
+  project Project      @relation(fields: [projectId], references: [id])
+  share   ScriptShare? @relation(fields: [shareId], references: [id])
+
+  @@index([projectId, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("content_access_log")
+}
+
+// =============================================================================
+// INTELLIGENCE: STORY SCORES
+// =============================================================================
+
+model StoryScore {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  version   Int    @default(1)
+
+  // Dimension scores (1-10)
+  premiseOriginality           Decimal @map("premise_originality") @db.Decimal(3, 1)
+  premiseOriginalityReasoning  String  @map("premise_originality_reasoning")
+  loglineClarity               Decimal @map("logline_clarity") @db.Decimal(3, 1)
+  loglineClarityReasoning      String  @map("logline_clarity_reasoning")
+  commercialViability          Decimal @map("commercial_viability") @db.Decimal(3, 1)
+  commercialViabilityReasoning String  @map("commercial_viability_reasoning")
+  threeActIntegrity            Decimal @map("three_act_integrity") @db.Decimal(3, 1)
+  threeActIntegrityReasoning   String  @map("three_act_integrity_reasoning")
+  pacingMomentum               Decimal @map("pacing_momentum") @db.Decimal(3, 1)
+  pacingMomentumReasoning      String  @map("pacing_momentum_reasoning")
+  stakesEscalation             Decimal @map("stakes_escalation") @db.Decimal(3, 1)
+  stakesEscalationReasoning    String  @map("stakes_escalation_reasoning")
+  protagonistArc               Decimal @map("protagonist_arc") @db.Decimal(3, 1)
+  protagonistArcReasoning      String  @map("protagonist_arc_reasoning")
+  supportingCast               Decimal @map("supporting_cast") @db.Decimal(3, 1)
+  supportingCastReasoning      String  @map("supporting_cast_reasoning")
+  castability                  Decimal @map("castability") @db.Decimal(3, 1)
+  castabilityReasoning         String  @map("castability_reasoning")
+  dialogueQuality              Decimal @map("dialogue_quality") @db.Decimal(3, 1)
+  dialogueQualityReasoning     String  @map("dialogue_quality_reasoning")
+  visualStorytelling           Decimal @map("visual_storytelling") @db.Decimal(3, 1)
+  visualStorytellingReasoning  String  @map("visual_storytelling_reasoning")
+  technicalExecution           Decimal @map("technical_execution") @db.Decimal(3, 1)
+  technicalExecutionReasoning  String  @map("technical_execution_reasoning")
+
+  // Category scores
+  conceptScore   Decimal @map("concept_score") @db.Decimal(3, 1)
+  structureScore Decimal @map("structure_score") @db.Decimal(3, 1)
+  characterScore Decimal @map("character_score") @db.Decimal(3, 1)
+  craftScore     Decimal @map("craft_score") @db.Decimal(3, 1)
+
+  // Overall
+  overallScore Decimal  @map("overall_score") @db.Decimal(3, 1)
+  rating       String
+  strengths    String[] @default([])
+  weaknesses   String[] @default([])
+  confidence   Decimal  @db.Decimal(3, 2)
+  modelVersion String   @default("gpt-4o") @map("model_version")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  suggestions Suggestion[]
+  revisions   Revision[]
+
+  @@unique([projectId, version])
+  @@index([projectId])
+  @@index([rating])
+  @@index([overallScore(sort: Desc)])
+  @@map("story_scores")
+}
+
+// =============================================================================
+// INTELLIGENCE: SUGGESTIONS & REWRITES
+// =============================================================================
+
+model Suggestion {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId    String    @map("project_id") @db.Uuid
+  scoreId      String?   @map("score_id") @db.Uuid
+  startLine    Int       @map("start_line")
+  endLine      Int       @map("end_line")
+  startChar    Int?      @map("start_char")
+  endChar      Int?      @map("end_char")
+  excerpt      String
+  sceneNumber  Int?      @map("scene_number")
+  sceneHeading String?   @map("scene_heading")
+  category     String
+  severity     String
+  title        String
+  explanation  String
+  suggestion   String
+  status       String    @default("pending")
+  userFeedback String?   @map("user_feedback")
+  confidence   Decimal   @db.Decimal(3, 2)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  respondedAt  DateTime? @map("responded_at")
+
+  // Relations
+  project  Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  score    StoryScore? @relation(fields: [scoreId], references: [id], onDelete: SetNull)
+  rewrites Rewrite[]
+
+  @@index([projectId])
+  @@index([scoreId])
+  @@index([status])
+  @@index([category])
+  @@index([severity])
+  @@index([projectId, startLine, endLine])
+  @@map("suggestions")
+}
+
+model Rewrite {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  suggestionId  String   @map("suggestion_id") @db.Uuid
+  originalText  String   @map("original_text")
+  rewrittenText String   @map("rewritten_text")
+  explanation   String
+  selected      Boolean  @default(false)
+  style         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relations
+  suggestion Suggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+
+  @@index([suggestionId])
+  @@map("rewrites")
+}
+
+// =============================================================================
+// INTELLIGENCE: REVISIONS
+// =============================================================================
+
+model Revision {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId      String   @map("project_id") @db.Uuid
+  versionNumber  Int      @map("version_number")
+  label          String?
+  scriptText     String   @map("script_text")
+  wordCount      Int      @map("word_count")
+  pageCount      Int      @map("page_count")
+  scoreId        String?  @map("score_id") @db.Uuid
+  overallScore   Decimal? @map("overall_score") @db.Decimal(4, 1)
+  changesSummary Json?    @map("changes_summary")
+  createdAt      DateTime @default(now()) @map("created_at")
+  createdBy      String?  @map("created_by")
+
+  // Relations
+  project Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  score   StoryScore? @relation(fields: [scoreId], references: [id], onDelete: SetNull)
+  creator Profile?    @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, versionNumber])
+  @@index([projectId])
+  @@index([scoreId])
+  @@index([createdAt])
+  @@index([projectId, versionNumber(sort: Desc)])
+  @@map("revisions")
+}
+
+// =============================================================================
+// INTELLIGENCE: COMPARABLE SCRIPTS (pgvector)
+// =============================================================================
+
+model ScriptCorpus {
+  id                String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title             String
+  logline           String?
+  genre             String[]                     @default([])
+  tone              String?
+  writer            String?
+  saleDate          DateTime?                    @map("sale_date") @db.Date
+  productionStatus  String?                      @map("production_status")
+  studio            String?
+  budgetTier        String?                      @map("budget_tier")
+  boxOfficeMillions Decimal?                     @map("box_office_millions") @db.Decimal(10, 2)
+  loglineEmbedding  Unsupported("vector(1536)")? @map("logline_embedding")
+  isPublic          Boolean                      @default(false) @map("is_public")
+  source            String?
+  uploadedBy        String?                      @map("uploaded_by")
+  createdAt         DateTime                     @default(now()) @map("created_at")
+  updatedAt         DateTime                     @default(now()) @updatedAt @map("updated_at")
+
+  // Relations
+  uploader Profile? @relation(fields: [uploadedBy], references: [id])
+
+  @@index([productionStatus])
+  @@index([isPublic])
+  @@map("script_corpus")
+}
+
+// =============================================================================
+// TEAMS & COLLABORATION
+// =============================================================================
+
+model Team {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId              String   @map("owner_id")
+  name                 String
+  description          String?
+  defaultShareAccess   String   @default("stream") @map("default_share_access")
+  autoShareNewProjects Boolean  @default(false) @map("auto_share_new_projects")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at")
+
+  // Relations
+  owner      Profile      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members    TeamMember[]
+  teamShares TeamShare[]
+  alerts     Alert[]
+
+  @@index([ownerId])
+  @@map("teams")
+}
+
+model TeamMember {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId       String    @map("team_id") @db.Uuid
+  userId       String?   @map("user_id")
+  invitedEmail String?   @map("invited_email")
+  role         String    @default("member")
+  status       String    @default("pending")
+  inviteToken  String?   @unique @map("invite_token")
+  invitedBy    String?   @map("invited_by")
+  invitedAt    DateTime  @default(now()) @map("invited_at")
+  acceptedAt   DateTime? @map("accepted_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  // Relations
+  team    Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user    Profile? @relation("MemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  inviter Profile? @relation("InvitedBy", fields: [invitedBy], references: [id])
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+  @@index([inviteToken])
+  @@index([invitedEmail])
+  @@map("team_members")
+}
+
+model TeamShare {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId   String   @map("project_id") @db.Uuid
+  teamId      String   @map("team_id") @db.Uuid
+  sharedBy    String   @map("shared_by")
+  accessLevel String   @default("stream") @map("access_level")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  team    Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sharer  Profile @relation(fields: [sharedBy], references: [id])
+
+  @@unique([projectId, teamId])
+  @@index([teamId])
+  @@index([projectId])
+  @@map("team_shares")
+}
+
+// =============================================================================
+// ALERTS & NOTIFICATIONS
+// =============================================================================
+
+model Alert {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String    @map("user_id")
+  alertType     String    @map("alert_type")
+  title         String
+  message       String?
+  projectId     String?   @map("project_id") @db.Uuid
+  teamId        String?   @map("team_id") @db.Uuid
+  relatedUserId String?   @map("related_user_id")
+  metadata      Json      @default("{}")
+  isRead        Boolean   @default(false) @map("is_read")
+  readAt        DateTime? @map("read_at")
+  emailSent     Boolean   @default(false) @map("email_sent")
+  emailSentAt   DateTime? @map("email_sent_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  user        Profile  @relation("AlertUser", fields: [userId], references: [id], onDelete: Cascade)
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  team        Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  relatedUser Profile? @relation("RelatedUser", fields: [relatedUserId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("alerts")
+}
+
+model AlertPreference {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                  String   @unique @map("user_id")
+  emailTeamInvites        Boolean  @default(true) @map("email_team_invites")
+  emailScriptShared       Boolean  @default(true) @map("email_script_shared")
+  emailStatusChanges      Boolean  @default(true) @map("email_status_changes")
+  emailComments           Boolean  @default(true) @map("email_comments")
+  emailTeamChanges        Boolean  @default(true) @map("email_team_changes")
+  emailGenerationComplete Boolean  @default(false) @map("email_generation_complete")
+  inappAll                Boolean  @default(true) @map("inapp_all")
+  emailDigestFrequency    String   @default("instant") @map("email_digest_frequency")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @default(now()) @updatedAt @map("updated_at")
+
+  // Relations
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("alert_preferences")
+}
+
+// =============================================================================
+// ADMIN
+// =============================================================================
+
+model AuditLog {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String?  @map("user_id")
+  action       String
+  resourceType String   @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  details      Json     @default("{}")
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user Profile? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([resourceType])
+  @@index([createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+model PlatformSetting {
+  key       String   @id
+  value     Json
+  updatedBy String?  @map("updated_by")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
+}

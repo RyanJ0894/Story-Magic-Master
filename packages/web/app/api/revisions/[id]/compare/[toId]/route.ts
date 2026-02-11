@@ -4,7 +4,8 @@
  * GET /api/revisions/[id]/compare/[toId] - Compare two revisions
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { isFeatureEnabled } from '@/lib/features';
 import { compareRevisions } from '@/lib/revisions';
@@ -17,20 +18,16 @@ async function verifyRevisionOwnership(
   revisionId: string,
   userId: string
 ): Promise<boolean> {
-  const supabase = await createClient();
+  const revision = await prisma.revision.findUnique({
+    where: { id: revisionId },
+    select: {
+      project: { select: { userId: true } },
+    },
+  });
 
-  const { data } = await supabase
-    .from('revisions')
-    .select('project_id, projects!inner(user_id)')
-    .eq('id', revisionId)
-    .single();
+  if (!revision) return false;
 
-  if (!data) return false;
-
-  const revisionData = data as unknown as { project_id: string; projects: { user_id: string } | { user_id: string }[] };
-  const projects = revisionData.projects;
-  const projectUserId = Array.isArray(projects) ? projects[0]?.user_id : projects?.user_id;
-  return projectUserId === userId;
+  return revision.project.userId === userId;
 }
 
 // =============================================================================
@@ -48,23 +45,20 @@ export async function GET(
     );
   }
 
-  const supabase = await createClient();
-  const { id: fromRevisionId, toId: toRevisionId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json(
       { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
       { status: 401 }
     );
   }
 
+  const { id: fromRevisionId, toId: toRevisionId } = await params;
+
   // Verify ownership of both revisions
   const [fromOwned, toOwned] = await Promise.all([
-    verifyRevisionOwnership(fromRevisionId, user.id),
-    verifyRevisionOwnership(toRevisionId, user.id),
+    verifyRevisionOwnership(fromRevisionId, userId),
+    verifyRevisionOwnership(toRevisionId, userId),
   ]);
 
   if (!fromOwned || !toOwned) {

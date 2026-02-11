@@ -172,7 +172,8 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
   }
 
   // Construct the download URL
-  const audioUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${currentOutput.file_path}`;
+  const orchestratorUrl = process.env.NEXT_PUBLIC_ORCHESTRATOR_URL || process.env.ORCHESTRATOR_URL || '';
+  const audioUrl = `${orchestratorUrl}/audio/${currentOutput.file_path}`;
 
   return (
     <div className="space-y-4">

@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -7,19 +8,15 @@ import { ChevronLeft } from 'lucide-react';
 import { ReaderUploadClient } from '@/components/reader/upload-client';
 
 export default async function ReaderUploadPage() {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     redirect('/login');
   }
 
   // Get profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
+  const profile = await prisma.profile.findUnique({
+    where: { id: userId },
+  });
 
   return (
     <div className="min-h-screen bg-muted">
@@ -53,7 +50,7 @@ export default async function ReaderUploadPage() {
           </p>
         </div>
 
-        <ReaderUploadClient userId={user.id} />
+        <ReaderUploadClient userId={userId} />
       </main>
     </div>
   );

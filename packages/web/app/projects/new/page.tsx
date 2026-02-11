@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -24,6 +24,7 @@ import { ArrowLeft, FileText, Loader2, Sparkles, Wand2 } from 'lucide-react';
 const SHOW_DEMO_BUTTON = true;
 
 export default function NewProjectPage() {
+  const { userId, isSignedIn } = useAuth();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [scriptText, setScriptText] = useState('');
@@ -78,49 +79,38 @@ export default function NewProjectPage() {
     e.preventDefault();
     setLoading(true);
 
-    const supabase = createClient();
-
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    if (!isSignedIn || !userId) {
       toast.error('Please sign in to create a project');
       router.push('/login');
       return;
     }
 
-    // Check usage limit
-    const { data: remaining } = await supabase.rpc('get_remaining_pages', {
-      p_user_id: user.id,
-    });
+    try {
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          description,
+          scriptText,
+          pageCount,
+        }),
+      });
 
-    if (remaining !== null && pageCount > remaining) {
-      toast.error(`You only have ${remaining} pages remaining. Upgrade to continue.`);
+      if (!response.ok) {
+        const data = await response.json();
+        toast.error(data.error || 'Failed to create project');
+        setLoading(false);
+        return;
+      }
+
+      const project = await response.json();
+      toast.success('Project created!');
+      router.push(`/projects/${project.id}`);
+    } catch (error) {
+      toast.error('Failed to create project');
       setLoading(false);
-      return;
     }
-
-    // Create project
-    const { data: project, error } = await supabase
-      .from('projects')
-      .insert({
-        user_id: user.id,
-        name,
-        description,
-        script_text: scriptText,
-        page_count: pageCount,
-        status: 'draft',
-      })
-      .select()
-      .single();
-
-    if (error) {
-      toast.error(error.message);
-      setLoading(false);
-      return;
-    }
-
-    toast.success('Project created!');
-    router.push(`/projects/${project.id}`);
   };
 
   return (

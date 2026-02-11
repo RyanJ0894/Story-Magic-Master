@@ -4,7 +4,8 @@
  * GET /api/jobs/[id]/position - Get job's position in queue
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { getQueuePosition } from '@/lib/queue/service';
 
@@ -12,14 +13,10 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient();
   const { id: jobId } = await params;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json(
       { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
       { status: 401 }
@@ -27,11 +24,10 @@ export async function GET(
   }
 
   // Verify user owns this job
-  const { data: job } = await supabase
-    .from('jobs')
-    .select('id, user_id, status')
-    .eq('id', jobId)
-    .single();
+  const job = await prisma.job.findUnique({
+    where: { id: jobId },
+    select: { id: true, userId: true, status: true },
+  });
 
   if (!job) {
     return NextResponse.json(
@@ -40,7 +36,7 @@ export async function GET(
     );
   }
 
-  if (job.user_id !== user.id) {
+  if (job.userId !== userId) {
     return NextResponse.json(
       { error: 'Forbidden', code: 'FORBIDDEN' },
       { status: 403 }

@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -9,30 +10,35 @@ import { Plus, FileText, Sparkles, LogOut, Folder, HelpCircle } from 'lucide-rea
 import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     redirect('/login');
   }
 
   // Fetch user's projects
-  const { data: projects } = await supabase
-    .from('projects')
-    .select('*')
-    .order('updated_at', { ascending: false });
+  const projects = await prisma.project.findMany({
+    where: { userId },
+    orderBy: { updatedAt: 'desc' },
+  });
 
   // Fetch user's profile for usage info
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
+  const profile = await prisma.profile.findUnique({
+    where: { id: userId },
+  });
 
-  // Get remaining pages
-  const { data: remainingPages } = await supabase
-    .rpc('get_remaining_pages', { p_user_id: user.id });
+  // Get remaining pages via raw query
+  const remainingResult = await prisma.$queryRaw<[{ remaining: number }]>`
+    SELECT COALESCE(
+      (SELECT p.pages_limit - p.pages_used FROM usage p WHERE p.user_id = ${userId} AND p.period = to_char(now(), 'YYYY-MM') LIMIT 1),
+      CASE
+        WHEN ${profile?.subscriptionTier ?? 'free'} = 'creator' THEN 50
+        WHEN ${profile?.subscriptionTier ?? 'free'} = 'pro' THEN 200
+        WHEN ${profile?.subscriptionTier ?? 'free'} = 'studio' THEN 1000
+        ELSE 3
+      END
+    ) AS remaining
+  `;
+  const remainingPages = remainingResult[0]?.remaining ?? null;
 
   const tierLimits: Record<string, number> = {
     free: 3,
@@ -48,7 +54,7 @@ export default async function DashboardPage() {
     studio: 'Studio',
   };
 
-  const tier = profile?.subscription_tier || 'free';
+  const tier = profile?.subscriptionTier || 'free';
   const limit = tierLimits[tier];
   const remaining = remainingPages ?? limit;
   const usedPages = limit - remaining;
@@ -164,9 +170,9 @@ export default async function DashboardPage() {
                     </CardHeader>
                     <CardContent className="pt-0">
                       <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <span>{project.page_count || 0} pages</span>
+                        <span>{project.pageCount || 0} pages</span>
                         <span>
-                          {new Date(project.updated_at).toLocaleDateString()}
+                          {new Date(project.updatedAt).toLocaleDateString()}
                         </span>
                       </div>
                     </CardContent>

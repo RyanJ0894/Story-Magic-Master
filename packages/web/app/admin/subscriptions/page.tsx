@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { prisma } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,7 +29,6 @@ interface Props {
 
 export default async function AdminSubscriptionsPage({ searchParams }: Props) {
   const params = await searchParams;
-  const supabase = await createClient();
 
   const page = parseInt(params.page || '1');
   const status = params.status || '';
@@ -36,47 +36,31 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
   const limit = 20;
   const offset = (page - 1) * limit;
 
-  // Build query
-  let query = supabase
-    .from('subscriptions')
-    .select(`
-      id,
-      user_id,
-      stripe_customer_id,
-      stripe_subscription_id,
-      plan,
-      status,
-      current_period_start,
-      current_period_end,
-      cancel_at_period_end,
-      created_at,
-      profiles(id, full_name, user_type)
-    `, { count: 'exact' });
-
-  // Apply filters
+  // Build where clause
+  const where: Prisma.SubscriptionWhereInput = {};
   if (status) {
-    query = query.eq('status', status);
+    where.status = status;
   }
   if (plan) {
-    query = query.eq('plan', plan);
+    where.plan = plan;
   }
 
-  // Apply pagination and ordering
-  query = query
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
-
-  const { data: subscriptions, count } = await query;
+  const [subscriptions, count] = await Promise.all([
+    prisma.subscription.findMany({
+      where,
+      include: { user: { select: { id: true, fullName: true, userType: true } } },
+      orderBy: { createdAt: 'desc' },
+      skip: offset,
+      take: limit,
+    }),
+    prisma.subscription.count({ where }),
+  ]);
 
   // Get stats
-  const [
-    { count: totalActive },
-    { count: totalTrialing },
-    { count: totalCanceled },
-  ] = await Promise.all([
-    supabase.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-    supabase.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'trialing'),
-    supabase.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'canceled'),
+  const [totalActive, totalTrialing, totalCanceled] = await Promise.all([
+    prisma.subscription.count({ where: { status: 'active' } }),
+    prisma.subscription.count({ where: { status: 'trialing' } }),
+    prisma.subscription.count({ where: { status: 'canceled' } }),
   ]);
 
   const totalPages = Math.ceil((count || 0) / limit);
@@ -205,8 +189,6 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
             </TableHeader>
             <TableBody>
               {subscriptions?.map((sub) => {
-                const profileData = sub.profiles;
-                const profile = (Array.isArray(profileData) ? profileData[0] : profileData) as { id: string; full_name: string | null; user_type: string } | null;
                 return (
                   <TableRow key={sub.id}>
                     <TableCell>
@@ -215,25 +197,25 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
                           <CreditCard className="w-5 h-5 text-violet-600" />
                         </div>
                         <div>
-                          <p className="font-medium">{profile?.full_name || 'Unknown'}</p>
+                          <p className="font-medium">{sub.user?.fullName || 'Unknown'}</p>
                           <p className="text-sm text-muted-foreground font-mono">
-                            {sub.stripe_customer_id?.slice(0, 18)}...
+                            {sub.stripeCustomerId?.slice(0, 18)}...
                           </p>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>{getPlanBadge(sub.plan)}</TableCell>
-                    <TableCell>{getStatusBadge(sub.status, sub.cancel_at_period_end)}</TableCell>
+                    <TableCell>{getStatusBadge(sub.status, sub.cancelAtPeriodEnd)}</TableCell>
                     <TableCell>
                       <div className="text-sm">
-                        <p>{new Date(sub.current_period_start).toLocaleDateString()}</p>
+                        <p>{sub.currentPeriodStart ? new Date(sub.currentPeriodStart).toLocaleDateString() : '-'}</p>
                         <p className="text-muted-foreground">
-                          to {new Date(sub.current_period_end).toLocaleDateString()}
+                          to {sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).toLocaleDateString() : '-'}
                         </p>
                       </div>
                     </TableCell>
                     <TableCell>
-                      {new Date(sub.created_at).toLocaleDateString()}
+                      {new Date(sub.createdAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>

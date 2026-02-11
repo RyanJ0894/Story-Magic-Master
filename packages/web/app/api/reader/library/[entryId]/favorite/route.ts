@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
 
@@ -14,44 +15,36 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const { entryId } = await params;
-  const supabase = await createClient();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
 
   // Verify ownership
-  const { data: existingEntry } = await supabase
-    .from('reader_library')
-    .select('id, reader_id, is_favorited')
-    .eq('id', entryId)
-    .single();
+  const existingEntry = await prisma.readerLibrary.findFirst({
+    where: { id: entryId },
+    select: { id: true, readerId: true, isFavorited: true },
+  });
 
-  if (!existingEntry || existingEntry.reader_id !== user.id) {
+  if (!existingEntry || existingEntry.readerId !== userId) {
     return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
   }
 
   const body = await request.json();
-  const is_favorited = body.is_favorited ?? !existingEntry.is_favorited;
+  const isFavorited = body.is_favorited ?? !existingEntry.isFavorited;
 
-  const { data: entry, error } = await supabase
-    .from('reader_library')
-    .update({
-      is_favorited,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', entryId)
-    .select()
-    .single();
+  try {
+    const entry = await prisma.readerLibrary.update({
+      where: { id: entryId },
+      data: { isFavorited },
+    });
 
-  if (error) {
+    return NextResponse.json({
+      entry,
+      is_favorited: entry.isFavorited,
+    });
+  } catch (error) {
     console.error('Error updating favorite:', error);
     return NextResponse.json({ error: 'Failed to update favorite' }, { status: 500 });
   }
-
-  return NextResponse.json({
-    entry,
-    is_favorited: entry.is_favorited,
-  });
 }

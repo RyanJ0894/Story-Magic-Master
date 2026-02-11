@@ -6,7 +6,7 @@
  */
 
 import OpenAI from 'openai';
-import { createClient } from '@/lib/supabase/server';
+import { prisma } from '@/lib/db';
 import {
   StoryScore,
   DimensionScores,
@@ -40,7 +40,6 @@ export async function generateScore(
   }
 ): Promise<StoryScore> {
   const model = options?.model || 'gpt-4o';
-  const supabase = await createClient();
 
   // Build the scoring prompt
   const prompt = buildScoringPrompt(
@@ -107,9 +106,10 @@ export async function generateScore(
   const rating = calculateRating(overallScore);
 
   // Get next version number
-  const { data: versionData } = await supabase
-    .rpc('get_next_score_version', { p_project_id: projectId });
-  const version = versionData || 1;
+  const versionResult = await prisma.$queryRaw<[{ get_next_score_version: number }]>`
+    SELECT get_next_score_version(${projectId}::uuid)
+  `;
+  const version = versionResult?.[0]?.get_next_score_version || 1;
 
   // Build the score object
   const storyScore: StoryScore = {
@@ -131,77 +131,66 @@ export async function generateScore(
   const row = storyScoreToRow(storyScore);
 
   // Insert into database
-  const { data: insertedRow, error } = await supabase
-    .from('story_scores')
-    .insert(row)
-    .select()
-    .single();
+  try {
+    const insertedRow = await prisma.storyScore.create({
+      data: {
+        projectId: row.project_id,
+        version: row.version,
+        overallScore: row.overall_score,
+        rating: row.rating,
+        reasoning: row.reasoning as object,
+        strengths: row.strengths,
+        weaknesses: row.weaknesses,
+        confidence: row.confidence,
+        modelVersion: row.model_version,
+      },
+    });
 
-  if (error) {
-    throw new Error(`Failed to save score: ${error.message}`);
+    // Return with database-generated ID
+    return rowToStoryScore(insertedRow as unknown as StoryScoreRow);
+  } catch (err) {
+    throw new Error(`Failed to save score: ${err instanceof Error ? err.message : String(err)}`);
   }
-
-  // Return with database-generated ID
-  return rowToStoryScore(insertedRow as StoryScoreRow);
 }
 
 /**
  * Get the latest score for a project
  */
 export async function getLatestScore(projectId: string): Promise<StoryScore | null> {
-  const supabase = await createClient();
+  const data = await prisma.storyScore.findFirst({
+    where: { projectId },
+    orderBy: { version: 'desc' },
+  });
 
-  const { data, error } = await supabase
-    .from('story_scores')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('version', { ascending: false })
-    .limit(1)
-    .single();
-
-  if (error) {
-    if (error.code === 'PGRST116') {
-      // No rows returned
-      return null;
-    }
-    throw new Error(`Failed to fetch score: ${error.message}`);
+  if (!data) {
+    return null;
   }
 
-  return rowToStoryScore(data as StoryScoreRow);
+  return rowToStoryScore(data as unknown as StoryScoreRow);
 }
 
 /**
  * Get all scores for a project (version history)
  */
 export async function getScoreHistory(projectId: string): Promise<StoryScore[]> {
-  const supabase = await createClient();
+  const data = await prisma.storyScore.findMany({
+    where: { projectId },
+    orderBy: { version: 'desc' },
+  });
 
-  const { data, error } = await supabase
-    .from('story_scores')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('version', { ascending: false });
-
-  if (error) {
-    throw new Error(`Failed to fetch score history: ${error.message}`);
-  }
-
-  return (data as StoryScoreRow[]).map(rowToStoryScore);
+  return (data as unknown as StoryScoreRow[]).map(rowToStoryScore);
 }
 
 /**
  * Delete a specific score version
  */
 export async function deleteScore(scoreId: string): Promise<void> {
-  const supabase = await createClient();
-
-  const { error } = await supabase
-    .from('story_scores')
-    .delete()
-    .eq('id', scoreId);
-
-  if (error) {
-    throw new Error(`Failed to delete score: ${error.message}`);
+  try {
+    await prisma.storyScore.delete({
+      where: { id: scoreId },
+    });
+  } catch (err) {
+    throw new Error(`Failed to delete score: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 

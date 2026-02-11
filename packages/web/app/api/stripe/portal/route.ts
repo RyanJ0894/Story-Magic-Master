@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { createPortalSession } from '@/lib/stripe/server';
 import { NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
@@ -11,25 +12,18 @@ export async function POST(request: Request) {
   }
 
   try {
-    const supabase = await createClient();
-
-    // Verify user is authenticated
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
     }
 
     // Get user's Stripe customer ID
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('stripe_customer_id')
-      .eq('id', user.id)
-      .single();
+    const profile = await prisma.profile.findUnique({
+      where: { id: userId },
+      select: { stripeCustomerId: true },
+    });
 
-    if (!profile?.stripe_customer_id) {
+    if (!profile?.stripeCustomerId) {
       return NextResponse.json(
         { error: 'No subscription found' },
         { status: 400 }
@@ -40,7 +34,7 @@ export async function POST(request: Request) {
     const origin = request.headers.get('origin') || 'http://localhost:22000';
 
     const session = await createPortalSession({
-      customerId: profile.stripe_customer_id,
+      customerId: profile.stripeCustomerId,
       returnUrl: `${origin}/billing`,
     });
 

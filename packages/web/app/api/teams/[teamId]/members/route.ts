@@ -6,7 +6,8 @@
  * DELETE /api/teams/[teamId]/members - Remove member
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { sendTeamInviteEmail } from '@/lib/email';
@@ -33,37 +34,34 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ teamId: string }> }
 ) {
-  const supabase = await createClient();
-  const { teamId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
 
+  const { teamId } = await params;
+
   // Verify user has access to this team
-  const { data: team } = await supabase
-    .from('teams')
-    .select('id, owner_id')
-    .eq('id', teamId)
-    .single();
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { id: true, ownerId: true },
+  });
 
   if (!team) {
     return NextResponse.json({ error: 'Team not found', code: 'NOT_FOUND' }, { status: 404 });
   }
 
   // Check if user is owner or member
-  const isOwner = team.owner_id === user.id;
+  const isOwner = team.ownerId === userId;
   if (!isOwner) {
-    const { data: membership } = await supabase
-      .from('team_members')
-      .select('id')
-      .eq('team_id', teamId)
-      .eq('user_id', user.id)
-      .eq('status', 'accepted')
-      .single();
+    const membership = await prisma.teamMember.findFirst({
+      where: {
+        teamId,
+        userId,
+        status: 'accepted',
+      },
+      select: { id: true },
+    });
 
     if (!membership) {
       return NextResponse.json({ error: 'Access denied', code: 'FORBIDDEN' }, { status: 403 });
@@ -71,34 +69,34 @@ export async function GET(
   }
 
   try {
-    const { data: members, error } = await supabase
-      .from('team_members')
-      .select(
-        `
-        id,
-        user_id,
-        invited_email,
-        role,
-        status,
-        invited_at,
-        accepted_at,
-        profiles:user_id (
-          full_name,
-          avatar_url,
-          email:id
-        ),
-        inviter:invited_by (
-          full_name
-        )
-      `
-      )
-      .eq('team_id', teamId)
-      .order('created_at', { ascending: true });
-
-    if (error) throw error;
+    const members = await prisma.teamMember.findMany({
+      where: { teamId },
+      select: {
+        id: true,
+        userId: true,
+        invitedEmail: true,
+        role: true,
+        status: true,
+        invitedAt: true,
+        acceptedAt: true,
+        user: {
+          select: {
+            fullName: true,
+            avatarUrl: true,
+            id: true,
+          },
+        },
+        inviter: {
+          select: {
+            fullName: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
 
     return NextResponse.json({
-      members: members || [],
+      members,
       isOwner,
     });
   } catch (error) {
@@ -127,23 +125,21 @@ export async function POST(
     return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
   }
 
-  const supabase = await createClient();
-  const { teamId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
 
+  const { teamId } = await params;
+
   // Only team owner can invite
-  const { data: team } = await supabase
-    .from('teams')
-    .select('id, name, owner_id')
-    .eq('id', teamId)
-    .eq('owner_id', user.id)
-    .single();
+  const team = await prisma.team.findFirst({
+    where: {
+      id: teamId,
+      ownerId: userId,
+    },
+    select: { id: true, name: true, ownerId: true },
+  });
 
   if (!team) {
     return NextResponse.json(
@@ -174,12 +170,13 @@ export async function POST(
   const { email, role } = parseResult.data;
 
   // Check if already invited
-  const { data: existing } = await supabase
-    .from('team_members')
-    .select('id, status')
-    .eq('team_id', teamId)
-    .eq('invited_email', email.toLowerCase())
-    .single();
+  const existing = await prisma.teamMember.findFirst({
+    where: {
+      teamId,
+      invitedEmail: email.toLowerCase(),
+    },
+    select: { id: true, status: true },
+  });
 
   if (existing) {
     if (existing.status === 'accepted') {
@@ -197,42 +194,36 @@ export async function POST(
   }
 
   // Check if user exists
-  const { data: existingUser } = await supabase
-    .from('profiles')
-    .select('id, full_name')
-    .eq('email', email.toLowerCase())
-    .single();
+  const existingUser = await prisma.profile.findFirst({
+    where: { email: email.toLowerCase() },
+    select: { id: true, fullName: true },
+  });
 
   // Get inviter's name
-  const { data: inviterProfile } = await supabase
-    .from('profiles')
-    .select('full_name')
-    .eq('id', user.id)
-    .single();
+  const inviterProfile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { fullName: true },
+  });
 
   try {
     // Create the invite
-    const { data: member, error } = await supabase
-      .from('team_members')
-      .insert({
-        team_id: teamId,
-        user_id: existingUser?.id || null,
-        invited_email: email.toLowerCase(),
+    const member = await prisma.teamMember.create({
+      data: {
+        teamId,
+        userId: existingUser?.id || null,
+        invitedEmail: email.toLowerCase(),
         role: role || 'member',
         status: 'pending',
-        invited_by: user.id,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
+        invitedBy: userId,
+      },
+    });
 
     // Send invite email
     const emailResult = await sendTeamInviteEmail({
       to: email,
-      inviterName: inviterProfile?.full_name || 'A colleague',
+      inviterName: inviterProfile?.fullName || 'A colleague',
       teamName: team.name,
-      inviteToken: member.invite_token,
+      inviteToken: member.inviteToken!,
     });
 
     if (!emailResult.success) {
@@ -242,13 +233,15 @@ export async function POST(
 
     // Create alert for invitee if they have an account
     if (existingUser?.id) {
-      await supabase.rpc('create_alert', {
-        p_user_id: existingUser.id,
-        p_alert_type: 'team_invite',
-        p_title: `You've been invited to join ${team.name}`,
-        p_message: `${inviterProfile?.full_name || 'Someone'} invited you to join their team.`,
-        p_team_id: teamId,
-        p_related_user_id: user.id,
+      await prisma.alert.create({
+        data: {
+          userId: existingUser.id,
+          alertType: 'team_invite',
+          title: `You've been invited to join ${team.name}`,
+          message: `${inviterProfile?.fullName || 'Someone'} invited you to join their team.`,
+          teamId,
+          relatedUserId: userId,
+        },
       });
     }
 
@@ -285,23 +278,21 @@ export async function DELETE(
     return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
   }
 
-  const supabase = await createClient();
-  const { teamId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
 
+  const { teamId } = await params;
+
   // Only team owner can remove members
-  const { data: team } = await supabase
-    .from('teams')
-    .select('id, owner_id')
-    .eq('id', teamId)
-    .eq('owner_id', user.id)
-    .single();
+  const team = await prisma.team.findFirst({
+    where: {
+      id: teamId,
+      ownerId: userId,
+    },
+    select: { id: true, ownerId: true },
+  });
 
   if (!team) {
     return NextResponse.json(
@@ -332,13 +323,13 @@ export async function DELETE(
   const { memberId } = parseResult.data;
 
   try {
-    const { error } = await supabase
-      .from('team_members')
-      .update({ status: 'removed', updated_at: new Date().toISOString() })
-      .eq('id', memberId)
-      .eq('team_id', teamId);
-
-    if (error) throw error;
+    await prisma.teamMember.updateMany({
+      where: {
+        id: memberId,
+        teamId,
+      },
+      data: { status: 'removed' },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {
