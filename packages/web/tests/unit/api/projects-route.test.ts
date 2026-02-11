@@ -10,7 +10,26 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { mockSupabaseClient, createChainableMock } from '../../setup';
+
+// Mock Clerk auth
+const mockAuth = vi.fn();
+vi.mock('@clerk/nextjs/server', () => ({
+  auth: () => mockAuth(),
+}));
+
+// Mock Prisma
+const mockPrisma = {
+  project: {
+    findFirst: vi.fn(),
+    findMany: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+  },
+};
+vi.mock('@/lib/db', () => ({
+  prisma: mockPrisma,
+}));
 
 // Mock CSRF validation
 const mockValidateCsrf = vi.fn(() => null);
@@ -35,17 +54,15 @@ const {
 const VALID_PROJECT_ID = '550e8400-e29b-41d4-a716-446655440000';
 const OTHER_PROJECT_ID = '770e8400-e29b-41d4-a716-446655440002';
 
-const mockUser = { id: 'user-123', email: 'writer@example.com' };
-
 const mockProject = {
   id: VALID_PROJECT_ID,
-  user_id: 'user-123',
+  userId: 'user_test123',
   name: 'My Screenplay',
-  script_text: 'FADE IN: A dark room...',
-  page_count: 45,
-  voice_assignments: [],
-  created_at: '2026-01-15T10:00:00Z',
-  updated_at: '2026-01-20T14:30:00Z',
+  scriptText: 'FADE IN: A dark room...',
+  pageCount: 45,
+  voiceAssignments: [],
+  createdAt: new Date('2026-01-15T10:00:00Z'),
+  updatedAt: new Date('2026-01-20T14:30:00Z'),
 };
 
 function createRequest(
@@ -84,10 +101,7 @@ describe('Projects API Routes', () => {
 
   describe('GET /api/projects - List projects', () => {
     it('returns 401 when user is not authenticated', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: null },
-        error: { message: 'Not authenticated' },
-      });
+      mockAuth.mockResolvedValueOnce({ userId: null });
 
       const request = createRequest('http://localhost:22000/api/projects');
       const response = await listProjects(request);
@@ -104,16 +118,8 @@ describe('Projects API Routes', () => {
         { ...mockProject, id: OTHER_PROJECT_ID, name: 'Second Script' },
       ];
 
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
-
-      const projectsQuery = createChainableMock({
-        data: mockProjects,
-        error: null,
-      });
-      mockSupabaseClient.from.mockReturnValueOnce(projectsQuery);
+      mockAuth.mockResolvedValueOnce({ userId: 'user_test123' });
+      mockPrisma.project.findMany.mockResolvedValueOnce(mockProjects);
 
       const request = createRequest('http://localhost:22000/api/projects');
       const response = await listProjects(request);
@@ -126,13 +132,8 @@ describe('Projects API Routes', () => {
     });
 
     it('returns empty array when user has no projects', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
-
-      const projectsQuery = createChainableMock({ data: [], error: null });
-      mockSupabaseClient.from.mockReturnValueOnce(projectsQuery);
+      mockAuth.mockResolvedValueOnce({ userId: 'user_test123' });
+      mockPrisma.project.findMany.mockResolvedValueOnce([]);
 
       const request = createRequest('http://localhost:22000/api/projects');
       const response = await listProjects(request);
@@ -149,17 +150,10 @@ describe('Projects API Routes', () => {
 
   describe('POST /api/projects - Create project', () => {
     it('creates a new project and returns 201', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId: 'user_test123' });
 
       const createdProject = { ...mockProject, name: 'New Script' };
-      const insertQuery = createChainableMock({
-        data: createdProject,
-        error: null,
-      });
-      mockSupabaseClient.from.mockReturnValueOnce(insertQuery);
+      mockPrisma.project.create.mockResolvedValueOnce(createdProject);
 
       const request = createRequest('http://localhost:22000/api/projects', {
         method: 'POST',
@@ -173,10 +167,7 @@ describe('Projects API Routes', () => {
     });
 
     it('returns 400 when name is missing', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId: 'user_test123' });
 
       const request = createRequest('http://localhost:22000/api/projects', {
         method: 'POST',
@@ -191,10 +182,7 @@ describe('Projects API Routes', () => {
     });
 
     it('returns 401 when not authenticated', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: null },
-        error: { message: 'Not authenticated' },
-      });
+      mockAuth.mockResolvedValueOnce({ userId: null });
 
       const request = createRequest('http://localhost:22000/api/projects', {
         method: 'POST',
@@ -214,16 +202,8 @@ describe('Projects API Routes', () => {
 
   describe('GET /api/projects/[id] - Get single project', () => {
     it('returns the project for the authenticated owner', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
-
-      const projectQuery = createChainableMock({
-        data: mockProject,
-        error: null,
-      });
-      mockSupabaseClient.from.mockReturnValueOnce(projectQuery);
+      mockAuth.mockResolvedValueOnce({ userId: 'user_test123' });
+      mockPrisma.project.findFirst.mockResolvedValueOnce(mockProject);
 
       const request = createRequest(
         `http://localhost:22000/api/projects/${VALID_PROJECT_ID}`
@@ -239,16 +219,8 @@ describe('Projects API Routes', () => {
     });
 
     it('returns 404 for non-existent project', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
-
-      const projectQuery = createChainableMock({
-        data: null,
-        error: { message: 'Not found' },
-      });
-      mockSupabaseClient.from.mockReturnValueOnce(projectQuery);
+      mockAuth.mockResolvedValueOnce({ userId: 'user_test123' });
+      mockPrisma.project.findFirst.mockResolvedValueOnce(null);
 
       const request = createRequest(
         `http://localhost:22000/api/projects/${VALID_PROJECT_ID}`
@@ -263,17 +235,9 @@ describe('Projects API Routes', () => {
     });
 
     it('prevents accessing another user project (returns 404)', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
-
-      // Supabase .eq('user_id', user.id) returns null for non-matching user
-      const projectQuery = createChainableMock({
-        data: null,
-        error: { message: 'Not found' },
-      });
-      mockSupabaseClient.from.mockReturnValueOnce(projectQuery);
+      mockAuth.mockResolvedValueOnce({ userId: 'user_test123' });
+      // Prisma findFirst with userId filter returns null for non-matching user
+      mockPrisma.project.findFirst.mockResolvedValueOnce(null);
 
       const request = createRequest(
         `http://localhost:22000/api/projects/${OTHER_PROJECT_ID}`
@@ -294,26 +258,13 @@ describe('Projects API Routes', () => {
 
   describe('PATCH /api/projects/[id] - Update project', () => {
     it('updates project name and returns updated project', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId: 'user_test123' });
 
-      // First query: check existence
-      const existsQuery = createChainableMock({
-        data: { id: VALID_PROJECT_ID },
-        error: null,
-      });
-      // Second query: perform update
+      // First call: findFirst to check existence
+      mockPrisma.project.findFirst.mockResolvedValueOnce({ id: VALID_PROJECT_ID });
+      // Second call: update
       const updatedProject = { ...mockProject, name: 'Renamed Script' };
-      const updateQuery = createChainableMock({
-        data: updatedProject,
-        error: null,
-      });
-
-      mockSupabaseClient.from
-        .mockReturnValueOnce(existsQuery)
-        .mockReturnValueOnce(updateQuery);
+      mockPrisma.project.update.mockResolvedValueOnce(updatedProject);
 
       const request = createRequest(
         `http://localhost:22000/api/projects/${VALID_PROJECT_ID}`,
@@ -332,16 +283,8 @@ describe('Projects API Routes', () => {
     });
 
     it('returns 404 when updating non-existent project', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
-
-      const existsQuery = createChainableMock({
-        data: null,
-        error: { message: 'Not found' },
-      });
-      mockSupabaseClient.from.mockReturnValueOnce(existsQuery);
+      mockAuth.mockResolvedValueOnce({ userId: 'user_test123' });
+      mockPrisma.project.findFirst.mockResolvedValueOnce(null);
 
       const request = createRequest(
         `http://localhost:22000/api/projects/${VALID_PROJECT_ID}`,
@@ -360,10 +303,7 @@ describe('Projects API Routes', () => {
     });
 
     it('returns 400 for invalid update payload', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId: 'user_test123' });
 
       const request = createRequest(
         `http://localhost:22000/api/projects/${VALID_PROJECT_ID}`,
@@ -388,22 +328,12 @@ describe('Projects API Routes', () => {
 
   describe('DELETE /api/projects/[id] - Delete project', () => {
     it('deletes project and returns success', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId: 'user_test123' });
 
       // Check existence
-      const existsQuery = createChainableMock({
-        data: { id: VALID_PROJECT_ID },
-        error: null,
-      });
+      mockPrisma.project.findFirst.mockResolvedValueOnce({ id: VALID_PROJECT_ID });
       // Delete operation
-      const deleteQuery = createChainableMock({ data: null, error: null });
-
-      mockSupabaseClient.from
-        .mockReturnValueOnce(existsQuery)
-        .mockReturnValueOnce(deleteQuery);
+      mockPrisma.project.delete.mockResolvedValueOnce({});
 
       const request = createRequest(
         `http://localhost:22000/api/projects/${VALID_PROJECT_ID}`,
@@ -420,16 +350,8 @@ describe('Projects API Routes', () => {
     });
 
     it('returns 404 when deleting non-existent project', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
-
-      const existsQuery = createChainableMock({
-        data: null,
-        error: { message: 'Not found' },
-      });
-      mockSupabaseClient.from.mockReturnValueOnce(existsQuery);
+      mockAuth.mockResolvedValueOnce({ userId: 'user_test123' });
+      mockPrisma.project.findFirst.mockResolvedValueOnce(null);
 
       const request = createRequest(
         `http://localhost:22000/api/projects/${VALID_PROJECT_ID}`,
@@ -445,10 +367,7 @@ describe('Projects API Routes', () => {
     });
 
     it('returns 401 when not authenticated', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: null },
-        error: { message: 'Not authenticated' },
-      });
+      mockAuth.mockResolvedValueOnce({ userId: null });
 
       const request = createRequest(
         `http://localhost:22000/api/projects/${VALID_PROJECT_ID}`,

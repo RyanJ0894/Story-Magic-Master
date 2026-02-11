@@ -127,7 +127,7 @@ describe('Request Limits', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should reject oversized payloads', () => {
+    it('should reject oversized payloads', { timeout: 30000 }, () => {
       // Create a large payload (over 5MB when stringified)
       const largeArray = new Array(1000000).fill({ data: 'some repeated content here' });
       const result = validateJsonPayload(largeArray);

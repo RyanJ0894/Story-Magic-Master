@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { mockSupabaseClient, createChainableMock } from '../../setup';
+
+// Mock Clerk auth
+const mockAuth = vi.fn();
+vi.mock('@clerk/nextjs/server', () => ({
+  auth: () => mockAuth(),
+}));
+
+// Mock CSRF validation
+vi.mock('@/lib/csrf', () => ({
+  validateCsrf: vi.fn(() => null),
+}));
 
 // Mock nanoid
 vi.mock('nanoid', () => ({
@@ -14,13 +24,34 @@ vi.mock('@/lib/password', () => ({
   isBcryptHash: vi.fn((hash: string) => hash.startsWith('$2')),
 }));
 
+// Mock Prisma
+const mockPrisma = {
+  scriptShare: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  },
+  project: {
+    findFirst: vi.fn(),
+  },
+  subscription: {
+    findFirst: vi.fn(),
+  },
+};
+vi.mock('@/lib/db', () => ({ prisma: mockPrisma }));
+
 // Import after mocks
 const { GET, POST } = await import('@/app/api/shares/route');
 
 describe('Shares API', () => {
-  const mockUser = { id: 'user-123', email: 'test@example.com' };
-  const mockProject = { id: '550e8400-e29b-41d4-a716-446655440000', name: 'Test Script', user_id: 'user-123' };
-  const mockSubscription = { id: 'sub-123', status: 'active' };
+  const userId = 'user-123';
+  const mockProject = {
+    id: '550e8400-e29b-41d4-a716-446655440000',
+    name: 'Test Script',
+    userId: 'user-123',
+  };
+  const mockSubscription = { id: 'sub-123', status: 'active', userId: 'user-123' };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -28,10 +59,7 @@ describe('Shares API', () => {
 
   describe('GET /api/shares', () => {
     it('returns 401 when user is not authenticated', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: null },
-        error: { message: 'Not authenticated' },
-      });
+      mockAuth.mockResolvedValueOnce({ userId: null });
 
       const request = new NextRequest('http://localhost:22000/api/shares');
       const response = await GET(request);
@@ -43,21 +71,12 @@ describe('Shares API', () => {
 
     it('returns shares for authenticated user', async () => {
       const mockShares = [
-        { id: 'share-1', project_id: 'project-123', share_code: 'abc123' },
-        { id: 'share-2', project_id: 'project-456', share_code: 'def456' },
+        { id: 'share-1', projectId: 'project-123', shareCode: 'abc123' },
+        { id: 'share-2', projectId: 'project-456', shareCode: 'def456' },
       ];
 
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
-
-      const mockQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        order: vi.fn().mockResolvedValue({ data: mockShares, error: null }),
-      };
-      mockSupabaseClient.from.mockReturnValue(mockQuery);
+      mockAuth.mockResolvedValueOnce({ userId });
+      mockPrisma.scriptShare.findMany.mockResolvedValueOnce(mockShares);
 
       const request = new NextRequest('http://localhost:22000/api/shares');
       const response = await GET(request);
@@ -68,31 +87,30 @@ describe('Shares API', () => {
     });
 
     it('filters by project_id when provided', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
-
-      const mockQuery = createChainableMock({ data: [], error: null });
-      mockSupabaseClient.from.mockReturnValue(mockQuery);
+      mockAuth.mockResolvedValueOnce({ userId });
+      mockPrisma.scriptShare.findMany.mockResolvedValueOnce([]);
 
       const request = new NextRequest('http://localhost:22000/api/shares?project_id=project-123');
       await GET(request);
 
-      expect(mockQuery.eq).toHaveBeenCalledWith('shared_by', 'user-123');
-      expect(mockQuery.eq).toHaveBeenCalledWith('project_id', 'project-123');
+      expect(mockPrisma.scriptShare.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            sharedBy: 'user-123',
+            projectId: 'project-123',
+          }),
+        })
+      );
     });
   });
 
   describe('POST /api/shares', () => {
     it('returns 400 when project_id is missing', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId });
 
       const request = new NextRequest('http://localhost:22000/api/shares', {
         method: 'POST',
+        headers: { origin: 'http://localhost:22000' },
         body: JSON.stringify({}),
       });
       const response = await POST(request);
@@ -103,13 +121,11 @@ describe('Shares API', () => {
     });
 
     it('returns 400 when project_id is not a valid UUID', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId });
 
       const request = new NextRequest('http://localhost:22000/api/shares', {
         method: 'POST',
+        headers: { origin: 'http://localhost:22000' },
         body: JSON.stringify({ project_id: 'not-a-uuid' }),
       });
       const response = await POST(request);
@@ -118,13 +134,11 @@ describe('Shares API', () => {
     });
 
     it('returns 400 for invalid access_level', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId });
 
       const request = new NextRequest('http://localhost:22000/api/shares', {
         method: 'POST',
+        headers: { origin: 'http://localhost:22000' },
         body: JSON.stringify({
           project_id: '550e8400-e29b-41d4-a716-446655440000',
           access_level: 'invalid',
@@ -136,13 +150,11 @@ describe('Shares API', () => {
     });
 
     it('returns 400 for invalid email', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId });
 
       const request = new NextRequest('http://localhost:22000/api/shares', {
         method: 'POST',
+        headers: { origin: 'http://localhost:22000' },
         body: JSON.stringify({
           project_id: '550e8400-e29b-41d4-a716-446655440000',
           recipient_email: 'not-an-email',
@@ -154,13 +166,11 @@ describe('Shares API', () => {
     });
 
     it('returns 400 for password too short', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId });
 
       const request = new NextRequest('http://localhost:22000/api/shares', {
         method: 'POST',
+        headers: { origin: 'http://localhost:22000' },
         body: JSON.stringify({
           project_id: '550e8400-e29b-41d4-a716-446655440000',
           password: '12',
@@ -172,20 +182,12 @@ describe('Shares API', () => {
     });
 
     it('returns 404 when project not found', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
-
-      const mockQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: null, error: { message: 'Not found' } }),
-      };
-      mockSupabaseClient.from.mockReturnValue(mockQuery);
+      mockAuth.mockResolvedValueOnce({ userId });
+      mockPrisma.project.findFirst.mockResolvedValueOnce(null);
 
       const request = new NextRequest('http://localhost:22000/api/shares', {
         method: 'POST',
+        headers: { origin: 'http://localhost:22000' },
         body: JSON.stringify({ project_id: '550e8400-e29b-41d4-a716-446655440000' }),
       });
       const response = await POST(request);
@@ -196,21 +198,14 @@ describe('Shares API', () => {
     });
 
     it('returns 403 when user does not own the project', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId });
 
-      const otherUserProject = { ...mockProject, user_id: 'other-user-456' };
-      const mockQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: otherUserProject, error: null }),
-      };
-      mockSupabaseClient.from.mockReturnValue(mockQuery);
+      const otherUserProject = { ...mockProject, userId: 'other-user-456' };
+      mockPrisma.project.findFirst.mockResolvedValueOnce(otherUserProject);
 
       const request = new NextRequest('http://localhost:22000/api/shares', {
         method: 'POST',
+        headers: { origin: 'http://localhost:22000' },
         body: JSON.stringify({ project_id: '550e8400-e29b-41d4-a716-446655440000' }),
       });
       const response = await POST(request);
@@ -221,30 +216,14 @@ describe('Shares API', () => {
     });
 
     it('returns 403 when user has no active subscription', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId });
 
-      const projectQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: mockProject, error: null }),
-      };
-
-      const subscriptionQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        in: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: null, error: null }),
-      };
-
-      mockSupabaseClient.from
-        .mockReturnValueOnce(projectQuery)
-        .mockReturnValueOnce(subscriptionQuery);
+      mockPrisma.project.findFirst.mockResolvedValueOnce(mockProject);
+      mockPrisma.subscription.findFirst.mockResolvedValueOnce(null);
 
       const request = new NextRequest('http://localhost:22000/api/shares', {
         method: 'POST',
+        headers: { origin: 'http://localhost:22000' },
         body: JSON.stringify({ project_id: '550e8400-e29b-41d4-a716-446655440000' }),
       });
       const response = await POST(request);
@@ -257,43 +236,20 @@ describe('Shares API', () => {
     it('creates share successfully with default options', async () => {
       const createdShare = {
         id: 'share-new',
-        project_id: '550e8400-e29b-41d4-a716-446655440000',
-        share_code: 'test-share-code',
-        access_level: 'stream',
-        is_active: true,
+        projectId: '550e8400-e29b-41d4-a716-446655440000',
+        shareCode: 'test-share-code',
+        accessLevel: 'stream',
+        isActive: true,
       };
 
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
-
-      const projectQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: mockProject, error: null }),
-      };
-
-      const subscriptionQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        in: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: mockSubscription, error: null }),
-      };
-
-      const insertQuery = {
-        insert: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: createdShare, error: null }),
-      };
-
-      mockSupabaseClient.from
-        .mockReturnValueOnce(projectQuery)
-        .mockReturnValueOnce(subscriptionQuery)
-        .mockReturnValueOnce(insertQuery);
+      mockAuth.mockResolvedValueOnce({ userId });
+      mockPrisma.project.findFirst.mockResolvedValueOnce(mockProject);
+      mockPrisma.subscription.findFirst.mockResolvedValueOnce(mockSubscription);
+      mockPrisma.scriptShare.create.mockResolvedValueOnce(createdShare);
 
       const request = new NextRequest('http://localhost:22000/api/shares', {
         method: 'POST',
+        headers: { origin: 'http://localhost:22000' },
         body: JSON.stringify({ project_id: '550e8400-e29b-41d4-a716-446655440000' }),
       });
       const response = await POST(request);
@@ -308,42 +264,19 @@ describe('Shares API', () => {
     it('creates share with password hashing', async () => {
       const createdShare = {
         id: 'share-new',
-        project_id: '550e8400-e29b-41d4-a716-446655440000',
-        share_code: 'test-share-code',
-        password_hash: '$2b$12$mockedhash',
+        projectId: '550e8400-e29b-41d4-a716-446655440000',
+        shareCode: 'test-share-code',
+        passwordHash: '$2b$12$mockedhash',
       };
 
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
-
-      const projectQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: mockProject, error: null }),
-      };
-
-      const subscriptionQuery = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        in: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: mockSubscription, error: null }),
-      };
-
-      const insertQuery = {
-        insert: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: createdShare, error: null }),
-      };
-
-      mockSupabaseClient.from
-        .mockReturnValueOnce(projectQuery)
-        .mockReturnValueOnce(subscriptionQuery)
-        .mockReturnValueOnce(insertQuery);
+      mockAuth.mockResolvedValueOnce({ userId });
+      mockPrisma.project.findFirst.mockResolvedValueOnce(mockProject);
+      mockPrisma.subscription.findFirst.mockResolvedValueOnce(mockSubscription);
+      mockPrisma.scriptShare.create.mockResolvedValueOnce(createdShare);
 
       const request = new NextRequest('http://localhost:22000/api/shares', {
         method: 'POST',
+        headers: { origin: 'http://localhost:22000' },
         body: JSON.stringify({
           project_id: '550e8400-e29b-41d4-a716-446655440000',
           password: 'secretpass',

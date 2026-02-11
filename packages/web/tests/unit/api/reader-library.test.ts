@@ -1,6 +1,37 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { mockSupabaseClient, createChainableMock } from '../../setup';
+
+// Mock Clerk auth
+const mockAuth = vi.fn();
+vi.mock('@clerk/nextjs/server', () => ({
+  auth: () => mockAuth(),
+}));
+
+// Mock CSRF validation
+vi.mock('@/lib/csrf', () => ({
+  validateCsrf: vi.fn(() => null),
+}));
+
+// Mock Prisma
+const mockPrisma = {
+  readerLibrary: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    update: vi.fn(),
+    create: vi.fn(),
+  },
+  subscription: {
+    findMany: vi.fn(),
+  },
+  audioOutput: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+  },
+  contentAccessLog: {
+    create: vi.fn(),
+  },
+};
+vi.mock('@/lib/db', () => ({ prisma: mockPrisma }));
 
 // Import after mocks
 const { GET: getLibrary } = await import('@/app/api/reader/library/route');
@@ -15,27 +46,35 @@ const { POST: updatePosition } = await import(
 );
 
 describe('Reader Library API', () => {
-  const mockUser = { id: 'user-123', email: 'reader@example.com' };
+  const userId = 'user-123';
 
   const mockLibraryEntry = {
     id: 'entry-123',
-    reader_id: 'user-123',
-    project_id: 'project-123',
+    readerId: 'user-123',
+    projectId: 'project-123',
     source: 'received',
+    shareId: null,
     status: 'active',
-    is_favorited: false,
-    play_position_seconds: 120,
+    isFavorited: false,
+    notes: null,
+    tags: null,
+    lastPlayedAt: null,
+    playPositionSeconds: 120,
     completed: false,
-    projects: {
+    createdAt: new Date('2026-01-15T10:00:00Z'),
+    updatedAt: new Date('2026-01-20T14:30:00Z'),
+    project: {
       id: 'project-123',
       name: 'Test Script',
-      page_count: 90,
-      user_id: 'writer-456',
-      profiles: {
-        full_name: 'Test Writer',
-        writer_code: 'WRT123',
+      pageCount: 90,
+      status: 'active',
+      userId: 'writer-456',
+      user: {
+        fullName: 'Test Writer',
+        writerCode: 'WRT123',
       },
     },
+    share: null,
   };
 
   beforeEach(() => {
@@ -44,10 +83,7 @@ describe('Reader Library API', () => {
 
   describe('GET /api/reader/library', () => {
     it('returns 401 when not authenticated', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: null },
-        error: { message: 'Not authenticated' },
-      });
+      mockAuth.mockResolvedValueOnce({ userId: null });
 
       const request = new NextRequest('http://localhost:22000/api/reader/library');
       const response = await getLibrary(request);
@@ -58,30 +94,13 @@ describe('Reader Library API', () => {
     });
 
     it('returns library entries with writer subscription status', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId });
 
-      // Library entries query
-      const libraryQuery = createChainableMock({ data: [mockLibraryEntry], error: null });
-
-      // Subscriptions query - needs double .in() chain
-      const subscriptionsQuery = createChainableMock({
-        data: [{ user_id: 'writer-456' }],
-        error: null,
-      });
-
-      // Audio outputs query
-      const audioQuery = createChainableMock({
-        data: [{ project_id: 'project-123', duration_seconds: 5400 }],
-        error: null,
-      });
-
-      mockSupabaseClient.from
-        .mockReturnValueOnce(libraryQuery)
-        .mockReturnValueOnce(subscriptionsQuery)
-        .mockReturnValueOnce(audioQuery);
+      mockPrisma.readerLibrary.findMany.mockResolvedValueOnce([mockLibraryEntry]);
+      mockPrisma.subscription.findMany.mockResolvedValueOnce([{ userId: 'writer-456' }]);
+      mockPrisma.audioOutput.findMany.mockResolvedValueOnce([
+        { projectId: 'project-123', durationSeconds: 5400 },
+      ]);
 
       const request = new NextRequest('http://localhost:22000/api/reader/library');
       const response = await getLibrary(request);
@@ -96,19 +115,11 @@ describe('Reader Library API', () => {
     });
 
     it('marks entries as archived when writer is not subscribed', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId });
 
-      const libraryQuery = createChainableMock({ data: [mockLibraryEntry], error: null });
-      const subscriptionsQuery = createChainableMock({ data: [], error: null });
-      const audioQuery = createChainableMock({ data: [], error: null });
-
-      mockSupabaseClient.from
-        .mockReturnValueOnce(libraryQuery)
-        .mockReturnValueOnce(subscriptionsQuery)
-        .mockReturnValueOnce(audioQuery);
+      mockPrisma.readerLibrary.findMany.mockResolvedValueOnce([mockLibraryEntry]);
+      mockPrisma.subscription.findMany.mockResolvedValueOnce([]);
+      mockPrisma.audioOutput.findMany.mockResolvedValueOnce([]);
 
       const request = new NextRequest('http://localhost:22000/api/reader/library');
       const response = await getLibrary(request);
@@ -119,43 +130,32 @@ describe('Reader Library API', () => {
     });
 
     it('filters by source when provided', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId });
 
-      const libraryQuery = createChainableMock({ data: [], error: null });
-      const subscriptionsQuery = createChainableMock({ data: [], error: null });
-      const audioQuery = createChainableMock({ data: [], error: null });
-
-      mockSupabaseClient.from
-        .mockReturnValueOnce(libraryQuery)
-        .mockReturnValueOnce(subscriptionsQuery)
-        .mockReturnValueOnce(audioQuery);
+      mockPrisma.readerLibrary.findMany.mockResolvedValueOnce([]);
+      mockPrisma.subscription.findMany.mockResolvedValueOnce([]);
+      mockPrisma.audioOutput.findMany.mockResolvedValueOnce([]);
 
       const request = new NextRequest('http://localhost:22000/api/reader/library?source=uploaded');
       await getLibrary(request);
 
-      expect(libraryQuery.eq).toHaveBeenCalledWith('source', 'uploaded');
+      expect(mockPrisma.readerLibrary.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ source: 'uploaded' }),
+        })
+      );
     });
   });
 
   describe('GET /api/reader/library/[entryId]', () => {
     it('returns entry with audio details', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId });
 
-      const entryQuery = createChainableMock({ data: mockLibraryEntry, error: null });
-      const audioQuery = createChainableMock({
-        data: { file_url: 'https://storage.test.com/audio.m4a', duration_seconds: 5400 },
-        error: null,
+      mockPrisma.readerLibrary.findFirst.mockResolvedValueOnce(mockLibraryEntry);
+      mockPrisma.audioOutput.findFirst.mockResolvedValueOnce({
+        filePath: 'https://storage.test.com/audio.m4a',
+        durationSeconds: 5400,
       });
-
-      mockSupabaseClient.from
-        .mockReturnValueOnce(entryQuery)
-        .mockReturnValueOnce(audioQuery);
 
       const request = new NextRequest('http://localhost:22000/api/reader/library/entry-123');
       const response = await getEntry(request, { params: Promise.resolve({ entryId: 'entry-123' }) });
@@ -163,18 +163,13 @@ describe('Reader Library API', () => {
 
       expect(response.status).toBe(200);
       expect(data.entry).toBeDefined();
-      expect(data.audio.duration_seconds).toBe(5400);
+      expect(data.audio.durationSeconds).toBe(5400);
     });
 
     it('returns 404 for non-existent entry', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId });
 
-      const entryQuery = createChainableMock({ data: null, error: { message: 'Not found' } });
-
-      mockSupabaseClient.from.mockReturnValueOnce(entryQuery);
+      mockPrisma.readerLibrary.findFirst.mockResolvedValueOnce(null);
 
       const request = new NextRequest('http://localhost:22000/api/reader/library/nonexistent');
       const response = await getEntry(request, { params: Promise.resolve({ entryId: 'nonexistent' }) });
@@ -187,23 +182,22 @@ describe('Reader Library API', () => {
 
   describe('PATCH /api/reader/library/[entryId]', () => {
     it('updates entry notes and tags', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId });
 
-      const existingQuery = createChainableMock({ data: mockLibraryEntry, error: null });
-      const updateQuery = createChainableMock({
-        data: { ...mockLibraryEntry, notes: 'Great script!' },
-        error: null,
+      // Ownership check
+      mockPrisma.readerLibrary.findFirst.mockResolvedValueOnce({
+        id: 'entry-123',
+        readerId: 'user-123',
       });
-
-      mockSupabaseClient.from
-        .mockReturnValueOnce(existingQuery)
-        .mockReturnValueOnce(updateQuery);
+      // Update
+      mockPrisma.readerLibrary.update.mockResolvedValueOnce({
+        ...mockLibraryEntry,
+        notes: 'Great script!',
+      });
 
       const request = new NextRequest('http://localhost:22000/api/reader/library/entry-123', {
         method: 'PATCH',
+        headers: { origin: 'http://localhost:22000' },
         body: JSON.stringify({ notes: 'Great script!' }),
       });
       const response = await updateEntry(request, { params: Promise.resolve({ entryId: 'entry-123' }) });
@@ -216,54 +210,53 @@ describe('Reader Library API', () => {
 
   describe('DELETE /api/reader/library/[entryId]', () => {
     it('soft deletes entry by setting status to removed', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
+      mockAuth.mockResolvedValueOnce({ userId });
+
+      // Ownership check
+      mockPrisma.readerLibrary.findFirst.mockResolvedValueOnce({
+        id: 'entry-123',
+        readerId: 'user-123',
       });
-
-      const existingQuery = createChainableMock({ data: mockLibraryEntry, error: null });
-      const updateQuery = createChainableMock({ data: null, error: null });
-
-      mockSupabaseClient.from
-        .mockReturnValueOnce(existingQuery)
-        .mockReturnValueOnce(updateQuery);
+      // Update (soft delete)
+      mockPrisma.readerLibrary.update.mockResolvedValueOnce({
+        ...mockLibraryEntry,
+        status: 'removed',
+      });
 
       const request = new NextRequest('http://localhost:22000/api/reader/library/entry-123', {
         method: 'DELETE',
+        headers: { origin: 'http://localhost:22000' },
       });
       const response = await deleteEntry(request, { params: Promise.resolve({ entryId: 'entry-123' }) });
       const data = await response.json();
 
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
-      expect(updateQuery.update).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'removed' })
+      expect(mockPrisma.readerLibrary.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'removed' } })
       );
     });
   });
 
   describe('POST /api/reader/library/[entryId]/favorite', () => {
     it('toggles favorite status', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId });
 
-      const existingQuery = createChainableMock({
-        data: { ...mockLibraryEntry, is_favorited: false },
-        error: null,
+      // Ownership check
+      mockPrisma.readerLibrary.findFirst.mockResolvedValueOnce({
+        id: 'entry-123',
+        readerId: 'user-123',
+        isFavorited: false,
       });
-      const updateQuery = createChainableMock({
-        data: { ...mockLibraryEntry, is_favorited: true },
-        error: null,
+      // Update
+      mockPrisma.readerLibrary.update.mockResolvedValueOnce({
+        ...mockLibraryEntry,
+        isFavorited: true,
       });
-
-      mockSupabaseClient.from
-        .mockReturnValueOnce(existingQuery)
-        .mockReturnValueOnce(updateQuery);
 
       const request = new NextRequest('http://localhost:22000/api/reader/library/entry-123/favorite', {
         method: 'POST',
+        headers: { origin: 'http://localhost:22000' },
         body: JSON.stringify({ is_favorited: true }),
       });
       const response = await toggleFavorite(request, { params: Promise.resolve({ entryId: 'entry-123' }) });
@@ -276,31 +269,26 @@ describe('Reader Library API', () => {
 
   describe('POST /api/reader/library/[entryId]/position', () => {
     it('updates playback position', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId });
 
-      // 1. Ownership check
-      const existingQuery = createChainableMock({
-        data: { id: 'entry-123', reader_id: 'user-123' },
-        error: null,
+      // Ownership check
+      mockPrisma.readerLibrary.findFirst.mockResolvedValueOnce({
+        id: 'entry-123',
+        readerId: 'user-123',
+        projectId: 'project-123',
       });
-      // 2. Update query
-      const updateQuery = createChainableMock({
-        data: { ...mockLibraryEntry, play_position_seconds: 300 },
-        error: null,
+      // Update
+      mockPrisma.readerLibrary.update.mockResolvedValueOnce({
+        ...mockLibraryEntry,
+        playPositionSeconds: 300,
+        completed: false,
       });
-      // 3. Log query
-      const logQuery = createChainableMock({ data: null, error: null });
-
-      mockSupabaseClient.from
-        .mockReturnValueOnce(existingQuery)
-        .mockReturnValueOnce(updateQuery)
-        .mockReturnValueOnce(logQuery);
+      // Log access
+      mockPrisma.contentAccessLog.create.mockResolvedValueOnce({});
 
       const request = new NextRequest('http://localhost:22000/api/reader/library/entry-123/position', {
         method: 'POST',
+        headers: { origin: 'http://localhost:22000' },
         body: JSON.stringify({ position: 300, duration: 5400 }),
       });
       const response = await updatePosition(request, { params: Promise.resolve({ entryId: 'entry-123' }) });
@@ -311,31 +299,26 @@ describe('Reader Library API', () => {
     });
 
     it('marks as completed when near end', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-        data: { user: mockUser },
-        error: null,
-      });
+      mockAuth.mockResolvedValueOnce({ userId });
 
-      // 1. Ownership check
-      const existingQuery = createChainableMock({
-        data: { id: 'entry-123', reader_id: 'user-123' },
-        error: null,
+      // Ownership check
+      mockPrisma.readerLibrary.findFirst.mockResolvedValueOnce({
+        id: 'entry-123',
+        readerId: 'user-123',
+        projectId: 'project-123',
       });
-      // 2. Update query
-      const updateQuery = createChainableMock({
-        data: { ...mockLibraryEntry, play_position_seconds: 5380, completed: true },
-        error: null,
+      // Update
+      mockPrisma.readerLibrary.update.mockResolvedValueOnce({
+        ...mockLibraryEntry,
+        playPositionSeconds: 5380,
+        completed: true,
       });
-      // 3. Log query
-      const logQuery = createChainableMock({ data: null, error: null });
-
-      mockSupabaseClient.from
-        .mockReturnValueOnce(existingQuery)
-        .mockReturnValueOnce(updateQuery)
-        .mockReturnValueOnce(logQuery);
+      // Log access
+      mockPrisma.contentAccessLog.create.mockResolvedValueOnce({});
 
       const request = new NextRequest('http://localhost:22000/api/reader/library/entry-123/position', {
         method: 'POST',
+        headers: { origin: 'http://localhost:22000' },
         body: JSON.stringify({ position: 5380, duration: 5400 }),
       });
       const response = await updatePosition(request, { params: Promise.resolve({ entryId: 'entry-123' }) });

@@ -7,8 +7,10 @@ import { cleanup } from '@testing-library/react';
 // =============================================================================
 
 vi.stubEnv('NEXT_PUBLIC_APP_URL', 'http://localhost:22000');
-vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://test.supabase.co');
-vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'test-anon-key');
+vi.stubEnv('DATABASE_URL', 'postgresql://test:test@localhost:5432/test');
+vi.stubEnv('NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY', 'pk_test_fake');
+vi.stubEnv('CLERK_SECRET_KEY', 'sk_test_fake');
+vi.stubEnv('NEXT_PUBLIC_ORCHESTRATOR_URL', 'http://localhost:22002');
 vi.stubEnv('RATE_LIMIT_DISABLED', 'true');
 
 // =============================================================================
@@ -91,32 +93,37 @@ vi.mock('next/link', () => ({
 }));
 
 // =============================================================================
-// Mock Supabase Client
+// Mock Clerk Auth
 // =============================================================================
 
-const mockSupabaseAuth = {
-  getUser: vi.fn(() => Promise.resolve({ data: { user: null }, error: null })),
-  getSession: vi.fn(() => Promise.resolve({ data: { session: null }, error: null })),
-  signInWithPassword: vi.fn(() => Promise.resolve({ data: {}, error: null })),
-  signInWithOtp: vi.fn(() => Promise.resolve({ data: {}, error: null })),
-  signUp: vi.fn(() => Promise.resolve({ data: { user: { id: 'user-123' } }, error: null })),
-  signOut: vi.fn(() => Promise.resolve({ error: null })),
-  onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
+vi.mock('@clerk/nextjs', () => ({
+  ClerkProvider: ({ children }: { children: React.ReactNode }) => children,
+  useUser: () => ({ user: { id: 'user_test123' }, isLoaded: true, isSignedIn: true }),
+  useAuth: () => ({ userId: 'user_test123', isLoaded: true, isSignedIn: true }),
+  useClerk: () => ({ signOut: vi.fn() }),
+  SignIn: () => <div data-testid="clerk-sign-in" />,
+  SignUp: () => <div data-testid="clerk-sign-up" />,
+}));
+
+vi.mock('@clerk/nextjs/server', () => ({
+  auth: vi.fn(() => Promise.resolve({ userId: 'user_test123' })),
+  currentUser: vi.fn(() => Promise.resolve({ id: 'user_test123', emailAddresses: [{ emailAddress: 'test@example.com' }] })),
+}));
+
+// =============================================================================
+// Mock Prisma Client
+// =============================================================================
+
+export const mockPrisma = {
+  project: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+  profile: { findUnique: vi.fn(), update: vi.fn() },
+  job: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
+  subscription: { findFirst: vi.fn() },
+  $queryRaw: vi.fn(),
 };
 
-export const mockSupabaseClient = {
-  auth: mockSupabaseAuth,
-  from: vi.fn(() => ({
-    select: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    single: vi.fn().mockResolvedValue({ data: null, error: null }),
-  })),
-};
-
-vi.mock('@/lib/supabase/client', () => ({
-  createClient: () => mockSupabaseClient,
+vi.mock('@/lib/db', () => ({
+  prisma: mockPrisma,
 }));
 
 // =============================================================================
