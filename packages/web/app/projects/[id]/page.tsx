@@ -169,9 +169,9 @@ export default async function ProjectPage({
             name: project.name,
             status: project.status,
             page_count: project.pageCount,
-            script_text: project.scriptText,
+            script_text: project.scriptText ?? '',
             director_json: project.directorJson,
-            preferred_workflow_mode: project.preferredWorkflowMode,
+            preferred_workflow_mode: project.preferredWorkflowMode ?? 'guided',
             current_run_number: project.currentRunNumber ?? 0,
           }}
           storyScore={storyScore ? { id: storyScore.id, overall_score: Number(storyScore.overallScore) } : null}
