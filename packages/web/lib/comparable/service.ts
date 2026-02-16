@@ -77,8 +77,8 @@ export async function searchComparables(
   }>>`
     SELECT * FROM search_similar_scripts(
       ${toPgvectorFormat(queryEmbedding)}::vector,
-      ${minSimilarity},
-      ${limit},
+      ${minSimilarity}::float,
+      ${limit}::integer,
       ${filterStatus || null},
       ${filterGenre || null}
     )
@@ -131,8 +131,8 @@ export async function searchComparablesByLogline(
   }>>`
     SELECT * FROM search_similar_scripts(
       ${toPgvectorFormat(queryEmbedding)}::vector,
-      ${minSimilarity},
-      ${limit},
+      ${minSimilarity}::float,
+      ${limit}::integer,
       ${filterStatus || null},
       ${filterGenre || null}
     )

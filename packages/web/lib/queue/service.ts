@@ -88,7 +88,7 @@ export async function dequeueNext(
     job_type: string;
     priority: number;
     retry_count: number;
-  }>>`SELECT * FROM get_next_queued_job(${workerId}, ${lockDurationSeconds})`;
+  }>>`SELECT * FROM get_next_queued_job(${workerId}, ${lockDurationSeconds}::integer)`;
 
   if (!result || result.length === 0) {
     return null;
