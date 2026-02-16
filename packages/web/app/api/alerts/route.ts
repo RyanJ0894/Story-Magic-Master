@@ -72,10 +72,28 @@ export async function GET(request: Request) {
       );
     }
 
-    // Merge profile data into alerts
+    // Map to snake_case for client compatibility and merge profile data
     const alertsWithUsers = alerts.map(alert => ({
-      ...alert,
-      related_user: alert.relatedUserId ? profilesMap[alert.relatedUserId] || null : null,
+      id: alert.id,
+      alert_type: alert.alertType,
+      title: alert.title,
+      message: alert.message,
+      project_id: alert.projectId,
+      team_id: alert.teamId,
+      metadata: alert.metadata,
+      is_read: alert.isRead,
+      read_at: alert.readAt,
+      created_at: alert.createdAt,
+      projects: alert.project,
+      teams: alert.team,
+      related_user: alert.relatedUserId
+        ? profilesMap[alert.relatedUserId]
+          ? {
+              full_name: profilesMap[alert.relatedUserId].fullName,
+              avatar_url: profilesMap[alert.relatedUserId].avatarUrl,
+            }
+          : null
+        : null,
     }));
 
     // Get unread count

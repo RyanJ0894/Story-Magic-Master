@@ -17,6 +17,10 @@ import { validateCsrf } from '@/lib/csrf';
 
 const CreateProjectSchema = z.object({
   name: z.string().min(1, 'Project name is required').max(200, 'Project name too long'),
+  description: z.string().max(500).optional(),
+  scriptText: z.string().optional(),
+  pageCount: z.number().int().min(0).max(150).optional(),
+  // Accept snake_case aliases for backwards compatibility
   script_text: z.string().optional(),
   page_count: z.number().int().min(0).max(150).optional(),
 });
@@ -102,19 +106,24 @@ export async function POST(request: Request) {
     );
   }
 
-  const { name, script_text, page_count } = parseResult.data;
+  const data = parseResult.data;
+  // Support both camelCase and snake_case field names
+  const scriptText = data.scriptText || data.script_text;
+  const pageCount = data.pageCount ?? data.page_count;
+  const description = data.description;
 
   try {
     const project = await prisma.project.create({
       data: {
         userId,
-        name,
-        scriptText: script_text || null,
-        pageCount: page_count || 0,
+        name: data.name,
+        description: description || null,
+        scriptText: scriptText || null,
+        pageCount: pageCount || 0,
       },
     });
 
-    return NextResponse.json({ project }, { status: 201 });
+    return NextResponse.json(project, { status: 201 });
   } catch {
     return NextResponse.json(
       { error: 'Failed to create project', code: 'CREATE_ERROR' },

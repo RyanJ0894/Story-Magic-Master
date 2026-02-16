@@ -18,92 +18,89 @@ vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
 }));
 
-// Mock Supabase server client
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(() => Promise.resolve(mockSupabaseClient)),
+// Mock Clerk auth (replaces old Supabase auth mock)
+vi.mock('@clerk/nextjs/server', () => ({
+  auth: vi.fn(() => Promise.resolve({ userId: 'user_test123' })),
+  currentUser: vi.fn(() => Promise.resolve({
+    id: 'user_test123',
+    firstName: 'Test',
+    lastName: 'User',
+    emailAddresses: [{ emailAddress: 'test@example.com' }],
+    imageUrl: null,
+  })),
+}));
+
+vi.mock('@clerk/nextjs', () => ({
+  useUser: () => ({
+    isSignedIn: true,
+    user: { id: 'user_test123', firstName: 'Test', lastName: 'User' },
+    isLoaded: true,
+  }),
+  useAuth: () => ({
+    userId: 'user_test123',
+    isSignedIn: true,
+    isLoaded: true,
+  }),
+  useClerk: () => ({
+    signOut: vi.fn(),
+  }),
+  ClerkProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+// Mock Prisma client (replaces old Supabase query mock)
+export const mockPrismaClient = {
+  project: {
+    findMany: vi.fn().mockResolvedValue([]),
+    findFirst: vi.fn().mockResolvedValue(null),
+    findUnique: vi.fn().mockResolvedValue(null),
+    create: vi.fn().mockResolvedValue({ id: 'test-project-id' }),
+    update: vi.fn().mockResolvedValue({}),
+    delete: vi.fn().mockResolvedValue({}),
+  },
+  profile: {
+    findUnique: vi.fn().mockResolvedValue(null),
+    create: vi.fn().mockResolvedValue({ id: 'user_test123' }),
+    update: vi.fn().mockResolvedValue({}),
+  },
+  job: {
+    findMany: vi.fn().mockResolvedValue([]),
+    findFirst: vi.fn().mockResolvedValue(null),
+    create: vi.fn().mockResolvedValue({ id: 'test-job-id' }),
+    update: vi.fn().mockResolvedValue({}),
+  },
+  alert: {
+    findMany: vi.fn().mockResolvedValue([]),
+    count: vi.fn().mockResolvedValue(0),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+  },
+  team: {
+    findMany: vi.fn().mockResolvedValue([]),
+    create: vi.fn().mockResolvedValue({ id: 'test-team-id' }),
+  },
+  teamMember: {
+    findMany: vi.fn().mockResolvedValue([]),
+  },
+  usage: {
+    findFirst: vi.fn().mockResolvedValue(null),
+  },
+  storyScore: {
+    findFirst: vi.fn().mockResolvedValue(null),
+  },
+  audioOutput: {
+    findMany: vi.fn().mockResolvedValue([]),
+  },
+  $queryRaw: vi.fn().mockResolvedValue([]),
+};
+
+vi.mock('@/lib/db', () => ({
+  prisma: mockPrismaClient,
 }));
 
 // Mock environment variables
 vi.stubEnv('NEXT_PUBLIC_APP_URL', 'http://localhost:22000');
-vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://test.supabase.co');
-vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'test-anon-key');
-
-/**
- * Creates a chainable Supabase query mock.
- * Each method returns the same chainable object, with terminal methods
- * (like single()) returning the resolved value.
- */
-export function createChainableMock(
-  finalValue: { data: any; error: any } = { data: null, error: null }
-) {
-  const chain: any = {};
-
-  // Define all chainable methods
-  const chainMethods = [
-    'select',
-    'insert',
-    'update',
-    'delete',
-    'eq',
-    'neq',
-    'in',
-    'order',
-    'limit',
-    'gt',
-    'gte',
-    'lt',
-    'lte',
-    'like',
-    'ilike',
-    'is',
-    'contains',
-    'containedBy',
-    'range',
-    'filter',
-    'match',
-    'not',
-    'or',
-    'textSearch',
-  ];
-
-  chainMethods.forEach((method) => {
-    chain[method] = vi.fn().mockReturnValue(chain);
-  });
-
-  // Terminal methods that resolve to the final value
-  chain.single = vi.fn().mockResolvedValue(finalValue);
-  chain.maybeSingle = vi.fn().mockResolvedValue(finalValue);
-
-  // Make order/limit also resolvable (some queries end with .order())
-  const originalOrder = chain.order;
-  chain.order = vi.fn((...args: any[]) => {
-    const result = { ...chain };
-    // If this is the last call, allow it to resolve
-    result.then = (resolve: any) => resolve(finalValue);
-    return result;
-  });
-
-  // Allow the chain itself to be awaited
-  chain.then = (resolve: any) => resolve(finalValue);
-
-  return chain;
-}
-
-// Mock Supabase client
-export const mockSupabaseClient = {
-  auth: {
-    getUser: vi.fn(() => Promise.resolve({ data: { user: null }, error: null })),
-    getSession: vi.fn(() => Promise.resolve({ data: { session: null }, error: null })),
-    signOut: vi.fn(() => Promise.resolve({ error: null })),
-  },
-  from: vi.fn((table: string) => createChainableMock()),
-  storage: {
-    from: vi.fn(() => ({
-      upload: vi.fn(() => Promise.resolve({ error: null })),
-      getPublicUrl: vi.fn(() => ({ data: { publicUrl: 'https://test.com/file.pdf' } })),
-    })),
-  },
-};
+vi.stubEnv('DATABASE_URL', 'postgresql://test:test@localhost:5432/test');
+vi.stubEnv('NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY', 'pk_test_fake');
+vi.stubEnv('CLERK_SECRET_KEY', 'sk_test_fake');
 
 // Reset mocks between tests
 beforeAll(() => {

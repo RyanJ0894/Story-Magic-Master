@@ -88,9 +88,16 @@ export async function GET() {
       },
     }));
 
+    // Include combined `teams` array for client compatibility
+    const allTeams = [
+      ...ownedTeams.map(t => ({ ...t, role: 'owner' as const })),
+      ...memberTeams,
+    ];
+
     return NextResponse.json({
       owned: ownedTeams,
       member: memberTeams,
+      teams: allTeams,
     });
   } catch (error) {
     console.error('[Teams] Error listing:', error);
