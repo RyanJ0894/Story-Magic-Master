@@ -8,6 +8,8 @@
 const ALLOWED_ORIGINS = [
   process.env.NEXT_PUBLIC_APP_URL,
   process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+  process.env.RENDER_EXTERNAL_URL, // Render.com sets this automatically
+  'https://story-magic-web.onrender.com',
   // Local development
   'http://localhost:22000',
   'http://localhost:3000',
