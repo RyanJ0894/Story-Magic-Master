@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { SignIn } from '@clerk/nextjs';
 import { Sparkles } from 'lucide-react';
 
