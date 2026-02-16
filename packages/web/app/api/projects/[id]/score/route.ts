@@ -153,5 +153,5 @@ export const POST = withProjectAuth(
       return NextResponse.json(response, { status: 500 });
     }
   },
-  { rateLimit: 'strict', select: 'id, user_id, name, script_text' }
+  { rateLimit: 'strict' }
 );

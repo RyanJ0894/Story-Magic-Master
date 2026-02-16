@@ -172,5 +172,5 @@ export const POST = withProjectAuth(
       );
     }
   },
-  { rateLimit: 'strict', select: 'id, user_id, script_text' }
+  { rateLimit: 'strict' }
 );

@@ -70,5 +70,5 @@ export const GET = withProjectAuth(
       );
     }
   },
-  { rateLimit: 'normal', select: 'id, name, user_id' }
+  { rateLimit: 'normal' }
 );
