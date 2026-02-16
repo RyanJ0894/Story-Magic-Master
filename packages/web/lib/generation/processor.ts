@@ -22,7 +22,7 @@ async function logJobEvent(
   level: 'debug' | 'info' | 'warn' | 'error',
   step: string,
   message: string,
-  metadata: Record<string, unknown> = {},
+  metadata: Record<string, string | number | boolean | null> = {},
   errorMessage?: string,
   errorStack?: string
 ) {

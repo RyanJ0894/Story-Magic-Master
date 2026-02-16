@@ -28,7 +28,7 @@ export async function logAuditEvent(entry: AuditLogEntry): Promise<void> {
         action: entry.action,
         resourceType: entry.resource_type,
         resourceId: entry.resource_id ?? null,
-        details: entry.details || {},
+        details: (entry.details || {}) as Record<string, string | number | boolean>,
         ipAddress: entry.ip_address ?? null,
         userAgent: entry.user_agent ?? null,
       },

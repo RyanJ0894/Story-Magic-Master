@@ -36,7 +36,7 @@ export async function searchComparables(
   // Get the project's logline from the latest score
   const scoreData = await prisma.storyScore.findFirst({
     where: { projectId },
-    select: { reasoning: true },
+    select: { loglineClarityReasoning: true },
     orderBy: { createdAt: 'desc' },
   });
 
@@ -44,9 +44,7 @@ export async function searchComparables(
     throw new Error('No score found for project. Generate a StoryScore first.');
   }
 
-  // Extract logline from the score's reasoning
-  const reasoning = scoreData.reasoning as Record<string, { reasoning: string }>;
-  const loglineReasoning = reasoning?.loglineClarity?.reasoning || '';
+  const loglineReasoning = scoreData.loglineClarityReasoning || '';
 
   // If we don't have a logline from the score, try to get the project name/description
   const project = await prisma.project.findFirst({

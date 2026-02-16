@@ -4,7 +4,6 @@ export * from './types';
 // Queue Service
 export {
   enqueue,
-  enqueueWithServiceRole,
   dequeueNext,
   releaseJobLock,
   completeJob,

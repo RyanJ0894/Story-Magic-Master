@@ -148,7 +148,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   }
 
   // Build Prisma update data with camelCase
-  const prismaUpdates: Prisma.ProfileUpdateInput = {};
+  const prismaUpdates: Record<string, unknown> = {};
   if (updates.user_type !== undefined) prismaUpdates.userType = updates.user_type;
   if (updates.suspended !== undefined) prismaUpdates.suspended = updates.suspended;
 

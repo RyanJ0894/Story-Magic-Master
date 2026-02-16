@@ -171,13 +171,24 @@ export default async function ProjectPage({
             page_count: project.pageCount,
             script_text: project.scriptText ?? '',
             director_json: project.directorJson,
-            preferred_workflow_mode: (project.preferredWorkflowMode as 'guided' | 'express' | undefined) ?? 'guided',
+            preferred_workflow_mode: (project.preferredWorkflowMode as 'automatic' | 'fine_tuned' | undefined) ?? undefined,
             current_run_number: project.currentRunNumber ?? 0,
           }}
           storyScore={storyScore ? { id: storyScore.id, overall_score: Number(storyScore.overallScore) } : null}
-          audioOutputs={audioOutputs || undefined}
-          latestJob={latestJob}
-          allJobs={enrichedJobs}
+          audioOutputs={audioOutputs?.map(a => ({
+            id: a.id,
+            file_name: a.fileName,
+            file_path: a.filePath,
+            duration_seconds: a.durationSeconds ? Number(a.durationSeconds) : undefined,
+            format: a.format,
+          }))}
+          latestJob={latestJob ? {
+            run_number: latestJob.runNumber ?? undefined,
+            workflow_mode: (latestJob.workflowMode as 'automatic' | 'fine_tuned' | undefined) ?? undefined,
+            progress: latestJob.progress as { step?: string; percent?: number } | undefined,
+            error: latestJob.error ?? undefined,
+          } : null}
+          allJobs={enrichedJobs as any}
           voiceAssignments={voiceAssignments}
           audioOverrides={audioOverrideStats}
           remainingPreviews={remainingPreviews ?? 0}

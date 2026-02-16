@@ -55,7 +55,7 @@ export async function enqueue(options: EnqueueOptions): Promise<EnqueueResult> {
         details: 'Waiting in queue...',
         updated_at: new Date().toISOString(),
       },
-      result: metadata ? { metadata } : Prisma.JsonNull,
+      result: metadata ? ({ metadata } as Record<string, unknown> as Prisma.InputJsonValue) : Prisma.JsonNull,
     },
   });
 

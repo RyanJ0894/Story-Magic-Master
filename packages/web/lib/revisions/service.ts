@@ -5,6 +5,7 @@
  */
 
 import { prisma } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 import {
   Revision,
   RevisionRow,
@@ -80,7 +81,7 @@ export async function createRevision(
         scriptText,
         wordCount,
         pageCount,
-        changesSummary: changesSummary as object | null,
+        changesSummary: (changesSummary ?? Prisma.JsonNull) as unknown as Prisma.InputJsonValue,
         createdBy: options?.userId || null,
       },
     });
@@ -126,10 +127,10 @@ export async function createRevision(
         });
 
         if (prevRevision?.overallScore) {
-          changesSummary.scoreChange = score.overallScore - prevRevision.overallScore;
+          changesSummary.scoreChange = score.overallScore - Number(prevRevision.overallScore);
           await prisma.revision.update({
             where: { id: revision.id },
-            data: { changesSummary: changesSummary as object },
+            data: { changesSummary: changesSummary as unknown as Prisma.InputJsonValue },
           });
         }
       }
