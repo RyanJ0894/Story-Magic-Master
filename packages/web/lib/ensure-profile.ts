@@ -1,0 +1,37 @@
+/**
+ * Ensures a profile exists for the given Clerk user ID.
+ * Creates one on-demand if missing (covers the case where the Clerk webhook
+ * hasn't fired yet, or CLERK_WEBHOOK_SECRET isn't configured).
+ */
+
+import { currentUser } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
+import type { Profile } from '@prisma/client';
+
+export async function ensureProfile(userId: string): Promise<Profile> {
+  // Try to find existing profile first
+  const existing = await prisma.profile.findUnique({
+    where: { id: userId },
+  });
+
+  if (existing) {
+    return existing;
+  }
+
+  // Profile doesn't exist — fetch Clerk user details and create one
+  const clerkUser = await currentUser();
+
+  const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? null;
+  const fullName =
+    [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ') ||
+    email;
+
+  return prisma.profile.create({
+    data: {
+      id: userId,
+      email,
+      fullName: fullName ?? null,
+      avatarUrl: clerkUser?.imageUrl ?? null,
+    },
+  });
+}

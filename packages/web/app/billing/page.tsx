@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
+import { ensureProfile } from '@/lib/ensure-profile';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -22,10 +23,8 @@ export default async function BillingPage({
     redirect('/login?redirect=/billing');
   }
 
-  // Fetch user's profile
-  const profile = await prisma.profile.findUnique({
-    where: { id: userId },
-  });
+  // Fetch (or auto-create) user's profile
+  const profile = await ensureProfile(userId);
 
   const tier = (profile?.subscriptionTier || 'free') as SubscriptionTier;
   const pageLimit = getPageLimit(tier);

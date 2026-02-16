@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
+import { ensureProfile } from '@/lib/ensure-profile';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -17,10 +18,8 @@ export default async function ReaderDashboardPage() {
     redirect('/login');
   }
 
-  // Fetch profile with reader code
-  const profile = await prisma.profile.findUnique({
-    where: { id: userId },
-  });
+  // Fetch (or auto-create) profile with reader code
+  const profile = await ensureProfile(userId);
 
   // Fetch reader library with project details
   const libraryEntries = await prisma.readerLibrary.findMany({

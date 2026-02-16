@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
+import { ensureProfile } from '@/lib/ensure-profile';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -23,10 +24,8 @@ export default async function DashboardPage() {
     orderBy: { updatedAt: 'desc' },
   });
 
-  // Fetch user's profile for usage info
-  const profile = await prisma.profile.findUnique({
-    where: { id: userId },
-  });
+  // Fetch (or auto-create) user's profile for usage info
+  const profile = await ensureProfile(userId);
 
   // Get remaining pages via raw query
   const remainingResult = await prisma.$queryRaw<[{ remaining: number }]>`
