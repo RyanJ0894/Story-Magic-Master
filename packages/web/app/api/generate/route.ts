@@ -17,7 +17,8 @@ const MAX_PAGE_COUNT = 150; // Max pages per generation
 // =============================================================================
 const GenerateRequestSchema = z.object({
   projectId: z.string().uuid('Invalid project ID format'),
-  jobId: z.string().uuid('Invalid job ID format'),
+  jobId: z.string().uuid('Invalid job ID format').optional(),
+  workflowMode: z.enum(['automatic', 'fine_tuned']).optional().default('fine_tuned'),
 });
 
 // =============================================================================
@@ -106,7 +107,8 @@ export async function POST(request: Request) {
     }, { status: 400 });
   }
 
-  const { projectId, jobId } = parseResult.data;
+  const { projectId, workflowMode } = parseResult.data;
+  let { jobId } = parseResult.data;
 
   // Fetch project
   const project = await prisma.project.findFirst({
@@ -149,6 +151,21 @@ export async function POST(request: Request) {
         voiceOverrides[assignment.character_name] = assignment.voice_id;
       }
     }
+  }
+
+  // Create job if not provided (client-side doesn't pre-create jobs)
+  if (!jobId) {
+    const newJob = await prisma.job.create({
+      data: {
+        projectId,
+        userId,
+        jobType: 'audio_generation',
+        workflowMode: workflowMode ?? 'fine_tuned',
+        status: 'pending',
+        progress: { step: 'pending', percent: 0 },
+      },
+    });
+    jobId = newJob.id;
   }
 
   // Enqueue job for background processing via the queue worker.
