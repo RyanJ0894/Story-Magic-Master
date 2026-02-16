@@ -109,11 +109,11 @@ export default async function ProjectPage({
   let audioOverrideStats = { total_scenes: 0, scenes_with_overrides: 0 };
   if ((directorJson as { scenes?: unknown[] })?.scenes) {
     const totalScenes = (directorJson as { scenes: unknown[] }).scenes.length;
-    const audioOverrides = Array.isArray(project.audioOverrides) ? project.audioOverrides as unknown[] : [];
+    const audioOverrides = Array.isArray(project.audioOverrides) ? project.audioOverrides as Array<{ user_selected?: boolean; scene_id?: string }> : [];
     const scenesWithOverrides = new Set(
       audioOverrides
-        .filter((o: { user_selected?: boolean }) => o.user_selected)
-        .map((o: { scene_id: string }) => o.scene_id)
+        .filter((o) => o.user_selected)
+        .map((o) => o.scene_id)
     ).size;
     audioOverrideStats = { total_scenes: totalScenes, scenes_with_overrides: scenesWithOverrides };
   }
