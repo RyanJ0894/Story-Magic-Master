@@ -24,7 +24,7 @@ function addSecurityHeaders(response: NextResponse): void {
     "style-src 'self' 'unsafe-inline'", // Tailwind requires unsafe-inline
     "img-src 'self' data: blob: https://img.clerk.com https://api.dicebear.com",
     "font-src 'self' data:",
-    "connect-src 'self' https://api.stripe.com https://api.elevenlabs.io https://api.openai.com https://*.sentry.io https://*.accounts.dev https://*.clerk.com https://*.clerk.dev",
+    "connect-src 'self' https://api.stripe.com https://api.elevenlabs.io https://api.openai.com https://*.sentry.io https://*.accounts.dev https://*.clerk.com https://*.clerk.dev https://clerk-telemetry.com",
     "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://*.accounts.dev https://*.clerk.com",
     "media-src 'self' blob:",
     "worker-src 'self' blob:",
