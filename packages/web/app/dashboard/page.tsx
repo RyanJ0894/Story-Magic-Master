@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Plus, FileText, Sparkles, LogOut, Folder, HelpCircle } from 'lucide-react';
+import { Plus, FileText, Sparkles, Folder, HelpCircle } from 'lucide-react';
+import { SignOutButton } from '@/components/auth/sign-out-button';
 import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
 
 export default async function DashboardPage() {
@@ -105,12 +106,7 @@ export default async function DashboardPage() {
                 </Button>
               </Link>
 
-              <form action="/api/auth/signout" method="post">
-                <Button variant="ghost" size="sm" type="submit" data-testid="signout-button">
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Sign out
-                </Button>
-              </form>
+              <SignOutButton />
             </div>
           </div>
         </div>
