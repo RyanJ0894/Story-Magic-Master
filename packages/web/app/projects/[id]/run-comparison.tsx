@@ -38,16 +38,16 @@ import { format } from 'date-fns';
 
 interface AudioOutput {
   id: string;
-  file_name: string;
-  file_path: string;
-  duration_seconds?: number;
+  fileName: string;
+  filePath: string;
+  durationSeconds?: number;
 }
 
 interface ComparisonRun {
-  run_number: number;
-  workflow_mode: 'automatic' | 'fine_tuned';
-  created_at: string;
-  audio_outputs: AudioOutput[];
+  runNumber: number;
+  workflowMode: 'automatic' | 'fine_tuned';
+  createdAt: string;
+  audioOutputs: AudioOutput[];
 }
 
 interface RunComparisonProps {
@@ -90,7 +90,7 @@ function AudioPlayerPanel({
   isWinner: boolean;
   onSelectWinner: () => void;
 }) {
-  const ModeIcon = modeConfig[run.workflow_mode].icon;
+  const ModeIcon = modeConfig[run.workflowMode].icon;
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -107,7 +107,7 @@ function AudioPlayerPanel({
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-lg">
             <span className="text-muted-foreground">{label}</span>
-            Run #{run.run_number}
+            Run #{run.runNumber}
           </CardTitle>
           {isWinner && (
             <Badge className="bg-green-500 gap-1">
@@ -117,12 +117,12 @@ function AudioPlayerPanel({
           )}
         </div>
         <div className="flex items-center gap-2 mt-2">
-          <Badge variant="outline" className={cn('gap-1', modeConfig[run.workflow_mode].color)}>
+          <Badge variant="outline" className={cn('gap-1', modeConfig[run.workflowMode].color)}>
             <ModeIcon className="w-3 h-3" />
-            {modeConfig[run.workflow_mode].label}
+            {modeConfig[run.workflowMode].label}
           </Badge>
           <span className="text-xs text-muted-foreground">
-            {format(new Date(run.created_at), 'MMM d, h:mm a')}
+            {format(new Date(run.createdAt), 'MMM d, h:mm a')}
           </span>
         </div>
       </CardHeader>
@@ -130,7 +130,7 @@ function AudioPlayerPanel({
         {/* Hidden audio element */}
         <audio
           ref={audioRef}
-          src={run.audio_outputs[0]?.file_path}
+          src={run.audioOutputs[0]?.filePath}
           muted={isMuted}
         />
 
@@ -371,8 +371,8 @@ export function RunComparison({
             onSeek={handleSeekA}
             isMuted={isMutedA}
             onToggleMute={() => setIsMutedA(!isMutedA)}
-            isWinner={winner === runA.run_number}
-            onSelectWinner={() => handleSelectWinner(runA.run_number)}
+            isWinner={winner === runA.runNumber}
+            onSelectWinner={() => handleSelectWinner(runA.runNumber)}
           />
           <AudioPlayerPanel
             label="B"
@@ -385,8 +385,8 @@ export function RunComparison({
             onSeek={handleSeekB}
             isMuted={isMutedB}
             onToggleMute={() => setIsMutedB(!isMutedB)}
-            isWinner={winner === runB.run_number}
-            onSelectWinner={() => handleSelectWinner(runB.run_number)}
+            isWinner={winner === runB.runNumber}
+            onSelectWinner={() => handleSelectWinner(runB.runNumber)}
           />
         </div>
 

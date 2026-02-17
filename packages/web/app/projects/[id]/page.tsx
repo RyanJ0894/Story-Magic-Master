@@ -65,11 +65,26 @@ export default async function ProjectPage({
   }
 
   // Enrich jobs with audio info
-  const enrichedJobs = allJobs?.map(job => ({
-    ...job,
-    has_audio: audioByJobId.has(job.id),
-    audio_outputs: audioByJobId.get(job.id) || [],
-  })) || [];
+  const enrichedJobs = allJobs?.map(job => {
+    const jobAudio = audioByJobId.get(job.id) || [];
+    return {
+      id: job.id,
+      runNumber: job.runNumber ?? 0,
+      workflowMode: (job.workflowMode as 'automatic' | 'fine_tuned') ?? 'automatic',
+      status: job.status as 'queued' | 'processing' | 'completed' | 'failed',
+      createdAt: job.createdAt.toISOString(),
+      completedAt: job.completedAt?.toISOString(),
+      hasAudio: jobAudio.length > 0,
+      audioOutputs: jobAudio.map(a => ({
+        id: a.id,
+        fileName: a.fileName,
+        filePath: a.filePath,
+        durationSeconds: a.durationSeconds ? Number(a.durationSeconds) : undefined,
+      })),
+      error: job.error ?? undefined,
+      progress: job.progress as { step?: string; percent?: number } | undefined,
+    };
+  }) || [];
 
   // Fetch story score
   const storyScore = await prisma.storyScore.findFirst({
@@ -106,16 +121,17 @@ export default async function ProjectPage({
   }
 
   // Calculate audio override stats
-  let audioOverrideStats = { total_scenes: 0, scenes_with_overrides: 0 };
+  let audioOverrideStats = { totalScenes: 0, scenesWithOverrides: 0 };
   if ((directorJson as { scenes?: unknown[] })?.scenes) {
     const totalScenes = (directorJson as { scenes: unknown[] }).scenes.length;
+    // audioOverrides JSONB stores snake_case keys (from orchestrator pipeline)
     const audioOverrides = Array.isArray(project.audioOverrides) ? project.audioOverrides as Array<{ user_selected?: boolean; scene_id?: string }> : [];
     const scenesWithOverrides = new Set(
       audioOverrides
         .filter((o) => o.user_selected)
         .map((o) => o.scene_id)
     ).size;
-    audioOverrideStats = { total_scenes: totalScenes, scenes_with_overrides: scenesWithOverrides };
+    audioOverrideStats = { totalScenes, scenesWithOverrides };
   }
 
   const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string, icon: typeof CheckCircle, className?: string }> = {
@@ -168,27 +184,27 @@ export default async function ProjectPage({
             id: project.id,
             name: project.name,
             status: project.status,
-            page_count: project.pageCount,
-            script_text: project.scriptText ?? '',
-            director_json: project.directorJson,
-            preferred_workflow_mode: (project.preferredWorkflowMode as 'automatic' | 'fine_tuned' | undefined) ?? undefined,
-            current_run_number: project.currentRunNumber ?? 0,
+            pageCount: project.pageCount,
+            scriptText: project.scriptText ?? '',
+            directorJson: project.directorJson,
+            preferredWorkflowMode: (project.preferredWorkflowMode as 'automatic' | 'fine_tuned' | undefined) ?? undefined,
+            currentRunNumber: project.currentRunNumber ?? 0,
           }}
-          storyScore={storyScore ? { id: storyScore.id, overall_score: Number(storyScore.overallScore) } : null}
+          storyScore={storyScore ? { id: storyScore.id, overallScore: Number(storyScore.overallScore) } : null}
           audioOutputs={audioOutputs?.map(a => ({
             id: a.id,
-            file_name: a.fileName,
-            file_path: a.filePath,
-            duration_seconds: a.durationSeconds ? Number(a.durationSeconds) : undefined,
+            fileName: a.fileName,
+            filePath: a.filePath,
+            durationSeconds: a.durationSeconds ? Number(a.durationSeconds) : undefined,
             format: a.format,
           }))}
           latestJob={latestJob ? {
-            run_number: latestJob.runNumber ?? undefined,
-            workflow_mode: (latestJob.workflowMode as 'automatic' | 'fine_tuned' | undefined) ?? undefined,
+            runNumber: latestJob.runNumber ?? undefined,
+            workflowMode: (latestJob.workflowMode as 'automatic' | 'fine_tuned' | undefined) ?? undefined,
             progress: latestJob.progress as { step?: string; percent?: number } | undefined,
             error: latestJob.error ?? undefined,
           } : null}
-          allJobs={enrichedJobs as any}
+          allJobs={enrichedJobs}
           voiceAssignments={voiceAssignments}
           audioOverrides={audioOverrideStats}
           remainingPreviews={remainingPreviews ?? 0}

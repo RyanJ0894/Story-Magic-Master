@@ -75,17 +75,14 @@ export async function POST(request: Request) {
     }, { status: 403 });
   }
 
-  // Verify user is authenticated and get session for API calls
-  const { userId, getToken } = await auth();
+  // Verify user is authenticated
+  const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({
       error: 'Unauthorized',
       code: 'AUTH_REQUIRED',
     }, { status: 401 });
   }
-
-  // Get session token for orchestrator API calls
-  const accessToken = await getToken();
 
   // Parse and validate request body
   let body: unknown;
@@ -183,7 +180,6 @@ export async function POST(request: Request) {
           scriptText: sanitizedScript,
           pageCount: project.pageCount,
           voiceOverrides,
-          accessToken,
         },
       },
     },

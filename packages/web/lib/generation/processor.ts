@@ -81,7 +81,6 @@ export async function processGenerationJob(
   userId: string,
   scriptText: string,
   pageCount: number,
-  accessToken: string | undefined,
   voiceOverrides: Record<string, string> = {}
 ) {
   const updateJobProgress = async (step: string, percent: number, details?: string, metadata: Record<string, unknown> = {}) => {
@@ -117,6 +116,7 @@ export async function processGenerationJob(
     await updateJobProgress('parsing', 10, 'Parsing script and assigning voices...');
 
     const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:22002';
+    const serviceKey = process.env.SERVICE_SECRET_KEY;
     logProgress(jobId, 'parsing', `Calling orchestrator at ${orchestratorUrl}/generate-scenes`);
 
     const generateScenesBody: Record<string, unknown> = {
@@ -132,7 +132,7 @@ export async function processGenerationJob(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
+        ...(serviceKey && { 'X-Service-Key': serviceKey }),
       },
       body: JSON.stringify(generateScenesBody),
     });
@@ -194,7 +194,7 @@ export async function processGenerationJob(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
+        ...(serviceKey && { 'X-Service-Key': serviceKey }),
       },
       body: JSON.stringify({
         project_id: projectId,

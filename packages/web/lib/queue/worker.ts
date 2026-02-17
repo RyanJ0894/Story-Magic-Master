@@ -283,7 +283,6 @@ registerProcessor('audio_generation', async (job, context) => {
     scriptText?: string;
     pageCount?: number;
     voiceOverrides?: Record<string, string>;
-    accessToken?: string;
   } | undefined;
 
   if (!metadata?.scriptText) {
@@ -298,7 +297,6 @@ registerProcessor('audio_generation', async (job, context) => {
     job.userId,
     metadata.scriptText,
     metadata.pageCount || 1,
-    metadata.accessToken,
     metadata.voiceOverrides || {},
   );
 });
@@ -318,7 +316,6 @@ registerProcessor('scene_regeneration', async (job, context) => {
   const metadata = (jobRow.result as Record<string, unknown>)?.metadata as {
     sceneIndex?: number;
     scene?: Record<string, unknown>;
-    accessToken?: string;
   } | undefined;
 
   if (metadata?.sceneIndex === undefined || !metadata?.scene) {
@@ -328,11 +325,12 @@ registerProcessor('scene_regeneration', async (job, context) => {
   await context.updateProgress('generating_audio', 10, `Regenerating scene ${metadata.sceneIndex + 1}...`);
 
   const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:22002';
+  const serviceKey = process.env.SERVICE_SECRET_KEY;
   const orchestratorResponse = await fetch(`${orchestratorUrl}/orchestrate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(metadata.accessToken && { 'Authorization': `Bearer ${metadata.accessToken}` }),
+      ...(serviceKey && { 'X-Service-Key': serviceKey }),
     },
     body: JSON.stringify({
       project_id: job.projectId,

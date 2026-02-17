@@ -12,16 +12,16 @@ import AudioPlayer from '@/app/projects/[id]/audio-player';
 const mockOutputs = [
   {
     id: 'output-1',
-    file_name: 'scene-1-final.m4a',
-    file_path: 'audio/project-123/scene-1-final.m4a',
-    duration_seconds: 180,
+    fileName: 'scene-1-final.m4a',
+    filePath: 'audio/project-123/scene-1-final.m4a',
+    durationSeconds: 180,
     format: 'm4a',
   },
   {
     id: 'output-2',
-    file_name: 'scene-2-final.m4a',
-    file_path: 'audio/project-123/scene-2-final.m4a',
-    duration_seconds: 240,
+    fileName: 'scene-2-final.m4a',
+    filePath: 'audio/project-123/scene-2-final.m4a',
+    durationSeconds: 240,
     format: 'm4a',
   },
 ];

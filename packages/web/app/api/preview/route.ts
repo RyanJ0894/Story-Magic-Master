@@ -27,16 +27,13 @@ export async function POST(request: Request) {
   }
 
   // Auth check
-  const { userId, getToken } = await auth();
+  const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({
       error: 'Unauthorized',
       code: 'AUTH_REQUIRED',
     }, { status: 401 });
   }
-
-  // Get session token for orchestrator calls
-  const accessToken = await getToken();
 
   // Parse and validate request body
   let body: unknown;
@@ -151,13 +148,14 @@ export async function POST(request: Request) {
 
   // Call orchestrator POST /preview
   const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:22002';
+  const serviceKey = process.env.SERVICE_SECRET_KEY;
 
   try {
     const response = await fetch(`${orchestratorUrl}/preview`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
+        ...(serviceKey && { 'X-Service-Key': serviceKey }),
       },
       body: JSON.stringify({
         project_id: projectId,

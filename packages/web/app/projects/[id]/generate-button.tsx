@@ -37,6 +37,7 @@ interface GenerateButtonProps {
   status: string;
   label?: string;
   workflowMode?: 'automatic' | 'fine_tuned';
+  hasScript?: boolean;
 }
 
 const ESTIMATED_DURATION_MS = 120000; // 2 minutes estimated
@@ -47,6 +48,7 @@ export default function GenerateButton({
   status,
   label = 'Generate Audio',
   workflowMode = 'fine_tuned',
+  hasScript = true,
 }: GenerateButtonProps) {
   const { userId, isSignedIn } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -169,6 +171,12 @@ export default function GenerateButton({
     if (!isSignedIn || !userId) {
       toast.error('Please sign in');
       router.push('/login');
+      setLoading(false);
+      return;
+    }
+
+    if (!hasScript) {
+      toast.error('Please add script text before generating audio.');
       setLoading(false);
       return;
     }

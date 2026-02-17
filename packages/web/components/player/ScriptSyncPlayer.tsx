@@ -41,9 +41,9 @@ interface Scene {
 
 interface AudioOutput {
   id: string;
-  file_name: string;
-  file_path: string;
-  duration_seconds?: number;
+  fileName: string;
+  filePath: string;
+  durationSeconds?: number;
   format: string;
 }
 
@@ -110,7 +110,7 @@ export function ScriptSyncPlayer({
           acc + scene.dialogue.reduce((a, line) => a + line.text.length, 0),
         0
       );
-      const estimatedDuration = duration || currentOutput?.duration_seconds || 60;
+      const estimatedDuration = duration || currentOutput?.durationSeconds || 60;
       const charsPerSecond = totalChars / estimatedDuration;
 
       let currentTimeOffset = 0;
@@ -292,7 +292,7 @@ export function ScriptSyncPlayer({
   }
 
   const orchestratorUrl = process.env.NEXT_PUBLIC_ORCHESTRATOR_URL || process.env.ORCHESTRATOR_URL || '';
-  const audioUrl = `${orchestratorUrl}/audio/${currentOutput.file_path}`;
+  const audioUrl = `${orchestratorUrl}/audio/${currentOutput.filePath}`;
 
   return (
     <div className={cn('space-y-4', className)}>
@@ -381,7 +381,7 @@ export function ScriptSyncPlayer({
                 {muted ? <VolumeX className="w-4 h-4" aria-hidden="true" /> : <Volume2 className="w-4 h-4" aria-hidden="true" />}
               </button>
               <Button variant="outline" size="sm" asChild>
-                <a href={audioUrl} download={currentOutput.file_name} aria-label={`Download ${currentOutput.file_name}`}>
+                <a href={audioUrl} download={currentOutput.fileName} aria-label={`Download ${currentOutput.fileName}`}>
                   <Download className="w-4 h-4" aria-hidden="true" />
                   <span className="sr-only">Download</span>
                 </a>

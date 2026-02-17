@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
   }
 
-  const { userId, getToken } = await auth();
+  const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
@@ -90,8 +90,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Trigger async processing
-    const accessToken = await getToken();
-    triggerProcessing(projectId, job.id, filePath, needsOCR, accessToken);
+    triggerProcessing(projectId, job.id, filePath, needsOCR);
 
     return NextResponse.json({
       projectId,
@@ -113,7 +112,6 @@ async function triggerProcessing(
   jobId: string,
   filePath: string,
   needsOCR: boolean,
-  accessToken: string | null
 ) {
   const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:22002';
 
@@ -169,11 +167,12 @@ async function triggerProcessing(
     });
 
     // Call orchestrator to parse into director JSON
+    const serviceKey = process.env.SERVICE_SECRET_KEY;
     const response = await fetch(`${orchestratorUrl}/generate-scenes`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
+        ...(serviceKey && { 'X-Service-Key': serviceKey }),
       },
       body: JSON.stringify({
         project_id: projectId,

@@ -22,6 +22,7 @@ services:
       corepack enable &&
       corepack prepare pnpm@9.1.0 --activate &&
       pnpm install --frozen-lockfile &&
+      cd packages/web && npx prisma generate && npx prisma migrate deploy && cd ../.. &&
       pnpm --filter @story-magic/web build
     startCommand: pnpm --filter @story-magic/web start
 
@@ -35,11 +36,25 @@ services:
       - key: NODE_ENV
         value: production
 
-      # Supabase STAGING (set in Render dashboard)
-      - key: NEXT_PUBLIC_SUPABASE_URL
+      # Database (Render PostgreSQL - set in dashboard)
+      - key: DATABASE_URL
         sync: false
-      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+      - key: DIRECT_DATABASE_URL
         sync: false
+
+      # Clerk auth (set in Render dashboard)
+      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: NEXT_PUBLIC_CLERK_SIGN_IN_URL
+        value: /login
+      - key: NEXT_PUBLIC_CLERK_SIGN_UP_URL
+        value: /signup
+      - key: NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL
+        value: /dashboard
+      - key: NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL
+        value: /dashboard
 
       # Stripe TEST mode (set in Render dashboard)
       - key: STRIPE_SECRET_KEY
@@ -52,11 +67,43 @@ services:
       # Sentry (optional for staging)
       - key: NEXT_PUBLIC_SENTRY_DSN
         sync: false
-      - key: SENTRY_AUTH_TOKEN
+      - key: SENTRY_DSN
         sync: false
 
       # Orchestrator URL (set in Render dashboard - staging orchestrator URL)
       - key: ORCHESTRATOR_URL
+        sync: false
+      - key: NEXT_PUBLIC_ORCHESTRATOR_URL
+        sync: false
+
+      # Service-to-service auth (set in Render dashboard)
+      - key: SERVICE_SECRET_KEY
+        sync: false
+
+      # Rate Limiting (Upstash - set in Render dashboard)
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+
+      # OpenAI (set in Render dashboard)
+      - key: OPENAI_API_KEY
+        sync: false
+
+      # Feature flags
+      - key: NEXT_PUBLIC_FF_STORY_SCORE
+        value: "true"
+      - key: NEXT_PUBLIC_FF_STORY_ADVISER
+        value: "true"
+      - key: NEXT_PUBLIC_FF_REVISION_TRACKING
+        value: "true"
+      - key: NEXT_PUBLIC_FF_COMPARABLE_SCRIPTS
+        value: "true"
+      - key: NEXT_PUBLIC_FF_EXPORT_REPORTS
+        value: "false"
+
+      # App URL
+      - key: NEXT_PUBLIC_APP_URL
         sync: false
 
   # =============================================================================
@@ -76,6 +123,7 @@ services:
       corepack enable &&
       corepack prepare pnpm@9.1.0 --activate &&
       pnpm install --frozen-lockfile &&
+      cd packages/web && npx prisma generate && cd ../.. &&
       pnpm --filter @story-magic/orchestrator build
     startCommand: pnpm --filter @story-magic/orchestrator start
 
@@ -97,18 +145,16 @@ services:
       - key: PORT
         value: "10000"
 
-      # Supabase STAGING (set in Render dashboard)
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_ANON_KEY
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
+      # Database (Render PostgreSQL - set in dashboard)
+      - key: DATABASE_URL
         sync: false
 
-      # AI Services (use same keys or separate test keys)
-      - key: OPENAI_API_KEY
+      # Clerk auth (set in Render dashboard)
+      - key: CLERK_SECRET_KEY
         sync: false
-      - key: GROQ_API_KEY
+
+      # AI Services (set in Render dashboard)
+      - key: OPENAI_API_KEY
         sync: false
       - key: ELEVENLABS_API_KEY
         sync: false
@@ -138,6 +184,14 @@ services:
       # Audio output directory (persistent disk mount)
       - key: AUDIO_OUTPUT_DIR
         value: /var/data/audio
+
+      # Service-to-service auth (set in Render dashboard)
+      - key: SERVICE_SECRET_KEY
+        sync: false
+
+      # Auth disabled for service-key-only orchestrator calls
+      - key: AUTH_DISABLED
+        value: "false"
 
 # =============================================================================
 # STAGING SETUP CHECKLIST

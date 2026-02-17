@@ -9,7 +9,6 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { auth } from '@clerk/nextjs/server';
 import { withProjectAuth, parseBody } from '@/lib/api/middleware';
 import { enqueue } from '@/lib/queue/service';
 import { log } from '@/lib/logger';
@@ -49,10 +48,6 @@ export const POST = withProjectAuth(
 
     const targetScene = directorJson.scenes[sceneIndex];
 
-    // Get session token for orchestrator API calls
-    const { getToken } = await auth();
-    const accessToken = await getToken();
-
     // Enqueue a scene_regeneration job
     const result = await enqueue({
       projectId,
@@ -62,7 +57,6 @@ export const POST = withProjectAuth(
       metadata: {
         sceneIndex,
         scene: targetScene,
-        accessToken,
       },
     });
 
