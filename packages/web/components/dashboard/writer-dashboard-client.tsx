@@ -207,7 +207,7 @@ export function WriterDashboardClient({
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">My Scripts</h2>
-              <Link href="/upload">
+              <Link href="/projects/new">
                 <Button variant="outline" size="sm">
                   <Plus className="w-4 h-4 mr-2" />
                   Upload Script
@@ -223,7 +223,7 @@ export function WriterDashboardClient({
                   <p className="text-sm text-muted-foreground mb-4">
                     Upload your first screenplay to get started
                   </p>
-                  <Link href="/upload">
+                  <Link href="/projects/new">
                     <Button>
                       <Plus className="w-4 h-4 mr-2" />
                       Upload Script

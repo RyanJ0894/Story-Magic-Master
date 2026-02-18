@@ -17,6 +17,8 @@ import {
 import { DequeueResult, WorkerConfig, WorkerStatus, JobType } from './types';
 import { prisma } from '@/lib/db';
 import { processGenerationJob } from '@/lib/generation/processor';
+import { generateScore } from '@/lib/scoring/service';
+import { generateSuggestions } from '@/lib/adviser/service';
 import { log } from '@/lib/logger';
 
 // =============================================================================
@@ -376,14 +378,63 @@ registerProcessor('scene_regeneration', async (job, context) => {
   return { sceneIndex: metadata.sceneIndex, audioUrls };
 });
 
-// Default processor for score generation
+// Score generation processor — runs StoryScore analysis on a project
 registerProcessor('score_generation', async (job, context) => {
-  throw new Error('Score generation processor not implemented');
+  await context.updateProgress('scoring', 10, 'Fetching project script...');
+
+  const project = await prisma.project.findUnique({
+    where: { id: job.projectId },
+    select: { name: true, description: true, scriptText: true },
+  });
+
+  if (!project?.scriptText) {
+    throw new Error('Project has no script text for scoring');
+  }
+
+  await context.updateProgress('scoring', 30, 'Running StoryScore analysis...');
+
+  const score = await generateScore(job.projectId, project.scriptText, {
+    title: project.name || undefined,
+    logline: project.description || undefined,
+  });
+
+  await context.updateProgress('scoring', 90, 'Score generation complete');
+
+  log.info('Score generation complete', {
+    jobId: job.jobId.slice(0, 8),
+    projectId: job.projectId,
+    overallScore: score.overall,
+  });
+
+  return { scoreId: score.id, overall: score.overall, rating: score.rating };
 });
 
-// Default processor for suggestion generation
+// Suggestion generation processor — runs Story-Adviser analysis on a project
 registerProcessor('suggestion_generation', async (job, context) => {
-  throw new Error('Suggestion generation processor not implemented');
+  await context.updateProgress('suggesting', 10, 'Fetching project script...');
+
+  const project = await prisma.project.findUnique({
+    where: { id: job.projectId },
+    select: { name: true, scriptText: true },
+  });
+
+  if (!project?.scriptText) {
+    throw new Error('Project has no script text for suggestion generation');
+  }
+
+  await context.updateProgress('suggesting', 30, 'Generating suggestions...');
+
+  const suggestions = await generateSuggestions(job.projectId, project.scriptText);
+
+  await context.updateProgress('suggesting', 90, 'Suggestion generation complete');
+
+  log.info('Suggestion generation complete', {
+    jobId: job.jobId.slice(0, 8),
+    projectId: job.projectId,
+    count: suggestions.length,
+  });
+
+  return { suggestionCount: suggestions.length };
 });
 
 // =============================================================================
