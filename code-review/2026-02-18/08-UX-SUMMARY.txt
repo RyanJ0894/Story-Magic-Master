@@ -1,0 +1,22 @@
+UX-001|HIGH|1 SP|Missing loading.tsx for /billing route — async server component with raw SQL has no skeleton loading state|packages/web/app/billing/page.tsx:16
+UX-002|MEDIUM|2 SP|Missing loading.tsx for /reader/dashboard and /writer/dashboard — multiple Prisma queries with no skeleton|packages/web/app/reader/dashboard/page.tsx:15
+UX-003|MEDIUM|0.5 SP|Missing loading state for /projects/new — client component may flash during auth resolution|packages/web/app/projects/new/page.tsx:27
+UX-004|HIGH|1 SP|Missing error.tsx for /billing route — raw SQL queries are error-prone, falls back to generic error|packages/web/app/billing/page.tsx:16
+UX-005|HIGH|2 SP|Missing error.tsx for /reader/dashboard and /writer/dashboard — 4-5 parallel queries with no route-specific error boundary|packages/web/app/reader/dashboard/page.tsx:15
+UX-006|MEDIUM|1 SP|Silent error in FeedbackModal — catch block only logs to console, no user-visible feedback|packages/web/components/feedback/FeedbackModal.tsx:145
+UX-007|MEDIUM|0.5 SP|Silent error in ShareModal — share creation failure only logged to console|packages/web/components/dashboard/share-modal.tsx:87
+UX-008|LOW|0.5 SP|Analytics daily signups chart shows tiny empty bars instead of empty state message when no signups|packages/web/app/admin/analytics/page.tsx:249
+UX-009|HIGH|1 SP|9 Switch components in admin settings lack accessible labels — no id, aria-label, or htmlFor association|packages/web/app/admin/settings/page.tsx:56
+UX-010|HIGH|0.5 SP|Admin audit-log filter uses plain <input> without any label or aria-label|packages/web/app/admin/audit-log/page.tsx:142
+UX-011|MEDIUM|1 SP|Multiple native <select> elements across admin pages lack accessible labels|packages/web/app/admin/users/page.tsx:139
+UX-012|MEDIUM|1 SP|Pricing page Monthly/Yearly toggle buttons lack ARIA role=radio and aria-checked|packages/web/app/pricing/page.tsx:73
+UX-013|MEDIUM|1 SP|Reader upload drop zone div lacks ARIA role and label; hidden file input has no accessible label|packages/web/components/reader/upload-client.tsx:288
+UX-014|LOW|0.5 SP|Upload client clear file button is icon-only with no aria-label|packages/web/components/reader/upload-client.tsx:365
+UX-015|HIGH|3 SP|Admin sidebar is fixed w-64 with no responsive breakpoints — unusable on mobile/tablet viewports|packages/web/app/admin/layout.tsx:50
+UX-016|MEDIUM|1 SP|Admin tables (users, subscriptions, audit-log) have 6-7 columns with no horizontal scroll wrapper|packages/web/app/admin/users/page.tsx:168
+UX-017|MEDIUM|1 SP|New project form has no minimum script length validation — single character accepted|packages/web/app/projects/new/page.tsx:209
+UX-018|LOW|1 SP|Share modal email tab silently disables send when no share link exists — confusing UX flow|packages/web/components/dashboard/share-modal.tsx:225
+UX-019|MEDIUM|0.5 SP|Pricing skeleton uses hardcoded bg-slate-200 without dark: variant — bright blocks in dark mode|packages/web/app/pricing/page.tsx:222
+UX-020|MEDIUM|2 SP|Hardcoded hex colors in ScoreTrajectoryChart, StoryScore, and ScriptEditor break dark mode contrast|packages/web/components/revisions/ScoreTrajectoryChart.tsx:166
+UX-021|LOW|0.5 SP|Swagger UI component uses hardcoded CSS border/background colors instead of theme tokens|packages/web/components/docs/swagger-ui.tsx:37
+UX-022|LOW|0.5 SP|GenerateButton dev log panel uses hardcoded dark colors — should be gated behind dev flag for production|packages/web/app/projects/[id]/generate-button.tsx:335

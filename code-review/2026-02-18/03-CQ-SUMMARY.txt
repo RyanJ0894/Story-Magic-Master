@@ -1,0 +1,18 @@
+CQ-001|CRITICAL|5 SP|16 'as unknown as Row' casts bypass Prisma type safety in adviser/scoring/revisions/queue services|packages/web/lib/adviser/service.ts:163
+CQ-002|HIGH|2 SP|Stripe webhook casts subscription/invoice to anonymous types for missing SDK fields|packages/web/app/api/stripe/webhook/route.ts:99
+CQ-003|HIGH|2 SP|'as any' and ': any' in orchestrator logger (3) and whisper-align (1)|packages/orchestrator/src/lib/logger.ts:48
+CQ-004|HIGH|2 SP|'as unknown as LanguageModelV1' casts for Anthropic/Google AI SDK providers|packages/orchestrator/src/lib/llm-client.ts:76
+CQ-005|MEDIUM|1 SP|Untyped 'any' props: directorJson and existingScore in workflow components|packages/web/app/projects/[id]/project-workflow.tsx:101
+CQ-006|MEDIUM|2 SP|ElevenLabs voice API response mapped with (v: any) -- no runtime validation|packages/orchestrator/src/director/tools/hybrid-voice-search.ts:270
+CQ-007|MEDIUM|2 SP|Prisma project cast to Record<string, unknown> in withProjectAuth middleware|packages/web/lib/api/middleware.ts:162
+CQ-008|HIGH|5 SP|5 different catch-block patterns across 112+ catch blocks in API routes|packages/web/app/api/projects/route.ts:47
+CQ-009|MEDIUM|3 SP|70 console.* calls in production code bypassing structured logger|packages/web/lib/adviser/service.ts:165
+CQ-010|HIGH|2 SP|3 independent OpenAI client initializations (adviser, scoring, embeddings)|packages/web/lib/adviser/service.ts:32
+CQ-011|HIGH|3 SP|Duplicate LLM call + JSON.parse + validate pattern in 3 service functions|packages/web/lib/scoring/service.ts:57
+CQ-012|HIGH|5 SP|30+ routes manually parse JSON body instead of using parseBody helper|packages/web/app/api/projects/[id]/feedback/route.ts:49
+CQ-013|MEDIUM|2 SP|3 structurally identical email send functions in resend.ts|packages/web/lib/email/resend.ts:47
+CQ-014|MEDIUM|1 SP|Duplicate Prisma singleton boilerplate across web and orchestrator packages|packages/web/lib/db.ts:3
+CQ-015|MEDIUM|2 SP|Mixed snake_case (marketplace types) and camelCase (all other types) conventions|packages/web/lib/types/marketplace.ts:21
+CQ-016|LOW|0 SP|Inconsistent error variable naming: error vs err vs empty catch across routes|packages/web/app/api/health/route.ts:36
+CQ-017|MEDIUM|2 SP|Feedback route silently drops data when table missing -- runtime migration workaround|packages/web/app/api/projects/[id]/feedback/route.ts:86
+CQ-018|LOW|0 SP|6 eslint-disable suppression comments masking underlying type issues|packages/orchestrator/src/lib/logger.ts:47

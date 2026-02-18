@@ -1,0 +1,14 @@
+INFRA-001|Critical|1|Deploy job does not gate on E2E tests|.github/workflows/ci.yml:147
+INFRA-002|High|1|Hardcoded feature branch in CI triggers|.github/workflows/ci.yml:5
+INFRA-003|High|2|Missing DIRECT_DATABASE_URL in production render.yaml|render.yaml
+INFRA-004|High|2|No global-error.tsx boundary|packages/web/app/
+INFRA-005|High|2|Web health check uses root path instead of /api/health|render.yaml:42
+INFRA-006|Medium|5|Queue worker runs inside Next.js process|packages/web/instrumentation.ts:7
+INFRA-007|Medium|2|No build cache in CI pipeline|.github/workflows/ci.yml
+INFRA-008|Medium|2|Orchestrator build depends on web Prisma schema|render.yaml:145
+INFRA-009|Medium|1|Docker Compose and Render use different ports|docker-compose.yml:48
+INFRA-010|Medium|1|Sentry Replay exposes screenplay text|packages/web/sentry.client.config.ts:21
+INFRA-011|Medium|1|No staging database in IaC blueprint|render-staging.yaml
+INFRA-012|Low|2|No orchestrator build verification in CI|.github/workflows/ci.yml:99
+INFRA-013|Low|3|Deploy hooks have no verification step|.github/workflows/ci.yml:153
+INFRA-014|Low|1|Audio storage disk size may be insufficient|render.yaml:157

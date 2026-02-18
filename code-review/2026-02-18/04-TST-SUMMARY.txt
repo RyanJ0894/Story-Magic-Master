@@ -1,0 +1,53 @@
+TST-001|HIGH|8 SP|All 8 admin routes completely untested -- no auth/authz verification|packages/web/app/api/admin/*/route.ts
+TST-002|MEDIUM|2 SP|Audio preview catch-all route untested -- path traversal risk|packages/web/app/api/audio-preview/[...path]/route.ts
+TST-003|LOW|1 SP|Auth signout route untested|packages/web/app/api/auth/signout/route.ts
+TST-004|LOW|1 SP|Docs route untested|packages/web/app/api/docs/route.ts
+TST-005|MEDIUM|1 SP|Generate demo script route untested|packages/web/app/api/generate-demo-script/route.ts
+TST-006|MEDIUM|1 SP|Invite token route untested|packages/web/app/api/invite/[token]/route.ts
+TST-007|MEDIUM|1 SP|Job cancel route untested|packages/web/app/api/jobs/[id]/cancel/route.ts
+TST-008|LOW|1 SP|Job position route untested|packages/web/app/api/jobs/[id]/position/route.ts
+TST-009|LOW|1 SP|Preview route untested|packages/web/app/api/preview/route.ts
+TST-010|MEDIUM|1 SP|Audio overrides route untested|packages/web/app/api/projects/[id]/audio-overrides/route.ts
+TST-011|MEDIUM|1 SP|Comparables route untested|packages/web/app/api/projects/[id]/comparables/route.ts
+TST-012|LOW|1 SP|Project delete route untested (separate from [id] DELETE)|packages/web/app/api/projects/[id]/delete/route.ts
+TST-013|MEDIUM|1 SP|Export route untested|packages/web/app/api/projects/[id]/export/route.ts
+TST-014|MEDIUM|1 SP|Feedback route untested|packages/web/app/api/projects/[id]/feedback/route.ts
+TST-015|MEDIUM|3 SP|Revisions routes untested (4 related routes)|packages/web/app/api/projects/[id]/revisions/route.ts
+TST-016|MEDIUM|1 SP|Score route untested|packages/web/app/api/projects/[id]/score/route.ts
+TST-017|MEDIUM|3 SP|Suggestions routes untested (5 related routes)|packages/web/app/api/projects/[id]/suggestions/*/route.ts
+TST-018|MEDIUM|1 SP|Voice assignments route untested|packages/web/app/api/projects/[id]/voice-assignments/route.ts
+TST-019|LOW|1 SP|Workflow mode route untested|packages/web/app/api/projects/[id]/workflow-mode/route.ts
+TST-020|MEDIUM|1 SP|Queue status route untested|packages/web/app/api/queue/status/route.ts
+TST-021|HIGH|3 SP|Reader upload payment/process routes untested -- handles real Stripe payments|packages/web/app/api/reader/upload/*/route.ts
+TST-022|MEDIUM|2 SP|Share PATCH/DELETE untested -- revocation is security-critical|packages/web/app/api/shares/[shareId]/route.ts
+TST-023|MEDIUM|2 SP|Share access (public endpoint) untested|packages/web/app/api/shares/access/[code]/route.ts
+TST-024|MEDIUM|2 SP|Team members route untested|packages/web/app/api/teams/[teamId]/members/route.ts
+TST-025|MEDIUM|1 SP|Team share route untested|packages/web/app/api/teams/share/route.ts
+TST-026|LOW|1 SP|Voices route untested|packages/web/app/api/voices/route.ts
+TST-027|HIGH|3 SP|Clerk webhook route untested -- user sync depends on it|packages/web/app/api/webhooks/clerk/route.ts
+TST-028|MEDIUM|3 SP|Alerts and auth components untested|packages/web/components/alerts/AlertsDropdown.tsx
+TST-029|MEDIUM|5 SP|Dashboard components untested (5 of 6)|packages/web/components/dashboard/reader-dashboard-client.tsx
+TST-030|LOW|2 SP|FeedbackModal component untested|packages/web/components/feedback/FeedbackModal.tsx
+TST-031|MEDIUM|3 SP|Protected player and ScriptSyncPlayer untested|packages/web/components/player/protected-player.tsx
+TST-032|LOW|2 SP|Reader components untested|packages/web/components/reader/ScriptReadStatus.tsx
+TST-033|LOW|3 SP|Revisions components untested (4 components)|packages/web/components/revisions/DiffView.tsx
+TST-034|MEDIUM|3 SP|Script editor components untested|packages/web/components/script-editor/ScriptEditor.tsx
+TST-035|MEDIUM|5 SP|Story Adviser feature entirely untested (6 components)|packages/web/components/story-adviser/StoryAdviser.tsx
+TST-036|LOW|2 SP|StoryScore components untested|packages/web/components/storyscore/StoryScore.tsx
+TST-037|LOW|2 SP|Wizard components untested|packages/web/components/wizard/Wizard.tsx
+TST-038|MEDIUM|3 SP|Project page action buttons untested|packages/web/app/projects/[id]/delete-button.tsx
+TST-039|LOW|3 SP|Project workflow/history components untested|packages/web/app/projects/[id]/project-workflow.tsx
+TST-040|LOW|2 SP|Voice/workflow choosers untested|packages/web/app/projects/[id]/voice-chooser.tsx
+TST-041|MEDIUM|2 SP|Shallow toBeDefined assertions in health check test|packages/web/tests/unit/api/routes-coverage.test.ts:655
+TST-042|MEDIUM|2 SP|Missing auth checks on 4 reader library sub-endpoints|packages/web/tests/unit/api/reader-library.test.ts
+TST-043|LOW|1 SP|Misleading test description in webhook error test|packages/web/tests/unit/api/stripe-webhook.test.ts:319
+TST-044|LOW|1 SP|No concurrent access tests for projects|packages/web/tests/unit/api/projects-route.test.ts
+TST-045|MEDIUM|2 SP|Prisma mock missing 13 of 23 models in global setup|packages/web/tests/setup.ts:51
+TST-046|LOW|1 SP|Rate limiting disabled globally in unit tests|packages/web/tests/setup-unit.ts:9
+TST-047|LOW|1 SP|MSW handlers only return success responses|packages/web/tests/mocks/handlers.ts
+TST-048|HIGH|5 SP|No E2E test for generate-to-playback flow|packages/web/e2e/ (missing generate-flow.spec.ts)
+TST-049|MEDIUM|3 SP|No E2E test for Stripe checkout flow|packages/web/e2e/ (missing billing.spec.ts)
+TST-050|MEDIUM|2 SP|No E2E test for share/reader flow|packages/web/e2e/ (missing share-flow.spec.ts)
+TST-051|LOW|1 SP|Integration test SFX assertion is shallow|packages/orchestrator/src/__tests__/integration/pipeline-integration.test.ts:557
+TST-052|LOW|2 SP|No test for loudness normalization parse failure|packages/orchestrator/src/orchestrator/workers/mixer.test.ts
+TST-053|LOW|1 SP|No TTS rate limit/failure test|packages/orchestrator/src/orchestrator/workers/tts.test.ts

@@ -1,0 +1,19 @@
+SEC-001|HIGH|1|Health check leaks service config to unauthenticated users|packages/web/app/api/health/route.ts:822
+SEC-002|MEDIUM|1|OpenAPI spec exposed without auth|packages/web/app/api/docs/route.ts:3
+SEC-003|MEDIUM|2|Share access GET has no rate limiting|packages/web/app/api/shares/access/[code]/route.ts:134
+SEC-004|LOW|1|Invite GET leaks PII without rate limit|packages/web/app/api/invite/[token]/route.ts:5
+SEC-005|HIGH|1|workflow-mode POST: no try/catch, no Zod validation|packages/web/app/api/projects/[id]/workflow-mode/route.ts:6
+SEC-006|HIGH|3|4 reader routes lack Zod validation on request.json()|packages/web/app/api/reader/library/*/route.ts
+SEC-007|MEDIUM|1|Stripe checkout uses inline validation instead of Zod|packages/web/app/api/stripe/checkout/route.ts:8
+SEC-008|MEDIUM|1|Alerts PATCH missing Zod schema for alertIds/markAllRead|packages/web/app/api/alerts/route.ts:122
+SEC-009|LOW|0|Raw SQL is safely parameterized (false positive)|packages/web/app/api/projects/[id]/feedback/route.ts:75
+SEC-010|HIGH|3|Orchestrator download endpoint has no ownership check (IDOR)|packages/orchestrator/src/index.ts:97
+SEC-011|LOW|1|Queue status leaks cross-tenant data to any auth user|packages/web/app/api/queue/status/route.ts:7
+SEC-012|INFO|0|Health check confirms specific API key names|packages/web/app/api/health/route.ts:28
+SEC-013|INFO|1|Signout redirect uses unvalidated origin header|packages/web/app/api/auth/signout/route.ts:9
+SEC-014|MEDIUM|1|Share password POST missing CSRF validation|packages/web/app/api/shares/access/[code]/route.ts:271
+SEC-015|LOW|0|Invite POST CSRF ordering is correct (informational)|packages/web/app/api/invite/[token]/route.ts:28
+SEC-016|MEDIUM|2|Sensitive routes (payments, admin mutations) use default rate limit|multiple routes
+SEC-017|MEDIUM|2|Public share GET endpoint has no rate limit|packages/web/app/api/shares/access/[code]/route.ts:134
+SEC-018|INFO|0|Webhook verification correctly implemented for Stripe and Clerk|packages/web/app/api/stripe/webhook/route.ts,webhooks/clerk/route.ts
+SEC-019|MEDIUM|2|Upload filename not sanitized before disk write|packages/web/app/api/reader/upload/process/route.ts:31

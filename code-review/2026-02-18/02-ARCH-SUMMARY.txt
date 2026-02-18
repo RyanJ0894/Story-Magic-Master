@@ -1,0 +1,14 @@
+ARCH-001|HIGH|8|Business logic in route handlers instead of service layer|packages/web/app/api/generate/route.ts:55
+ARCH-002|MEDIUM|3|Admin authorization check duplicated 8+ times across admin routes|packages/web/app/api/admin/*/route.ts
+ARCH-003|MEDIUM|2|Ownership verification functions duplicated in suggestion/revision route files|packages/web/app/api/suggestions/[id]/route.ts:49
+ARCH-004|HIGH|5|Inconsistent error response shapes (4+ different formats)|multiple routes
+ARCH-005|MEDIUM|2|Error details leak internal information in production responses|packages/web/app/api/alerts/route.ts:51
+ARCH-006|LOW|1|Inconsistent HTTP status codes for authorization failures (403 vs 404)|multiple routes
+ARCH-007|MEDIUM|3|Reader library queries run sequentially instead of in parallel|packages/web/app/api/reader/library/route.ts:62
+ARCH-008|MEDIUM|2|Admin stats runs 9 separate COUNT queries|packages/web/app/api/admin/stats/route.ts:16
+ARCH-009|LOW|2|withProjectAuth fetches all project columns, loses type safety|packages/web/lib/api/middleware.ts:148
+ARCH-010|MEDIUM|3|Duplicate route patterns for suggestions and revisions resources|packages/web/app/api/suggestions/[id]/route.ts
+ARCH-011|LOW|3|Response envelope format varies across routes (data vs resource name vs none)|multiple routes
+ARCH-012|LOW|3|Web package has no env validation at startup unlike orchestrator|packages/web/
+ARCH-013|MEDIUM|3|Orchestrator fetch calls have no timeout or retry logic|packages/web/app/api/preview/route.ts:130
+ARCH-014|INFO|1|Fire-and-forget async processing in upload route|packages/web/app/api/reader/upload/process/route.ts:73

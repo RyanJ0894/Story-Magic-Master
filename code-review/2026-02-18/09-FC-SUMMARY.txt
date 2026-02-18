@@ -1,0 +1,30 @@
+FC-001|LOW|0 SP|Director validator TODO regex is intentional validation logic, not incomplete work|packages/orchestrator/src/director/validation/director-validator.ts:30
+FC-002|HIGH|3 SP|score_generation queue processor throws 'Not implemented' -- async scoring broken|packages/web/lib/queue/worker.ts:381
+FC-003|HIGH|3 SP|suggestion_generation queue processor throws 'Not implemented' -- async suggestions broken|packages/web/lib/queue/worker.ts:386
+FC-004|MEDIUM|3 SP|Stripe subscription sync is a stub in admin -- no actual Stripe API call|packages/web/app/api/admin/subscriptions/[subscriptionId]/route.ts:158
+FC-005|MEDIUM|5 SP|Admin settings page is non-functional UI shell -- all Save buttons disabled|packages/web/app/admin/settings/page.tsx:58
+FC-006|LOW|3 SP|Teams entity missing PATCH (update) and DELETE -- no /api/teams/[teamId]/route.ts|packages/web/app/api/teams/route.ts
+FC-007|LOW|2 SP|Audio Outputs have no dedicated CRUD API -- only created internally by pipeline|packages/web/prisma/schema.prisma:178
+FC-008|LOW|1 SP|Subscriptions have no user-facing cancel endpoint -- relies on Stripe portal|packages/web/app/api/stripe/portal/route.ts
+FC-009|LOW|1 SP|Alerts have no DELETE endpoint for clearing old notifications|packages/web/app/api/alerts/route.ts
+FC-010|MEDIUM|2 SP|7 admin API routes orphaned -- admin pages use server-side Prisma directly|packages/web/app/api/admin/
+FC-011|LOW|0 SP|Queue status endpoint has no frontend consumer -- ops/monitoring only|packages/web/app/api/queue/status/route.ts
+FC-012|LOW|0 SP|Health endpoint not called from frontend -- infrastructure endpoint|packages/web/app/api/health/route.ts
+FC-013|LOW|1 SP|Auth signout route unused -- Clerk handles signout client-side|packages/web/app/api/auth/signout/route.ts
+FC-014|HIGH|2 SP|/api/jobs/[id]/status route does not exist -- reader upload polling returns 404|packages/web/components/reader/upload-client.tsx:190
+FC-015|HIGH|2 SP|/api/shares/access/[code]/play route missing -- play count tracking non-functional|packages/web/app/s/[code]/page.tsx:169
+FC-016|MEDIUM|0 SP|PlatformSetting model only referenced in admin settings API (see FC-005)|packages/web/prisma/schema.prisma:688
+FC-017|MEDIUM|3 SP|AlertPreference model has zero application references -- notification prefs unused|packages/web/prisma/schema.prisma:643
+FC-018|LOW|2 SP|ContentAccessLog model lightly used -- access events not being recorded|packages/web/prisma/schema.prisma:338
+FC-019|MEDIUM|0 SP|STORY_SCORE feature complete but disabled by default flag|packages/web/lib/features/flags.tsx:39
+FC-020|MEDIUM|0 SP|STORY_ADVISER feature complete but disabled by default flag|packages/web/lib/features/flags.tsx:48
+FC-021|MEDIUM|0 SP|REVISION_TRACKING feature complete but disabled by default flag|packages/web/lib/features/flags.tsx:58
+FC-022|MEDIUM|0 SP|SCRIPT_EDITOR feature complete but disabled by default flag|packages/web/lib/features/flags.tsx:68
+FC-023|LOW|3 SP|COMPARABLE_SCRIPTS feature needs corpus population workflow|packages/web/lib/features/flags.tsx:78
+FC-024|LOW|1 SP|EXPORT_REPORTS feature needs validation testing|packages/web/lib/features/flags.tsx:88
+FC-025|MEDIUM|3 SP|/alerts page does not exist -- AlertsDropdown links to 404|packages/web/components/alerts/AlertsDropdown.tsx:258
+FC-026|HIGH|1 SP|/upload page does not exist -- writer dashboard links to 404|packages/web/components/dashboard/writer-dashboard-client.tsx:210
+FC-027|LOW|3 SP|/settings route protected in middleware but no page exists|packages/web/middleware.ts:10
+FC-028|LOW|1 SP|/terms and /privacy pages exist but not linked from any navigation|packages/web/app/terms/page.tsx
+FC-029|LOW|0 SP|/docs page not linked from any navigation -- only discoverable by direct URL|packages/web/app/docs/page.tsx
+FC-030|LOW|0 SP|Three dashboard variants (/, /writer/, /reader/) may cause routing confusion|packages/web/app/dashboard/page.tsx

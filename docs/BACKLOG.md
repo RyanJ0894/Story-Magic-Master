@@ -1,3 +1,5 @@
+> **Superseded by:** [ROADMAP-2026-02-18](ROADMAP-2026-02-18.md)
+
 # Story Magic Feature Backlog
 
 > **ARCHIVED** (2026-02-07) — Voice Casting UI absorbed into Phase 4 (P4-01 through P4-03) of `TODO_PRODUCTION_LAUNCH.md`. See [`docs/ROADMAP-2026-02-07.md`](ROADMAP-2026-02-07.md) for go-forward plan.
