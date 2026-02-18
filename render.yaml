@@ -61,6 +61,14 @@ services:
         sync: false
       - key: CLERK_WEBHOOK_SECRET
         sync: false
+      - key: NEXT_PUBLIC_CLERK_SIGN_IN_URL
+        value: /login
+      - key: NEXT_PUBLIC_CLERK_SIGN_UP_URL
+        value: /signup
+      - key: NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL
+        value: /dashboard
+      - key: NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL
+        value: /dashboard
 
       # Stripe
       - key: STRIPE_SECRET_KEY
@@ -73,6 +81,8 @@ services:
       # Sentry (set in Render dashboard)
       - key: NEXT_PUBLIC_SENTRY_DSN
         sync: false
+      - key: SENTRY_DSN
+        sync: false
       - key: SENTRY_AUTH_TOKEN
         sync: false
 
@@ -81,9 +91,15 @@ services:
         sync: false
       - key: NEXT_PUBLIC_ORCHESTRATOR_URL
         sync: false
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
 
       # OpenAI (needed for intelligence features on web)
       - key: OPENAI_API_KEY
+        sync: false
+
+      # Inter-service auth
+      - key: SERVICE_SECRET_KEY
         sync: false
 
       # Upstash Redis (Rate Limiting - shared with orchestrator)
@@ -196,6 +212,14 @@ services:
       # Audio output directory (persistent disk mount)
       - key: AUDIO_OUTPUT_DIR
         value: /var/data/audio
+
+      # Inter-service auth
+      - key: SERVICE_SECRET_KEY
+        sync: false
+
+      # Auth bypass (must be false in production)
+      - key: AUTH_DISABLED
+        value: "false"
 
 # =============================================================================
 # SECRETS TO SET IN RENDER DASHBOARD (sync: false)
