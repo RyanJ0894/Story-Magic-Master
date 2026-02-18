@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { withAuth } from '@/lib/api/middleware';
+import { withAdminAuth } from '@/lib/api/middleware';
 import { populateMissingEmbeddings } from '@/lib/comparable/service';
 import { log } from '@/lib/logger';
 
@@ -13,20 +13,7 @@ import { log } from '@/lib/logger';
 // POST - Populate Missing Embeddings
 // =============================================================================
 
-export const POST = withAuth(async (request, { userId, prisma }) => {
-  // Check if user is admin via profile
-  const profile = await prisma.profile.findUnique({
-    where: { id: userId },
-    select: { userType: true },
-  });
-
-  if (profile?.userType !== 'admin') {
-    return NextResponse.json(
-      { error: 'Admin access required', code: 'FORBIDDEN' },
-      { status: 403 }
-    );
-  }
-
+export const POST = withAdminAuth(async (request, { userId, prisma }) => {
   try {
     const updatedCount = await populateMissingEmbeddings();
 

@@ -1,4 +1,4 @@
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, verifyOwnership } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { hashPassword } from '@/lib/password';
 import { UpdateShareRequestSchema } from '@/lib/api/dto';
@@ -36,14 +36,14 @@ export const PATCH = withAuth(async (request, { userId, prisma, params }) => {
   const shareId = params.shareId;
 
   // Verify ownership
-  const existingShare = await prisma.scriptShare.findFirst({
-    where: { id: shareId },
-    select: { id: true, sharedBy: true },
+  const ownerCheck = await verifyOwnership({
+    model: 'scriptShare',
+    resourceId: shareId,
+    userId,
+    ownerField: 'sharedBy',
+    select: { id: true },
   });
-
-  if (!existingShare || existingShare.sharedBy !== userId) {
-    return NextResponse.json({ error: 'Share not found or not authorized' }, { status: 404 });
-  }
+  if ('error' in ownerCheck) return ownerCheck.error;
 
   // Parse and validate request body
   const body = await request.json();
@@ -96,14 +96,14 @@ export const DELETE = withAuth(async (request, { userId, prisma, params }) => {
   const shareId = params.shareId;
 
   // Verify ownership
-  const existingShare = await prisma.scriptShare.findFirst({
-    where: { id: shareId },
-    select: { id: true, sharedBy: true },
+  const ownerCheck = await verifyOwnership({
+    model: 'scriptShare',
+    resourceId: shareId,
+    userId,
+    ownerField: 'sharedBy',
+    select: { id: true },
   });
-
-  if (!existingShare || existingShare.sharedBy !== userId) {
-    return NextResponse.json({ error: 'Share not found or not authorized' }, { status: 404 });
-  }
+  if ('error' in ownerCheck) return ownerCheck.error;
 
   try {
     // Soft delete by deactivating

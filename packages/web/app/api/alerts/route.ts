@@ -5,9 +5,22 @@
  * PATCH /api/alerts - Mark alerts as read
  */
 
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, parseBody } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { log } from '@/lib/logger';
+
+// =============================================================================
+// Validation
+// =============================================================================
+
+const MarkAlertsReadSchema = z.object({
+  alertIds: z.array(z.string().min(1)).optional(),
+  markAllRead: z.boolean().optional(),
+}).refine(
+  (data) => (data.alertIds && data.alertIds.length > 0) || data.markAllRead,
+  { message: 'Must provide alertIds or markAllRead' },
+);
 
 // =============================================================================
 // GET - List alerts
@@ -117,14 +130,9 @@ export const GET = withAuth(async (request, { userId, prisma }) => {
 // =============================================================================
 
 export const PATCH = withAuth(async (request, { userId, prisma }) => {
-  let body: { alertIds?: string[]; markAllRead?: boolean };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body', code: 'PARSE_ERROR' }, { status: 400 });
-  }
-
-  const { alertIds, markAllRead } = body;
+  const parsed = await parseBody(request, MarkAlertsReadSchema);
+  if ('error' in parsed) return parsed.error;
+  const { alertIds, markAllRead } = parsed.data;
 
   try {
     if (markAllRead) {
@@ -148,11 +156,6 @@ export const PATCH = withAuth(async (request, { userId, prisma }) => {
           readAt: new Date(),
         },
       });
-    } else {
-      return NextResponse.json(
-        { error: 'Must provide alertIds or markAllRead', code: 'VALIDATION_ERROR' },
-        { status: 400 }
-      );
     }
 
     return NextResponse.json({ success: true });

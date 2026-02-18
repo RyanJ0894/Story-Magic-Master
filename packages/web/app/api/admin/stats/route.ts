@@ -1,21 +1,12 @@
 import { NextResponse } from 'next/server';
-import { withAuth } from '@/lib/api/middleware';
+import { withAdminAuth } from '@/lib/api/middleware';
 import { mapDbStatsToAdminStats } from '@/lib/api/mappers';
 
 /**
  * GET /api/admin/stats
  * Get platform-wide statistics for admin dashboard
  */
-export const GET = withAuth(async (request, { userId, prisma }) => {
-  const profile = await prisma.profile.findUnique({
-    where: { id: userId },
-    select: { userType: true },
-  });
-
-  if (profile?.userType !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
+export const GET = withAdminAuth(async (request, { userId, prisma }) => {
   // Calculate date ranges
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());

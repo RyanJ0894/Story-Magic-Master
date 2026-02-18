@@ -53,7 +53,7 @@ export default async function AdminSettingsPage() {
                 <Label>Maintenance Mode</Label>
                 <p className="text-sm text-muted-foreground">Temporarily disable user access</p>
               </div>
-              <Switch />
+              <Switch aria-label="Toggle maintenance mode" />
             </div>
             <Button disabled title="Settings management coming in a future release">Save Changes</Button>
           </CardContent>
@@ -76,21 +76,21 @@ export default async function AdminSettingsPage() {
                 <Label>Require Email Verification</Label>
                 <p className="text-sm text-muted-foreground">New users must verify email</p>
               </div>
-              <Switch defaultChecked />
+              <Switch defaultChecked aria-label="Toggle require email verification" />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <Label>Allow Social Login</Label>
                 <p className="text-sm text-muted-foreground">Enable Google/Apple sign in</p>
               </div>
-              <Switch defaultChecked />
+              <Switch defaultChecked aria-label="Toggle allow social login" />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <Label>Two-Factor Authentication</Label>
                 <p className="text-sm text-muted-foreground">Require 2FA for admin accounts</p>
               </div>
-              <Switch />
+              <Switch aria-label="Toggle two-factor authentication" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="session-timeout">Session Timeout (hours)</Label>
@@ -125,7 +125,7 @@ export default async function AdminSettingsPage() {
                 <Label>Welcome Email</Label>
                 <p className="text-sm text-muted-foreground">Send welcome email on signup</p>
               </div>
-              <Switch defaultChecked />
+              <Switch defaultChecked aria-label="Toggle welcome email on signup" />
             </div>
             <Button disabled title="Settings management coming in a future release">Save Changes</Button>
           </CardContent>
@@ -148,28 +148,28 @@ export default async function AdminSettingsPage() {
                 <Label>New User Signups</Label>
                 <p className="text-sm text-muted-foreground">Get notified on new registrations</p>
               </div>
-              <Switch defaultChecked />
+              <Switch defaultChecked aria-label="Toggle new user signup notifications" />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <Label>New Subscriptions</Label>
                 <p className="text-sm text-muted-foreground">Get notified on new paid subscriptions</p>
               </div>
-              <Switch defaultChecked />
+              <Switch defaultChecked aria-label="Toggle new subscription notifications" />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <Label>Subscription Cancellations</Label>
                 <p className="text-sm text-muted-foreground">Get notified when users cancel</p>
               </div>
-              <Switch defaultChecked />
+              <Switch defaultChecked aria-label="Toggle subscription cancellation notifications" />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <Label>Failed Payments</Label>
                 <p className="text-sm text-muted-foreground">Get notified on payment failures</p>
               </div>
-              <Switch defaultChecked />
+              <Switch defaultChecked aria-label="Toggle failed payment notifications" />
             </div>
             <Button disabled title="Settings management coming in a future release">Save Changes</Button>
           </CardContent>

@@ -8,6 +8,7 @@
  */
 
 import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
 import { apiFetch } from '@/lib/api/fetch';
 import {
   Dialog,
@@ -110,6 +111,7 @@ export function FeedbackModal({
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const { toast } = useToast();
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -144,6 +146,11 @@ export function FeedbackModal({
       }, 1500);
     } catch (error) {
       console.error('Failed to submit feedback:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Submission failed',
+        description: 'Could not submit your feedback. Please try again.',
+      });
     } finally {
       setIsSubmitting(false);
     }

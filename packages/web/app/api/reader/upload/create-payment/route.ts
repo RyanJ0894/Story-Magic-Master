@@ -1,6 +1,7 @@
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, parseBody } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { z } from 'zod';
 import { log } from '@/lib/logger';
 
 // Lazy initialization to avoid build-time errors when STRIPE_SECRET_KEY is not set
@@ -12,12 +13,21 @@ function getStripe(): Stripe {
   return new Stripe(key);
 }
 
+const CreatePaymentSchema = z.object({
+  price: z.number().refine(val => val === 5 || val === 8, {
+    message: 'Price must be $5 (standard) or $8 (OCR)',
+  }),
+  needsOCR: z.boolean(),
+  scriptName: z.string().max(200).optional(),
+});
+
 // POST /api/reader/upload/create-payment - Create Stripe Checkout Session for upload
 export const POST = withAuth(async (request, { userId, prisma }) => {
-  const body = await request.json();
-  const { price, needsOCR, scriptName } = body;
+  const parsed = await parseBody(request, CreatePaymentSchema);
+  if ('error' in parsed) return parsed.error;
+  const { price, needsOCR, scriptName } = parsed.data;
 
-  // Validate price
+  // Validate price matches OCR selection
   const expectedPrice = needsOCR ? 8 : 5;
   if (price !== expectedPrice) {
     return NextResponse.json({ error: 'Invalid price' }, { status: 400 });

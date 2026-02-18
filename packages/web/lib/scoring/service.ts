@@ -5,7 +5,7 @@
  * Provides scoring, caching, and database persistence.
  */
 
-import OpenAI from 'openai';
+import { getOpenAI } from '@/lib/ai/openai';
 import { prisma } from '@/lib/db';
 import {
   StoryScore,
@@ -70,14 +70,7 @@ function toStoryScoreRow(data: Record<string, unknown>): StoryScoreRow {
   };
 }
 
-// Lazy-initialized OpenAI client (avoids crash if OPENAI_API_KEY is unset at import time)
-let _openai: OpenAI | null = null;
-function getOpenAI(): OpenAI {
-  if (!_openai) {
-    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  }
-  return _openai;
-}
+// OpenAI client imported from shared singleton (@/lib/ai/openai)
 
 /**
  * Generate a new score for a project's script

@@ -131,7 +131,7 @@ describe('Stripe Checkout Route (POST /api/stripe/checkout)', () => {
 
     expect(response.status).toBe(400);
     const json = await response.json();
-    expect(json.error).toBe('Invalid tier');
+    expect(json.error).toBe('Invalid request parameters');
   });
 
   it('returns 400 for missing tier', async () => {
@@ -140,7 +140,7 @@ describe('Stripe Checkout Route (POST /api/stripe/checkout)', () => {
 
     expect(response.status).toBe(400);
     const json = await response.json();
-    expect(json.error).toBe('Invalid tier');
+    expect(json.error).toBe('Invalid request parameters');
   });
 
   it('returns 400 for invalid interval', async () => {
@@ -149,7 +149,7 @@ describe('Stripe Checkout Route (POST /api/stripe/checkout)', () => {
 
     expect(response.status).toBe(400);
     const json = await response.json();
-    expect(json.error).toBe('Invalid interval');
+    expect(json.error).toBe('Invalid request parameters');
   });
 
   it('returns 400 for missing interval', async () => {
@@ -158,7 +158,7 @@ describe('Stripe Checkout Route (POST /api/stripe/checkout)', () => {
 
     expect(response.status).toBe(400);
     const json = await response.json();
-    expect(json.error).toBe('Invalid interval');
+    expect(json.error).toBe('Invalid request parameters');
   });
 
   it('returns 200 with sessionId and url on success', async () => {

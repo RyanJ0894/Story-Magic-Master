@@ -5,7 +5,7 @@
  * Uses OpenAI GPT-4o for fast, cost-effective generation.
  */
 
-import OpenAI from 'openai';
+import { getOpenAI } from '@/lib/ai/openai';
 import { prisma } from '@/lib/db';
 import { getLatestScore } from '@/lib/scoring';
 import {
@@ -72,11 +72,6 @@ function toRewriteRow(data: Record<string, unknown>): RewriteRow {
   };
 }
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 // =============================================================================
 // Suggestion Generation
 // =============================================================================
@@ -126,7 +121,7 @@ export async function generateSuggestions(
   );
 
   // Call OpenAI
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model,
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.4, // Slightly higher for varied suggestions
@@ -350,7 +345,7 @@ export async function generateRewrites(
   );
 
   // Call OpenAI
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model,
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.7, // Higher for creative rewrites

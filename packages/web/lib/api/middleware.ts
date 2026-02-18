@@ -164,6 +164,106 @@ export function withProjectAuth(
 }
 
 // ---------------------------------------------------------------------------
+// withAdminAuth — auth + admin role check in one call
+// ---------------------------------------------------------------------------
+
+export interface AdminAuthContext extends AuthContext {
+  /** The admin's profile record (id + userType) */
+  profile: { id: string; userType: string };
+}
+
+type AdminAuthHandler = (
+  request: Request,
+  ctx: AdminAuthContext,
+) => Promise<NextResponse | Response>;
+
+/**
+ * Wraps a route handler with authentication and admin role verification.
+ * Responds with 403 if the user's profile.userType is not 'admin'.
+ */
+export function withAdminAuth(
+  handler: AdminAuthHandler,
+  options: WithAuthOptions = {},
+) {
+  return withAuth(async (request, ctx) => {
+    const profile = await ctx.prisma.profile.findUnique({
+      where: { id: ctx.userId },
+      select: { id: true, userType: true },
+    });
+
+    if (profile?.userType !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    return handler(request, { ...ctx, profile: { id: profile.id, userType: profile.userType } });
+  }, options);
+}
+
+// ---------------------------------------------------------------------------
+// verifyOwnership — reusable ownership check for arbitrary resources
+// ---------------------------------------------------------------------------
+
+export interface VerifyOwnershipOptions<T> {
+  /** The Prisma model name (e.g. 'scriptShare', 'team') */
+  model: string;
+  /** The resource ID to look up */
+  resourceId: string;
+  /** The authenticated user's ID */
+  userId: string;
+  /** The field on the model that stores the owner user ID. Default: 'userId' */
+  ownerField?: string;
+  /** Optional select clause to return specific fields */
+  select?: Record<string, boolean>;
+}
+
+/**
+ * Verifies that a resource exists and belongs to the authenticated user.
+ * Returns the resource if ownership is confirmed, or a 404 NextResponse if not.
+ *
+ * Usage:
+ *   const result = await verifyOwnership({
+ *     model: 'scriptShare',
+ *     resourceId: shareId,
+ *     userId,
+ *     ownerField: 'sharedBy',
+ *   });
+ *   if ('error' in result) return result.error;
+ *   const share = result.data;
+ */
+export async function verifyOwnership<T = Record<string, unknown>>(
+  opts: VerifyOwnershipOptions<T>,
+): Promise<{ data: T } | { error: NextResponse }> {
+  const { model, resourceId, userId, ownerField = 'userId', select } = opts;
+
+  // Access the Prisma model dynamically
+  const prismaModel = (prisma as unknown as Record<string, { findFirst: Function }>)[model];
+  if (!prismaModel) {
+    return {
+      error: NextResponse.json(
+        { error: 'Internal error', code: 'INVALID_MODEL' },
+        { status: 500 },
+      ),
+    };
+  }
+
+  const resource = await prismaModel.findFirst({
+    where: { id: resourceId },
+    ...(select && { select: { ...select, [ownerField]: true } }),
+  });
+
+  if (!resource || (resource as Record<string, unknown>)[ownerField] !== userId) {
+    return {
+      error: NextResponse.json(
+        { error: 'Not found', code: 'NOT_FOUND' },
+        { status: 404 },
+      ),
+    };
+  }
+
+  return { data: resource as T };
+}
+
+// ---------------------------------------------------------------------------
 // parseBody — safe JSON parsing + Zod validation helper
 // ---------------------------------------------------------------------------
 

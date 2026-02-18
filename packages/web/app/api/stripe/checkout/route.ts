@@ -1,21 +1,20 @@
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, parseBody } from '@/lib/api/middleware';
 import { createCheckoutSession } from '@/lib/stripe/server';
 import { STRIPE_CONFIG } from '@/lib/stripe/config';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { log } from '@/lib/logger';
+
+const CheckoutRequestSchema = z.object({
+  tier: z.enum(['creator', 'pro', 'studio']),
+  interval: z.enum(['monthly', 'yearly']),
+});
 
 export const POST = withAuth(async (request, { userId, prisma }) => {
   try {
-    const { tier, interval } = await request.json();
-
-    // Validate tier and interval
-    if (!['creator', 'pro', 'studio'].includes(tier)) {
-      return NextResponse.json({ error: 'Invalid tier' }, { status: 400 });
-    }
-
-    if (!['monthly', 'yearly'].includes(interval)) {
-      return NextResponse.json({ error: 'Invalid interval' }, { status: 400 });
-    }
+    const parsed = await parseBody(request, CheckoutRequestSchema);
+    if ('error' in parsed) return parsed.error;
+    const { tier, interval } = parsed.data;
 
     // Get the price ID
     const priceId =

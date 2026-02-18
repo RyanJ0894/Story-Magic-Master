@@ -4,7 +4,7 @@
  * Generates text embeddings using OpenAI's text-embedding-3-small model.
  */
 
-import OpenAI from 'openai';
+import { getOpenAI } from '@/lib/ai/openai';
 
 // =============================================================================
 // Configuration
@@ -12,23 +12,6 @@ import OpenAI from 'openai';
 
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 const EMBEDDING_DIMENSIONS = 1536;
-
-// =============================================================================
-// Client
-// =============================================================================
-
-let openaiClient: OpenAI | null = null;
-
-function getOpenAI(): OpenAI {
-  if (!openaiClient) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OPENAI_API_KEY is not set');
-    }
-    openaiClient = new OpenAI({ apiKey });
-  }
-  return openaiClient;
-}
 
 // =============================================================================
 // Embedding Functions

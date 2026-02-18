@@ -1,6 +1,7 @@
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, parseBody } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { z } from 'zod';
 import { log } from '@/lib/logger';
 
 // Trim the API key to remove any accidental whitespace/newlines
@@ -10,18 +11,18 @@ const openai = new OpenAI({
   apiKey,
 });
 
+const DemoScriptRequestSchema = z.object({
+  prompt: z.string().min(1, 'Prompt is required').max(500),
+});
+
 export const POST = withAuth(async (request) => {
   try {
-    const { prompt: rawPrompt } = await request.json();
+    const parsed = await parseBody(request, DemoScriptRequestSchema);
+    if ('error' in parsed) return parsed.error;
 
-    if (!rawPrompt || typeof rawPrompt !== 'string') {
-      return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
-    }
-
-    // Sanitize: trim, limit length, strip control characters
-    const prompt = rawPrompt
+    // Sanitize: trim, strip control characters
+    const prompt = parsed.data.prompt
       .trim()
-      .slice(0, 500)
       // eslint-disable-next-line no-control-regex
       .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
 

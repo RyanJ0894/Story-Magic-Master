@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -62,6 +63,7 @@ export function ShareModal({
   const [recipientEmail, setRecipientEmail] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const { toast } = useToast();
 
   // Placeholder URL before share is created
   const placeholderUrl = 'Click "Create Share Link" to generate a URL';
@@ -86,6 +88,11 @@ export function ShareModal({
       setShareUrl(result.url);
     } catch (error) {
       console.error('Failed to create share:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Share link failed',
+        description: 'Could not create the share link. Please try again.',
+      });
     } finally {
       setIsCreating(false);
     }

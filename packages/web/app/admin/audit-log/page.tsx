@@ -144,11 +144,13 @@ npx prisma migrate dev`}</pre>
                   name="action"
                   placeholder="Action (e.g., user.login)"
                   defaultValue={actionFilter}
+                  aria-label="Filter by action type"
                   className="px-3 py-2 border rounded-md bg-background text-sm"
                 />
                 <select
                   name="resource"
                   defaultValue={resourceFilter}
+                  aria-label="Filter by resource type"
                   className="px-3 py-2 border rounded-md bg-background text-sm"
                 >
                   <option value="">All Resources</option>

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withAuth } from '@/lib/api/middleware';
+import { withAdminAuth } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
@@ -17,16 +17,7 @@ const GetSubscriptionsQuerySchema = z.object({
  * GET /api/admin/subscriptions
  * List all subscriptions with filtering and pagination
  */
-export const GET = withAuth(async (request, { userId, prisma }) => {
-  const profile = await prisma.profile.findUnique({
-    where: { id: userId },
-    select: { userType: true },
-  });
-
-  if (profile?.userType !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
+export const GET = withAdminAuth(async (request, { userId, prisma }) => {
   // Parse query params
   const { searchParams } = new URL(request.url);
   const parseResult = GetSubscriptionsQuerySchema.safeParse({
@@ -103,16 +94,7 @@ const UpdateSubscriptionSchema = z.object({
  * PATCH /api/admin/subscriptions
  * Perform admin actions on subscriptions
  */
-export const PATCH = withAuth(async (request, { userId, prisma }) => {
-  const adminProfile = await prisma.profile.findUnique({
-    where: { id: userId },
-    select: { userType: true },
-  });
-
-  if (adminProfile?.userType !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
+export const PATCH = withAdminAuth(async (request, { userId, prisma }) => {
   // Parse request body
   let body;
   try {

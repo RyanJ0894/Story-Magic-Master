@@ -95,10 +95,8 @@ export async function POST(request: Request) {
         const priceId = subscription.items.data[0]?.price.id;
         const tier = getTierFromPriceId(priceId);
 
-        // Access period fields from the Stripe subscription object
-        const sub = subscription as unknown as { current_period_start?: number; current_period_end?: number };
-        const periodStart = sub.current_period_start;
-        const periodEnd = sub.current_period_end;
+        const periodStart = subscription.current_period_start;
+        const periodEnd = subscription.current_period_end;
         const limits = TIER_LIMITS[tier] || TIER_LIMITS.free;
 
         if (userId) {
@@ -180,14 +178,9 @@ export async function POST(request: Request) {
 
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object as Stripe.Invoice;
-        const invoiceData = invoice as unknown as {
-          subscription?: string | { id: string };
-          period_start?: number;
-          period_end?: number;
-        };
-        const subscriptionId = typeof invoiceData.subscription === 'string'
-          ? invoiceData.subscription
-          : invoiceData.subscription?.id ?? null;
+        const subscriptionId = typeof invoice.subscription === 'string'
+          ? invoice.subscription
+          : invoice.subscription?.id ?? null;
 
         if (subscriptionId) {
           // Update subscription status on both models
@@ -210,8 +203,8 @@ export async function POST(request: Request) {
 
           if (profile) {
             // Create new usage record for the billing period
-            const periodStart = invoiceData.period_start;
-            const periodEnd = invoiceData.period_end;
+            const periodStart = invoice.period_start;
+            const periodEnd = invoice.period_end;
 
             if (periodStart && periodEnd) {
               const period = new Date(periodStart * 1000).toISOString().slice(0, 7);
@@ -234,12 +227,9 @@ export async function POST(request: Request) {
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice;
-        const invoiceData = invoice as unknown as {
-          subscription?: string | { id: string };
-        };
-        const subscriptionId = typeof invoiceData.subscription === 'string'
-          ? invoiceData.subscription
-          : invoiceData.subscription?.id ?? null;
+        const subscriptionId = typeof invoice.subscription === 'string'
+          ? invoice.subscription
+          : invoice.subscription?.id ?? null;
 
         if (subscriptionId) {
           await Promise.all([

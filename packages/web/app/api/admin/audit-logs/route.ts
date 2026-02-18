@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withAuth } from '@/lib/api/middleware';
+import { withAdminAuth } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { log } from '@/lib/logger';
@@ -19,16 +19,7 @@ const GetAuditLogsQuerySchema = z.object({
  * GET /api/admin/audit-logs
  * List audit log entries with filtering and pagination
  */
-export const GET = withAuth(async (request, { userId, prisma }) => {
-  const profile = await prisma.profile.findUnique({
-    where: { id: userId },
-    select: { userType: true },
-  });
-
-  if (profile?.userType !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
+export const GET = withAdminAuth(async (request, { userId, prisma }) => {
   // Parse query params
   const { searchParams } = new URL(request.url);
   const parseResult = GetAuditLogsQuerySchema.safeParse({

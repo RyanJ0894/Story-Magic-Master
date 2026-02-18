@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withAuth } from '@/lib/api/middleware';
+import { withAdminAuth } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { log } from '@/lib/logger';
 
@@ -16,16 +16,7 @@ const UpdateSettingsSchema = z.object({
  * Fetch all platform settings from the platform_settings table.
  * Returns { settings: Record<string, any> } keyed by the `key` column.
  */
-export const GET = withAuth(async (request, { userId, prisma }) => {
-  const profile = await prisma.profile.findUnique({
-    where: { id: userId },
-    select: { userType: true },
-  });
-
-  if (profile?.userType !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
+export const GET = withAdminAuth(async (request, { userId, prisma }) => {
   try {
     const rows = await prisma.platformSetting.findMany({
       select: { key: true, value: true, updatedBy: true, updatedAt: true },
@@ -50,16 +41,7 @@ export const GET = withAuth(async (request, { userId, prisma }) => {
  * Accepts { settings: Record<string, any> } in body.
  * Each key/value pair is upserted into platform_settings with updated_by and updated_at.
  */
-export const PUT = withAuth(async (request, { userId, prisma }) => {
-  const profile = await prisma.profile.findUnique({
-    where: { id: userId },
-    select: { userType: true },
-  });
-
-  if (profile?.userType !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
+export const PUT = withAdminAuth(async (request, { userId, prisma }) => {
   // Parse request body
   let body;
   try {
