@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, feat/clerk-prisma-migration]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -147,8 +147,8 @@ jobs:
   deploy:
     name: Deploy to Render
     runs-on: ubuntu-latest
-    needs: [build]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/clerk-prisma-migration'
+    needs: [build, e2e-tests]
+    if: github.ref == 'refs/heads/main'
     steps:
       - name: Deploy Web
         run: curl -s "${{ secrets.RENDER_DEPLOY_HOOK_WEB }}"

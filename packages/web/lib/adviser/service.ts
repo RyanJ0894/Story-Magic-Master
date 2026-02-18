@@ -28,6 +28,50 @@ import {
   findExcerptInScript,
 } from './prompts';
 
+// =============================================================================
+// Prisma-to-Row Adapters (type-safe camelCase → snake_case mapping)
+// =============================================================================
+
+/** Map Prisma suggestion result to SuggestionRow */
+function toSuggestionRow(data: Record<string, unknown>): SuggestionRow {
+  return {
+    id: data.id as string,
+    project_id: data.projectId as string,
+    score_id: (data.scoreId as string | null) ?? null,
+    start_line: data.startLine as number,
+    end_line: data.endLine as number,
+    start_char: (data.startChar as number | null) ?? null,
+    end_char: (data.endChar as number | null) ?? null,
+    excerpt: data.excerpt as string,
+    scene_number: (data.sceneNumber as number | null) ?? null,
+    scene_heading: (data.sceneHeading as string | null) ?? null,
+    category: data.category as SuggestionRow['category'],
+    severity: data.severity as SuggestionRow['severity'],
+    title: data.title as string,
+    explanation: data.explanation as string,
+    suggestion: data.suggestion as string,
+    status: data.status as SuggestionRow['status'],
+    user_feedback: (data.userFeedback as string | null) ?? null,
+    confidence: data.confidence as number,
+    created_at: String(data.createdAt),
+    responded_at: data.respondedAt ? String(data.respondedAt) : null,
+  };
+}
+
+/** Map Prisma rewrite result to RewriteRow */
+function toRewriteRow(data: Record<string, unknown>): RewriteRow {
+  return {
+    id: data.id as string,
+    suggestion_id: data.suggestionId as string,
+    original_text: data.originalText as string,
+    rewritten_text: data.rewrittenText as string,
+    explanation: data.explanation as string,
+    style: (data.style as string | null) ?? null,
+    selected: data.selected as boolean,
+    created_at: String(data.createdAt),
+  };
+}
+
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -160,7 +204,7 @@ export async function generateSuggestions(
         },
       });
 
-      suggestions.push(rowToSuggestion(inserted as unknown as SuggestionRow));
+      suggestions.push(rowToSuggestion(toSuggestionRow(inserted)));
     } catch (err) {
       console.error('Failed to insert suggestion:', err);
       continue;
@@ -199,7 +243,7 @@ export async function getSuggestions(
     orderBy: { startLine: 'asc' },
   });
 
-  return sortSuggestions((data as unknown as SuggestionRow[]).map(rowToSuggestion));
+  return sortSuggestions(data.map((d) => rowToSuggestion(toSuggestionRow(d))));
 }
 
 /**
@@ -214,7 +258,7 @@ export async function getSuggestion(suggestionId: string): Promise<Suggestion | 
     return null;
   }
 
-  return rowToSuggestion(data as unknown as SuggestionRow);
+  return rowToSuggestion(toSuggestionRow(data));
 }
 
 // =============================================================================
@@ -239,7 +283,7 @@ export async function respondToSuggestion(
       },
     });
 
-    return rowToSuggestion(data as unknown as SuggestionRow);
+    return rowToSuggestion(toSuggestionRow(data));
   } catch (err) {
     throw new Error(`Failed to update suggestion: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -289,7 +333,7 @@ export async function generateRewrites(
   });
 
   if (existing && existing.length >= count) {
-    return (existing as unknown as RewriteRow[]).map(rowToRewrite);
+    return existing.map((d) => rowToRewrite(toRewriteRow(d)));
   }
 
   // Build prompt
@@ -345,7 +389,7 @@ export async function generateRewrites(
         },
       });
 
-      rewrites.push(rowToRewrite(inserted as unknown as RewriteRow));
+      rewrites.push(rowToRewrite(toRewriteRow(inserted)));
     } catch (err) {
       console.error('Failed to insert rewrite:', err);
       continue;
@@ -364,7 +408,7 @@ export async function getRewrites(suggestionId: string): Promise<Rewrite[]> {
     orderBy: { createdAt: 'asc' },
   });
 
-  return (data as unknown as RewriteRow[]).map(rowToRewrite);
+  return data.map((d) => rowToRewrite(toRewriteRow(d)));
 }
 
 /**
@@ -402,7 +446,7 @@ export async function selectRewrite(rewriteId: string): Promise<Rewrite> {
       },
     });
 
-    return rowToRewrite(data as unknown as RewriteRow);
+    return rowToRewrite(toRewriteRow(data));
   } catch (err) {
     throw new Error(`Failed to select rewrite: ${err instanceof Error ? err.message : String(err)}`);
   }

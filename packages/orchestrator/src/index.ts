@@ -93,8 +93,8 @@ app.use('/', orchestrateRouter);
 app.use('/', analyzeRouter);
 app.use('/', previewRouter);
 
-// Download endpoint - requires auth
-app.get('/download/:project_id/:filename', authMiddleware, (req: Request, res: Response) => {
+// Download endpoint - requires auth + ownership check
+app.get('/download/:project_id/:filename', authMiddleware, async (req: Request, res: Response) => {
   const { project_id, filename } = req.params;
 
   // Validate project_id is a UUID to prevent path traversal
@@ -109,6 +109,26 @@ app.get('/download/:project_id/:filename', authMiddleware, (req: Request, res: R
       filename.includes('%2e') || filename.includes('%2f') || filename.includes('%5c')) {
     res.status(400).json({ error: 'Invalid filename' });
     return;
+  }
+
+  // Verify project ownership (IDOR prevention)
+  const userId = req.user?.id;
+  if (userId) {
+    try {
+      const { prisma } = await import('./lib/prisma.js');
+      const project = await prisma.project.findFirst({
+        where: { id: project_id, userId },
+        select: { id: true },
+      });
+      if (!project) {
+        res.status(404).json({ error: 'Project not found' });
+        return;
+      }
+    } catch (err) {
+      log.error('Download ownership check failed', err instanceof Error ? err : undefined);
+      res.status(500).json({ error: 'Failed to verify project ownership' });
+      return;
+    }
   }
 
   const baseOutputDir = path.resolve(getOutputDir());

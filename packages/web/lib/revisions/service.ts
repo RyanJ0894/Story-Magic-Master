@@ -25,6 +25,28 @@ import {
 import { generateScore } from '@/lib/scoring/service';
 
 // =============================================================================
+// Prisma-to-Row Adapter (type-safe camelCase → snake_case mapping)
+// =============================================================================
+
+/** Map Prisma revision result to RevisionRow */
+function toRevisionRow(data: Record<string, unknown>): RevisionRow {
+  return {
+    id: data.id as string,
+    project_id: data.projectId as string,
+    version_number: data.versionNumber as number,
+    label: (data.label as string | null) ?? null,
+    script_text: data.scriptText as string,
+    word_count: data.wordCount as number,
+    page_count: data.pageCount as number,
+    score_id: (data.scoreId as string | null) ?? null,
+    overall_score: (data.overallScore as number | null) ?? null,
+    changes_summary: (data.changesSummary as RevisionChanges | null) ?? null,
+    created_at: String(data.createdAt),
+    created_by: (data.createdBy as string | null) ?? null,
+  };
+}
+
+// =============================================================================
 // Create Revision
 // =============================================================================
 
@@ -140,7 +162,7 @@ export async function createRevision(
     }
   }
 
-  return rowToRevision(revision as unknown as RevisionRow);
+  return rowToRevision(toRevisionRow(revision));
 }
 
 // =============================================================================
@@ -159,7 +181,7 @@ export async function getRevision(revisionId: string): Promise<Revision | null> 
     return null;
   }
 
-  return rowToRevision(data as unknown as RevisionRow);
+  return rowToRevision(toRevisionRow(data));
 }
 
 /**
@@ -171,7 +193,7 @@ export async function getRevisions(projectId: string): Promise<Revision[]> {
     orderBy: { versionNumber: 'desc' },
   });
 
-  return (data || []).map((row) => rowToRevision(row as unknown as RevisionRow));
+  return (data || []).map((row) => rowToRevision(toRevisionRow(row)));
 }
 
 /**
@@ -187,7 +209,7 @@ export async function getLatestRevision(projectId: string): Promise<Revision | n
     return null;
   }
 
-  return rowToRevision(data as unknown as RevisionRow);
+  return rowToRevision(toRevisionRow(data));
 }
 
 // =============================================================================
@@ -334,7 +356,7 @@ export async function updateRevisionLabel(
       data: { label },
     });
 
-    return rowToRevision(data as unknown as RevisionRow);
+    return rowToRevision(toRevisionRow(data));
   } catch (err) {
     throw new Error(`Failed to update revision: ${err instanceof Error ? err.message : String(err)}`);
   }

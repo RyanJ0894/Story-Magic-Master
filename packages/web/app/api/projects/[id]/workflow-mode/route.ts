@@ -1,16 +1,32 @@
 import { withProjectAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { log } from '@/lib/logger';
+import { z } from 'zod';
+
+const WorkflowModeSchema = z.object({
+  mode: z.enum(['automatic', 'fine_tuned']),
+});
 
 export const POST = withProjectAuth(async (request, { prisma, projectId }) => {
-  const { mode } = await request.json();
-
-  if (!mode || !['automatic', 'fine_tuned'].includes(mode)) {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
     return NextResponse.json(
-      { error: 'Invalid workflow mode' },
+      { error: 'Invalid JSON in request body', code: 'INVALID_JSON' },
       { status: 400 }
     );
   }
+
+  const parseResult = WorkflowModeSchema.safeParse(body);
+  if (!parseResult.success) {
+    return NextResponse.json(
+      { error: 'Invalid workflow mode', code: 'VALIDATION_ERROR', details: parseResult.error.flatten().fieldErrors },
+      { status: 400 }
+    );
+  }
+
+  const { mode } = parseResult.data;
 
   try {
     // Update preferred workflow mode

@@ -1,6 +1,15 @@
 import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { log } from '@/lib/logger';
+import { z } from 'zod';
+
+const PatchEntrySchema = z.object({
+  notes: z.string().max(5000).optional(),
+  tags: z.array(z.string().max(100)).max(20).optional(),
+  play_position_seconds: z.number().min(0).optional(),
+  completed: z.boolean().optional(),
+  readStatus: z.enum(['like', 'pass', 'undecided']).optional(),
+});
 
 // GET /api/reader/library/[entryId] - Get single library entry
 export const GET = withAuth(async (request, { userId, prisma, params }) => {
@@ -62,14 +71,19 @@ export const PATCH = withAuth(async (request, { userId, prisma, params }) => {
     return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
   }
 
-  const body = await request.json();
-  const {
-    notes,
-    tags,
-    play_position_seconds,
-    completed,
-    readStatus,
-  } = body;
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON', code: 'INVALID_JSON' }, { status: 400 });
+  }
+
+  const parseResult = PatchEntrySchema.safeParse(body);
+  if (!parseResult.success) {
+    return NextResponse.json({ error: 'Invalid request', code: 'VALIDATION_ERROR', details: parseResult.error.flatten().fieldErrors }, { status: 400 });
+  }
+
+  const { notes, tags, play_position_seconds, completed, readStatus } = parseResult.data;
 
   const updates: Record<string, unknown> = {};
 
@@ -81,14 +95,7 @@ export const PATCH = withAuth(async (request, { userId, prisma, params }) => {
   }
   if (completed !== undefined) updates.completed = completed;
 
-  // Handle read status (Like/Pass/Undecided)
   if (readStatus !== undefined) {
-    if (!['like', 'pass', 'undecided'].includes(readStatus)) {
-      return NextResponse.json(
-        { error: 'Invalid read status. Must be like, pass, or undecided.' },
-        { status: 400 }
-      );
-    }
     updates.readStatus = readStatus;
     updates.readStatusUpdatedAt = new Date();
   }

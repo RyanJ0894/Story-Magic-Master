@@ -292,12 +292,19 @@ export async function GET() {
     overallStatus = 'healthy';
   }
 
+  // Strip internal details (error messages, config names) from public response
+  const sanitizedChecks = checks.map(({ name, status, latencyMs }) => ({
+    name,
+    status,
+    ...(latencyMs !== undefined && { latencyMs }),
+  }));
+
   const response: HealthResponse = {
     status: overallStatus,
     timestamp: new Date().toISOString(),
     version: process.env.npm_package_version || '1.0.0',
     uptime: Math.floor((Date.now() - startTime) / 1000),
-    checks,
+    checks: sanitizedChecks,
   };
 
   // Return appropriate status code

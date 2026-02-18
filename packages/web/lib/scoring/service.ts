@@ -18,8 +18,57 @@ import {
   storyScoreToRow,
   rowToStoryScore,
   StoryScoreRow,
+  Rating,
 } from './types';
 import { buildScoringPrompt, validateLLMResponse } from './prompts';
+
+// =============================================================================
+// Prisma-to-Row Adapter (type-safe camelCase → snake_case mapping)
+// =============================================================================
+
+/** Map Prisma storyScore result to StoryScoreRow */
+function toStoryScoreRow(data: Record<string, unknown>): StoryScoreRow {
+  return {
+    id: data.id as string,
+    project_id: data.projectId as string,
+    version: data.version as number,
+    premise_originality: data.premiseOriginality as number,
+    premise_originality_reasoning: data.premiseOriginalityReasoning as string,
+    logline_clarity: data.loglineClarity as number,
+    logline_clarity_reasoning: data.loglineClarityReasoning as string,
+    commercial_viability: data.commercialViability as number,
+    commercial_viability_reasoning: data.commercialViabilityReasoning as string,
+    three_act_integrity: data.threeActIntegrity as number,
+    three_act_integrity_reasoning: data.threeActIntegrityReasoning as string,
+    pacing_momentum: data.pacingMomentum as number,
+    pacing_momentum_reasoning: data.pacingMomentumReasoning as string,
+    stakes_escalation: data.stakesEscalation as number,
+    stakes_escalation_reasoning: data.stakesEscalationReasoning as string,
+    protagonist_arc: data.protagonistArc as number,
+    protagonist_arc_reasoning: data.protagonistArcReasoning as string,
+    supporting_cast: data.supportingCast as number,
+    supporting_cast_reasoning: data.supportingCastReasoning as string,
+    castability: data.castability as number,
+    castability_reasoning: data.castabilityReasoning as string,
+    dialogue_quality: data.dialogueQuality as number,
+    dialogue_quality_reasoning: data.dialogueQualityReasoning as string,
+    visual_storytelling: data.visualStorytelling as number,
+    visual_storytelling_reasoning: data.visualStorytellingReasoning as string,
+    technical_execution: data.technicalExecution as number,
+    technical_execution_reasoning: data.technicalExecutionReasoning as string,
+    concept_score: data.conceptScore as number,
+    structure_score: data.structureScore as number,
+    character_score: data.characterScore as number,
+    craft_score: data.craftScore as number,
+    overall_score: data.overallScore as number,
+    rating: data.rating as Rating,
+    strengths: data.strengths as string[],
+    weaknesses: data.weaknesses as string[],
+    confidence: data.confidence as number,
+    model_version: data.modelVersion as string,
+    created_at: String(data.createdAt),
+  };
+}
 
 // Lazy-initialized OpenAI client (avoids crash if OPENAI_API_KEY is unset at import time)
 let _openai: OpenAI | null = null;
@@ -178,7 +227,7 @@ export async function generateScore(
     });
 
     // Return with database-generated ID
-    return rowToStoryScore(insertedRow as unknown as StoryScoreRow);
+    return rowToStoryScore(toStoryScoreRow(insertedRow));
   } catch (err) {
     throw new Error(`Failed to save score: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -197,7 +246,7 @@ export async function getLatestScore(projectId: string): Promise<StoryScore | nu
     return null;
   }
 
-  return rowToStoryScore(data as unknown as StoryScoreRow);
+  return rowToStoryScore(toStoryScoreRow(data));
 }
 
 /**
@@ -209,7 +258,7 @@ export async function getScoreHistory(projectId: string): Promise<StoryScore[]> 
     orderBy: { version: 'desc' },
   });
 
-  return (data as unknown as StoryScoreRow[]).map(rowToStoryScore);
+  return data.map((d) => rowToStoryScore(toStoryScoreRow(d)));
 }
 
 /**

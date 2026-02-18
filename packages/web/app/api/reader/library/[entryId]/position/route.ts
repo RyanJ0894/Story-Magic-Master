@@ -1,6 +1,13 @@
 import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { log } from '@/lib/logger';
+import { z } from 'zod';
+
+const PositionSchema = z.object({
+  position: z.number().min(0),
+  duration: z.number().min(0).optional(),
+  completed: z.boolean().optional(),
+});
 
 // POST /api/reader/library/[entryId]/position - Update playback position
 export const POST = withAuth(async (request, { userId, prisma, params }) => {
@@ -16,12 +23,19 @@ export const POST = withAuth(async (request, { userId, prisma, params }) => {
     return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
   }
 
-  const body = await request.json();
-  const { position, duration, completed } = body;
-
-  if (typeof position !== 'number') {
-    return NextResponse.json({ error: 'Position required' }, { status: 400 });
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON', code: 'INVALID_JSON' }, { status: 400 });
   }
+
+  const parseResult = PositionSchema.safeParse(body);
+  if (!parseResult.success) {
+    return NextResponse.json({ error: 'Invalid request', code: 'VALIDATION_ERROR', details: parseResult.error.flatten().fieldErrors }, { status: 400 });
+  }
+
+  const { position, duration, completed } = parseResult.data;
 
   const updates: Record<string, unknown> = {
     playPositionSeconds: Math.floor(position),
