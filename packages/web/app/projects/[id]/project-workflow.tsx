@@ -555,7 +555,7 @@ export function ProjectWorkflow({
           <CardContent className="space-y-4">
             {isCompleted ? (
               <>
-                <AudioPlayer outputs={audioOutputs!} />
+                <AudioPlayer outputs={currentRunAudio!} />
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => router.push(`/projects/${project.id}/share`)}>
                     <Share2 className="w-4 h-4 mr-2" />
@@ -721,7 +721,7 @@ export function ProjectWorkflow({
           )}
           {currentStep.id === 'share' && isCompleted && (
             <div className="space-y-4">
-              <AudioPlayer outputs={audioOutputs!} />
+              <AudioPlayer outputs={currentRunAudio!} />
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => router.push(`/projects/${project.id}/share`)}>
                   <Share2 className="w-4 h-4 mr-2" />
@@ -858,7 +858,7 @@ export function ProjectWorkflow({
                         <CheckCircle className="w-5 h-5" />
                         <span className="font-medium">Audio generation complete!</span>
                       </div>
-                      <AudioPlayer outputs={audioOutputs!} />
+                      <AudioPlayer outputs={currentRunAudio!} />
                       <GenerateButton
                         projectId={project.id}
                         pageCount={project.pageCount}
@@ -928,7 +928,7 @@ export function ProjectWorkflow({
                 <div className="space-y-4">
                   {isCompleted ? (
                     <>
-                      <AudioPlayer outputs={audioOutputs!} />
+                      <AudioPlayer outputs={currentRunAudio!} />
                       <div className="flex gap-2 justify-center">
                         <Button
                           variant="outline"
