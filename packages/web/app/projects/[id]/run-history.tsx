@@ -41,13 +41,13 @@ import type { Run } from './run-selector';
 
 interface AudioOutput {
   id: string;
-  file_name: string;
-  file_path: string;
-  duration_seconds?: number;
+  fileName: string;
+  filePath: string;
+  durationSeconds?: number;
 }
 
 interface RunWithAudio extends Run {
-  audio_outputs?: AudioOutput[];
+  audioOutputs?: AudioOutput[];
   error?: string;
 }
 
@@ -127,7 +127,7 @@ export function RunHistory({
   const [compareMode, setCompareMode] = useState(false);
   const [selectedForCompare, setSelectedForCompare] = useState<number[]>([]);
 
-  const completedRuns = runs.filter(r => r.status === 'completed' && r.has_audio);
+  const completedRuns = runs.filter(r => r.status === 'completed' && r.hasAudio);
   const canCompare = completedRuns.length >= 2;
 
   const handleCompareToggle = (runNumber: number) => {
@@ -218,15 +218,15 @@ export function RunHistory({
             <div className="space-y-2">
               {runs.map((run) => {
                 const StatusIcon = statusConfig[run.status].icon;
-                const ModeIcon = modeConfig[run.workflow_mode].icon;
-                const isActive = run.run_number === currentRunNumber;
-                const isSelected = selectedForCompare.includes(run.run_number);
-                const canSelect = compareMode && run.status === 'completed' && run.has_audio;
+                const ModeIcon = modeConfig[run.workflowMode].icon;
+                const isActive = run.runNumber === currentRunNumber;
+                const isSelected = selectedForCompare.includes(run.runNumber);
+                const canSelect = compareMode && run.status === 'completed' && run.hasAudio;
 
                 return (
                   <div
                     key={run.id}
-                    onClick={() => !compareMode && onSelectRun(run.run_number)}
+                    onClick={() => !compareMode && onSelectRun(run.runNumber)}
                     className={cn(
                       'flex items-center gap-4 p-3 rounded-lg border transition-all',
                       !compareMode && 'cursor-pointer hover:border-violet-300 dark:hover:border-violet-700',
@@ -239,7 +239,7 @@ export function RunHistory({
                       <Checkbox
                         checked={isSelected}
                         disabled={!canSelect}
-                        onCheckedChange={() => canSelect && handleCompareToggle(run.run_number)}
+                        onCheckedChange={() => canSelect && handleCompareToggle(run.runNumber)}
                         className="data-[state=checked]:bg-violet-500"
                       />
                     )}
@@ -258,10 +258,10 @@ export function RunHistory({
                     {/* Run Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold">Run #{run.run_number}</span>
-                        <Badge variant="outline" className={cn('gap-1', modeConfig[run.workflow_mode].color)}>
+                        <span className="font-semibold">Run #{run.runNumber}</span>
+                        <Badge variant="outline" className={cn('gap-1', modeConfig[run.workflowMode].color)}>
                           <ModeIcon className="w-3 h-3" />
-                          {modeConfig[run.workflow_mode].label}
+                          {modeConfig[run.workflowMode].label}
                         </Badge>
                         <Badge variant="secondary" className="text-xs">
                           {statusConfig[run.status].label}
@@ -271,9 +271,9 @@ export function RunHistory({
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {format(new Date(run.created_at), 'MMM d, yyyy h:mm a')}
+                        {format(new Date(run.createdAt), 'MMM d, yyyy h:mm a')}
                         <span className="mx-1">•</span>
-                        {formatDistanceToNow(new Date(run.created_at), { addSuffix: true })}
+                        {formatDistanceToNow(new Date(run.createdAt), { addSuffix: true })}
                       </p>
                       {run.status === 'failed' && run.error && (
                         <p className="text-sm text-red-600 dark:text-red-400 mt-1 truncate">
@@ -285,24 +285,24 @@ export function RunHistory({
                     {/* Actions */}
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {/* Audio Player */}
-                      {run.status === 'completed' && run.audio_outputs && run.audio_outputs.length > 0 && (
+                      {run.status === 'completed' && run.audioOutputs && run.audioOutputs.length > 0 && (
                         <div className="flex items-center gap-1 px-2 py-1 bg-muted rounded">
                           <Volume2 className="w-3 h-3 text-muted-foreground" />
                           <MiniAudioPlayer
-                            src={run.audio_outputs[0].file_path}
-                            duration={run.audio_outputs[0].duration_seconds}
+                            src={run.audioOutputs[0].filePath}
+                            duration={run.audioOutputs[0].durationSeconds}
                           />
                         </div>
                       )}
 
                       {/* Copy Settings */}
-                      {run.status === 'completed' && run.workflow_mode === 'fine_tuned' && !compareMode && (
+                      {run.status === 'completed' && run.workflowMode === 'fine_tuned' && !compareMode && (
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onCopySettings(run.run_number);
+                            onCopySettings(run.runNumber);
                           }}
                           title="Use these settings for a new run"
                         >

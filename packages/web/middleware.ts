@@ -1,26 +1,38 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { NextResponse, type NextRequest } from 'next/server';
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
+
+// =============================================================================
+// Protected Route Matchers
+// =============================================================================
+const isProtectedRoute = createRouteMatcher([
+  '/dashboard(.*)',
+  '/projects(.*)',
+  '/settings(.*)',
+  '/admin(.*)',
+  '/billing(.*)',
+  '/writer(.*)',
+  '/reader(.*)',
+]);
 
 // =============================================================================
 // Security Headers
 // =============================================================================
 function addSecurityHeaders(response: NextResponse): void {
-  // Content Security Policy
-  // Note: 'unsafe-inline' is required for Next.js and Tailwind CSS
-  // In production, consider using nonces for stricter CSP
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://*.supabase.co",
+    // unsafe-eval removed — Stripe redirect-only checkout and Clerk prebuilt components don't need it.
+    // If Stripe Elements or Clerk custom flows break, add 'unsafe-eval' back and track upstream fix.
+    "script-src 'self' 'unsafe-inline' https://js.stripe.com https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com",
     "style-src 'self' 'unsafe-inline'", // Tailwind requires unsafe-inline
-    "img-src 'self' data: blob: https://*.supabase.co https://api.dicebear.com",
+    "img-src 'self' data: blob: https://img.clerk.com https://api.dicebear.com",
     "font-src 'self' data:",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.elevenlabs.io https://api.openai.com https://*.sentry.io",
-    "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
-    "media-src 'self' blob: https://*.supabase.co",
+    "connect-src 'self' https://api.stripe.com https://api.elevenlabs.io https://api.openai.com https://*.sentry.io https://*.accounts.dev https://*.clerk.com https://*.clerk.dev https://clerk-telemetry.com",
+    "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com",
+    "media-src 'self' blob:",
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self' https://*.supabase.co",
+    "form-action 'self' https://*.accounts.dev",
     "frame-ancestors 'self'",
     "upgrade-insecure-requests",
   ].join('; ');
@@ -34,93 +46,15 @@ function addSecurityHeaders(response: NextResponse): void {
   response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
 }
 
-export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({
-            name,
-            value,
-            ...options,
-          });
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          });
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          });
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-          });
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          });
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          });
-        },
-      },
-    }
-  );
-
-  // Refresh session if expired
-  const { data: { user } } = await supabase.auth.getUser();
-
-  // Protected routes
-  const protectedPaths = ['/dashboard', '/projects', '/settings', '/admin', '/billing', '/writer', '/reader'];
-  const isProtectedPath = protectedPaths.some(path =>
-    request.nextUrl.pathname.startsWith(path)
-  );
-
-  if (isProtectedPath && !user) {
-    const redirectUrl = new URL('/login', request.url);
-    redirectUrl.searchParams.set('redirect', request.nextUrl.pathname);
-    const redirectResponse = NextResponse.redirect(redirectUrl);
-    addSecurityHeaders(redirectResponse);
-    return redirectResponse;
+export default clerkMiddleware(async (auth, request) => {
+  if (isProtectedRoute(request)) {
+    await auth.protect();
   }
 
-  // Redirect logged-in users away from auth pages
-  const authPaths = ['/login', '/signup'];
-  const isAuthPath = authPaths.some(path =>
-    request.nextUrl.pathname.startsWith(path)
-  );
-
-  if (isAuthPath && user) {
-    const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url));
-    addSecurityHeaders(redirectResponse);
-    return redirectResponse;
-  }
-
-  // Add security headers to all responses
+  const response = NextResponse.next();
   addSecurityHeaders(response);
-
   return response;
-}
+});
 
 export const config = {
   matcher: [

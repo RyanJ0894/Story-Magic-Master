@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { FeatureGate } from '@/lib/features';
 import { ComparableScript } from '@/lib/comparable/types';
 import { ComparableCard } from './ComparableCard';
@@ -71,7 +72,7 @@ export function ComparableSection({ projectId, hasScore }: ComparableSectionProp
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (genreFilter !== 'all') params.set('genre', genreFilter);
 
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/projects/${projectId}/comparables?${params.toString()}`
       );
 

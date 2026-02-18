@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { apiFetch } from '@/lib/api/fetch';
 import {
   Dialog,
   DialogContent,
@@ -196,7 +197,7 @@ function CharacterCard({
             variant="ghost"
             size="sm"
             onClick={onToggleLock}
-            title={assignment?.locked ? 'Unlock voice' : 'Lock voice'}
+            aria-label={assignment?.locked ? 'Unlock voice' : 'Lock voice'}
           >
             {assignment?.locked ? (
               <Lock className="h-4 w-4 text-amber-500" />
@@ -351,7 +352,7 @@ export function VoiceChooser({
   useEffect(() => {
     const loadSavedAssignments = async () => {
       try {
-        const response = await fetch(`/api/projects/${projectId}/voice-assignments`);
+        const response = await apiFetch(`/api/projects/${projectId}/voice-assignments`);
         if (response.ok) {
           const data = await response.json();
           if (data.assignments && data.assignments.length > 0) {
@@ -369,7 +370,7 @@ export function VoiceChooser({
   // Persist assignments to the database
   const saveAssignments = useCallback(async (newAssignments: CharacterVoiceAssignment[]) => {
     try {
-      await fetch(`/api/projects/${projectId}/voice-assignments`, {
+      await apiFetch(`/api/projects/${projectId}/voice-assignments`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ assignments: newAssignments }),
@@ -471,7 +472,7 @@ export function VoiceChooser({
     const fetchVoices = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('/api/voices');
+        const response = await apiFetch('/api/voices');
 
         if (!response.ok) {
           throw new Error('Failed to fetch voices');

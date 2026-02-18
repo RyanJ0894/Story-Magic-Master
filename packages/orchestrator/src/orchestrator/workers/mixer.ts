@@ -18,7 +18,7 @@ import fs from 'fs';
 import path from 'path';
 import { validateFiltergraph } from '../../lib/ffmpeg-validator.js';
 import { log } from '../../lib/logger.js';
-import { supabaseClient as sb } from '../../lib/supabase.js';
+import { prisma } from '../../lib/prisma.js';
 import { getOutputDir } from '../../lib/env.js';
 
 const ffmpeg = ffmpegStatic as unknown as string;
@@ -482,15 +482,21 @@ async function loudnormTwoPass(
 }
 
 async function saveMixManifest(project_id: string, scene_id: string, manifest: MixManifest): Promise<void> {
-  if (sb) {
-    await sb.from('mix_manifests').upsert({
-      project_id,
-      scene_id,
-      mix_manifest_json: manifest,
-      created_at: new Date().toISOString(),
+  // Save to database via Prisma raw SQL
+  try {
+    await prisma.$executeRaw`
+      INSERT INTO mix_manifests (project_id, scene_id, mix_manifest_json, created_at)
+      VALUES (${project_id}, ${scene_id}, ${JSON.stringify(manifest)}::jsonb, NOW())
+      ON CONFLICT (project_id, scene_id)
+      DO UPDATE SET mix_manifest_json = ${JSON.stringify(manifest)}::jsonb, created_at = NOW()
+    `;
+  } catch (err) {
+    log.error('Failed to save mix manifest to DB', err instanceof Error ? err : undefined, {
+      project_id, scene_id,
     });
   }
 
+  // Also save locally
   const localPath = path.join(getOutputDir(), project_id, 'scenes', `${scene_id}-manifest.json`);
   fs.mkdirSync(path.dirname(localPath), { recursive: true });
   fs.writeFileSync(localPath, JSON.stringify(manifest, null, 2));

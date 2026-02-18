@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
@@ -26,21 +27,20 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     redirect('/login');
   }
 
-  // Check if user is admin
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('user_type')
-    .eq('id', user.id)
-    .single();
+  const clerkUser = await currentUser();
 
-  if (profile?.user_type !== 'admin') {
+  // Check if user is admin
+  const profile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { userType: true },
+  });
+
+  if (profile?.userType !== 'admin') {
     redirect('/');
   }
 
@@ -70,10 +70,10 @@ export default async function AdminLayout({
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-800">
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-8 h-8 rounded-full bg-violet-600 flex items-center justify-center text-white text-sm font-medium">
-              {user.email?.[0].toUpperCase()}
+              {clerkUser?.emailAddresses[0]?.emailAddress?.[0].toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-white truncate">{user.email}</p>
+              <p className="text-sm text-white truncate">{clerkUser?.emailAddresses[0]?.emailAddress}</p>
               <p className="text-xs text-slate-500">Administrator</p>
             </div>
           </div>

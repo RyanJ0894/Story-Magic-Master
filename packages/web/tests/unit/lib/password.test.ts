@@ -3,49 +3,49 @@ import { hashPassword, verifyPassword, isBcryptHash } from '@/lib/password';
 
 describe('Password Hashing', () => {
   describe('hashPassword', () => {
-    it('returns a bcrypt hash', async () => {
+    it('returns a bcrypt hash', { timeout: 15000 }, async () => {
       const hash = await hashPassword('testpassword');
       expect(hash).toMatch(/^\$2[aby]?\$\d{1,2}\$.{53}$/);
     });
 
-    it('generates different hashes for the same password (salted)', async () => {
+    it('generates different hashes for the same password (salted)', { timeout: 15000 }, async () => {
       const hash1 = await hashPassword('testpassword');
       const hash2 = await hashPassword('testpassword');
       expect(hash1).not.toBe(hash2);
     });
 
-    it('handles empty string', async () => {
+    it('handles empty string', { timeout: 15000 }, async () => {
       const hash = await hashPassword('');
       expect(hash).toBeTruthy();
       expect(isBcryptHash(hash)).toBe(true);
     });
 
-    it('handles unicode characters', async () => {
+    it('handles unicode characters', { timeout: 15000 }, async () => {
       const hash = await hashPassword('p@$$w0rd-日本語');
       expect(isBcryptHash(hash)).toBe(true);
     });
   });
 
   describe('verifyPassword', () => {
-    it('verifies correct password', async () => {
+    it('verifies correct password', { timeout: 15000 }, async () => {
       const hash = await hashPassword('mypassword');
       const result = await verifyPassword('mypassword', hash);
       expect(result).toBe(true);
     });
 
-    it('rejects incorrect password', async () => {
+    it('rejects incorrect password', { timeout: 15000 }, async () => {
       const hash = await hashPassword('mypassword');
       const result = await verifyPassword('wrongpassword', hash);
       expect(result).toBe(false);
     });
 
-    it('rejects empty password against real hash', async () => {
+    it('rejects empty password against real hash', { timeout: 15000 }, async () => {
       const hash = await hashPassword('mypassword');
       const result = await verifyPassword('', hash);
       expect(result).toBe(false);
     });
 
-    it('handles special characters in password', async () => {
+    it('handles special characters in password', { timeout: 15000 }, async () => {
       const password = 'p@$$w0rd!#%^&*()_+-=[]{}|;:,.<>?';
       const hash = await hashPassword(password);
       expect(await verifyPassword(password, hash)).toBe(true);

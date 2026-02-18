@@ -4,10 +4,12 @@
  * GET /api/revisions/[id]/compare/[toId] - Compare two revisions
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/middleware';
+import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { isFeatureEnabled } from '@/lib/features';
 import { compareRevisions } from '@/lib/revisions';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Helper to verify ownership
@@ -17,30 +19,23 @@ async function verifyRevisionOwnership(
   revisionId: string,
   userId: string
 ): Promise<boolean> {
-  const supabase = await createClient();
+  const revision = await prisma.revision.findUnique({
+    where: { id: revisionId },
+    select: {
+      project: { select: { userId: true } },
+    },
+  });
 
-  const { data } = await supabase
-    .from('revisions')
-    .select('project_id, projects!inner(user_id)')
-    .eq('id', revisionId)
-    .single();
+  if (!revision) return false;
 
-  if (!data) return false;
-
-  const revisionData = data as unknown as { project_id: string; projects: { user_id: string } | { user_id: string }[] };
-  const projects = revisionData.projects;
-  const projectUserId = Array.isArray(projects) ? projects[0]?.user_id : projects?.user_id;
-  return projectUserId === userId;
+  return revision.project.userId === userId;
 }
 
 // =============================================================================
 // GET - Compare revisions
 // =============================================================================
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string; toId: string }> }
-) {
+export const GET = withAuth(async (_request, { userId, params }) => {
   if (!isFeatureEnabled('REVISION_TRACKING')) {
     return NextResponse.json(
       { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
@@ -48,23 +43,13 @@ export async function GET(
     );
   }
 
-  const supabase = await createClient();
-  const { id: fromRevisionId, toId: toRevisionId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
+  const fromRevisionId = params.id;
+  const toRevisionId = params.toId;
 
   // Verify ownership of both revisions
   const [fromOwned, toOwned] = await Promise.all([
-    verifyRevisionOwnership(fromRevisionId, user.id),
-    verifyRevisionOwnership(toRevisionId, user.id),
+    verifyRevisionOwnership(fromRevisionId, userId),
+    verifyRevisionOwnership(toRevisionId, userId),
   ]);
 
   if (!fromOwned || !toOwned) {
@@ -104,7 +89,7 @@ export async function GET(
 
     return NextResponse.json({ comparison: sanitizedComparison });
   } catch (error) {
-    console.error('[Revision Compare] Error:', error);
+    log.error('[Revision Compare] Error', error);
     return NextResponse.json(
       {
         error: 'Failed to compare revisions',
@@ -114,4 +99,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

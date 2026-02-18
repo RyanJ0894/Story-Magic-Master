@@ -1,63 +1,39 @@
-import { createClient } from '@/lib/supabase/server';
-import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/api/middleware';
+import { NextResponse } from 'next/server';
 import { nanoid } from 'nanoid';
 import { hashPassword } from '@/lib/password';
 import { CreateShareRequestSchema } from '@/lib/api/dto';
-import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // GET /api/shares - List all shares for current user
-export async function GET(request: NextRequest) {
-  const supabase = await createClient();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const GET = withAuth(async (request, { userId, prisma }) => {
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get('project_id');
 
-  let query = supabase
-    .from('script_shares')
-    .select(`
-      *,
-      projects (
-        id,
-        name,
-        page_count
-      )
-    `)
-    .eq('shared_by', user.id)
-    .order('created_at', { ascending: false });
-
+  const where: Record<string, unknown> = { sharedBy: userId };
   if (projectId) {
-    query = query.eq('project_id', projectId);
+    where.projectId = projectId;
   }
 
-  const { data: shares, error } = await query;
-
-  if (error) {
-    console.error('Error fetching shares:', error);
-    return NextResponse.json({ error: 'Failed to fetch shares' }, { status: 500 });
-  }
+  const shares = await prisma.scriptShare.findMany({
+    where,
+    include: {
+      project: {
+        select: {
+          id: true,
+          name: true,
+          pageCount: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
 
   return NextResponse.json({ shares });
-}
+});
 
 // POST /api/shares - Create a new share link
-export async function POST(request: NextRequest) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const supabase = await createClient();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request, { userId, prisma }) => {
   // Parse and validate request body
   let body;
   try {
@@ -85,27 +61,26 @@ export async function POST(request: NextRequest) {
   } = parseResult.data;
 
   // Verify user owns this project
-  const { data: project, error: projectError } = await supabase
-    .from('projects')
-    .select('id, name, user_id')
-    .eq('id', project_id)
-    .single();
+  const project = await prisma.project.findFirst({
+    where: { id: project_id },
+    select: { id: true, name: true, userId: true },
+  });
 
-  if (projectError || !project) {
+  if (!project) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
-  if (project.user_id !== user.id) {
+  if (project.userId !== userId) {
     return NextResponse.json({ error: 'Not authorized to share this project' }, { status: 403 });
   }
 
   // Check subscription status
-  const { data: subscription } = await supabase
-    .from('subscriptions')
-    .select('*')
-    .eq('user_id', user.id)
-    .in('status', ['active', 'trialing'])
-    .single();
+  const subscription = await prisma.subscription.findFirst({
+    where: {
+      userId,
+      status: { in: ['active', 'trialing'] },
+    },
+  });
 
   if (!subscription) {
     return NextResponse.json(
@@ -117,35 +92,32 @@ export async function POST(request: NextRequest) {
   // Generate share code
   const shareCode = nanoid(10);
 
-  // Create share record
-  const { data: share, error: shareError } = await supabase
-    .from('script_shares')
-    .insert({
-      project_id,
-      shared_by: user.id,
-      share_code: shareCode,
-      access_level,
-      expires_at,
-      recipient_email,
-      recipient_name,
-      max_plays,
-      password_hash: password ? await hashPassword(password) : null,
-      is_active: true,
-    })
-    .select()
-    .single();
+  try {
+    // Create share record
+    const share = await prisma.scriptShare.create({
+      data: {
+        projectId: project_id,
+        sharedBy: userId,
+        shareCode,
+        accessLevel: access_level,
+        expiresAt: expires_at ? new Date(expires_at) : null,
+        recipientEmail: recipient_email ?? null,
+        recipientName: recipient_name ?? null,
+        maxPlays: max_plays ?? null,
+        passwordHash: password ? await hashPassword(password) : null,
+        isActive: true,
+      },
+    });
 
-  if (shareError) {
-    console.error('Error creating share:', shareError);
+    const shareUrl = `${process.env.NEXT_PUBLIC_APP_URL}/s/${shareCode}`;
+
+    return NextResponse.json({
+      share,
+      shareUrl,
+      shareCode,
+    });
+  } catch (error) {
+    log.error('Error creating share', error);
     return NextResponse.json({ error: 'Failed to create share' }, { status: 500 });
   }
-
-  const shareUrl = `${process.env.NEXT_PUBLIC_APP_URL}/s/${shareCode}`;
-
-  return NextResponse.json({
-    share,
-    shareUrl,
-    shareCode,
-  });
-}
-
+});

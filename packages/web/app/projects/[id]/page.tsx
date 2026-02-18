@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import DeleteProjectButton from './delete-button';
@@ -22,79 +23,89 @@ export default async function ProjectPage({
 }: {
   params: { id: string };
 }) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     redirect('/login');
   }
 
   // Fetch project
-  const { data: project, error } = await supabase
-    .from('projects')
-    .select('*')
-    .eq('id', params.id)
-    .single();
+  const project = await prisma.project.findUnique({
+    where: { id: params.id },
+  });
 
-  if (error || !project) {
+  if (!project) {
     notFound();
   }
 
   // Fetch ALL jobs for run history (sorted by run_number descending)
-  const { data: allJobs } = await supabase
-    .from('jobs')
-    .select('*')
-    .eq('project_id', params.id)
-    .order('run_number', { ascending: false });
+  const allJobs = await prisma.job.findMany({
+    where: { projectId: params.id },
+    orderBy: { runNumber: 'desc' },
+  });
 
   // Get the latest job (first in the sorted list)
   const latestJob = allJobs && allJobs.length > 0 ? allJobs[0] : null;
 
   // Fetch audio outputs with job_id so we can associate with runs
-  const { data: audioOutputs } = await supabase
-    .from('audio_outputs')
-    .select('*')
-    .eq('project_id', params.id)
-    .order('created_at', { ascending: false });
+  const audioOutputs = await prisma.audioOutput.findMany({
+    where: { projectId: params.id },
+    orderBy: { createdAt: 'desc' },
+  });
 
-  // Group audio outputs by job_id for easy lookup
+  // Group audio outputs by jobId for easy lookup
   const audioByJobId = new Map<string, typeof audioOutputs>();
   if (audioOutputs) {
     for (const audio of audioOutputs) {
-      if (audio.job_id) {
-        const existing = audioByJobId.get(audio.job_id) || [];
+      if (audio.jobId) {
+        const existing = audioByJobId.get(audio.jobId) || [];
         existing.push(audio);
-        audioByJobId.set(audio.job_id, existing);
+        audioByJobId.set(audio.jobId, existing);
       }
     }
   }
 
   // Enrich jobs with audio info
-  const enrichedJobs = allJobs?.map(job => ({
-    ...job,
-    has_audio: audioByJobId.has(job.id),
-    audio_outputs: audioByJobId.get(job.id) || [],
-  })) || [];
+  const enrichedJobs = allJobs?.map(job => {
+    const jobAudio = audioByJobId.get(job.id) || [];
+    return {
+      id: job.id,
+      runNumber: job.runNumber ?? 0,
+      workflowMode: (job.workflowMode as 'automatic' | 'fine_tuned') ?? 'automatic',
+      status: job.status as 'queued' | 'processing' | 'completed' | 'failed',
+      createdAt: job.createdAt.toISOString(),
+      completedAt: job.completedAt?.toISOString(),
+      hasAudio: jobAudio.length > 0,
+      audioOutputs: jobAudio.map(a => ({
+        id: a.id,
+        fileName: a.fileName,
+        filePath: a.filePath,
+        durationSeconds: a.durationSeconds ? Number(a.durationSeconds) : undefined,
+      })),
+      error: job.error ?? undefined,
+      progress: job.progress as { step?: string; percent?: number } | undefined,
+    };
+  }) || [];
 
   // Fetch story score
-  const { data: storyScore } = await supabase
-    .from('story_scores')
-    .select('id, overall_score')
-    .eq('project_id', params.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-
-  // Fetch remaining preview budget
-  const { data: remainingPreviews } = await supabase.rpc('get_remaining_previews', {
-    p_user_id: user.id,
+  const storyScore = await prisma.storyScore.findFirst({
+    where: { projectId: params.id },
+    select: { id: true, overallScore: true },
+    orderBy: { createdAt: 'desc' },
   });
 
-  // Calculate voice assignments from director_json
+  // Fetch remaining preview budget
+  const usageRow = await prisma.usage.findFirst({
+    where: { userId, period: new Date().toISOString().slice(0, 7) },
+    select: { previewsUsed: true },
+  });
+  const remainingPreviews = Math.max(0, 10 - (usageRow?.previewsUsed ?? 0));
+
+  // Calculate voice assignments from directorJson
   let voiceAssignments = { total: 0, assigned: 0 };
-  if (project.director_json?.scenes) {
+  const directorJson = project.directorJson as Record<string, unknown> | null;
+  if ((directorJson as { scenes?: unknown[] })?.scenes) {
     const characters = new Map<string, { assigned: boolean }>();
-    for (const scene of project.director_json.scenes) {
+    for (const scene of (directorJson as { scenes: { dialogue?: { character: string; voice_key?: string }[] }[] }).scenes) {
       for (const line of scene.dialogue || []) {
         if (line.character && !characters.has(line.character)) {
           characters.set(line.character, {
@@ -110,16 +121,17 @@ export default async function ProjectPage({
   }
 
   // Calculate audio override stats
-  let audioOverrideStats = { total_scenes: 0, scenes_with_overrides: 0 };
-  if (project.director_json?.scenes) {
-    const totalScenes = project.director_json.scenes.length;
-    const audioOverrides = Array.isArray(project.audio_overrides) ? project.audio_overrides : [];
+  let audioOverrideStats = { totalScenes: 0, scenesWithOverrides: 0 };
+  if ((directorJson as { scenes?: unknown[] })?.scenes) {
+    const totalScenes = (directorJson as { scenes: unknown[] }).scenes.length;
+    // audioOverrides JSONB stores snake_case keys (from orchestrator pipeline)
+    const audioOverrides = Array.isArray(project.audioOverrides) ? project.audioOverrides as Array<{ user_selected?: boolean; scene_id?: string }> : [];
     const scenesWithOverrides = new Set(
       audioOverrides
-        .filter((o: { user_selected?: boolean }) => o.user_selected)
-        .map((o: { scene_id: string }) => o.scene_id)
+        .filter((o) => o.user_selected)
+        .map((o) => o.scene_id)
     ).size;
-    audioOverrideStats = { total_scenes: totalScenes, scenes_with_overrides: scenesWithOverrides };
+    audioOverrideStats = { totalScenes, scenesWithOverrides };
   }
 
   const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string, icon: typeof CheckCircle, className?: string }> = {
@@ -152,7 +164,7 @@ export default async function ProjectPage({
                 </div>
                 <div>
                   <h1 className="font-semibold text-foreground leading-none">{project.name}</h1>
-                  <p className="text-xs text-muted-foreground mt-0.5">{project.page_count} pages</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{project.pageCount} pages</p>
                 </div>
               </div>
             </div>
@@ -172,15 +184,26 @@ export default async function ProjectPage({
             id: project.id,
             name: project.name,
             status: project.status,
-            page_count: project.page_count,
-            script_text: project.script_text,
-            director_json: project.director_json,
-            preferred_workflow_mode: project.preferred_workflow_mode,
-            current_run_number: project.current_run_number ?? 0,
+            pageCount: project.pageCount,
+            scriptText: project.scriptText ?? '',
+            directorJson: project.directorJson,
+            preferredWorkflowMode: (project.preferredWorkflowMode as 'automatic' | 'fine_tuned' | undefined) ?? undefined,
+            currentRunNumber: project.currentRunNumber ?? 0,
           }}
-          storyScore={storyScore}
-          audioOutputs={audioOutputs || undefined}
-          latestJob={latestJob}
+          storyScore={storyScore ? { id: storyScore.id, overallScore: Number(storyScore.overallScore) } : null}
+          audioOutputs={audioOutputs?.map(a => ({
+            id: a.id,
+            fileName: a.fileName,
+            filePath: a.filePath,
+            durationSeconds: a.durationSeconds ? Number(a.durationSeconds) : undefined,
+            format: a.format,
+          }))}
+          latestJob={latestJob ? {
+            runNumber: latestJob.runNumber ?? undefined,
+            workflowMode: (latestJob.workflowMode as 'automatic' | 'fine_tuned' | undefined) ?? undefined,
+            progress: latestJob.progress as { step?: string; percent?: number } | undefined,
+            error: latestJob.error ?? undefined,
+          } : null}
           allJobs={enrichedJobs}
           voiceAssignments={voiceAssignments}
           audioOverrides={audioOverrideStats}
@@ -190,12 +213,12 @@ export default async function ProjectPage({
         {/* Intelligence Features */}
         <StoryScoreSection
           projectId={project.id}
-          scriptText={project.script_text || ''}
+          scriptText={project.scriptText || ''}
         />
 
         <StoryAdviserSection
           projectId={project.id}
-          scriptText={project.script_text || ''}
+          scriptText={project.scriptText || ''}
         />
 
         <RevisionSection projectId={project.id} />
@@ -222,7 +245,7 @@ export default async function ProjectPage({
             <CollapsibleContent>
               <CardContent>
                 <pre className="whitespace-pre-wrap font-mono text-sm bg-muted p-4 rounded-lg overflow-auto max-h-96 border border-border">
-                  {project.script_text}
+                  {project.scriptText}
                 </pre>
               </CardContent>
             </CollapsibleContent>

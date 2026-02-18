@@ -2,25 +2,10 @@
  * Audit Logging Utility
  *
  * Provides functions to log user actions for audit trail purposes.
- * Uses the service role client to bypass RLS for logging.
+ * Uses Prisma client for database operations.
  */
 
-import { createClient } from '@supabase/supabase-js';
-
-// Service role client for audit logging (bypasses RLS)
-const getServiceClient = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.warn('Audit logging: Missing Supabase credentials');
-    return null;
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false },
-  });
-};
+import { prisma } from '@/lib/db';
 
 export interface AuditLogEntry {
   user_id?: string | null;
@@ -36,25 +21,20 @@ export interface AuditLogEntry {
  * Log an audit event
  */
 export async function logAuditEvent(entry: AuditLogEntry): Promise<void> {
-  const supabase = getServiceClient();
-  if (!supabase) return;
-
   try {
-    const { error } = await supabase.from('audit_logs').insert({
-      user_id: entry.user_id,
-      action: entry.action,
-      resource_type: entry.resource_type,
-      resource_id: entry.resource_id,
-      details: entry.details || {},
-      ip_address: entry.ip_address,
-      user_agent: entry.user_agent,
+    await prisma.auditLog.create({
+      data: {
+        userId: entry.user_id ?? null,
+        action: entry.action,
+        resourceType: entry.resource_type,
+        resourceId: entry.resource_id ?? null,
+        details: (entry.details || {}) as Record<string, string | number | boolean>,
+        ipAddress: entry.ip_address ?? null,
+        userAgent: entry.user_agent ?? null,
+      },
     });
-
-    if (error) {
-      // Silently fail - don't break the main flow for audit logging failures
-      console.error('Failed to log audit event:', error.message);
-    }
   } catch (err) {
+    // Silently fail - don't break the main flow for audit logging failures
     console.error('Audit logging error:', err);
   }
 }

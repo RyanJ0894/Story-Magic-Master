@@ -41,9 +41,9 @@ interface Scene {
 
 interface AudioOutput {
   id: string;
-  file_name: string;
-  file_path: string;
-  duration_seconds?: number;
+  fileName: string;
+  filePath: string;
+  durationSeconds?: number;
   format: string;
 }
 
@@ -110,7 +110,7 @@ export function ScriptSyncPlayer({
           acc + scene.dialogue.reduce((a, line) => a + line.text.length, 0),
         0
       );
-      const estimatedDuration = duration || currentOutput?.duration_seconds || 60;
+      const estimatedDuration = duration || currentOutput?.durationSeconds || 60;
       const charsPerSecond = totalChars / estimatedDuration;
 
       let currentTimeOffset = 0;
@@ -291,7 +291,8 @@ export function ScriptSyncPlayer({
     );
   }
 
-  const audioUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${currentOutput.file_path}`;
+  const orchestratorUrl = process.env.NEXT_PUBLIC_ORCHESTRATOR_URL || process.env.ORCHESTRATOR_URL || '';
+  const audioUrl = `${orchestratorUrl}/audio/${currentOutput.filePath}`;
 
   return (
     <div className={cn('space-y-4', className)}>
@@ -360,7 +361,7 @@ export function ScriptSyncPlayer({
                 className="h-2 bg-muted rounded-full cursor-pointer overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
               >
                 <div
-                  className="h-full bg-gradient-to-r from-violet-500 to-purple-600 rounded-full transition-all duration-100 pointer-events-none"
+                  className="h-full brand-gradient-bar rounded-full transition-all duration-100 pointer-events-none"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -380,7 +381,7 @@ export function ScriptSyncPlayer({
                 {muted ? <VolumeX className="w-4 h-4" aria-hidden="true" /> : <Volume2 className="w-4 h-4" aria-hidden="true" />}
               </button>
               <Button variant="outline" size="sm" asChild>
-                <a href={audioUrl} download={currentOutput.file_name} aria-label={`Download ${currentOutput.file_name}`}>
+                <a href={audioUrl} download={currentOutput.fileName} aria-label={`Download ${currentOutput.fileName}`}>
                   <Download className="w-4 h-4" aria-hidden="true" />
                   <span className="sr-only">Download</span>
                 </a>

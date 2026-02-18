@@ -3,20 +3,20 @@
  *
  * POST /api/projects/[id]/feedback - Submit feedback
  * GET /api/projects/[id]/feedback - Get feedback stats (admin only)
+ *
+ * NOTE: No Prisma model for feedback yet. This route logs feedback
+ * to console until the feedback table migration is applied.
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { withProjectAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import {
-  FeedbackTarget,
-  FeedbackRating,
-  RejectionReason,
   FeedbackRow,
   rowToFeedback,
   calculateFeedbackStats,
 } from '@/lib/feedback/types';
-import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Validation
@@ -45,43 +45,7 @@ const SubmitFeedbackSchema = z.object({
 // POST - Submit feedback
 // =============================================================================
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const supabase = await createClient();
-  const { id: projectId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  // Verify project ownership
-  const { data: project } = await supabase
-    .from('projects')
-    .select('id')
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-    .single();
-
-  if (!project) {
-    return NextResponse.json(
-      { error: 'Project not found', code: 'NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
+export const POST = withProjectAuth(async (request, { userId, prisma, projectId }) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -107,113 +71,60 @@ export async function POST(
   const { target, targetId, rating, rejectionReason, comment, metadata } = parseResult.data;
 
   try {
-    // Insert feedback
-    const { data: feedback, error } = await supabase
-      .from('feedback')
-      .insert({
-        user_id: user.id,
-        project_id: projectId,
-        target,
-        target_id: targetId,
-        rating: rating || null,
-        rejection_reason: rejectionReason || null,
-        comment: comment || null,
-        metadata: metadata || null,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      // If feedback table doesn't exist, log and return success anyway
-      if (error.message.includes('relation') && error.message.includes('does not exist')) {
-        console.log('[Feedback] Table does not exist, feedback logged:', {
-          projectId,
-          target,
-          targetId,
-          rating,
-          rejectionReason,
-        });
-        return NextResponse.json({
-          success: true,
-          logged: true,
-          message: 'Feedback logged (table pending migration)',
-        });
-      }
-      throw new Error(`Failed to save feedback: ${error.message}`);
-    }
+    // Insert feedback via raw SQL since no Prisma model exists yet
+    const feedback = await prisma.$queryRaw<FeedbackRow[]>`
+      INSERT INTO feedback (user_id, project_id, target, target_id, rating, rejection_reason, comment, metadata)
+      VALUES (${userId}, ${projectId}::uuid, ${target}, ${targetId}, ${rating || null}, ${rejectionReason || null}, ${comment || null}, ${JSON.stringify(metadata || null)}::jsonb)
+      RETURNING *
+    `;
 
     return NextResponse.json({
       success: true,
-      feedback: feedback ? rowToFeedback(feedback as FeedbackRow) : null,
+      feedback: feedback[0] ? rowToFeedback(feedback[0]) : null,
     });
   } catch (error) {
-    console.error('[Feedback] Error submitting:', error);
+    // If feedback table doesn't exist, log and return success anyway
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('relation') && errorMessage.includes('does not exist')) {
+      console.log('[Feedback] Table does not exist, feedback logged:', {
+        projectId,
+        target,
+        targetId,
+        rating,
+        rejectionReason,
+      });
+      return NextResponse.json({
+        success: true,
+        logged: true,
+        message: 'Feedback logged (table pending migration)',
+      });
+    }
+
+    log.error('[Feedback] Error submitting', error);
     return NextResponse.json(
       {
         error: 'Failed to submit feedback',
         code: 'SUBMIT_ERROR',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        details: errorMessage,
       },
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // GET - Get feedback stats (admin/development)
 // =============================================================================
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const supabase = await createClient();
-  const { id: projectId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  // Verify project ownership
-  const { data: project } = await supabase
-    .from('projects')
-    .select('id')
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-    .single();
-
-  if (!project) {
-    return NextResponse.json(
-      { error: 'Project not found', code: 'NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
+export const GET = withProjectAuth(async (_request, { prisma, projectId }) => {
   try {
-    const { data, error } = await supabase
-      .from('feedback')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: false });
+    const data = await prisma.$queryRaw<FeedbackRow[]>`
+      SELECT * FROM feedback
+      WHERE project_id = ${projectId}::uuid
+      ORDER BY created_at DESC
+    `;
 
-    if (error) {
-      if (error.message.includes('relation') && error.message.includes('does not exist')) {
-        return NextResponse.json({
-          feedback: [],
-          stats: null,
-          message: 'Feedback table pending migration',
-        });
-      }
-      throw new Error(`Failed to fetch feedback: ${error.message}`);
-    }
-
-    const feedbacks = (data || []).map((row) => rowToFeedback(row as FeedbackRow));
+    const feedbacks = (data || []).map((row) => rowToFeedback(row));
     const stats = calculateFeedbackStats(feedbacks);
 
     return NextResponse.json({
@@ -221,14 +132,23 @@ export async function GET(
       stats,
     });
   } catch (error) {
-    console.error('[Feedback] Error fetching:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('relation') && errorMessage.includes('does not exist')) {
+      return NextResponse.json({
+        feedback: [],
+        stats: null,
+        message: 'Feedback table pending migration',
+      });
+    }
+
+    log.error('[Feedback] Error fetching', error);
     return NextResponse.json(
       {
         error: 'Failed to fetch feedback',
         code: 'FETCH_ERROR',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        details: errorMessage,
       },
       { status: 500 }
     );
   }
-}
+});

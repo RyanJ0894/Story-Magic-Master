@@ -1,28 +1,11 @@
-import { createClient } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/middleware';
 import { createCheckoutSession } from '@/lib/stripe/server';
 import { STRIPE_CONFIG } from '@/lib/stripe/config';
 import { NextResponse } from 'next/server';
-import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
-export async function POST(request: Request) {
-  // CSRF protection
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
+export const POST = withAuth(async (request, { userId, prisma }) => {
   try {
-    const supabase = await createClient();
-
-    // Verify user is authenticated
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { tier, interval } = await request.json();
 
     // Validate tier and interval
@@ -47,23 +30,29 @@ export async function POST(request: Request) {
       );
     }
 
+    // Get user email from profile for Stripe
+    const profile = await prisma.profile.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+
     // Create checkout session
     const origin = request.headers.get('origin') || 'http://localhost:22000';
 
     const session = await createCheckoutSession({
       priceId,
-      userId: user.id,
-      userEmail: user.email || '',
+      userId,
+      userEmail: profile?.email || '',
       successUrl: `${origin}/billing?success=true`,
       cancelUrl: `${origin}/pricing?canceled=true`,
     });
 
     return NextResponse.json({ sessionId: session.id, url: session.url });
   } catch (error) {
-    console.error('Checkout error:', error);
+    log.error('Checkout error', error);
     return NextResponse.json(
       { error: 'Failed to create checkout session' },
       { status: 500 }
     );
   }
-}
+});

@@ -6,7 +6,22 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { mockSupabaseClient, createChainableMock } from '../../setup';
+
+// Mock Clerk auth
+const mockAuth = vi.fn();
+vi.mock('@clerk/nextjs/server', () => ({
+  auth: () => mockAuth(),
+}));
+
+// Mock Prisma
+const mockProjectFindFirst = vi.fn();
+vi.mock('@/lib/db', () => ({
+  prisma: {
+    project: {
+      findFirst: (...args: unknown[]) => mockProjectFindFirst(...args),
+    },
+  },
+}));
 
 // Mock CSRF validation
 const mockValidateCsrf = vi.fn(() => null);
@@ -20,6 +35,11 @@ vi.mock('@/lib/queue/service', () => ({
   enqueue: (...args: unknown[]) => mockEnqueue(...args),
 }));
 
+// Mock logger
+vi.mock('@/lib/logger', () => ({
+  log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+
 // Import after mocks
 const { POST } = await import('@/app/api/projects/[id]/regenerate-scene/route');
 
@@ -28,7 +48,7 @@ const { POST } = await import('@/app/api/projects/[id]/regenerate-scene/route');
 // =============================================================================
 
 const PROJECT_ID = '550e8400-e29b-41d4-a716-446655440000';
-const USER_ID = 'user-123';
+const USER_ID = 'user_test123';
 
 const mockDirectorJson = {
   scenes: [
@@ -52,24 +72,15 @@ function createRequest(body: Record<string, unknown>): NextRequest {
   );
 }
 
-function mockAuth(user = { id: USER_ID, email: 'writer@example.com' }) {
-  mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-    data: { user },
-    error: null,
-  });
-  mockSupabaseClient.auth.getSession.mockResolvedValueOnce({
-    data: { session: { access_token: 'test-token' } },
-    error: null,
+function setupAuth(userId: string | null = USER_ID) {
+  mockAuth.mockResolvedValue({
+    userId,
+    getToken: vi.fn().mockResolvedValue('test-token'),
   });
 }
 
-function mockProject(project: Record<string, unknown> | null) {
-  mockSupabaseClient.from.mockReturnValueOnce(
-    createChainableMock({
-      data: project,
-      error: project ? null : { message: 'not found' },
-    }),
-  );
+function setupProject(project: Record<string, unknown> | null) {
+  mockProjectFindFirst.mockResolvedValue(project);
 }
 
 const routeParams = { params: Promise.resolve({ id: PROJECT_ID }) };
@@ -90,10 +101,7 @@ describe('Regenerate Scene API Route', () => {
   });
 
   it('rejects unauthenticated requests with 401', async () => {
-    mockSupabaseClient.auth.getUser.mockResolvedValueOnce({
-      data: { user: null },
-      error: { message: 'Not authenticated' },
-    });
+    setupAuth(null);
 
     const response = await POST(createRequest({ sceneIndex: 0 }), routeParams);
     expect(response.status).toBe(401);
@@ -107,18 +115,18 @@ describe('Regenerate Scene API Route', () => {
   });
 
   it('returns 404 when project not found', async () => {
-    mockAuth();
-    mockProject(null);
+    setupAuth();
+    setupProject(null);
 
     const response = await POST(createRequest({ sceneIndex: 0 }), routeParams);
     expect(response.status).toBe(404);
   });
 
   it('returns 404 when project has no director_json', async () => {
-    mockAuth();
-    mockProject({
+    setupAuth();
+    setupProject({
       id: PROJECT_ID,
-      user_id: USER_ID,
+      userId: USER_ID,
       director_json: null,
     });
 
@@ -130,10 +138,10 @@ describe('Regenerate Scene API Route', () => {
   });
 
   it('returns 400 for invalid sceneIndex', async () => {
-    mockAuth();
-    mockProject({
+    setupAuth();
+    setupProject({
       id: PROJECT_ID,
-      user_id: USER_ID,
+      userId: USER_ID,
       director_json: mockDirectorJson,
     });
 
@@ -142,10 +150,10 @@ describe('Regenerate Scene API Route', () => {
   });
 
   it('returns 400 for sceneIndex out of range', async () => {
-    mockAuth();
-    mockProject({
+    setupAuth();
+    setupProject({
       id: PROJECT_ID,
-      user_id: USER_ID,
+      userId: USER_ID,
       director_json: mockDirectorJson,
     });
 
@@ -157,10 +165,10 @@ describe('Regenerate Scene API Route', () => {
   });
 
   it('enqueues scene_regeneration job on success', async () => {
-    mockAuth();
-    mockProject({
+    setupAuth();
+    setupProject({
       id: PROJECT_ID,
-      user_id: USER_ID,
+      userId: USER_ID,
       director_json: mockDirectorJson,
     });
 
@@ -186,10 +194,10 @@ describe('Regenerate Scene API Route', () => {
   });
 
   it('returns 400 for non-numeric sceneIndex', async () => {
-    mockAuth();
-    mockProject({
+    setupAuth();
+    setupProject({
       id: PROJECT_ID,
-      user_id: USER_ID,
+      userId: USER_ID,
       director_json: mockDirectorJson,
     });
 

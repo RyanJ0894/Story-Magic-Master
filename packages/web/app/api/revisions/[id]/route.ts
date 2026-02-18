@@ -6,16 +6,17 @@
  * DELETE /api/revisions/[id] - Delete revision
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/middleware';
+import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
 import { isFeatureEnabled } from '@/lib/features';
 import {
   getRevision,
   updateRevisionLabel,
   deleteRevision,
 } from '@/lib/revisions';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Validation
@@ -33,30 +34,23 @@ async function verifyRevisionOwnership(
   revisionId: string,
   userId: string
 ): Promise<boolean> {
-  const supabase = await createClient();
+  const revision = await prisma.revision.findUnique({
+    where: { id: revisionId },
+    select: {
+      project: { select: { userId: true } },
+    },
+  });
 
-  const { data } = await supabase
-    .from('revisions')
-    .select('project_id, projects!inner(user_id)')
-    .eq('id', revisionId)
-    .single();
+  if (!revision) return false;
 
-  if (!data) return false;
-
-  const revisionData = data as unknown as { project_id: string; projects: { user_id: string } | { user_id: string }[] };
-  const projects = revisionData.projects;
-  const projectUserId = Array.isArray(projects) ? projects[0]?.user_id : projects?.user_id;
-  return projectUserId === userId;
+  return revision.project.userId === userId;
 }
 
 // =============================================================================
 // GET - Get revision details
 // =============================================================================
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withAuth(async (_request, { userId, params }) => {
   if (!isFeatureEnabled('REVISION_TRACKING')) {
     return NextResponse.json(
       { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
@@ -64,20 +58,9 @@ export async function GET(
     );
   }
 
-  const supabase = await createClient();
-  const { id: revisionId } = await params;
+  const revisionId = params.id;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  const owned = await verifyRevisionOwnership(revisionId, user.id);
+  const owned = await verifyRevisionOwnership(revisionId, userId);
   if (!owned) {
     return NextResponse.json(
       { error: 'Revision not found', code: 'NOT_FOUND' },
@@ -96,7 +79,7 @@ export async function GET(
 
     return NextResponse.json({ revision });
   } catch (error) {
-    console.error('[Revision] Error fetching:', error);
+    log.error('[Revision] Error fetching', error);
     return NextResponse.json(
       {
         error: 'Failed to fetch revision',
@@ -106,16 +89,13 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // PUT - Update revision
 // =============================================================================
 
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const PUT = withAuth(async (request, { userId, params }) => {
   if (!isFeatureEnabled('REVISION_TRACKING')) {
     return NextResponse.json(
       { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
@@ -123,28 +103,9 @@ export async function PUT(
     );
   }
 
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
+  const revisionId = params.id;
 
-  const supabase = await createClient();
-  const { id: revisionId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  const owned = await verifyRevisionOwnership(revisionId, user.id);
+  const owned = await verifyRevisionOwnership(revisionId, userId);
   if (!owned) {
     return NextResponse.json(
       { error: 'Revision not found', code: 'NOT_FOUND' },
@@ -181,7 +142,7 @@ export async function PUT(
       revision,
     });
   } catch (error) {
-    console.error('[Revision] Error updating:', error);
+    log.error('[Revision] Error updating', error);
     return NextResponse.json(
       {
         error: 'Failed to update revision',
@@ -191,16 +152,13 @@ export async function PUT(
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // DELETE - Delete revision
 // =============================================================================
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const DELETE = withAuth(async (_request, { userId, params }) => {
   if (!isFeatureEnabled('REVISION_TRACKING')) {
     return NextResponse.json(
       { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
@@ -208,28 +166,9 @@ export async function DELETE(
     );
   }
 
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
+  const revisionId = params.id;
 
-  const supabase = await createClient();
-  const { id: revisionId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  const owned = await verifyRevisionOwnership(revisionId, user.id);
+  const owned = await verifyRevisionOwnership(revisionId, userId);
   if (!owned) {
     return NextResponse.json(
       { error: 'Revision not found', code: 'NOT_FOUND' },
@@ -241,7 +180,7 @@ export async function DELETE(
     await deleteRevision(revisionId);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Revision] Error deleting:', error);
+    log.error('[Revision] Error deleting', error);
     return NextResponse.json(
       {
         error: 'Failed to delete revision',
@@ -251,4 +190,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+});

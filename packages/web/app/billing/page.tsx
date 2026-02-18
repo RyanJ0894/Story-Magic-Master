@@ -1,4 +1,8 @@
-import { createClient } from '@/lib/supabase/server';
+export const dynamic = 'force-dynamic';
+
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
+import { ensureProfile } from '@/lib/ensure-profile';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -14,35 +18,34 @@ export default async function BillingPage({
 }: {
   searchParams: { success?: string };
 }) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     redirect('/login?redirect=/billing');
   }
 
-  // Fetch user's profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
+  // Fetch (or auto-create) user's profile
+  const profile = await ensureProfile(userId);
+
+  const tier = (profile?.subscriptionTier || 'free') as SubscriptionTier;
+  const pageLimit = getPageLimit(tier);
 
   // Get remaining pages
-  const { data: remainingPages } = await supabase
-    .rpc('get_remaining_pages', { p_user_id: user.id });
+  const remainingResult = await prisma.$queryRaw<[{ remaining: number }]>`
+    SELECT COALESCE(
+      (SELECT p.pages_limit - p.pages_used FROM usage p WHERE p.user_id = ${userId} AND p.period = to_char(now(), 'YYYY-MM') LIMIT 1),
+      ${pageLimit}
+    ) AS remaining
+  `;
+  const remainingPages = remainingResult[0]?.remaining ?? pageLimit;
 
-  const tier = (profile?.subscription_tier || 'free') as SubscriptionTier;
   const tierConfig = getTierByName(tier);
-  const pageLimit = getPageLimit(tier);
   const remaining = remainingPages ?? pageLimit;
   const usedPages = pageLimit - remaining;
   const usagePercent = (usedPages / pageLimit) * 100;
 
-  const subscriptionStatus = profile?.subscription_status || 'inactive';
-  const currentPeriodEnd = profile?.current_period_end
-    ? new Date(profile.current_period_end)
+  const subscriptionStatus = profile?.subscriptionStatus || 'inactive';
+  const currentPeriodEnd = profile?.currentPeriodEnd
+    ? new Date(profile.currentPeriodEnd)
     : null;
 
   const hasActiveSubscription = tier !== 'free' && subscriptionStatus === 'active';
@@ -61,7 +64,7 @@ export default async function BillingPage({
             </Link>
             <div className="h-6 w-px bg-border" />
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg brand-gradient-br flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
               <h1 className="font-semibold text-foreground">Billing</h1>
@@ -158,7 +161,7 @@ export default async function BillingPage({
                 <ManageSubscriptionButton />
               ) : (
                 <Link href="/pricing">
-                  <Button className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700">
+                  <Button className="brand-gradient brand-gradient-hover">
                     Upgrade Plan
                   </Button>
                 </Link>

@@ -5,24 +5,29 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock Supabase
-const mockUpdate = vi.fn().mockReturnThis();
-const mockEq = vi.fn().mockReturnThis();
-const mockSelect = vi.fn().mockReturnThis();
-const mockSingle = vi.fn().mockResolvedValue({ data: { id: 'user-123' } });
-const mockUpsert = vi.fn().mockResolvedValue({ data: null, error: null });
-const mockFrom = vi.fn(() => ({
-  update: mockUpdate,
-  select: mockSelect,
-  upsert: mockUpsert,
-  eq: mockEq,
-  single: mockSingle,
-}));
+// Mock Prisma
+const mockProfileUpdate = vi.fn().mockResolvedValue({});
+const mockProfileUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+const mockProfileFindFirst = vi.fn().mockResolvedValue({ id: 'user-123' });
+const mockUsageUpsert = vi.fn().mockResolvedValue({});
+const mockSubscriptionUpsert = vi.fn().mockResolvedValue({});
+const mockSubscriptionUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
 
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
-    from: mockFrom,
-  })),
+vi.mock('@/lib/db', () => ({
+  prisma: {
+    profile: {
+      update: (...args: unknown[]) => mockProfileUpdate(...args),
+      updateMany: (...args: unknown[]) => mockProfileUpdateMany(...args),
+      findFirst: (...args: unknown[]) => mockProfileFindFirst(...args),
+    },
+    usage: {
+      upsert: (...args: unknown[]) => mockUsageUpsert(...args),
+    },
+    subscription: {
+      upsert: (...args: unknown[]) => mockSubscriptionUpsert(...args),
+      updateMany: (...args: unknown[]) => mockSubscriptionUpdateMany(...args),
+    },
+  },
 }));
 
 // Mock constructWebhookEvent
@@ -32,8 +37,6 @@ vi.mock('@/lib/stripe/server', () => ({
 }));
 
 // Set env vars before importing the route
-process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
-process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-key';
 process.env.STRIPE_PRICE_CREATOR_MONTHLY = 'price_creator_monthly';
 process.env.STRIPE_PRICE_CREATOR_YEARLY = 'price_creator_yearly';
 process.env.STRIPE_PRICE_PRO_MONTHLY = 'price_pro_monthly';
@@ -69,18 +72,7 @@ function createStripeEvent(type: string, data: Record<string, unknown>) {
 describe('Stripe Webhook Handler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset chained mock returns
-    mockUpdate.mockReturnThis();
-    mockEq.mockReturnThis();
-    mockSelect.mockReturnThis();
-    mockSingle.mockResolvedValue({ data: { id: 'user-123' } });
-    mockFrom.mockReturnValue({
-      update: mockUpdate,
-      select: mockSelect,
-      upsert: mockUpsert,
-      eq: mockEq,
-      single: mockSingle,
-    });
+    mockProfileFindFirst.mockResolvedValue({ id: 'user-123' });
   });
 
   describe('Signature verification', () => {
@@ -132,13 +124,14 @@ describe('Stripe Webhook Handler', () => {
       const response = await POST(request);
       expect(response.status).toBe(200);
 
-      expect(mockFrom).toHaveBeenCalledWith('profiles');
-      expect(mockUpdate).toHaveBeenCalledWith({
-        stripe_customer_id: 'cus_abc123',
-        stripe_subscription_id: 'sub_xyz789',
-        subscription_status: 'active',
+      expect(mockProfileUpdate).toHaveBeenCalledWith({
+        where: { id: 'user-123' },
+        data: {
+          stripeCustomerId: 'cus_abc123',
+          stripeSubscriptionId: 'sub_xyz789',
+          subscriptionStatus: 'active',
+        },
       });
-      expect(mockEq).toHaveBeenCalledWith('id', 'user-123');
     });
 
     it('should skip update if userId is missing from metadata', async () => {
@@ -153,7 +146,7 @@ describe('Stripe Webhook Handler', () => {
       const request = createWebhookRequest('{}', 'valid_sig');
       const response = await POST(request);
       expect(response.status).toBe(200);
-      expect(mockUpdate).not.toHaveBeenCalled();
+      expect(mockProfileUpdate).not.toHaveBeenCalled();
     });
   });
 
@@ -173,11 +166,14 @@ describe('Stripe Webhook Handler', () => {
       const response = await POST(request);
       expect(response.status).toBe(200);
 
-      expect(mockUpdate).toHaveBeenCalledWith({
-        subscription_tier: 'pro',
-        subscription_status: 'active',
-        stripe_subscription_id: 'sub_xyz789',
-        current_period_end: expect.any(String),
+      expect(mockProfileUpdate).toHaveBeenCalledWith({
+        where: { id: 'user-123' },
+        data: {
+          subscriptionTier: 'pro',
+          subscriptionStatus: 'active',
+          stripeSubscriptionId: 'sub_xyz789',
+          currentPeriodEnd: expect.any(Date),
+        },
       });
     });
 
@@ -195,8 +191,10 @@ describe('Stripe Webhook Handler', () => {
       const request = createWebhookRequest('{}', 'valid_sig');
       await POST(request);
 
-      expect(mockUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({ subscription_tier: 'creator' })
+      expect(mockProfileUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ subscriptionTier: 'creator' }),
+        })
       );
     });
 
@@ -214,8 +212,10 @@ describe('Stripe Webhook Handler', () => {
       const request = createWebhookRequest('{}', 'valid_sig');
       await POST(request);
 
-      expect(mockUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({ subscription_tier: 'free' })
+      expect(mockProfileUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ subscriptionTier: 'free' }),
+        })
       );
     });
   });
@@ -233,11 +233,14 @@ describe('Stripe Webhook Handler', () => {
       const response = await POST(request);
       expect(response.status).toBe(200);
 
-      expect(mockUpdate).toHaveBeenCalledWith({
-        subscription_tier: 'free',
-        subscription_status: 'canceled',
-        stripe_subscription_id: null,
-        current_period_end: null,
+      expect(mockProfileUpdate).toHaveBeenCalledWith({
+        where: { id: 'user-123' },
+        data: {
+          subscriptionTier: 'free',
+          subscriptionStatus: 'canceled',
+          stripeSubscriptionId: null,
+          currentPeriodEnd: null,
+        },
       });
     });
   });
@@ -256,8 +259,26 @@ describe('Stripe Webhook Handler', () => {
       const response = await POST(request);
       expect(response.status).toBe(200);
 
-      expect(mockUpdate).toHaveBeenCalledWith({
-        subscription_status: 'active',
+      expect(mockProfileUpdateMany).toHaveBeenCalledWith({
+        where: { stripeSubscriptionId: 'sub_xyz789' },
+        data: { subscriptionStatus: 'active' },
+      });
+
+      expect(mockProfileFindFirst).toHaveBeenCalledWith({
+        where: { stripeSubscriptionId: 'sub_xyz789' },
+        select: { id: true },
+      });
+
+      expect(mockUsageUpsert).toHaveBeenCalledWith({
+        where: { userId_period: { userId: 'user-123', period: '2024-01' } },
+        create: {
+          userId: 'user-123',
+          period: '2024-01',
+          pagesUsed: 0,
+        },
+        update: {
+          pagesUsed: 0,
+        },
       });
     });
   });
@@ -274,8 +295,9 @@ describe('Stripe Webhook Handler', () => {
       const response = await POST(request);
       expect(response.status).toBe(200);
 
-      expect(mockUpdate).toHaveBeenCalledWith({
-        subscription_status: 'past_due',
+      expect(mockProfileUpdateMany).toHaveBeenCalledWith({
+        where: { stripeSubscriptionId: 'sub_xyz789' },
+        data: { subscriptionStatus: 'past_due' },
       });
     });
   });

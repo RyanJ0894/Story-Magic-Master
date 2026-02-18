@@ -19,6 +19,7 @@ import {
   Clock,
   CheckCircle,
 } from 'lucide-react';
+import { apiFetch } from '@/lib/api/fetch';
 import { cn } from '@/lib/utils';
 
 type WorkflowMode = 'automatic' | 'fine_tuned';
@@ -95,7 +96,7 @@ export function WorkflowModeSelector({
 
     // Update preferred mode in database
     try {
-      const response = await fetch(`/api/projects/${projectId}/workflow-mode`, {
+      const response = await apiFetch(`/api/projects/${projectId}/workflow-mode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: selectedMode }),
@@ -213,7 +214,7 @@ export function WorkflowModeSelector({
           size="lg"
           disabled={!selectedMode || isSubmitting}
           onClick={handleContinue}
-          className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 min-w-[200px]"
+          className="brand-gradient brand-gradient-hover min-w-[200px]"
         >
           {isSubmitting ? (
             <>

@@ -6,10 +6,10 @@
  * DELETE /api/suggestions/[id] - Delete suggestion
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/middleware';
+import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
 import { isFeatureEnabled } from '@/lib/features';
 import {
   getSuggestion,
@@ -17,6 +17,7 @@ import {
   deleteSuggestion,
   getRewrites,
 } from '@/lib/adviser';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Validation
@@ -35,22 +36,19 @@ async function verifySuggestionOwnership(
   suggestionId: string,
   userId: string
 ): Promise<{ owned: boolean; projectId?: string }> {
-  const supabase = await createClient();
+  const suggestion = await prisma.suggestion.findUnique({
+    where: { id: suggestionId },
+    select: {
+      projectId: true,
+      project: { select: { userId: true } },
+    },
+  });
 
-  const { data } = await supabase
-    .from('suggestions')
-    .select('project_id, projects!inner(user_id)')
-    .eq('id', suggestionId)
-    .single();
+  if (!suggestion) return { owned: false };
 
-  if (!data) return { owned: false };
-
-  const projectData = data as unknown as { project_id: string; projects: { user_id: string } | { user_id: string }[] };
-  const projects = projectData.projects;
-  const projectUserId = Array.isArray(projects) ? projects[0]?.user_id : projects?.user_id;
   return {
-    owned: projectUserId === userId,
-    projectId: data.project_id,
+    owned: suggestion.project.userId === userId,
+    projectId: suggestion.projectId,
   };
 }
 
@@ -58,10 +56,7 @@ async function verifySuggestionOwnership(
 // GET - Get suggestion details with rewrites
 // =============================================================================
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withAuth(async (_request, { userId, params }) => {
   if (!isFeatureEnabled('STORY_ADVISER')) {
     return NextResponse.json(
       { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
@@ -69,20 +64,9 @@ export async function GET(
     );
   }
 
-  const supabase = await createClient();
-  const { id: suggestionId } = await params;
+  const suggestionId = params.id;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  const { owned } = await verifySuggestionOwnership(suggestionId, user.id);
+  const { owned } = await verifySuggestionOwnership(suggestionId, userId);
   if (!owned) {
     return NextResponse.json(
       { error: 'Suggestion not found', code: 'NOT_FOUND' },
@@ -108,7 +92,7 @@ export async function GET(
       rewrites,
     });
   } catch (error) {
-    console.error('[Suggestion] Error fetching:', error);
+    log.error('[Suggestion] Error fetching', error);
     return NextResponse.json(
       {
         error: 'Failed to fetch suggestion',
@@ -118,16 +102,13 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // PUT - Respond to suggestion
 // =============================================================================
 
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const PUT = withAuth(async (request, { userId, params }) => {
   if (!isFeatureEnabled('STORY_ADVISER')) {
     return NextResponse.json(
       { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
@@ -135,28 +116,9 @@ export async function PUT(
     );
   }
 
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
+  const suggestionId = params.id;
 
-  const supabase = await createClient();
-  const { id: suggestionId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  const { owned } = await verifySuggestionOwnership(suggestionId, user.id);
+  const { owned } = await verifySuggestionOwnership(suggestionId, userId);
   if (!owned) {
     return NextResponse.json(
       { error: 'Suggestion not found', code: 'NOT_FOUND' },
@@ -198,7 +160,7 @@ export async function PUT(
       suggestion,
     });
   } catch (error) {
-    console.error('[Suggestion] Error responding:', error);
+    log.error('[Suggestion] Error responding', error);
     return NextResponse.json(
       {
         error: 'Failed to respond to suggestion',
@@ -208,16 +170,13 @@ export async function PUT(
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // DELETE - Delete suggestion
 // =============================================================================
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const DELETE = withAuth(async (_request, { userId, params }) => {
   if (!isFeatureEnabled('STORY_ADVISER')) {
     return NextResponse.json(
       { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
@@ -225,28 +184,9 @@ export async function DELETE(
     );
   }
 
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
+  const suggestionId = params.id;
 
-  const supabase = await createClient();
-  const { id: suggestionId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  const { owned } = await verifySuggestionOwnership(suggestionId, user.id);
+  const { owned } = await verifySuggestionOwnership(suggestionId, userId);
   if (!owned) {
     return NextResponse.json(
       { error: 'Suggestion not found', code: 'NOT_FOUND' },
@@ -261,7 +201,7 @@ export async function DELETE(
       success: true,
     });
   } catch (error) {
-    console.error('[Suggestion] Error deleting:', error);
+    log.error('[Suggestion] Error deleting', error);
     return NextResponse.json(
       {
         error: 'Failed to delete suggestion',
@@ -271,4 +211,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+});

@@ -4,12 +4,13 @@
  * POST /api/suggestions/[id]/rewrite - Generate rewrite options
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/middleware';
+import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
 import { isFeatureEnabled } from '@/lib/features';
 import { generateRewrites, getRewrites, selectRewrite } from '@/lib/adviser';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Validation
@@ -32,30 +33,23 @@ async function verifySuggestionOwnership(
   suggestionId: string,
   userId: string
 ): Promise<boolean> {
-  const supabase = await createClient();
+  const suggestion = await prisma.suggestion.findUnique({
+    where: { id: suggestionId },
+    select: {
+      project: { select: { userId: true } },
+    },
+  });
 
-  const { data } = await supabase
-    .from('suggestions')
-    .select('project_id, projects!inner(user_id)')
-    .eq('id', suggestionId)
-    .single();
+  if (!suggestion) return false;
 
-  if (!data) return false;
-
-  const projectData = data as unknown as { project_id: string; projects: { user_id: string } | { user_id: string }[] };
-  const projects = projectData.projects;
-  const projectUserId = Array.isArray(projects) ? projects[0]?.user_id : projects?.user_id;
-  return projectUserId === userId;
+  return suggestion.project.userId === userId;
 }
 
 // =============================================================================
 // GET - Get existing rewrites
 // =============================================================================
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withAuth(async (_request, { userId, params }) => {
   if (!isFeatureEnabled('STORY_ADVISER')) {
     return NextResponse.json(
       { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
@@ -63,20 +57,9 @@ export async function GET(
     );
   }
 
-  const supabase = await createClient();
-  const { id: suggestionId } = await params;
+  const suggestionId = params.id;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  const owned = await verifySuggestionOwnership(suggestionId, user.id);
+  const owned = await verifySuggestionOwnership(suggestionId, userId);
   if (!owned) {
     return NextResponse.json(
       { error: 'Suggestion not found', code: 'NOT_FOUND' },
@@ -91,7 +74,7 @@ export async function GET(
       rewrites,
     });
   } catch (error) {
-    console.error('[Rewrite] Error fetching:', error);
+    log.error('[Rewrite] Error fetching', error);
     return NextResponse.json(
       {
         error: 'Failed to fetch rewrites',
@@ -101,16 +84,13 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // POST - Generate rewrites or select one
 // =============================================================================
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const POST = withAuth(async (request, { userId, params }) => {
   if (!isFeatureEnabled('STORY_ADVISER')) {
     return NextResponse.json(
       { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
@@ -118,28 +98,9 @@ export async function POST(
     );
   }
 
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
+  const suggestionId = params.id;
 
-  const supabase = await createClient();
-  const { id: suggestionId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  const owned = await verifySuggestionOwnership(suggestionId, user.id);
+  const owned = await verifySuggestionOwnership(suggestionId, userId);
   if (!owned) {
     return NextResponse.json(
       { error: 'Suggestion not found', code: 'NOT_FOUND' },
@@ -164,7 +125,7 @@ export async function POST(
         selected: rewrite,
       });
     } catch (error) {
-      console.error('[Rewrite] Error selecting:', error);
+      log.error('[Rewrite] Error selecting', error);
       return NextResponse.json(
         {
           error: 'Failed to select rewrite',
@@ -207,7 +168,7 @@ export async function POST(
       rewrites,
     });
   } catch (error) {
-    console.error('[Rewrite] Error generating:', error);
+    log.error('[Rewrite] Error generating', error);
     return NextResponse.json(
       {
         error: 'Failed to generate rewrites',
@@ -217,4 +178,4 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});

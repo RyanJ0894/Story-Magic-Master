@@ -1,93 +1,62 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { validateCsrf } from '@/lib/csrf';
+import { withAuth } from '@/lib/api/middleware';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
-
-// =============================================================================
-// Route Params
-// =============================================================================
-
-interface RouteParams {
-  params: Promise<{ subscriptionId: string }>;
-}
-
-// =============================================================================
-// Admin Auth Helper
-// =============================================================================
-
-async function verifyAdmin(supabase: Awaited<ReturnType<typeof createClient>>) {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { user: null, error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('user_type')
-    .eq('id', user.id)
-    .single();
-
-  if (profile?.user_type !== 'admin') {
-    return { user: null, error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
-  }
-
-  return { user, error: null };
-}
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // GET /api/admin/subscriptions/[subscriptionId] - Get subscription details
 // =============================================================================
 
-export async function GET(request: Request, { params }: RouteParams) {
-  const { subscriptionId } = await params;
-  const supabase = await createClient();
+export const GET = withAuth(async (request, { userId, prisma, params }) => {
+  const { subscriptionId } = params;
 
-  const { user, error: authError } = await verifyAdmin(supabase);
-  if (authError) return authError;
+  const profile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { userType: true },
+  });
+
+  if (profile?.userType !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   // Fetch subscription with related profile
-  const { data: subscription, error } = await supabase
-    .from('subscriptions')
-    .select(`
-      id,
-      user_id,
-      stripe_customer_id,
-      stripe_subscription_id,
-      plan,
-      status,
-      current_period_start,
-      current_period_end,
-      cancel_at_period_end,
-      created_at,
-      updated_at,
-      profiles(id, full_name, user_type, writer_code, reader_code)
-    `)
-    .eq('id', subscriptionId)
-    .single();
+  const subscription = await prisma.subscription.findUnique({
+    where: { id: subscriptionId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          userType: true,
+          writerCode: true,
+          readerCode: true,
+        },
+      },
+    },
+  });
 
-  if (error || !subscription) {
+  if (!subscription) {
     return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
   }
 
   return NextResponse.json({ data: subscription });
-}
+});
 
 // =============================================================================
 // POST /api/admin/subscriptions/[subscriptionId] - Cancel or Sync subscription
 // =============================================================================
 
-export async function POST(request: Request, { params }: RouteParams) {
-  // CSRF protection
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+export const POST = withAuth(async (request, { userId, prisma, params }) => {
+  const { subscriptionId } = params;
+
+  const profile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { userType: true },
+  });
+
+  if (profile?.userType !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
-
-  const { subscriptionId } = await params;
-  const supabase = await createClient();
-
-  const { user, error: authError } = await verifyAdmin(supabase);
-  if (authError || !user) return authError;
 
   // Determine action from the request URL path
   const url = new URL(request.url);
@@ -95,77 +64,66 @@ export async function POST(request: Request, { params }: RouteParams) {
   const action = pathSegments[pathSegments.length - 1];
 
   // Fetch existing subscription
-  const { data: subscription, error: fetchError } = await supabase
-    .from('subscriptions')
-    .select('*')
-    .eq('id', subscriptionId)
-    .single();
+  const subscription = await prisma.subscription.findUnique({
+    where: { id: subscriptionId },
+  });
 
-  if (fetchError || !subscription) {
+  if (!subscription) {
     return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
   }
 
   if (action === 'cancel') {
-    return handleCancel(supabase, subscription, subscriptionId, user, request);
+    return handleCancel(prisma, subscription, subscriptionId, { id: userId }, request);
   } else if (action === 'sync') {
-    return handleSync(supabase, subscription, subscriptionId, user, request);
+    return handleSync(prisma, subscription, subscriptionId, { id: userId }, request);
   }
 
   return NextResponse.json({ error: 'Invalid action. Use /cancel or /sync' }, { status: 400 });
-}
+});
 
 // =============================================================================
 // Cancel Subscription Handler
 // =============================================================================
 
 async function handleCancel(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  prisma: import('@prisma/client').PrismaClient,
   subscription: Record<string, unknown>,
   subscriptionId: string,
-  user: { id: string; email?: string },
+  user: { id: string },
   request: Request,
 ) {
-  // TODO: Integrate with Stripe API to cancel the subscription on Stripe's end.
-  // When implementing, call stripe.subscriptions.update(subscription.stripe_subscription_id,
-  //   { cancel_at_period_end: true }) to gracefully cancel at period end,
-  // or stripe.subscriptions.cancel() for immediate cancellation.
+  try {
+    const updated = await prisma.subscription.update({
+      where: { id: subscriptionId },
+      data: {
+        cancelAtPeriodEnd: true,
+        status: 'canceled',
+      },
+    });
 
-  const { data: updated, error: updateError } = await supabase
-    .from('subscriptions')
-    .update({
-      cancel_at_period_end: true,
-      status: 'canceled',
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', subscriptionId)
-    .select()
-    .single();
+    // Log audit event
+    const requestInfo = extractRequestInfo(request);
+    await logAuditEvent({
+      user_id: user.id,
+      action: AuditActions.SUBSCRIPTION_CANCEL,
+      resource_type: ResourceTypes.SUBSCRIPTION,
+      resource_id: subscriptionId,
+      details: {
+        admin_action: true,
+        target_user_id: subscription.userId,
+        previous_status: subscription.status,
+      },
+      ...requestInfo,
+    });
 
-  if (updateError) {
-    console.error('Error canceling subscription:', updateError);
+    return NextResponse.json({
+      data: updated,
+      message: 'Subscription canceled (database updated). Stripe integration pending.',
+    });
+  } catch (error) {
+    log.error('Error canceling subscription', error);
     return NextResponse.json({ error: 'Failed to cancel subscription' }, { status: 500 });
   }
-
-  // Log audit event
-  const requestInfo = extractRequestInfo(request);
-  await logAuditEvent({
-    user_id: user.id,
-    action: AuditActions.SUBSCRIPTION_CANCEL,
-    resource_type: ResourceTypes.SUBSCRIPTION,
-    resource_id: subscriptionId,
-    details: {
-      admin_action: true,
-      admin_email: user.email,
-      target_user_id: subscription.user_id,
-      previous_status: subscription.status,
-    },
-    ...requestInfo,
-  });
-
-  return NextResponse.json({
-    data: updated,
-    message: 'Subscription canceled (database updated). Stripe integration pending.',
-  });
 }
 
 // =============================================================================
@@ -173,53 +131,41 @@ async function handleCancel(
 // =============================================================================
 
 async function handleSync(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  prisma: import('@prisma/client').PrismaClient,
   subscription: Record<string, unknown>,
   subscriptionId: string,
-  user: { id: string; email?: string },
+  user: { id: string },
   request: Request,
 ) {
-  // TODO: Integrate with Stripe API to fetch the latest subscription state.
-  // When implementing:
-  //   1. Call stripe.subscriptions.retrieve(subscription.stripe_subscription_id)
-  //   2. Map Stripe status to local status
-  //   3. Update current_period_start, current_period_end, cancel_at_period_end, plan, status
-  //   4. Handle cases where the Stripe subscription no longer exists
+  try {
+    // For now, update the timestamp to indicate a sync was attempted
+    const updated = await prisma.subscription.update({
+      where: { id: subscriptionId },
+      data: {}, // updatedAt auto-updates via @updatedAt
+    });
 
-  // For now, update the timestamp to indicate a sync was attempted
-  const { data: updated, error: updateError } = await supabase
-    .from('subscriptions')
-    .update({
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', subscriptionId)
-    .select()
-    .single();
+    // Log audit event
+    const requestInfo = extractRequestInfo(request);
+    await logAuditEvent({
+      user_id: user.id,
+      action: AuditActions.ADMIN_SUBSCRIPTION_MODIFY,
+      resource_type: ResourceTypes.SUBSCRIPTION,
+      resource_id: subscriptionId,
+      details: {
+        admin_action: true,
+        sync_attempted: true,
+        target_user_id: subscription.userId,
+        note: 'Stripe sync stub - actual Stripe API integration pending',
+      },
+      ...requestInfo,
+    });
 
-  if (updateError) {
-    console.error('Error syncing subscription:', updateError);
+    return NextResponse.json({
+      data: updated,
+      message: 'Sync attempted (stub). Stripe integration pending.',
+    });
+  } catch (error) {
+    log.error('Error syncing subscription', error);
     return NextResponse.json({ error: 'Failed to sync subscription' }, { status: 500 });
   }
-
-  // Log audit event
-  const requestInfo = extractRequestInfo(request);
-  await logAuditEvent({
-    user_id: user.id,
-    action: AuditActions.ADMIN_SUBSCRIPTION_MODIFY,
-    resource_type: ResourceTypes.SUBSCRIPTION,
-    resource_id: subscriptionId,
-    details: {
-      admin_action: true,
-      admin_email: user.email,
-      sync_attempted: true,
-      target_user_id: subscription.user_id,
-      note: 'Stripe sync stub - actual Stripe API integration pending',
-    },
-    ...requestInfo,
-  });
-
-  return NextResponse.json({
-    data: updated,
-    message: 'Sync attempted (stub). Stripe integration pending.',
-  });
 }

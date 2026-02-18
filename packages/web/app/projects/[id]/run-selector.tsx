@@ -36,12 +36,12 @@ import { formatDistanceToNow } from 'date-fns';
 
 export interface Run {
   id: string;
-  run_number: number;
-  workflow_mode: 'automatic' | 'fine_tuned';
+  runNumber: number;
+  workflowMode: 'automatic' | 'fine_tuned';
   status: 'queued' | 'processing' | 'completed' | 'failed';
-  created_at: string;
-  completed_at?: string;
-  has_audio: boolean;
+  createdAt: string;
+  completedAt?: string;
+  hasAudio: boolean;
 }
 
 interface RunSelectorProps {
@@ -73,11 +73,11 @@ export function RunSelector({
 }: RunSelectorProps) {
   const [open, setOpen] = useState(false);
 
-  const currentRun = runs.find(r => r.run_number === currentRunNumber);
+  const currentRun = runs.find(r => r.runNumber === currentRunNumber);
   const recentRuns = runs.slice(0, 5); // Show last 5 runs
   const hasMoreRuns = runs.length > 5;
 
-  const nextRunNumber = runs.length > 0 ? Math.max(...runs.map(r => r.run_number)) + 1 : 1;
+  const nextRunNumber = runs.length > 0 ? Math.max(...runs.map(r => r.runNumber)) + 1 : 1;
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -86,12 +86,12 @@ export function RunSelector({
           <Sparkles className="w-4 h-4" />
           {currentRun ? (
             <>
-              <span>Run #{currentRun.run_number}</span>
+              <span>Run #{currentRun.runNumber}</span>
               <Badge
                 variant="secondary"
-                className={cn('text-xs px-1.5', modeConfig[currentRun.workflow_mode].className)}
+                className={cn('text-xs px-1.5', modeConfig[currentRun.workflowMode].className)}
               >
-                {modeConfig[currentRun.workflow_mode].label}
+                {modeConfig[currentRun.workflowMode].label}
               </Badge>
             </>
           ) : (
@@ -132,14 +132,14 @@ export function RunSelector({
         {/* Recent Runs */}
         {recentRuns.map((run) => {
           const StatusIcon = statusConfig[run.status].icon;
-          const ModeIcon = modeConfig[run.workflow_mode].icon;
-          const isActive = run.run_number === currentRunNumber;
+          const ModeIcon = modeConfig[run.workflowMode].icon;
+          const isActive = run.runNumber === currentRunNumber;
 
           return (
             <DropdownMenuItem
               key={run.id}
               onClick={() => {
-                onSelectRun(run.run_number);
+                onSelectRun(run.runNumber);
                 setOpen(false);
               }}
               className={cn(
@@ -162,8 +162,8 @@ export function RunSelector({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">Run #{run.run_number}</span>
-                  <ModeIcon className={cn('w-3 h-3', modeConfig[run.workflow_mode].className)} />
+                  <span className="font-medium">Run #{run.runNumber}</span>
+                  <ModeIcon className={cn('w-3 h-3', modeConfig[run.workflowMode].className)} />
                   {isActive && (
                     <Badge variant="secondary" className="text-xs px-1">
                       Viewing
@@ -171,11 +171,11 @@ export function RunSelector({
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground truncate">
-                  {formatDistanceToNow(new Date(run.created_at), { addSuffix: true })}
-                  {run.status === 'completed' && run.has_audio && ' • Has audio'}
+                  {formatDistanceToNow(new Date(run.createdAt), { addSuffix: true })}
+                  {run.status === 'completed' && run.hasAudio && ' • Has audio'}
                 </p>
               </div>
-              {run.status === 'completed' && run.has_audio && (
+              {run.status === 'completed' && run.hasAudio && (
                 <Play className="w-4 h-4 text-muted-foreground" />
               )}
             </DropdownMenuItem>

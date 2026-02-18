@@ -1,8 +1,6 @@
-import { createClient } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
-import { rateLimit, getClientIp } from '@/lib/api/rate-limit';
 import { log } from '@/lib/logger';
 
 const PreviewRequestSchema = z.object({
@@ -10,36 +8,7 @@ const PreviewRequestSchema = z.object({
   sceneId: z.string().min(1, 'Scene ID is required'),
 });
 
-export async function POST(request: Request) {
-  // Rate limit: strict (5/min) — expensive TTS preview
-  const ip = getClientIp(request);
-  const limited = await rateLimit(`preview:${ip}`, 'strict');
-  if (limited) return limited;
-
-  // CSRF protection
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({
-      error: 'CSRF validation failed',
-      code: 'CSRF_ERROR',
-    }, { status: 403 });
-  }
-
-  const supabase = await createClient();
-
-  // Auth check
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({
-      error: 'Unauthorized',
-      code: 'AUTH_REQUIRED',
-    }, { status: 401 });
-  }
-
-  // Get session token for orchestrator calls
-  const { data: { session } } = await supabase.auth.getSession();
-  const accessToken = session?.access_token;
-
+export const POST = withAuth(async (request, { userId, prisma }) => {
   // Parse and validate request body
   let body: unknown;
   try {
@@ -63,14 +32,12 @@ export async function POST(request: Request) {
   const { projectId, sceneId } = parseResult.data;
 
   // Fetch project (verify ownership and get director_json)
-  const { data: project, error: projectError } = await supabase
-    .from('projects')
-    .select('id, user_id, director_json, audio_overrides, voice_assignments')
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-    .single();
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId },
+    select: { id: true, userId: true, directorJson: true, audioOverrides: true, voiceAssignments: true },
+  });
 
-  if (projectError || !project) {
+  if (!project) {
     return NextResponse.json({
       error: 'Project not found',
       code: 'PROJECT_NOT_FOUND',
@@ -78,7 +45,8 @@ export async function POST(request: Request) {
   }
 
   // Extract the requested scene from director_json
-  const scenes = project.director_json?.scenes;
+  const directorJson = project.directorJson as Record<string, unknown> | null;
+  const scenes = directorJson?.scenes;
   if (!Array.isArray(scenes)) {
     return NextResponse.json({
       error: 'Project has no parsed scenes. Generate scenes first.',
@@ -95,32 +63,32 @@ export async function POST(request: Request) {
   }
 
   // Budget check
-  const { data: remainingPreviews, error: budgetError } = await supabase.rpc(
-    'get_remaining_previews',
-    { p_user_id: user.id }
-  );
+  try {
+    const result = await prisma.$queryRaw<[{ get_remaining_previews: number }]>`
+      SELECT get_remaining_previews(${userId}::text)
+    `;
+    const remainingPreviews = result[0]?.get_remaining_previews ?? 0;
 
-  if (budgetError) {
-    log.error('Budget check error', budgetError);
+    if (remainingPreviews <= 0) {
+      return NextResponse.json({
+        error: 'No previews remaining. Generate audio to use page credits, which grant more previews.',
+        code: 'PREVIEW_BUDGET_EXCEEDED',
+        remainingPreviews: 0,
+      }, { status: 403 });
+    }
+  } catch (error) {
+    log.error('Budget check error', error);
     return NextResponse.json({
       error: 'Failed to check preview budget',
       code: 'INTERNAL_ERROR',
     }, { status: 500 });
   }
 
-  if ((remainingPreviews ?? 0) <= 0) {
-    return NextResponse.json({
-      error: 'No previews remaining. Generate audio to use page credits, which grant more previews.',
-      code: 'PREVIEW_BUDGET_EXCEEDED',
-      remainingPreviews: 0,
-    }, { status: 403 });
-  }
-
   // Apply audio overrides to the scene (same logic as generate route)
   const validCategories = ['music', 'ambience', 'sfx'];
-  const audioOverrides = Array.isArray(project.audio_overrides)
-    ? project.audio_overrides.filter(
-        (o: { user_selected?: boolean; file?: string; scene_id?: string; category?: string }) =>
+  const audioOverrides = Array.isArray(project.audioOverrides)
+    ? (project.audioOverrides as Array<{ user_selected?: boolean; file?: string; scene_id?: string; category?: string; cue_index?: number }>).filter(
+        (o) =>
           o.user_selected && o.file && o.scene_id === sceneId && validCategories.includes(o.category || '')
       )
     : [];
@@ -129,9 +97,9 @@ export async function POST(request: Request) {
     for (const override of audioOverrides) {
       const category = override.category as 'music' | 'ambience' | 'sfx';
       const cueArray = scene[category];
-      if (!Array.isArray(cueArray) || override.cue_index >= cueArray.length) continue;
-      cueArray[override.cue_index] = {
-        ...cueArray[override.cue_index],
+      if (!Array.isArray(cueArray) || (override.cue_index ?? 0) >= cueArray.length) continue;
+      cueArray[override.cue_index ?? 0] = {
+        ...cueArray[override.cue_index ?? 0],
         file: override.file,
         reasoning: 'User override',
       };
@@ -139,8 +107,9 @@ export async function POST(request: Request) {
   }
 
   // Apply voice overrides to the scene
-  if (Array.isArray(project.voice_assignments)) {
-    for (const assignment of project.voice_assignments) {
+  const voiceAssignments = project.voiceAssignments as unknown[];
+  if (Array.isArray(voiceAssignments)) {
+    for (const assignment of voiceAssignments as Array<{ user_selected?: boolean; voice_id?: string; character_name?: string }>) {
       if (assignment.user_selected && assignment.voice_id && assignment.character_name) {
         for (const line of scene.dialogue || []) {
           if (line.character === assignment.character_name) {
@@ -153,13 +122,14 @@ export async function POST(request: Request) {
 
   // Call orchestrator POST /preview
   const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:22002';
+  const serviceKey = process.env.SERVICE_SECRET_KEY;
 
   try {
     const response = await fetch(`${orchestratorUrl}/preview`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
+        ...(serviceKey && { 'X-Service-Key': serviceKey }),
       },
       body: JSON.stringify({
         project_id: projectId,
@@ -179,27 +149,31 @@ export async function POST(request: Request) {
     const result = await response.json();
 
     // Increment preview usage on success
-    const { error: incrementError } = await supabase.rpc(
-      'increment_preview_usage',
-      { p_user_id: user.id }
-    );
-
-    if (incrementError) {
+    try {
+      await prisma.$queryRaw`
+        SELECT increment_preview_usage(${userId}::text)
+      `;
+    } catch (incrementError) {
       log.warn('Failed to increment preview usage', { error: incrementError });
       // Don't fail the request - preview was generated successfully
     }
 
     // Get updated remaining count
-    const { data: updatedRemaining } = await supabase.rpc(
-      'get_remaining_previews',
-      { p_user_id: user.id }
-    );
+    let updatedRemaining = 0;
+    try {
+      const remainingResult = await prisma.$queryRaw<[{ get_remaining_previews: number }]>`
+        SELECT get_remaining_previews(${userId}::text)
+      `;
+      updatedRemaining = remainingResult[0]?.get_remaining_previews ?? 0;
+    } catch {
+      // Non-critical, use 0
+    }
 
     return NextResponse.json({
       previewUrl: result.preview_url,
       previewPath: result.preview_path,
       durationSeconds: result.duration_seconds,
-      remainingPreviews: updatedRemaining ?? 0,
+      remainingPreviews: updatedRemaining,
     });
   } catch (error) {
     log.error('Preview generation error', error);
@@ -208,4 +182,4 @@ export async function POST(request: Request) {
       code: 'INTERNAL_ERROR',
     }, { status: 500 });
   }
-}
+}, { rateLimit: 'strict' });

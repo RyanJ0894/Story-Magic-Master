@@ -5,10 +5,9 @@
  * DELETE /api/teams/share - Unshare a project from a team
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
 
 const ShareSchema = z.object({
   projectId: z.string().uuid('Valid project ID required'),
@@ -25,25 +24,7 @@ const UnshareSchema = z.object({
 // POST - Share project with team
 // =============================================================================
 
-export async function POST(request: Request) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
-
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
+export const POST = withAuth(async (request, { userId, prisma }) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -65,12 +46,13 @@ export async function POST(request: Request) {
   const { projectId, teamId, accessLevel } = parseResult.data;
 
   // Verify user owns the project
-  const { data: project } = await supabase
-    .from('projects')
-    .select('id')
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-    .single();
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      userId,
+    },
+    select: { id: true },
+  });
 
   if (!project) {
     return NextResponse.json(
@@ -80,11 +62,10 @@ export async function POST(request: Request) {
   }
 
   // Verify user is a member/owner of the team
-  const { data: team } = await supabase
-    .from('teams')
-    .select('id, name, owner_id')
-    .eq('id', teamId)
-    .single();
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { id: true, name: true, ownerId: true },
+  });
 
   if (!team) {
     return NextResponse.json(
@@ -93,57 +74,45 @@ export async function POST(request: Request) {
     );
   }
 
-  // Create the share
-  const { data: share, error: shareError } = await supabase
-    .from('team_shares')
-    .upsert({
-      project_id: projectId,
-      team_id: teamId,
-      shared_by: user.id,
-      access_level: accessLevel,
-    }, {
-      onConflict: 'project_id,team_id',
-    })
-    .select()
-    .single();
+  try {
+    // Create the share (upsert)
+    const share = await prisma.teamShare.upsert({
+      where: {
+        projectId_teamId: {
+          projectId,
+          teamId,
+        },
+      },
+      create: {
+        projectId,
+        teamId,
+        sharedBy: userId,
+        accessLevel,
+      },
+      update: {
+        sharedBy: userId,
+        accessLevel,
+      },
+    });
 
-  if (shareError) {
+    return NextResponse.json({
+      success: true,
+      share,
+      message: `Project shared with ${team.name}`,
+    });
+  } catch (error) {
     return NextResponse.json(
       { error: 'Failed to share project', code: 'SHARE_ERROR' },
       { status: 500 }
     );
   }
-
-  return NextResponse.json({
-    success: true,
-    share,
-    message: `Project shared with ${team.name}`,
-  });
-}
+});
 
 // =============================================================================
 // DELETE - Unshare project from team
 // =============================================================================
 
-export async function DELETE(request: Request) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
-
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
+export const DELETE = withAuth(async (request, { userId, prisma }) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -165,12 +134,13 @@ export async function DELETE(request: Request) {
   const { projectId, teamId } = parseResult.data;
 
   // Verify user owns the project
-  const { data: project } = await supabase
-    .from('projects')
-    .select('id')
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-    .single();
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      userId,
+    },
+    select: { id: true },
+  });
 
   if (!project) {
     return NextResponse.json(
@@ -179,18 +149,19 @@ export async function DELETE(request: Request) {
     );
   }
 
-  const { error } = await supabase
-    .from('team_shares')
-    .delete()
-    .eq('project_id', projectId)
-    .eq('team_id', teamId);
+  try {
+    await prisma.teamShare.deleteMany({
+      where: {
+        projectId,
+        teamId,
+      },
+    });
 
-  if (error) {
+    return NextResponse.json({ success: true });
+  } catch (error) {
     return NextResponse.json(
       { error: 'Failed to unshare project', code: 'UNSHARE_ERROR' },
       { status: 500 }
     );
   }
-
-  return NextResponse.json({ success: true });
-}
+});

@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -65,7 +66,7 @@ export function StoryAdviser({
     setError(null);
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/suggestions`);
+      const response = await apiFetch(`/api/projects/${projectId}/suggestions`);
       if (!response.ok) {
         if (response.status === 403) {
           // Feature not enabled
@@ -97,7 +98,7 @@ export function StoryAdviser({
     setError(null);
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/suggestions`, {
+      const response = await apiFetch(`/api/projects/${projectId}/suggestions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ maxSuggestions: 15 }),
@@ -121,7 +122,7 @@ export function StoryAdviser({
   // Handle suggestion actions
   const handleAccept = async (id: string) => {
     try {
-      const response = await fetch(`/api/suggestions/${id}`, {
+      const response = await apiFetch(`/api/suggestions/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'accepted' }),
@@ -142,7 +143,7 @@ export function StoryAdviser({
 
   const handleReject = async (id: string) => {
     try {
-      const response = await fetch(`/api/suggestions/${id}`, {
+      const response = await apiFetch(`/api/suggestions/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'rejected' }),
@@ -162,7 +163,7 @@ export function StoryAdviser({
 
   const handleDismiss = async (id: string) => {
     try {
-      const response = await fetch(`/api/suggestions/${id}`, {
+      const response = await apiFetch(`/api/suggestions/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'dismissed' }),
@@ -190,7 +191,7 @@ export function StoryAdviser({
 
   const handleSelectRewrite = async (rewriteId: string) => {
     try {
-      const response = await fetch(`/api/suggestions/${rewriteSuggestion?.id}/rewrite`, {
+      const response = await apiFetch(`/api/suggestions/${rewriteSuggestion?.id}/rewrite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rewriteId }),

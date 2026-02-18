@@ -14,6 +14,7 @@ import {
   getRevisionTimeline,
   createRevision,
 } from '@/lib/revisions';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Validation
@@ -51,7 +52,7 @@ export const GET = withProjectAuth(
       const revisions = await getRevisions(projectId);
       return NextResponse.json({ revisions });
     } catch (error) {
-      console.error('[Revisions] Error fetching:', error);
+      log.error('[Revisions] Error fetching', error);
       return NextResponse.json(
         {
           error: 'Failed to fetch revisions',
@@ -69,7 +70,7 @@ export const GET = withProjectAuth(
 // =============================================================================
 
 export const POST = withProjectAuth(
-  async (request, { projectId, user }) => {
+  async (request, { projectId, userId }) => {
     if (!isFeatureEnabled('REVISION_TRACKING')) {
       return NextResponse.json(
         { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
@@ -103,7 +104,7 @@ export const POST = withProjectAuth(
       const revision = await createRevision(projectId, parseResult.data.scriptText, {
         label: parseResult.data.label,
         autoScore: parseResult.data.autoScore,
-        userId: user.id,
+        userId,
       });
 
       return NextResponse.json({
@@ -111,7 +112,7 @@ export const POST = withProjectAuth(
         revision,
       });
     } catch (error) {
-      console.error('[Revisions] Error creating:', error);
+      log.error('[Revisions] Error creating', error);
       return NextResponse.json(
         {
           error: 'Failed to create revision',

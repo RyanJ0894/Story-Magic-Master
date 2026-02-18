@@ -1,4 +1,6 @@
-import { createClient } from '@/lib/supabase/server';
+export const dynamic = 'force-dynamic';
+
+import { prisma } from '@/lib/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -13,27 +15,40 @@ import {
 } from 'lucide-react';
 
 export default async function AdminDashboardPage() {
-  const supabase = await createClient();
-
   // Fetch stats in parallel
   const [
-    { count: totalUsers },
-    { count: totalWriters },
-    { count: totalReaders },
-    { count: activeSubscriptions },
-    { count: totalProjects },
-    { count: totalShares },
-    { data: recentUsers },
-    { data: recentSubscriptions },
+    totalUsers,
+    totalWriters,
+    totalReaders,
+    activeSubscriptions,
+    totalProjects,
+    totalShares,
+    recentUsers,
+    recentSubscriptions,
   ] = await Promise.all([
-    supabase.from('profiles').select('*', { count: 'exact', head: true }),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('user_type', 'writer'),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('user_type', 'reader'),
-    supabase.from('subscriptions').select('*', { count: 'exact', head: true }).in('status', ['active', 'trialing']),
-    supabase.from('projects').select('*', { count: 'exact', head: true }),
-    supabase.from('script_shares').select('*', { count: 'exact', head: true }),
-    supabase.from('profiles').select('id, full_name, user_type, created_at').order('created_at', { ascending: false }).limit(5),
-    supabase.from('subscriptions').select('id, user_id, plan, status, created_at, profiles(full_name)').order('created_at', { ascending: false }).limit(5),
+    prisma.profile.count(),
+    prisma.profile.count({ where: { userType: 'writer' } }),
+    prisma.profile.count({ where: { userType: 'reader' } }),
+    prisma.subscription.count({ where: { status: { in: ['active', 'trialing'] } } }),
+    prisma.project.count(),
+    prisma.scriptShare.count(),
+    prisma.profile.findMany({
+      select: { id: true, fullName: true, userType: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    }),
+    prisma.subscription.findMany({
+      select: {
+        id: true,
+        userId: true,
+        plan: true,
+        status: true,
+        createdAt: true,
+        user: { select: { fullName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    }),
   ]);
 
   // Calculate MRR (simplified - would need actual subscription amounts)
@@ -141,17 +156,17 @@ export default async function AdminDashboardPage() {
                 <div key={user.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
-                      {user.full_name?.[0]?.toUpperCase() || '?'}
+                      {user.fullName?.[0]?.toUpperCase() || '?'}
                     </div>
                     <div>
-                      <p className="font-medium">{user.full_name || 'No name'}</p>
+                      <p className="font-medium">{user.fullName || 'No name'}</p>
                       <p className="text-sm text-muted-foreground">
-                        {new Date(user.created_at).toLocaleDateString()}
+                        {new Date(user.createdAt).toLocaleDateString()}
                       </p>
                     </div>
                   </div>
-                  <Badge variant={user.user_type === 'writer' ? 'default' : 'secondary'}>
-                    {user.user_type}
+                  <Badge variant={user.userType === 'writer' ? 'default' : 'secondary'}>
+                    {user.userType}
                   </Badge>
                 </div>
               ))}
@@ -173,8 +188,6 @@ export default async function AdminDashboardPage() {
           <CardContent>
             <div className="space-y-4">
               {recentSubscriptions?.map((sub) => {
-                const profileData = sub.profiles;
-                const profile = (Array.isArray(profileData) ? profileData[0] : profileData) as { full_name: string } | null;
                 return (
                   <div key={sub.id} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -182,9 +195,9 @@ export default async function AdminDashboardPage() {
                         <CreditCard className="w-5 h-5 text-violet-600" aria-hidden="true" />
                       </div>
                       <div>
-                        <p className="font-medium">{profile?.full_name || 'Unknown'}</p>
+                        <p className="font-medium">{sub.user?.fullName || 'Unknown'}</p>
                         <p className="text-sm text-muted-foreground">
-                          {sub.plan} plan • {new Date(sub.created_at).toLocaleDateString()}
+                          {sub.plan} plan • {new Date(sub.createdAt).toLocaleDateString()}
                         </p>
                       </div>
                     </div>

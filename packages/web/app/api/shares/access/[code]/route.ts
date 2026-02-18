@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyPassword, isBcryptHash, hashPassword } from '@/lib/password';
 import { VerifySharePasswordRequestSchema } from '@/lib/api/dto';
@@ -8,93 +9,65 @@ interface RouteParams {
   params: Promise<{ code: string }>;
 }
 
-// Type for the nested join query result
-interface ShareWithProject {
-  id: string;
-  project_id: string;
-  shared_by: string;
-  share_code: string;
-  access_level: 'stream' | 'download';
-  expires_at: string | null;
-  password_hash: string | null;
-  max_plays: number | null;
-  view_count: number;
-  play_count: number;
-  is_active: boolean;
-  recipient_email: string | null;
-  recipient_name: string | null;
-  created_at: string;
-  updated_at: string;
-  last_accessed_at: string | null;
-  projects: {
-    id: string;
-    name: string;
-    page_count: number;
-    user_id: string;
-    profiles: {
-      full_name: string | null;
-      writer_code: string | null;
-    } | null;
-  } | null;
-}
-
 // GET /api/shares/access/[code] - Access a shared script by code
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const { code } = await params;
-  const supabase = await createClient();
 
   // Get share by code
-  const { data: shareData, error } = await supabase
-    .from('script_shares')
-    .select(`
-      *,
-      projects (
-        id,
-        name,
-        page_count,
-        user_id,
-        profiles:user_id (
-          full_name,
-          writer_code
-        )
-      )
-    `)
-    .eq('share_code', code)
-    .eq('is_active', true)
-    .single();
+  const share = await prisma.scriptShare.findFirst({
+    where: {
+      shareCode: code,
+      isActive: true,
+    },
+    include: {
+      project: {
+        select: {
+          id: true,
+          name: true,
+          pageCount: true,
+          userId: true,
+          user: {
+            select: {
+              fullName: true,
+              writerCode: true,
+            },
+          },
+        },
+      },
+    },
+  });
 
-  const share = shareData as ShareWithProject | null;
-
-  if (error || !share) {
+  if (!share) {
     return NextResponse.json({ error: 'Share not found or expired' }, { status: 404 });
   }
 
   // Check expiration
-  if (share.expires_at && new Date(share.expires_at) < new Date()) {
+  if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
     return NextResponse.json({ error: 'This share link has expired' }, { status: 410 });
   }
 
   // Check max plays
-  if (share.max_plays && share.play_count >= share.max_plays) {
+  if (share.maxPlays && share.playCount >= share.maxPlays) {
     return NextResponse.json({ error: 'This share link has reached its play limit' }, { status: 410 });
   }
 
   // Check if password protected
-  if (share.password_hash) {
+  if (share.passwordHash) {
     return NextResponse.json({
       requiresPassword: true,
-      projectName: share.projects?.name,
-      writerName: share.projects?.profiles?.full_name,
+      projectName: share.project?.name,
+      writerName: share.project?.user?.fullName,
     });
   }
 
   // Check writer subscription status
-  const { data: subscription } = await supabase
-    .from('subscriptions')
-    .select('id')
-    .eq('user_id', share.projects?.user_id)
-    .in('status', ['active', 'trialing'])
-    .single();
+  const subscription = await prisma.subscription.findFirst({
+    where: {
+      userId: share.project?.userId,
+      status: { in: ['active', 'trialing'] },
+    },
+    select: { id: true },
+  });
 
   if (!subscription) {
     return NextResponse.json(
@@ -104,70 +77,72 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 
   // Increment view count
-  await supabase
-    .from('script_shares')
-    .update({
-      view_count: (share.view_count || 0) + 1,
-      last_accessed_at: new Date().toISOString(),
-    })
-    .eq('id', share.id);
+  await prisma.scriptShare.update({
+    where: { id: share.id },
+    data: {
+      viewCount: (share.viewCount || 0) + 1,
+      lastAccessedAt: new Date(),
+    },
+  });
 
   // Get current user if logged in
-  const { data: { user } } = await supabase.auth.getUser();
+  const { userId } = await auth();
 
   // If logged in, add to reader's library
-  if (user) {
+  if (userId) {
     // Check if already in library
-    const { data: existingEntry } = await supabase
-      .from('reader_library')
-      .select('id')
-      .eq('reader_id', user.id)
-      .eq('project_id', share.project_id)
-      .single();
+    const existingEntry = await prisma.readerLibrary.findFirst({
+      where: {
+        readerId: userId,
+        projectId: share.projectId,
+      },
+      select: { id: true },
+    });
 
     if (!existingEntry) {
-      await supabase
-        .from('reader_library')
-        .insert({
-          reader_id: user.id,
-          project_id: share.project_id,
-          source: 'received',
-          share_id: share.id,
-          status: 'active',
+      try {
+        await prisma.readerLibrary.create({
+          data: {
+            readerId: userId,
+            projectId: share.projectId,
+            source: 'received',
+            shareId: share.id,
+            status: 'active',
+          },
         });
+      } catch {
+        // Ignore unique constraint violations
+      }
     }
   }
 
   // Get audio output for streaming
-  const { data: audioOutput } = await supabase
-    .from('audio_outputs')
-    .select('id, file_url, duration_seconds, manifest')
-    .eq('project_id', share.project_id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
+  const audioOutput = await prisma.audioOutput.findFirst({
+    where: { projectId: share.projectId },
+    select: { id: true, filePath: true, durationSeconds: true },
+    orderBy: { createdAt: 'desc' },
+  });
 
   return NextResponse.json({
     share: {
       id: share.id,
-      accessLevel: share.access_level,
-      expiresAt: share.expires_at,
+      accessLevel: share.accessLevel,
+      expiresAt: share.expiresAt,
     },
     project: {
-      id: share.projects?.id,
-      name: share.projects?.name,
-      pageCount: share.projects?.page_count,
+      id: share.project?.id,
+      name: share.project?.name,
+      pageCount: share.project?.pageCount,
     },
     writer: {
-      name: share.projects?.profiles?.full_name ?? '',
-      code: share.projects?.profiles?.writer_code ?? '',
+      name: share.project?.user?.fullName ?? '',
+      code: share.project?.user?.writerCode ?? '',
     },
     audio: audioOutput ? {
-      url: audioOutput.file_url,
-      duration: audioOutput.duration_seconds,
-      manifest: audioOutput.manifest,
+      url: audioOutput.filePath,
+      duration: audioOutput.durationSeconds,
     } : null,
-    canDownload: share.access_level === 'download',
+    canDownload: share.accessLevel === 'download',
   });
 }
 
@@ -179,8 +154,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const ip = getClientIp(request);
   const limited = await rateLimit(`share-pw:${code}:${ip}`, 'strict');
   if (limited) return limited;
-
-  const supabase = await createClient();
 
   // Parse and validate request body
   const body = await request.json();
@@ -196,51 +169,53 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const { password } = parseResult.data;
 
   // Get share by code
-  const { data: shareData, error } = await supabase
-    .from('script_shares')
-    .select(`
-      *,
-      projects (
-        id,
-        name,
-        page_count,
-        user_id,
-        profiles:user_id (
-          full_name,
-          writer_code
-        )
-      )
-    `)
-    .eq('share_code', code)
-    .eq('is_active', true)
-    .single();
+  const share = await prisma.scriptShare.findFirst({
+    where: {
+      shareCode: code,
+      isActive: true,
+    },
+    include: {
+      project: {
+        select: {
+          id: true,
+          name: true,
+          pageCount: true,
+          userId: true,
+          user: {
+            select: {
+              fullName: true,
+              writerCode: true,
+            },
+          },
+        },
+      },
+    },
+  });
 
-  const share = shareData as ShareWithProject | null;
-
-  if (error || !share) {
+  if (!share) {
     return NextResponse.json({ error: 'Share not found' }, { status: 404 });
   }
 
   // Verify password (supports both bcrypt and legacy SHA-256 hashes)
-  if (!share.password_hash) {
+  if (!share.passwordHash) {
     // No password set - this shouldn't happen as we only get here for protected shares
     return NextResponse.json({ error: 'Share configuration error' }, { status: 500 });
   }
 
   let isValid = false;
-  if (isBcryptHash(share.password_hash)) {
-    isValid = await verifyPassword(password, share.password_hash);
+  if (isBcryptHash(share.passwordHash)) {
+    isValid = await verifyPassword(password, share.passwordHash);
   } else {
     // Legacy SHA-256 hash - migrate to bcrypt on successful verification
     const legacyHash = await legacyHashPassword(password);
-    isValid = legacyHash === share.password_hash;
+    isValid = legacyHash === share.passwordHash;
     if (isValid) {
       // Migrate to bcrypt
       const bcryptHash = await hashPassword(password);
-      await supabase
-        .from('script_shares')
-        .update({ password_hash: bcryptHash })
-        .eq('id', share.id);
+      await prisma.scriptShare.update({
+        where: { id: share.id },
+        data: { passwordHash: bcryptHash },
+      });
     }
   }
   if (!isValid) {
@@ -248,21 +223,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   // Same checks as GET
-  if (share.expires_at && new Date(share.expires_at) < new Date()) {
+  if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
     return NextResponse.json({ error: 'This share link has expired' }, { status: 410 });
   }
 
-  if (share.max_plays && share.play_count >= share.max_plays) {
+  if (share.maxPlays && share.playCount >= share.maxPlays) {
     return NextResponse.json({ error: 'This share link has reached its play limit' }, { status: 410 });
   }
 
   // Check writer subscription
-  const { data: subscription } = await supabase
-    .from('subscriptions')
-    .select('id')
-    .eq('user_id', share.projects?.user_id)
-    .in('status', ['active', 'trialing'])
-    .single();
+  const subscription = await prisma.subscription.findFirst({
+    where: {
+      userId: share.project?.userId,
+      status: { in: ['active', 'trialing'] },
+    },
+    select: { id: true },
+  });
 
   if (!subscription) {
     return NextResponse.json(
@@ -272,44 +248,41 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   // Increment view count
-  await supabase
-    .from('script_shares')
-    .update({
-      view_count: (share.view_count || 0) + 1,
-      last_accessed_at: new Date().toISOString(),
-    })
-    .eq('id', share.id);
+  await prisma.scriptShare.update({
+    where: { id: share.id },
+    data: {
+      viewCount: (share.viewCount || 0) + 1,
+      lastAccessedAt: new Date(),
+    },
+  });
 
   // Get audio output
-  const { data: audioOutput } = await supabase
-    .from('audio_outputs')
-    .select('id, file_url, duration_seconds, manifest')
-    .eq('project_id', share.project_id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
+  const audioOutput = await prisma.audioOutput.findFirst({
+    where: { projectId: share.projectId },
+    select: { id: true, filePath: true, durationSeconds: true },
+    orderBy: { createdAt: 'desc' },
+  });
 
   return NextResponse.json({
     share: {
       id: share.id,
-      accessLevel: share.access_level,
-      expiresAt: share.expires_at,
+      accessLevel: share.accessLevel,
+      expiresAt: share.expiresAt,
     },
     project: {
-      id: share.projects?.id,
-      name: share.projects?.name,
-      pageCount: share.projects?.page_count,
+      id: share.project?.id,
+      name: share.project?.name,
+      pageCount: share.project?.pageCount,
     },
     writer: {
-      name: share.projects?.profiles?.full_name ?? '',
-      code: share.projects?.profiles?.writer_code ?? '',
+      name: share.project?.user?.fullName ?? '',
+      code: share.project?.user?.writerCode ?? '',
     },
     audio: audioOutput ? {
-      url: audioOutput.file_url,
-      duration: audioOutput.duration_seconds,
-      manifest: audioOutput.manifest,
+      url: audioOutput.filePath,
+      duration: audioOutput.durationSeconds,
     } : null,
-    canDownload: share.access_level === 'download',
+    canDownload: share.accessLevel === 'download',
   });
 }
 

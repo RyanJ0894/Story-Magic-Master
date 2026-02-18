@@ -4,40 +4,19 @@
  * POST /api/jobs/[id]/cancel - Cancel a queued job
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { cancelJob } from '@/lib/queue/service';
-import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const supabase = await createClient();
-  const { id: jobId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
+export const POST = withAuth(async (_request, { userId, prisma, params }) => {
+  const jobId = params.id;
 
   // Verify user owns this job and it's cancellable
-  const { data: job } = await supabase
-    .from('jobs')
-    .select('id, user_id, status, project_id')
-    .eq('id', jobId)
-    .single();
+  const job = await prisma.job.findUnique({
+    where: { id: jobId },
+    select: { id: true, userId: true, status: true, projectId: true },
+  });
 
   if (!job) {
     return NextResponse.json(
@@ -46,7 +25,7 @@ export async function POST(
     );
   }
 
-  if (job.user_id !== user.id) {
+  if (job.userId !== userId) {
     return NextResponse.json(
       { error: 'Forbidden', code: 'FORBIDDEN' },
       { status: 403 }
@@ -65,7 +44,7 @@ export async function POST(
   }
 
   try {
-    const cancelled = await cancelJob(jobId, user.id);
+    const cancelled = await cancelJob(jobId, userId);
 
     if (!cancelled) {
       return NextResponse.json(
@@ -75,10 +54,10 @@ export async function POST(
     }
 
     // Reset project status to draft
-    await supabase
-      .from('projects')
-      .update({ status: 'draft' })
-      .eq('id', job.project_id);
+    await prisma.project.update({
+      where: { id: job.projectId },
+      data: { status: 'draft' },
+    });
 
     return NextResponse.json({
       success: true,
@@ -86,10 +65,10 @@ export async function POST(
       message: 'Job cancelled successfully',
     });
   } catch (error) {
-    console.error('[Queue] Cancel error:', error);
+    log.error('[Queue] Cancel error', error);
     return NextResponse.json(
       { error: 'Failed to cancel job', code: 'CANCEL_ERROR' },
       { status: 500 }
     );
   }
-}
+});

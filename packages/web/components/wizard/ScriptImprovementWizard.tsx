@@ -11,6 +11,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { Wizard, WizardStep, WizardContext } from './Wizard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -57,7 +58,7 @@ function ScoreAnalysisStep({ context }: { context: WizardContext }) {
     setError(null);
 
     try {
-      const response = await fetch(`/api/projects/${context.data.projectId}/score`, {
+      const response = await apiFetch(`/api/projects/${context.data.projectId}/score`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -80,7 +81,7 @@ function ScoreAnalysisStep({ context }: { context: WizardContext }) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-center">
-          <div className="w-32 h-32 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+          <div className="w-32 h-32 rounded-full brand-gradient-br flex items-center justify-center">
             <span className="text-4xl font-bold text-white">{score.overallScore}</span>
           </div>
         </div>
@@ -181,7 +182,7 @@ function SuggestionsStep({ context }: { context: WizardContext }) {
 
     try {
       // First try to fetch existing suggestions
-      const getResponse = await fetch(`/api/projects/${context.data.projectId}/suggestions`);
+      const getResponse = await apiFetch(`/api/projects/${context.data.projectId}/suggestions`);
 
       if (getResponse.ok) {
         const data = await getResponse.json();
@@ -194,7 +195,7 @@ function SuggestionsStep({ context }: { context: WizardContext }) {
       }
 
       // Generate new suggestions
-      const postResponse = await fetch(`/api/projects/${context.data.projectId}/suggestions`, {
+      const postResponse = await apiFetch(`/api/projects/${context.data.projectId}/suggestions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ maxSuggestions: 10 }),

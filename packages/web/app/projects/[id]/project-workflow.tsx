@@ -12,6 +12,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -57,17 +58,17 @@ type WorkflowMode = 'automatic' | 'fine_tuned';
 // Extended job type with audio info
 interface EnrichedJob {
   id: string;
-  run_number: number;
-  workflow_mode: WorkflowMode;
+  runNumber: number;
+  workflowMode: WorkflowMode;
   status: 'queued' | 'processing' | 'completed' | 'failed';
-  created_at: string;
-  completed_at?: string;
-  has_audio: boolean;
-  audio_outputs: Array<{
+  createdAt: string;
+  completedAt?: string;
+  hasAudio: boolean;
+  audioOutputs: Array<{
     id: string;
-    file_name: string;
-    file_path: string;
-    duration_seconds?: number;
+    fileName: string;
+    filePath: string;
+    durationSeconds?: number;
   }>;
   error?: string;
   progress?: {
@@ -95,26 +96,26 @@ interface ProjectWorkflowProps {
     id: string;
     name: string;
     status: string;
-    page_count: number;
-    script_text: string;
-    director_json?: any;
-    preferred_workflow_mode?: WorkflowMode;
-    current_run_number: number;
+    pageCount: number;
+    scriptText: string;
+    directorJson?: any;
+    preferredWorkflowMode?: WorkflowMode;
+    currentRunNumber: number;
   };
   storyScore?: {
     id: string;
-    overall_score?: number;
+    overallScore?: number;
   } | null;
   audioOutputs?: Array<{
     id: string;
-    file_name: string;
-    file_path: string;
-    duration_seconds?: number;
+    fileName: string;
+    filePath: string;
+    durationSeconds?: number;
     format: string;
   }>;
   latestJob?: {
-    run_number?: number;
-    workflow_mode?: WorkflowMode;
+    runNumber?: number;
+    workflowMode?: WorkflowMode;
     progress?: {
       step?: string;
       percent?: number;
@@ -127,8 +128,8 @@ interface ProjectWorkflowProps {
     assigned: number;
   };
   audioOverrides?: {
-    total_scenes: number;
-    scenes_with_overrides: number;
+    totalScenes: number;
+    scenesWithOverrides: number;
   };
   remainingPreviews?: number;
 }
@@ -256,18 +257,18 @@ export function ProjectWorkflow({
 
   // Track which run we're currently viewing (null = latest/new run)
   const [viewingRunNumber, setViewingRunNumber] = useState<number | null>(
-    latestJob?.run_number || null
+    latestJob?.runNumber || null
   );
 
   // Track workflow mode for current run (persisted in localStorage per run)
   const [selectedMode, setSelectedMode] = useState<WorkflowMode | null>(() => {
     // If there's an active job, use its mode
-    if (latestJob?.workflow_mode) {
-      return latestJob.workflow_mode;
+    if (latestJob?.workflowMode) {
+      return latestJob.workflowMode;
     }
     // Check localStorage for mode selection for current run
     if (typeof window !== 'undefined') {
-      const key = `project-${project.id}-run-${project.current_run_number + 1}-mode`;
+      const key = `project-${project.id}-run-${project.currentRunNumber + 1}-mode`;
       const saved = localStorage.getItem(key);
       if (saved) return saved as WorkflowMode;
     }
@@ -300,10 +301,10 @@ export function ProjectWorkflow({
   // Save selected mode to localStorage
   useEffect(() => {
     if (selectedMode) {
-      const key = `project-${project.id}-run-${project.current_run_number + 1}-mode`;
+      const key = `project-${project.id}-run-${project.currentRunNumber + 1}-mode`;
       localStorage.setItem(key, selectedMode);
     }
-  }, [selectedMode, project.id, project.current_run_number]);
+  }, [selectedMode, project.id, project.currentRunNumber]);
 
   const handleModeSelected = (mode: WorkflowMode) => {
     setSelectedMode(mode);
@@ -314,7 +315,7 @@ export function ProjectWorkflow({
     setSelectedMode(null);
     setViewingRunNumber(null);
     // Clear localStorage for next run
-    const key = `project-${project.id}-run-${project.current_run_number + 1}-mode`;
+    const key = `project-${project.id}-run-${project.currentRunNumber + 1}-mode`;
     localStorage.removeItem(key);
   };
 
@@ -322,9 +323,9 @@ export function ProjectWorkflow({
     setViewingRunNumber(runNumber);
     // If viewing a past run, set its mode
     if (runNumber) {
-      const run = allJobs.find(j => j.run_number === runNumber);
+      const run = allJobs.find(j => j.runNumber === runNumber);
       if (run) {
-        setSelectedMode(run.workflow_mode);
+        setSelectedMode(run.workflowMode);
       }
     }
   };
@@ -334,9 +335,9 @@ export function ProjectWorkflow({
   };
 
   const handleCopySettings = (runNumber: number) => {
-    const run = allJobs.find(j => j.run_number === runNumber);
+    const run = allJobs.find(j => j.runNumber === runNumber);
     if (run) {
-      setSelectedMode(run.workflow_mode);
+      setSelectedMode(run.workflowMode);
       setViewingRunNumber(null);
       toast.success(
         `Copied settings from Run #${runNumber}. Voice and audio assignments are preserved.`
@@ -347,23 +348,23 @@ export function ProjectWorkflow({
   // Convert allJobs to Run[] format for RunSelector
   const runs: Run[] = allJobs.map(job => ({
     id: job.id,
-    run_number: job.run_number,
-    workflow_mode: job.workflow_mode,
+    runNumber: job.runNumber,
+    workflowMode: job.workflowMode,
     status: job.status,
-    created_at: job.created_at,
-    completed_at: job.completed_at,
-    has_audio: job.has_audio,
+    createdAt: job.createdAt,
+    completedAt: job.completedAt,
+    hasAudio: job.hasAudio,
   }));
 
   // Get the run being viewed (or latest)
   const currentViewedRun = viewingRunNumber
-    ? allJobs.find(j => j.run_number === viewingRunNumber)
+    ? allJobs.find(j => j.runNumber === viewingRunNumber)
     : latestJob
-      ? allJobs.find(j => j.id === latestJob.run_number?.toString()) || allJobs[0]
+      ? allJobs.find(j => j.id === latestJob.runNumber?.toString()) || allJobs[0]
       : null;
 
   // Get audio for the current viewed run
-  const currentRunAudio = currentViewedRun?.audio_outputs || audioOutputs;
+  const currentRunAudio = currentViewedRun?.audioOutputs || audioOutputs;
 
   const handleSkip = (stepId: string) => {
     setSkippedSteps(prev => new Set(Array.from(prev).concat(stepId)));
@@ -378,11 +379,11 @@ export function ProjectWorkflow({
   };
 
   // Determine step statuses based on project state
-  const hasScore = !!storyScore?.overall_score;
+  const hasScore = !!storyScore?.overallScore;
   const hasVoices = voiceAssignments.assigned > 0;
   const allVoicesAssigned = voiceAssignments.total > 0 && voiceAssignments.assigned === voiceAssignments.total;
-  const hasDirectorJson = !!project.director_json?.scenes;
-  const hasAudioOverrides = (audioOverrides?.scenes_with_overrides ?? 0) > 0;
+  const hasDirectorJson = !!project.directorJson?.scenes;
+  const hasAudioOverrides = (audioOverrides?.scenesWithOverrides ?? 0) > 0;
   const isProcessing = project.status === 'processing';
   const isCompleted = project.status === 'completed' && audioOutputs && audioOutputs.length > 0;
   const hasFailed = project.status === 'failed';
@@ -454,7 +455,7 @@ export function ProjectWorkflow({
   // Determine which accordion items should be open by default
   const defaultOpenItems = [currentStep.id];
 
-  const nextRunNumber = project.current_run_number + 1;
+  const nextRunNumber = project.currentRunNumber + 1;
 
   // Show mode selector if no mode selected for current run (and not completed/processing)
   if (!selectedMode && !isCompleted && !isProcessing) {
@@ -464,8 +465,8 @@ export function ProjectWorkflow({
           <WorkflowModeSelector
             projectId={project.id}
             projectName={project.name}
-            currentRunNumber={project.current_run_number}
-            preferredMode={project.preferred_workflow_mode}
+            currentRunNumber={project.currentRunNumber}
+            preferredMode={project.preferredWorkflowMode}
             onModeSelected={handleModeSelected}
           />
         </CardContent>
@@ -475,10 +476,10 @@ export function ProjectWorkflow({
 
   // Get comparison run data
   const comparisonRunA = comparisonRuns
-    ? allJobs.find(j => j.run_number === comparisonRuns.runA)
+    ? allJobs.find(j => j.runNumber === comparisonRuns.runA)
     : null;
   const comparisonRunB = comparisonRuns
-    ? allJobs.find(j => j.run_number === comparisonRuns.runB)
+    ? allJobs.find(j => j.runNumber === comparisonRuns.runB)
     : null;
 
   return (
@@ -488,16 +489,16 @@ export function ProjectWorkflow({
         open={!!comparisonRuns}
         onClose={() => setComparisonRuns(null)}
         runA={comparisonRunA ? {
-          run_number: comparisonRunA.run_number,
-          workflow_mode: comparisonRunA.workflow_mode,
-          created_at: comparisonRunA.created_at,
-          audio_outputs: comparisonRunA.audio_outputs,
+          runNumber: comparisonRunA.runNumber,
+          workflowMode: comparisonRunA.workflowMode,
+          createdAt: comparisonRunA.createdAt,
+          audioOutputs: comparisonRunA.audioOutputs,
         } : null}
         runB={comparisonRunB ? {
-          run_number: comparisonRunB.run_number,
-          workflow_mode: comparisonRunB.workflow_mode,
-          created_at: comparisonRunB.created_at,
-          audio_outputs: comparisonRunB.audio_outputs,
+          runNumber: comparisonRunB.runNumber,
+          workflowMode: comparisonRunB.workflowMode,
+          createdAt: comparisonRunB.createdAt,
+          audioOutputs: comparisonRunB.audioOutputs,
         } : null}
       />
 
@@ -562,8 +563,9 @@ export function ProjectWorkflow({
                   </Button>
                   <GenerateButton
                     projectId={project.id}
-                    pageCount={project.page_count}
+                    pageCount={project.pageCount}
                     status={project.status}
+                    hasScript={!!project.scriptText}
                     label="Regenerate"
                     workflowMode="automatic"
                   />
@@ -602,8 +604,9 @@ export function ProjectWorkflow({
                 </div>
                 <GenerateButton
                   projectId={project.id}
-                  pageCount={project.page_count}
+                  pageCount={project.pageCount}
                   status={project.status}
+                  hasScript={!!project.scriptText}
                   label="Retry"
                   workflowMode="automatic"
                 />
@@ -612,13 +615,14 @@ export function ProjectWorkflow({
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">
-                    Uses <strong>{project.page_count}</strong> page{project.page_count !== 1 ? 's' : ''} from your quota.
+                    Uses <strong>{project.pageCount}</strong> page{project.pageCount !== 1 ? 's' : ''} from your quota.
                   </p>
                 </div>
                 <GenerateButton
                   projectId={project.id}
-                  pageCount={project.page_count}
+                  pageCount={project.pageCount}
                   status={project.status}
+                  hasScript={!!project.scriptText}
                   label="Generate Now"
                   workflowMode="automatic"
                 />
@@ -639,7 +643,7 @@ export function ProjectWorkflow({
               {hasScore ? (
                 <div className="flex items-center gap-2">
                   <BarChart3 className="w-5 h-5 text-violet-500" />
-                  <span className="font-medium">Score: {storyScore?.overall_score}</span>
+                  <span className="font-medium">Score: {storyScore?.overallScore}</span>
                   <span className="text-sm text-muted-foreground">- Open the step below to improve</span>
                 </div>
               ) : (
@@ -680,7 +684,7 @@ export function ProjectWorkflow({
               </p>
               {hasAudioOverrides && (
                 <Badge variant="outline" className="text-xs border-violet-300 text-violet-600">
-                  {audioOverrides?.scenes_with_overrides} scene{(audioOverrides?.scenes_with_overrides ?? 0) !== 1 ? 's' : ''} customized
+                  {audioOverrides?.scenesWithOverrides} scene{(audioOverrides?.scenesWithOverrides ?? 0) !== 1 ? 's' : ''} customized
                 </Badge>
               )}
             </div>
@@ -700,15 +704,16 @@ export function ProjectWorkflow({
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    Ready to generate. Uses <strong>{project.page_count}</strong> page{project.page_count !== 1 ? 's' : ''} from quota.
+                    Ready to generate. Uses <strong>{project.pageCount}</strong> page{project.pageCount !== 1 ? 's' : ''} from quota.
                   </p>
                 )}
               </div>
               {!isProcessing && (
                 <GenerateButton
                   projectId={project.id}
-                  pageCount={project.page_count}
+                  pageCount={project.pageCount}
                   status={project.status}
+                  hasScript={!!project.scriptText}
                   label={hasFailed ? 'Retry' : 'Generate'}
                 />
               )}
@@ -795,7 +800,7 @@ export function ProjectWorkflow({
                     <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
                       <div className="flex items-center gap-3">
                         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-                          <span className="text-2xl font-bold text-white">{storyScore?.overall_score}</span>
+                          <span className="text-2xl font-bold text-white">{storyScore?.overallScore}</span>
                         </div>
                         <div>
                           <p className="font-medium">StoryScore</p>
@@ -804,7 +809,7 @@ export function ProjectWorkflow({
                       </div>
                       <ImprovementWizardButton
                         projectId={project.id}
-                        scriptText={project.script_text}
+                        scriptText={project.scriptText}
                         existingScore={storyScore}
                       />
                     </div>
@@ -818,7 +823,7 @@ export function ProjectWorkflow({
                       </p>
                       <ImprovementWizardButton
                         projectId={project.id}
-                        scriptText={project.script_text}
+                        scriptText={project.scriptText}
                         existingScore={storyScore}
                       />
                     </div>
@@ -829,8 +834,8 @@ export function ProjectWorkflow({
               {step.id === 'cast' && (
                 <VoiceChooser
                   projectId={project.id}
-                  scriptText={project.script_text}
-                  directorJson={project.director_json}
+                  scriptText={project.scriptText}
+                  directorJson={project.directorJson}
                   disabled={isProcessing}
                 />
               )}
@@ -838,7 +843,7 @@ export function ProjectWorkflow({
               {step.id === 'audio' && (
                 <AudioChooser
                   projectId={project.id}
-                  directorJson={project.director_json}
+                  directorJson={project.directorJson}
                   disabled={isProcessing}
                   remainingPreviews={remainingPreviews}
                   onRemainingPreviewsChanged={setRemainingPreviews}
@@ -856,8 +861,9 @@ export function ProjectWorkflow({
                       <AudioPlayer outputs={audioOutputs!} />
                       <GenerateButton
                         projectId={project.id}
-                        pageCount={project.page_count}
+                        pageCount={project.pageCount}
                         status={project.status}
+                        hasScript={!!project.scriptText}
                         label="Regenerate"
                       />
                     </div>
@@ -894,8 +900,9 @@ export function ProjectWorkflow({
                       </div>
                       <GenerateButton
                         projectId={project.id}
-                        pageCount={project.page_count}
+                        pageCount={project.pageCount}
                         status={project.status}
+                        hasScript={!!project.scriptText}
                         label="Retry Generation"
                       />
                     </div>
@@ -904,12 +911,13 @@ export function ProjectWorkflow({
                       <Music className="w-12 h-12 mx-auto mb-4 text-amber-500 opacity-50" />
                       <h4 className="font-medium mb-2">Ready to Generate?</h4>
                       <p className="text-sm text-muted-foreground mb-4">
-                        This will use <strong>{project.page_count}</strong> page{project.page_count !== 1 ? 's' : ''} from your quota.
+                        This will use <strong>{project.pageCount}</strong> page{project.pageCount !== 1 ? 's' : ''} from your quota.
                       </p>
                       <GenerateButton
                         projectId={project.id}
-                        pageCount={project.page_count}
+                        pageCount={project.pageCount}
                         status={project.status}
+                        hasScript={!!project.scriptText}
                       />
                     </div>
                   )}
@@ -926,7 +934,7 @@ export function ProjectWorkflow({
                           variant="outline"
                           onClick={async () => {
                             try {
-                              const res = await fetch('/api/teams');
+                              const res = await apiFetch('/api/teams');
                               if (!res.ok) {
                                 toast.error('Failed to load teams');
                                 return;
@@ -939,7 +947,7 @@ export function ProjectWorkflow({
                               }
                               // Share with first team (for MVP)
                               const team = teams[0];
-                              const shareRes = await fetch('/api/teams/share', {
+                              const shareRes = await apiFetch('/api/teams/share', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({

@@ -16,10 +16,30 @@ describe('CSRF Protection', () => {
   });
 
   describe('validateCsrf', () => {
-    it('should allow requests without origin or referer (server-side calls)', () => {
+    it('should reject requests without origin, referer, or X-Requested-With', () => {
       const request = new Request('https://example.com/api/test', {
         method: 'POST',
         headers: {},
+      });
+      const result = validateCsrf(request);
+      expect(result).not.toBeNull();
+      expect(result).toContain('Missing Origin/Referer');
+    });
+
+    it('should allow requests with X-Requested-With: story-magic (no origin/referer)', () => {
+      const request = new Request('https://example.com/api/test', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'story-magic' },
+      });
+      const result = validateCsrf(request);
+      expect(result).toBeNull();
+    });
+
+    it('should allow service-to-service calls with valid SERVICE_SECRET_KEY', () => {
+      process.env.SERVICE_SECRET_KEY = 'test-secret-key';
+      const request = new Request('https://example.com/api/test', {
+        method: 'POST',
+        headers: { 'X-Service-Key': 'test-secret-key' },
       });
       const result = validateCsrf(request);
       expect(result).toBeNull();

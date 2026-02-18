@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { apiFetch } from '@/lib/api/fetch';
+import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,7 @@ interface GenerateButtonProps {
   status: string;
   label?: string;
   workflowMode?: 'automatic' | 'fine_tuned';
+  hasScript?: boolean;
 }
 
 const ESTIMATED_DURATION_MS = 120000; // 2 minutes estimated
@@ -47,7 +49,9 @@ export default function GenerateButton({
   status,
   label = 'Generate Audio',
   workflowMode = 'fine_tuned',
+  hasScript = true,
 }: GenerateButtonProps) {
+  const { userId, isSignedIn } = useAuth();
   const [loading, setLoading] = useState(false);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
@@ -73,7 +77,7 @@ export default function GenerateButton({
   // Poll for queue position
   const pollQueuePosition = useCallback(async (jobId: string) => {
     try {
-      const response = await fetch(`/api/jobs/${jobId}/position`);
+      const response = await apiFetch(`/api/jobs/${jobId}/position`);
       if (!response.ok) return;
       const data: QueuePosition & { status: string } = await response.json();
       setQueuePosition({
@@ -96,7 +100,7 @@ export default function GenerateButton({
   // Poll for job status
   const pollJobStatus = useCallback(async (jobId: string) => {
     try {
-      const response = await fetch(`/api/jobs/${jobId}`);
+      const response = await apiFetch(`/api/jobs/${jobId}`);
       if (!response.ok) {
         console.error('Failed to fetch job status');
         return;
@@ -165,89 +169,50 @@ export default function GenerateButton({
     setLoading(true);
     setJobStatus(null);
 
-    const supabase = createClient();
-
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    if (!isSignedIn || !userId) {
       toast.error('Please sign in');
       router.push('/login');
       setLoading(false);
       return;
     }
 
-    // Check usage limit
-    const { data: remaining } = await supabase.rpc('get_remaining_pages', {
-      p_user_id: user.id,
-    });
-
-    if (remaining !== null && pageCount > remaining) {
-      toast.error(`You only have ${remaining} pages remaining. Upgrade to continue.`);
+    if (!hasScript) {
+      toast.error('Please add script text before generating audio.');
       setLoading(false);
       return;
     }
 
-    // Update project status
-    await supabase
-      .from('projects')
-      .update({ status: 'processing' })
-      .eq('id', projectId);
-
-    // Create job
-    const { data: job, error: jobError } = await supabase
-      .from('jobs')
-      .insert({
-        project_id: projectId,
-        user_id: user.id,
-        status: 'queued',
-        workflow_mode: workflowMode,
-        progress: { step: 'queued', percent: 0, details: 'Initializing...' },
-      })
-      .select()
-      .single();
-
-    if (jobError) {
-      toast.error('Failed to create job');
-      setLoading(false);
-      return;
-    }
-
-    // Trigger generation via API (fire and forget - returns immediately)
+    // Trigger generation via API — the server handles usage checks,
+    // project status updates, and job creation
     try {
-      const response = await fetch('/api/generate', {
+      const response = await apiFetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           projectId,
-          jobId: job.id,
+          workflowMode,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to start generation');
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to start generation');
       }
+
+      const data = await response.json();
+      const jobId = data.jobId;
 
       toast.success('Generation started! You can leave this page - processing will continue.');
 
       // Start tracking progress
-      startTracking(job.id);
+      startTracking(jobId);
 
     } catch (error) {
-      toast.error('Failed to start generation');
+      const message = error instanceof Error ? error.message : 'Failed to start generation';
+      toast.error(message);
       console.error('Generation start error:', error);
-
-      // Update job status to failed
-      await supabase
-        .from('jobs')
-        .update({ status: 'failed', error: 'Failed to start generation' })
-        .eq('id', job.id);
-
-      await supabase
-        .from('projects')
-        .update({ status: 'failed' })
-        .eq('id', projectId);
-
       setLoading(false);
+      router.refresh();
     }
   };
 
@@ -394,7 +359,7 @@ export default function GenerateButton({
     <Button
       onClick={handleGenerate}
       disabled={loading || status === 'processing'}
-      className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
+      className="brand-gradient brand-gradient-hover"
       size="lg"
       data-testid="generate-button"
     >

@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { isFeatureEnabled } from '@/lib/features';
 import { withProjectAuth } from '@/lib/api/middleware';
 import { getSuggestion, respondToSuggestion } from '@/lib/adviser';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Validation
@@ -85,7 +86,7 @@ export const PATCH = withProjectAuth(
 
       return NextResponse.json({ success: true, suggestion: updated });
     } catch (error) {
-      console.error('[Suggestions] Error updating:', error);
+      log.error('[Suggestions] Error updating', error);
       return NextResponse.json(
         {
           error: 'Failed to update suggestion',

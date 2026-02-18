@@ -1,23 +1,8 @@
-import { createClient } from '@/lib/supabase/server';
-import { NextRequest, NextResponse } from 'next/server';
-import { validateCsrf } from '@/lib/csrf';
+import { withProjectAuth } from '@/lib/api/middleware';
+import { NextResponse } from 'next/server';
+import { log } from '@/lib/logger';
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const POST = withProjectAuth(async (request, { prisma, projectId }) => {
   const { mode } = await request.json();
 
   if (!mode || !['automatic', 'fine_tuned'].includes(mode)) {
@@ -27,62 +12,36 @@ export async function POST(
     );
   }
 
-  // Verify project belongs to user
-  const { data: project, error: projectError } = await supabase
-    .from('projects')
-    .select('id, user_id')
-    .eq('id', params.id)
-    .single();
+  try {
+    // Update preferred workflow mode
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { preferredWorkflowMode: mode },
+    });
 
-  if (projectError || !project) {
-    return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-  }
-
-  if (project.user_id !== user.id) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  // Update preferred workflow mode
-  const { error: updateError } = await supabase
-    .from('projects')
-    .update({ preferred_workflow_mode: mode })
-    .eq('id', params.id);
-
-  if (updateError) {
-    console.error('Error updating workflow mode:', updateError);
+    return NextResponse.json({ success: true, mode });
+  } catch (error) {
+    log.error('Error updating workflow mode', error);
     return NextResponse.json(
       { error: 'Failed to update workflow mode' },
       { status: 500 }
     );
   }
+});
 
-  return NextResponse.json({ success: true, mode });
-}
+export const GET = withProjectAuth(async (_request, { prisma, projectId }) => {
+  // The project is already fetched by withProjectAuth, but we need specific fields
+  const project = await prisma.project.findFirst({
+    where: { id: projectId },
+    select: { id: true, preferredWorkflowMode: true, currentRunNumber: true },
+  });
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  // Get project with workflow mode
-  const { data: project, error } = await supabase
-    .from('projects')
-    .select('id, preferred_workflow_mode, current_run_number')
-    .eq('id', params.id)
-    .single();
-
-  if (error || !project) {
+  if (!project) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
   return NextResponse.json({
-    preferredMode: project.preferred_workflow_mode,
-    currentRunNumber: project.current_run_number,
+    preferredMode: project.preferredWorkflowMode,
+    currentRunNumber: project.currentRunNumber,
   });
-}
+});

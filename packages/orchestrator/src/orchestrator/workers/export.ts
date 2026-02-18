@@ -7,7 +7,6 @@ import ffmpegStatic from 'ffmpeg-static';
 import fs from 'fs';
 import path from 'path';
 import { audioDurationSec } from '../../lib/audio.js';
-import { supabaseServiceClient } from '../../lib/supabase.js';
 import { getOutputDir } from '../../lib/env.js';
 import { log } from '../../lib/logger.js';
 
@@ -180,42 +179,14 @@ export async function makePlaybackManifest(
     totalDuration = await audioDurationSec(scenePaths[0].path);
   }
 
-  // Upload episode to Supabase Storage
+  // Serve episode from local Render Disk
   const episodePath = path.join(getOutputDir(), project_id, 'episode.m4a');
   let publicUrl: string | null = null;
 
-  if (fs.existsSync(episodePath) && supabaseServiceClient) {
-    try {
-      const supabase = supabaseServiceClient;
-
-      const episodeBuffer = fs.readFileSync(episodePath);
-
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('audio')
-        .upload(`${project_id}/episode.m4a`, episodeBuffer, {
-          contentType: 'audio/mp4',
-          upsert: true,
-        });
-
-      if (uploadError) {
-        log.error('Supabase upload error', undefined, { uploadError });
-        throw uploadError;
-      }
-
-      log.info('Uploaded episode to Supabase Storage', { projectId: project_id });
-
-      const { data: urlData } = supabase.storage
-        .from('audio')
-        .getPublicUrl(`${project_id}/episode.m4a`);
-
-      publicUrl = urlData.publicUrl;
-      log.info('Public audio URL generated', { publicUrl });
-    } catch (err) {
-      log.error('Failed to upload to Supabase', err instanceof Error ? err : undefined, {
-        projectId: project_id,
-      });
-      // Continue without upload - not fatal
-    }
+  if (fs.existsSync(episodePath)) {
+    // Use the local file path as the URL — served via the orchestrator's static file route
+    publicUrl = `/audio/${project_id}/episode.m4a`;
+    log.info('Episode available at local path', { projectId: project_id, publicUrl });
   }
 
   // Also generate MP3 version
@@ -224,25 +195,10 @@ export async function makePlaybackManifest(
     try {
       const mp3Path = episodePath.replace('.m4a', '.mp3');
       await convertToMp3(episodePath, mp3Path);
-
-      if (supabaseServiceClient) {
-        const mp3Buffer = fs.readFileSync(mp3Path);
-        await supabaseServiceClient.storage
-          .from('audio')
-          .upload(`${project_id}/episode.mp3`, mp3Buffer, {
-            contentType: 'audio/mpeg',
-            upsert: true,
-          });
-
-        const { data: mp3UrlData } = supabaseServiceClient.storage
-          .from('audio')
-          .getPublicUrl(`${project_id}/episode.mp3`);
-
-        mp3Url = mp3UrlData.publicUrl;
-        log.info('MP3 version uploaded', { mp3Url });
-      }
+      mp3Url = `/audio/${project_id}/episode.mp3`;
+      log.info('MP3 version generated', { mp3Url });
     } catch (err) {
-      log.error('MP3 conversion/upload failed', err instanceof Error ? err : undefined);
+      log.error('MP3 conversion failed', err instanceof Error ? err : undefined);
       // Non-fatal: M4A is primary format
     }
   }

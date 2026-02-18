@@ -1,4 +1,8 @@
-import { createClient } from '@/lib/supabase/server';
+export const dynamic = 'force-dynamic';
+
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
+import { ensureProfile } from '@/lib/ensure-profile';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -8,114 +12,67 @@ import { ReaderDashboardClient } from '@/components/dashboard/reader-dashboard-c
 import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
 import type { ReaderLibraryEntryDetailed } from '@/lib/types/marketplace';
 
-// Type for the nested join query result
-interface LibraryEntryWithProject {
-  id: string;
-  reader_id: string;
-  project_id: string;
-  source: 'received' | 'uploaded' | 'purchased';
-  share_id: string | null;
-  status: 'active' | 'archived' | 'removed';
-  is_favorited: boolean;
-  notes: string | null;
-  tags: string[];
-  last_played_at: string | null;
-  play_position_seconds: number | null;
-  completed: boolean;
-  created_at: string;
-  updated_at: string;
-  projects: {
-    id: string;
-    name: string;
-    page_count: number;
-    status: string;
-    user_id: string;
-    profiles: {
-      full_name: string | null;
-      writer_code: string | null;
-    } | null;
-  } | null;
-  script_shares: {
-    id: string;
-    shared_by: string;
-  } | null;
-}
-
 export default async function ReaderDashboardPage() {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     redirect('/login');
   }
 
-  // Fetch profile with reader code
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
+  // Fetch (or auto-create) profile with reader code
+  const profile = await ensureProfile(userId);
 
   // Fetch reader library with project details
-  const { data: libraryEntries } = await supabase
-    .from('reader_library')
-    .select(`
-      *,
-      projects (
-        id,
-        name,
-        page_count,
-        status,
-        user_id,
-        profiles:user_id (
-          full_name,
-          writer_code
-        )
-      ),
-      script_shares (
-        id,
-        shared_by
-      )
-    `)
-    .eq('reader_id', user.id)
-    .neq('status', 'removed')
-    .order('created_at', { ascending: false });
+  const libraryEntries = await prisma.readerLibrary.findMany({
+    where: { readerId: userId, status: { not: 'removed' } },
+    include: {
+      project: {
+        include: {
+          user: {
+            select: { fullName: true, writerCode: true },
+          },
+        },
+      },
+      share: {
+        select: { id: true, sharedBy: true },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
 
   // Check writer subscription status for each entry
-  const { data: activeSubscriptions } = await supabase
-    .from('subscriptions')
-    .select('user_id')
-    .in('status', ['active', 'trialing']);
+  const activeSubscriptions = await prisma.subscription.findMany({
+    where: { status: { in: ['active', 'trialing'] } },
+    select: { userId: true },
+  });
 
-  const activeWriterIds = new Set(activeSubscriptions?.map(s => s.user_id) || []);
+  const activeWriterIds = new Set(activeSubscriptions.map(s => s.userId));
 
   // Transform to detailed entries
-  const typedEntries = libraryEntries as LibraryEntryWithProject[] | null;
-  const entries: ReaderLibraryEntryDetailed[] = (typedEntries || []).map(entry => {
-    const project = entry.projects;
-    const writerProfile = project?.profiles;
-    const writerId = project?.user_id;
+  const entries: ReaderLibraryEntryDetailed[] = (libraryEntries || []).map(entry => {
+    const project = entry.project;
+    const writerProfile = project?.user;
+    const writerId = project?.userId;
 
     return {
       id: entry.id,
-      reader_id: entry.reader_id,
-      project_id: entry.project_id,
-      source: entry.source,
-      share_id: entry.share_id,
-      status: activeWriterIds.has(writerId) ? entry.status : 'archived',
-      is_favorited: entry.is_favorited,
+      reader_id: entry.readerId,
+      project_id: entry.projectId,
+      source: entry.source as 'received' | 'uploaded' | 'purchased',
+      share_id: entry.shareId,
+      status: activeWriterIds.has(writerId ?? '') ? entry.status as 'active' | 'archived' | 'removed' : 'archived',
+      is_favorited: entry.isFavorited,
       notes: entry.notes,
       tags: entry.tags,
-      last_played_at: entry.last_played_at,
-      play_position_seconds: entry.play_position_seconds || 0,
+      last_played_at: entry.lastPlayedAt?.toISOString() || null,
+      play_position_seconds: entry.playPositionSeconds || 0,
       completed: entry.completed,
-      created_at: entry.created_at,
-      updated_at: entry.updated_at,
+      created_at: entry.createdAt.toISOString(),
+      updated_at: entry.updatedAt.toISOString(),
       script_name: project?.name || 'Unknown Script',
-      page_count: project?.page_count || 0,
-      writer_name: writerProfile?.full_name || 'Unknown Writer',
-      writer_code: writerProfile?.writer_code || '',
-      writer_subscribed: activeWriterIds.has(writerId),
+      page_count: project?.pageCount || 0,
+      writer_name: writerProfile?.fullName || 'Unknown Writer',
+      writer_code: writerProfile?.writerCode || '',
+      writer_subscribed: activeWriterIds.has(writerId ?? ''),
       duration_seconds: 0, // Would come from audio_outputs
     };
   });
@@ -128,7 +85,7 @@ export default async function ReaderDashboardPage() {
     favoritedCount: entries.filter(e => e.is_favorited).length,
   };
 
-  const readerCode = profile?.reader_code || 'LOADING';
+  const readerCode = profile?.readerCode || 'LOADING';
 
   return (
     <div className="min-h-screen bg-muted">

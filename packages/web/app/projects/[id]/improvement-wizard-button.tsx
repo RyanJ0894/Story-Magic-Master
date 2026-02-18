@@ -41,7 +41,7 @@ export function ImprovementWizardButton({
     <>
       <Button
         onClick={() => setIsOpen(true)}
-        className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
+        className="brand-gradient brand-gradient-hover"
       >
         <Wand2 className="w-4 h-4 mr-2" />
         Start Improvement Wizard

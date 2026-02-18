@@ -8,6 +8,7 @@
  */
 
 import { useState } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import {
   Dialog,
   DialogContent,
@@ -126,7 +127,7 @@ export function FeedbackModal({
         await onSubmit(feedback);
       } else {
         // Default API submission
-        const response = await fetch(`/api/projects/${projectId}/feedback`, {
+        const response = await apiFetch(`/api/projects/${projectId}/feedback`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(feedback),

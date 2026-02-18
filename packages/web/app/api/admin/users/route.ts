@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/middleware';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
-import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // Query params schema
 const GetUsersQuerySchema = z.object({
@@ -14,26 +15,24 @@ const GetUsersQuerySchema = z.object({
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 });
 
+// Map sort field from snake_case to camelCase
+const sortFieldMap: Record<string, string> = {
+  created_at: 'createdAt',
+  full_name: 'fullName',
+  user_type: 'userType',
+};
+
 /**
  * GET /api/admin/users
  * List all users with filtering and pagination
  */
-export async function GET(request: Request) {
-  const supabase = await createClient();
+export const GET = withAuth(async (request, { userId, prisma }) => {
+  const profile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { userType: true },
+  });
 
-  // Verify admin
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('user_type')
-    .eq('id', user.id)
-    .single();
-
-  if (profile?.user_type !== 'admin') {
+  if (profile?.userType !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -55,51 +54,60 @@ export async function GET(request: Request) {
   const { page, limit, search, type, sortBy, sortOrder } = parseResult.data;
   const offset = (page - 1) * limit;
 
-  // Build query
-  let query = supabase
-    .from('profiles')
-    .select(`
-      id,
-      full_name,
-      user_type,
-      writer_code,
-      reader_code,
-      created_at,
-      updated_at,
-      subscriptions(id, status, plan)
-    `, { count: 'exact' });
+  // Build where clause
+  const where: Prisma.ProfileWhereInput = {};
 
-  // Apply filters
   if (search) {
-    query = query.or(`full_name.ilike.%${search}%,writer_code.ilike.%${search}%,reader_code.ilike.%${search}%`);
+    where.OR = [
+      { fullName: { contains: search, mode: 'insensitive' } },
+      { writerCode: { contains: search, mode: 'insensitive' } },
+      { readerCode: { contains: search, mode: 'insensitive' } },
+    ];
   }
   if (type) {
-    query = query.eq('user_type', type);
+    where.userType = type;
   }
 
-  // Apply pagination and ordering
-  query = query
-    .order(sortBy, { ascending: sortOrder === 'asc' })
-    .range(offset, offset + limit - 1);
+  const prismaSort = sortFieldMap[sortBy] || 'createdAt';
 
-  const { data: users, count, error } = await query;
+  try {
+    const [users, count] = await Promise.all([
+      prisma.profile.findMany({
+        where,
+        select: {
+          id: true,
+          fullName: true,
+          userType: true,
+          writerCode: true,
+          readerCode: true,
+          createdAt: true,
+          updatedAt: true,
+          subscriptions: {
+            select: { id: true, status: true, plan: true },
+          },
+        },
+        orderBy: { [prismaSort]: sortOrder },
+        skip: offset,
+        take: limit,
+      }),
+      prisma.profile.count({ where }),
+    ]);
 
-  if (error) {
-    console.error('Error fetching users:', error);
+    return NextResponse.json({
+      data: users,
+      pagination: {
+        total: count,
+        page,
+        limit,
+        totalPages: Math.ceil(count / limit),
+        hasMore: page * limit < count,
+      },
+    });
+  } catch (error) {
+    log.error('Error fetching users', error);
     return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
   }
-
-  return NextResponse.json({
-    data: users,
-    pagination: {
-      total: count || 0,
-      page,
-      limit,
-      totalPages: Math.ceil((count || 0) / limit),
-      hasMore: page * limit < (count || 0),
-    },
-  });
-}
+});
 
 // Update user schema
 const UpdateUserSchema = z.object({
@@ -112,27 +120,13 @@ const UpdateUserSchema = z.object({
  * PATCH /api/admin/users
  * Update a user's profile (for admin actions)
  */
-export async function PATCH(request: Request) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
+export const PATCH = withAuth(async (request, { userId: adminUserId, prisma }) => {
+  const adminProfile = await prisma.profile.findUnique({
+    where: { id: adminUserId },
+    select: { userType: true },
+  });
 
-  const supabase = await createClient();
-
-  // Verify admin
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('user_type')
-    .eq('id', user.id)
-    .single();
-
-  if (profile?.user_type !== 'admin') {
+  if (adminProfile?.userType !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -160,35 +154,34 @@ export async function PATCH(request: Request) {
 
   const updates = parseResult.data;
 
-  // Perform update
-  const { data: updatedUser, error } = await supabase
-    .from('profiles')
-    .update({
-      ...updates,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', userId)
-    .select()
-    .single();
+  // Build Prisma update data with camelCase
+  const prismaUpdates: Record<string, unknown> = {};
+  if (updates.user_type !== undefined) prismaUpdates.userType = updates.user_type;
+  if (updates.full_name !== undefined) prismaUpdates.fullName = updates.full_name;
+  if (updates.suspended !== undefined) prismaUpdates.suspended = updates.suspended;
 
-  if (error) {
-    console.error('Error updating user:', error);
+  try {
+    const updatedUser = await prisma.profile.update({
+      where: { id: userId },
+      data: prismaUpdates,
+    });
+
+    // Log audit event
+    const requestInfo = extractRequestInfo(request);
+    await logAuditEvent({
+      user_id: adminUserId,
+      action: updates.suspended ? AuditActions.ADMIN_USER_SUSPEND : AuditActions.ADMIN_USER_UPDATE,
+      resource_type: ResourceTypes.USER,
+      resource_id: userId,
+      details: {
+        changes: updates,
+      },
+      ...requestInfo,
+    });
+
+    return NextResponse.json(updatedUser);
+  } catch (error) {
+    log.error('Error updating user', error);
     return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
   }
-
-  // Log audit event
-  const requestInfo = extractRequestInfo(request);
-  await logAuditEvent({
-    user_id: user.id,
-    action: updates.suspended ? AuditActions.ADMIN_USER_SUSPEND : AuditActions.ADMIN_USER_UPDATE,
-    resource_type: ResourceTypes.USER,
-    resource_id: userId,
-    details: {
-      changes: updates,
-      admin_email: user.email,
-    },
-    ...requestInfo,
-  });
-
-  return NextResponse.json(updatedUser);
-}
+});

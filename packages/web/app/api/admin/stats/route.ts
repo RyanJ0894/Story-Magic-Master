@@ -1,27 +1,18 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/middleware';
 import { mapDbStatsToAdminStats } from '@/lib/api/mappers';
 
 /**
  * GET /api/admin/stats
  * Get platform-wide statistics for admin dashboard
  */
-export async function GET(request: Request) {
-  const supabase = await createClient();
+export const GET = withAuth(async (request, { userId, prisma }) => {
+  const profile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { userType: true },
+  });
 
-  // Verify user is authenticated and is admin
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('user_type')
-    .eq('id', user.id)
-    .single();
-
-  if (profile?.user_type !== 'admin') {
+  if (profile?.userType !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -33,25 +24,25 @@ export async function GET(request: Request) {
 
   // Fetch all stats in parallel
   const [
-    { count: totalUsers },
-    { count: writerCount },
-    { count: readerCount },
-    { count: activeSubscriptionCount },
-    { count: projectCount },
-    { count: shareCount },
-    { count: newUsersToday },
-    { count: newUsersWeek },
-    { count: newUsersMonth },
+    totalUsers,
+    writerCount,
+    readerCount,
+    activeSubscriptionCount,
+    projectCount,
+    shareCount,
+    newUsersToday,
+    newUsersWeek,
+    newUsersMonth,
   ] = await Promise.all([
-    supabase.from('profiles').select('*', { count: 'exact', head: true }),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('user_type', 'writer'),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('user_type', 'reader'),
-    supabase.from('subscriptions').select('*', { count: 'exact', head: true }).in('status', ['active', 'trialing']),
-    supabase.from('projects').select('*', { count: 'exact', head: true }),
-    supabase.from('script_shares').select('*', { count: 'exact', head: true }),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', today.toISOString()),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', last7Days.toISOString()),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', last30Days.toISOString()),
+    prisma.profile.count(),
+    prisma.profile.count({ where: { userType: 'writer' } }),
+    prisma.profile.count({ where: { userType: 'reader' } }),
+    prisma.subscription.count({ where: { status: { in: ['active', 'trialing'] } } }),
+    prisma.project.count(),
+    prisma.scriptShare.count(),
+    prisma.profile.count({ where: { createdAt: { gte: today } } }),
+    prisma.profile.count({ where: { createdAt: { gte: last7Days } } }),
+    prisma.profile.count({ where: { createdAt: { gte: last30Days } } }),
   ]);
 
   // Calculate estimated MRR ($15 average)
@@ -73,4 +64,4 @@ export async function GET(request: Request) {
   const stats = mapDbStatsToAdminStats(dbStats);
 
   return NextResponse.json(stats);
-}
+});

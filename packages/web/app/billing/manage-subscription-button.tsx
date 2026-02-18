@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Loader2, ExternalLink } from 'lucide-react';
@@ -12,7 +13,7 @@ export default function ManageSubscriptionButton() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/stripe/portal', {
+      const response = await apiFetch('/api/stripe/portal', {
         method: 'POST',
       });
 

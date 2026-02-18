@@ -7,8 +7,9 @@
  * Uses in-memory caching to avoid excessive ElevenLabs API calls.
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
+import { log } from '@/lib/logger';
 
 // Voice type matching the frontend
 interface Voice {
@@ -70,7 +71,7 @@ async function fetchElevenLabsVoices(): Promise<Voice[]> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
 
   if (!apiKey) {
-    console.warn('[Voices API] No ElevenLabs API key, using curated voices');
+    log.warn('[Voices API] No ElevenLabs API key, using curated voices');
     return CURATED_VOICES;
   }
 
@@ -83,7 +84,7 @@ async function fetchElevenLabsVoices(): Promise<Voice[]> {
     });
 
     if (!response.ok) {
-      console.error('[Voices API] ElevenLabs API error:', response.status);
+      log.error('[Voices API] ElevenLabs API error', undefined, { status: response.status });
       return CURATED_VOICES;
     }
 
@@ -119,7 +120,7 @@ async function fetchElevenLabsVoices(): Promise<Voice[]> {
     console.log(`[Voices API] Fetched ${voices.length} voices (${voices.filter(v => v.is_custom).length} custom)`);
     return voices;
   } catch (error) {
-    console.error('[Voices API] Failed to fetch from ElevenLabs:', error);
+    log.error('[Voices API] Failed to fetch from ElevenLabs', error);
     return CURATED_VOICES;
   }
 }
@@ -159,18 +160,7 @@ async function getVoices(): Promise<Voice[]> {
   return voices;
 }
 
-export async function GET(request: Request) {
-  const supabase = await createClient();
-
-  // Verify authentication
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
+export const GET = withAuth(async (request) => {
   try {
     // Parse query parameters for filtering
     const url = new URL(request.url);
@@ -195,7 +185,7 @@ export async function GET(request: Request) {
       cached: Date.now() - cacheTimestamp < 1000 ? false : true,
     });
   } catch (error) {
-    console.error('[Voices API] Error:', error);
+    log.error('[Voices API] Error', error);
     return NextResponse.json(
       {
         error: 'Failed to fetch voices',
@@ -205,4 +195,4 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+});

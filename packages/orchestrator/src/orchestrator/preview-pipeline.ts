@@ -3,9 +3,9 @@
  *
  * Lightweight version of the full orchestration pipeline:
  * 1. Truncates dialogue to ~15s worth of lines
- * 2. Runs TTS → Align → Cues → Timeline → Mix (single scene)
+ * 2. Runs TTS -> Align -> Cues -> Timeline -> Mix (single scene)
  * 3. Hard-trims output to 15s with 1s fade-out via FFmpeg
- * 4. Uploads preview to Supabase storage
+ * 4. Serves preview from local Render Disk
  */
 
 import { execa } from 'execa';
@@ -29,11 +29,8 @@ if (!ffmpeg) {
   throw new Error('FFmpeg binary not found. Please ensure ffmpeg-static is installed.');
 }
 
-import { supabaseServiceClient as supabase } from '../lib/supabase.js';
-
 const PREVIEW_DURATION_SECONDS = 15;
 const FADE_OUT_DURATION = 1;
-const PREVIEW_BUCKET = 'audio';
 
 export interface PreviewResult {
   project_id: string;
@@ -99,43 +96,6 @@ async function trimWithFadeOut(
     '-y',
     outputPath,
   ]);
-}
-
-/**
- * Upload preview to Supabase storage
- */
-async function uploadPreview(
-  localPath: string,
-  storagePath: string
-): Promise<string | null> {
-  if (!supabase) {
-    log.warn('Supabase not configured - preview will not be uploaded');
-    return null;
-  }
-
-  try {
-    const fileBuffer = fs.readFileSync(localPath);
-    const { error } = await supabase.storage
-      .from(PREVIEW_BUCKET)
-      .upload(storagePath, fileBuffer, {
-        contentType: 'audio/mp4',
-        upsert: true,
-      });
-
-    if (error) {
-      log.error('Preview upload error', undefined, { storagePath, uploadError: error });
-      return null;
-    }
-
-    const { data: urlData } = supabase.storage
-      .from(PREVIEW_BUCKET)
-      .getPublicUrl(storagePath);
-
-    return urlData.publicUrl;
-  } catch (err) {
-    log.error('Preview upload failed', err instanceof Error ? err : undefined, { storagePath });
-    return null;
-  }
 }
 
 /**
@@ -225,24 +185,15 @@ export async function generatePreview(
     fs.unlinkSync(fullMixPath);
   }
 
-  // Step 9: Upload to Supabase storage
+  // Step 9: Serve preview from local Render Disk
   const storagePath = `previews/${projectId}/${scene.scene_id}.m4a`;
-  log.debug('Preview: uploading to storage', { storagePath });
-  const previewUrl = await uploadPreview(previewPath, storagePath);
-
-  // Cleanup local preview file after upload
-  try {
-    if (fs.existsSync(previewPath)) {
-      fs.unlinkSync(previewPath);
-    }
-  } catch {
-    // Non-critical cleanup failure
-  }
+  const previewUrl = `/audio/${storagePath}`;
+  log.info('Preview available at local path', { storagePath, previewUrl });
 
   log.info('Preview generation complete', {
     projectId,
     sceneId: scene.scene_id,
-    previewUrl: previewUrl || storagePath,
+    previewUrl,
   });
 
   return {

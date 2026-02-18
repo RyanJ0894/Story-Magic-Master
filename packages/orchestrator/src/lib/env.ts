@@ -36,13 +36,8 @@ const envSchema = z.object({
   PORT: z.string().default('22002').transform(Number),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 
-  // Supabase (required for database operations)
-  SUPABASE_URL: optionalUrl,
-  SUPABASE_ANON_KEY: optionalString,
-  SUPABASE_SERVICE_ROLE_KEY: optionalString,
-  // Alternative names for Supabase vars
-  NEXT_PUBLIC_SUPABASE_URL: optionalUrl,
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: optionalString,
+  // Database (Render PostgreSQL)
+  DATABASE_URL: optionalString,
 
   // LLM APIs
   OPENAI_API_KEY: optionalString,
@@ -124,15 +119,12 @@ export function getEnv(): EnvConfig {
 /**
  * Check if a required service is configured
  */
-export function isServiceConfigured(service: 'supabase' | 'elevenlabs' | 'openai' | 'redis'): boolean {
+export function isServiceConfigured(service: 'database' | 'elevenlabs' | 'openai' | 'redis'): boolean {
   const env = getEnv();
 
   switch (service) {
-    case 'supabase':
-      return !!(
-        (env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL) &&
-        (env.SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-      );
+    case 'database':
+      return !!env.DATABASE_URL;
     case 'elevenlabs':
       return !!env.ELEVENLABS_API_KEY;
     case 'openai':
@@ -142,22 +134,6 @@ export function isServiceConfigured(service: 'supabase' | 'elevenlabs' | 'openai
     default:
       return false;
   }
-}
-
-/**
- * Get effective Supabase URL (checks both naming conventions)
- */
-export function getSupabaseUrl(): string | undefined {
-  const env = getEnv();
-  return env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL;
-}
-
-/**
- * Get effective Supabase anon key (checks both naming conventions)
- */
-export function getSupabaseAnonKey(): string | undefined {
-  const env = getEnv();
-  return env.SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 }
 
 /**
@@ -179,7 +155,7 @@ export function printEnvSummary(): void {
   console.log('\n📋 Environment Configuration:');
   console.log(`   Node Environment: ${env.NODE_ENV}`);
   console.log(`   Port: ${env.PORT}`);
-  console.log(`   Supabase: ${isServiceConfigured('supabase') ? '✅' : '❌'}`);
+  console.log(`   Database: ${isServiceConfigured('database') ? '✅' : '❌'}`);
   console.log(`   ElevenLabs: ${isServiceConfigured('elevenlabs') ? '✅' : '❌'}`);
   console.log(`   OpenAI: ${isServiceConfigured('openai') ? '✅' : '❌'}`);
   console.log(`   Rate Limiting: ${isServiceConfigured('redis') ? '✅ (Redis)' : '⚠️ (In-memory)'}`);

@@ -8,6 +8,8 @@
 const ALLOWED_ORIGINS = [
   process.env.NEXT_PUBLIC_APP_URL,
   process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+  process.env.RENDER_EXTERNAL_URL, // Render.com sets this automatically
+  'https://story-magic-web.onrender.com',
   // Local development
   'http://localhost:22000',
   'http://localhost:3000',
@@ -27,15 +29,26 @@ export function validateCsrf(request: Request): string | null {
   // For same-origin requests without CORS, origin may be null
   // In this case, check referer
   if (!origin && !referer) {
-    // API calls from server components won't have origin/referer
-    // Allow these through as they're not from browser forms
-    return null;
+    // When both Origin and Referer are missing, require X-Requested-With header.
+    // Server-side fetch calls set this header. Browser form submissions and
+    // cross-origin requests cannot set custom headers without CORS preflight,
+    // so this blocks CSRF via header-stripping attacks.
+    const xRequestedWith = request.headers.get('x-requested-with');
+    if (xRequestedWith === 'story-magic') {
+      return null;
+    }
+    // Also allow service-to-service calls authenticated via SERVICE_SECRET_KEY
+    const serviceKey = request.headers.get('x-service-key');
+    if (serviceKey && serviceKey === process.env.SERVICE_SECRET_KEY) {
+      return null;
+    }
+    return 'Missing Origin/Referer header and no X-Requested-With: story-magic';
   }
 
   const requestOrigin = origin || (referer ? new URL(referer).origin : null);
 
   if (!requestOrigin) {
-    return null; // Allow requests without origin (non-browser)
+    return 'Could not determine request origin';
   }
 
   // Check if the origin is in our allowed list (exact match only)

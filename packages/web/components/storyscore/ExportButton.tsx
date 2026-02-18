@@ -7,6 +7,7 @@
  */
 
 import { useState } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { Button } from '@/components/ui/button';
 import { Download, Loader2, AlertCircle } from 'lucide-react';
 import { isFeatureEnabled } from '@/lib/features';
@@ -30,7 +31,7 @@ export function ExportButton({ projectId, disabled = false }: ExportButtonProps)
     setError(null);
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/export`);
+      const response = await apiFetch(`/api/projects/${projectId}/export`);
 
       if (!response.ok) {
         const errorData = await response.json();

@@ -4,43 +4,23 @@
  * POST /api/admin/corpus/populate - Generate embeddings for scripts without them
  */
 
-import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { withAuth } from '@/lib/api/middleware';
 import { populateMissingEmbeddings } from '@/lib/comparable/service';
-import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // POST - Populate Missing Embeddings
 // =============================================================================
 
-export async function POST(request: Request) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
+export const POST = withAuth(async (request, { userId, prisma }) => {
+  // Check if user is admin via profile
+  const profile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { userType: true },
+  });
 
-  const supabase = await createClient();
-
-  // Check authentication
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  // Check if user is admin (by email domain or specific user list)
-  const adminEmails = process.env.ADMIN_EMAILS?.split(',') || [];
-  const isAdmin = adminEmails.includes(user.email || '');
-
-  if (!isAdmin) {
+  if (profile?.userType !== 'admin') {
     return NextResponse.json(
       { error: 'Admin access required', code: 'FORBIDDEN' },
       { status: 403 }
@@ -56,7 +36,7 @@ export async function POST(request: Request) {
       message: `Generated embeddings for ${updatedCount} scripts`,
     });
   } catch (error) {
-    console.error('[Admin] Populate embeddings error:', error);
+    log.error('[Admin] Populate embeddings error', error);
     return NextResponse.json(
       {
         error: 'Failed to populate embeddings',
@@ -66,4 +46,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

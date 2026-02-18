@@ -5,10 +5,9 @@
  * POST /api/projects - Create a new project
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
 
 // =============================================================================
 // Input Validation
@@ -16,6 +15,10 @@ import { validateCsrf } from '@/lib/csrf';
 
 const CreateProjectSchema = z.object({
   name: z.string().min(1, 'Project name is required').max(200, 'Project name too long'),
+  description: z.string().max(500).optional(),
+  scriptText: z.string().optional(),
+  pageCount: z.number().int().min(0).max(150).optional(),
+  // Accept snake_case aliases for backwards compatibility
   script_text: z.string().optional(),
   page_count: z.number().int().min(0).max(150).optional(),
 });
@@ -24,57 +27,36 @@ const CreateProjectSchema = z.object({
 // GET - List user's projects
 // =============================================================================
 
-export async function GET(request: Request) {
-  const supabase = await createClient();
+export const GET = withAuth(async (_request, { userId, prisma }) => {
+  try {
+    const projects = await prisma.project.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        name: true,
+        scriptText: true,
+        pageCount: true,
+        voiceAssignments: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  const { data: projects, error } = await supabase
-    .from('projects')
-    .select('id, name, script_text, page_count, voice_assignments, created_at, updated_at')
-    .eq('user_id', user.id)
-    .order('updated_at', { ascending: false });
-
-  if (error) {
+    return NextResponse.json({ projects });
+  } catch {
     return NextResponse.json(
       { error: 'Failed to fetch projects', code: 'FETCH_ERROR' },
       { status: 500 }
     );
   }
-
-  return NextResponse.json({ projects: projects || [] });
-}
+});
 
 // =============================================================================
 // POST - Create a new project
 // =============================================================================
 
-export async function POST(request: Request) {
-  // CSRF protection
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
-
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
+export const POST = withAuth(async (request, { userId, prisma }) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -97,25 +79,28 @@ export async function POST(request: Request) {
     );
   }
 
-  const { name, script_text, page_count } = parseResult.data;
+  const data = parseResult.data;
+  // Support both camelCase and snake_case field names
+  const scriptText = data.scriptText || data.script_text;
+  const pageCount = data.pageCount ?? data.page_count;
+  const description = data.description;
 
-  const { data: project, error } = await supabase
-    .from('projects')
-    .insert({
-      user_id: user.id,
-      name,
-      script_text: script_text || null,
-      page_count: page_count || 0,
-    })
-    .select()
-    .single();
+  try {
+    const project = await prisma.project.create({
+      data: {
+        userId,
+        name: data.name,
+        description: description || null,
+        scriptText: scriptText || null,
+        pageCount: pageCount || 0,
+      },
+    });
 
-  if (error) {
+    return NextResponse.json(project, { status: 201 });
+  } catch {
     return NextResponse.json(
       { error: 'Failed to create project', code: 'CREATE_ERROR' },
       { status: 500 }
     );
   }
-
-  return NextResponse.json({ project }, { status: 201 });
-}
+});

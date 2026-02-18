@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/middleware';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // Validation schema for PUT body
 const UpdateSettingsSchema = z.object({
@@ -16,51 +16,33 @@ const UpdateSettingsSchema = z.object({
  * Fetch all platform settings from the platform_settings table.
  * Returns { settings: Record<string, any> } keyed by the `key` column.
  */
-export async function GET(request: Request) {
-  const supabase = await createClient();
+export const GET = withAuth(async (request, { userId, prisma }) => {
+  const profile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { userType: true },
+  });
 
-  // Verify user is authenticated
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  // Verify user is admin
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('user_type')
-    .eq('id', user.id)
-    .single();
-
-  if (profile?.user_type !== 'admin') {
+  if (profile?.userType !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // Fetch all platform settings
-  const { data: rows, error } = await supabase
-    .from('platform_settings')
-    .select('key, value, updated_by, updated_at');
+  try {
+    const rows = await prisma.platformSetting.findMany({
+      select: { key: true, value: true, updatedBy: true, updatedAt: true },
+    });
 
-  if (error) {
-    // Handle table not existing
-    if (error.code === '42P01') {
-      return NextResponse.json({
-        error: 'Platform settings table not configured',
-        message: 'Please run the platform_settings migration in Supabase',
-      }, { status: 503 });
+    // Transform rows into a keyed record
+    const settings: Record<string, unknown> = {};
+    for (const row of rows) {
+      settings[row.key] = row.value;
     }
-    console.error('Error fetching platform settings:', error);
+
+    return NextResponse.json({ settings });
+  } catch (error) {
+    log.error('Error fetching platform settings', error);
     return NextResponse.json({ error: 'Failed to fetch platform settings' }, { status: 500 });
   }
-
-  // Transform rows into a keyed record
-  const settings: Record<string, any> = {};
-  for (const row of rows ?? []) {
-    settings[row.key] = row.value;
-  }
-
-  return NextResponse.json({ settings });
-}
+});
 
 /**
  * PUT /api/admin/settings
@@ -68,29 +50,13 @@ export async function GET(request: Request) {
  * Accepts { settings: Record<string, any> } in body.
  * Each key/value pair is upserted into platform_settings with updated_by and updated_at.
  */
-export async function PUT(request: Request) {
-  // CSRF validation
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
+export const PUT = withAuth(async (request, { userId, prisma }) => {
+  const profile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { userType: true },
+  });
 
-  const supabase = await createClient();
-
-  // Verify user is authenticated
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  // Verify user is admin
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('user_type')
-    .eq('id', user.id)
-    .single();
-
-  if (profile?.user_type !== 'admin') {
+  if (profile?.userType !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -114,30 +80,29 @@ export async function PUT(request: Request) {
   const { settings } = parseResult.data;
   const now = new Date().toISOString();
 
-  // Upsert each key/value pair
-  const upsertRows = Object.entries(settings).map(([key, value]) => ({
-    key,
-    value,
-    updated_by: user.id,
-    updated_at: now,
-  }));
+  try {
+    // Upsert each key/value pair in a transaction
+    await prisma.$transaction(
+      Object.entries(settings).map(([key, value]) =>
+        prisma.platformSetting.upsert({
+          where: { key },
+          create: {
+            key,
+            value,
+            updatedBy: userId,
+          },
+          update: {
+            value,
+            updatedBy: userId,
+          },
+        })
+      )
+    );
 
-  const { error } = await supabase
-    .from('platform_settings')
-    .upsert(upsertRows, { onConflict: 'key' });
-
-  if (error) {
-    // Handle table not existing
-    if (error.code === '42P01') {
-      return NextResponse.json({
-        error: 'Platform settings table not configured',
-        message: 'Please run the platform_settings migration in Supabase',
-      }, { status: 503 });
-    }
-    console.error('Error saving platform settings:', error);
+    // Return the saved settings
+    return NextResponse.json({ settings, updated_at: now });
+  } catch (error) {
+    log.error('Error saving platform settings', error);
     return NextResponse.json({ error: 'Failed to save platform settings' }, { status: 500 });
   }
-
-  // Return the saved settings
-  return NextResponse.json({ settings, updated_at: now });
-}
+});

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { apiFetch } from '@/lib/api/fetch';
+import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -24,6 +25,7 @@ import { ArrowLeft, FileText, Loader2, Sparkles, Wand2 } from 'lucide-react';
 const SHOW_DEMO_BUTTON = true;
 
 export default function NewProjectPage() {
+  const { userId, isSignedIn } = useAuth();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [scriptText, setScriptText] = useState('');
@@ -49,7 +51,7 @@ export default function NewProjectPage() {
     setGeneratingScript(true);
 
     try {
-      const response = await fetch('/api/generate-demo-script', {
+      const response = await apiFetch('/api/generate-demo-script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: aiPrompt }),
@@ -78,49 +80,38 @@ export default function NewProjectPage() {
     e.preventDefault();
     setLoading(true);
 
-    const supabase = createClient();
-
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    if (!isSignedIn || !userId) {
       toast.error('Please sign in to create a project');
       router.push('/login');
       return;
     }
 
-    // Check usage limit
-    const { data: remaining } = await supabase.rpc('get_remaining_pages', {
-      p_user_id: user.id,
-    });
+    try {
+      const response = await apiFetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          description,
+          scriptText,
+          pageCount,
+        }),
+      });
 
-    if (remaining !== null && pageCount > remaining) {
-      toast.error(`You only have ${remaining} pages remaining. Upgrade to continue.`);
+      if (!response.ok) {
+        const data = await response.json();
+        toast.error(data.error || 'Failed to create project');
+        setLoading(false);
+        return;
+      }
+
+      const project = await response.json();
+      toast.success('Project created!');
+      router.push(`/projects/${project.id}`);
+    } catch (error) {
+      toast.error('Failed to create project');
       setLoading(false);
-      return;
     }
-
-    // Create project
-    const { data: project, error } = await supabase
-      .from('projects')
-      .insert({
-        user_id: user.id,
-        name,
-        description,
-        script_text: scriptText,
-        page_count: pageCount,
-        status: 'draft',
-      })
-      .select()
-      .single();
-
-    if (error) {
-      toast.error(error.message);
-      setLoading(false);
-      return;
-    }
-
-    toast.success('Project created!');
-    router.push(`/projects/${project.id}`);
   };
 
   return (
@@ -137,7 +128,7 @@ export default function NewProjectPage() {
             </Link>
             <div className="h-6 w-px bg-border" />
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg brand-gradient-br flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
               <h1 className="font-semibold text-foreground">New Project</h1>
@@ -250,7 +241,7 @@ The door CHIMES. MARCUS (40s, distinguished) enters...`}
                   <Button
                     type="submit"
                     disabled={loading || !name || !scriptText}
-                    className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
+                    className="brand-gradient brand-gradient-hover"
                     data-testid="create-project-button"
                   >
                     {loading ? (
@@ -305,7 +296,7 @@ The door CHIMES. MARCUS (40s, distinguished) enters...`}
             <Button
               onClick={generateDemoScript}
               disabled={generatingScript || !aiPrompt.trim()}
-              className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
+              className="brand-gradient brand-gradient-hover"
             >
               {generatingScript ? (
                 <>

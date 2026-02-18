@@ -17,6 +17,7 @@ import {
   type SuggestionCategory,
   type SuggestionStatus,
 } from '@/lib/adviser';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Validation Schemas
@@ -81,7 +82,7 @@ export const GET = withProjectAuth(
         stats,
       });
     } catch (error) {
-      console.error('[Suggestions] Error fetching:', error);
+      log.error('[Suggestions] Error fetching', error);
       return NextResponse.json(
         {
           error: 'Failed to fetch suggestions',
@@ -162,7 +163,7 @@ export const POST = withProjectAuth(
         stats,
       });
     } catch (error) {
-      console.error('[Suggestions] Error generating:', error);
+      log.error('[Suggestions] Error generating', error);
       return NextResponse.json(
         {
           error: 'Failed to generate suggestions',
@@ -172,5 +173,5 @@ export const POST = withProjectAuth(
       );
     }
   },
-  { rateLimit: 'strict', select: 'id, user_id, script_text' }
+  { rateLimit: 'strict' }
 );

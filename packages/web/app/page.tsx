@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import Link from 'next/link';
 import { MobileNav } from './mobile-nav';
 import { ThemeToggle } from '@/components/theme-toggle';

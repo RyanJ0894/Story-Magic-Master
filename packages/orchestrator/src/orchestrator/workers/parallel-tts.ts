@@ -13,7 +13,7 @@ import { ttsKey, hash } from '../../lib/idempotency.js';
 import { getVoiceForCharacter, upsertVoiceMap } from '../../lib/db.js';
 import { readStemByKey, writeStem } from '../../lib/storage.js';
 import { ttsGenerate } from '../../lib/audio.js';
-import { supabaseClient as sb } from '../../lib/supabase.js';
+import { prisma } from '../../lib/prisma.js';
 import { log } from '../../lib/logger.js';
 import type { DirectorJSON, Scene, DialogueLine } from '../../schemas/director-json.js';
 
@@ -179,25 +179,21 @@ export async function parallelTTSGenerate(
         const wav = await ttsGenerate({ voice, text: line.text });
         const stemPath = await writeStem(project_id, scene_id, line.line_id, wav, key);
 
-        // Store in database
-        if (sb) {
+        // Store in database via Prisma raw SQL
+        try {
           const textHash = hash(line.text);
           const voiceHash = hash(voice.voice_id + JSON.stringify(voice.params_json));
 
-          await sb.from('tts_stems').upsert(
-            {
-              project_id,
-              scene_id,
-              line_id: line.line_id,
-              text_hash: textHash,
-              voice_hash: voiceHash,
-              path: stemPath,
-              duration_s: null,
-            },
-            {
-              onConflict: 'project_id,scene_id,line_id',
-            }
-          );
+          await prisma.$executeRaw`
+            INSERT INTO tts_stems (project_id, scene_id, line_id, text_hash, voice_hash, path, duration_s)
+            VALUES (${project_id}, ${scene_id}, ${line.line_id}, ${textHash}, ${voiceHash}, ${stemPath}, NULL)
+            ON CONFLICT (project_id, scene_id, line_id)
+            DO UPDATE SET text_hash = ${textHash}, voice_hash = ${voiceHash}, path = ${stemPath}, duration_s = NULL
+          `;
+        } catch (err) {
+          log.error('Failed to save TTS stem to DB', err instanceof Error ? err : undefined, {
+            project_id, scene_id, line_id: line.line_id,
+          });
         }
 
         generatedLines++;

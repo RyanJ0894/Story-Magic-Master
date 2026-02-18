@@ -1,19 +1,8 @@
 import { constructWebhookEvent } from '@/lib/stripe/server';
-import { createClient } from '@supabase/supabase-js';
+import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
-
-// Use service role client for webhook handling
-function getServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !serviceKey) {
-    throw new Error('Supabase credentials not configured');
-  }
-
-  return createClient(url, serviceKey);
-}
+import { log } from '@/lib/logger';
 
 // Map Stripe price IDs to subscription tiers
 function getTierFromPriceId(priceId: string): string {
@@ -28,6 +17,14 @@ function getTierFromPriceId(priceId: string): string {
 
   return priceToTier[priceId] || 'free';
 }
+
+// Generation and download limits per tier
+const TIER_LIMITS: Record<string, { generations: number; downloads: number }> = {
+  free:    { generations: 1,  downloads: 0 },
+  creator: { generations: 5,  downloads: 1 },
+  pro:     { generations: 20, downloads: 5 },
+  studio:  { generations: 100, downloads: 50 },
+};
 
 export async function POST(request: Request) {
   try {
@@ -46,14 +43,12 @@ export async function POST(request: Request) {
     try {
       event = constructWebhookEvent(body, signature);
     } catch (err) {
-      console.error('Webhook signature verification failed:', err);
+      log.error('Webhook signature verification failed', err);
       return NextResponse.json(
         { error: 'Invalid signature' },
         { status: 400 }
       );
     }
-
-    const supabase = getServiceClient();
 
     // Handle the event
     switch (event.type) {
@@ -64,15 +59,31 @@ export async function POST(request: Request) {
         const subscriptionId = session.subscription as string;
 
         if (userId && customerId && subscriptionId) {
-          // Update user profile with Stripe customer ID and subscription
-          await supabase
-            .from('profiles')
-            .update({
-              stripe_customer_id: customerId,
-              stripe_subscription_id: subscriptionId,
-              subscription_status: 'active',
-            })
-            .eq('id', userId);
+          // Update both Profile and Subscription in parallel
+          await Promise.all([
+            prisma.profile.update({
+              where: { id: userId },
+              data: {
+                stripeCustomerId: customerId,
+                stripeSubscriptionId: subscriptionId,
+                subscriptionStatus: 'active',
+              },
+            }),
+            prisma.subscription.upsert({
+              where: { stripeSubscriptionId: subscriptionId },
+              create: {
+                userId,
+                plan: 'free', // Updated on subscription.created/updated event
+                status: 'active',
+                stripeCustomerId: customerId,
+                stripeSubscriptionId: subscriptionId,
+              },
+              update: {
+                status: 'active',
+                stripeCustomerId: customerId,
+              },
+            }),
+          ]);
         }
         break;
       }
@@ -84,21 +95,52 @@ export async function POST(request: Request) {
         const priceId = subscription.items.data[0]?.price.id;
         const tier = getTierFromPriceId(priceId);
 
-        // Access current_period_end from the subscription object
-        const periodEnd = (subscription as unknown as { current_period_end?: number }).current_period_end;
+        // Access period fields from the Stripe subscription object
+        const sub = subscription as unknown as { current_period_start?: number; current_period_end?: number };
+        const periodStart = sub.current_period_start;
+        const periodEnd = sub.current_period_end;
+        const limits = TIER_LIMITS[tier] || TIER_LIMITS.free;
 
         if (userId) {
-          await supabase
-            .from('profiles')
-            .update({
-              subscription_tier: tier,
-              subscription_status: subscription.status,
-              stripe_subscription_id: subscription.id,
-              current_period_end: periodEnd
-                ? new Date(periodEnd * 1000).toISOString()
-                : null,
-            })
-            .eq('id', userId);
+          await Promise.all([
+            prisma.profile.update({
+              where: { id: userId },
+              data: {
+                subscriptionTier: tier,
+                subscriptionStatus: subscription.status,
+                stripeSubscriptionId: subscription.id,
+                currentPeriodEnd: periodEnd
+                  ? new Date(periodEnd * 1000)
+                  : null,
+              },
+            }),
+            prisma.subscription.upsert({
+              where: { stripeSubscriptionId: subscription.id },
+              create: {
+                userId,
+                plan: tier,
+                status: subscription.status,
+                stripeCustomerId: subscription.customer as string,
+                stripeSubscriptionId: subscription.id,
+                stripePriceId: priceId,
+                currentPeriodStart: periodStart ? new Date(periodStart * 1000) : null,
+                currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : null,
+                cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
+                generationsLimit: limits.generations,
+                downloadsLimit: limits.downloads,
+              },
+              update: {
+                plan: tier,
+                status: subscription.status,
+                stripePriceId: priceId,
+                currentPeriodStart: periodStart ? new Date(periodStart * 1000) : null,
+                currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : null,
+                cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
+                generationsLimit: limits.generations,
+                downloadsLimit: limits.downloads,
+              },
+            }),
+          ]);
         }
         break;
       }
@@ -108,16 +150,30 @@ export async function POST(request: Request) {
         const userId = subscription.metadata?.userId;
 
         if (userId) {
-          // Downgrade to free tier
-          await supabase
-            .from('profiles')
-            .update({
-              subscription_tier: 'free',
-              subscription_status: 'canceled',
-              stripe_subscription_id: null,
-              current_period_end: null,
-            })
-            .eq('id', userId);
+          // Downgrade to free tier on both models
+          const updates: Promise<unknown>[] = [
+            prisma.profile.update({
+              where: { id: userId },
+              data: {
+                subscriptionTier: 'free',
+                subscriptionStatus: 'canceled',
+                stripeSubscriptionId: null,
+                currentPeriodEnd: null,
+              },
+            }),
+          ];
+          if (subscription.id) {
+            updates.push(
+              prisma.subscription.updateMany({
+                where: { stripeSubscriptionId: subscription.id },
+                data: {
+                  status: 'canceled',
+                  cancelAtPeriodEnd: false,
+                },
+              }),
+            );
+          }
+          await Promise.all(updates);
         }
         break;
       }
@@ -134,20 +190,23 @@ export async function POST(request: Request) {
           : invoiceData.subscription?.id ?? null;
 
         if (subscriptionId) {
-          // Update subscription status
-          await supabase
-            .from('profiles')
-            .update({
-              subscription_status: 'active',
-            })
-            .eq('stripe_subscription_id', subscriptionId);
+          // Update subscription status on both models
+          await Promise.all([
+            prisma.profile.updateMany({
+              where: { stripeSubscriptionId: subscriptionId },
+              data: { subscriptionStatus: 'active' },
+            }),
+            prisma.subscription.updateMany({
+              where: { stripeSubscriptionId: subscriptionId },
+              data: { status: 'active', generationsUsed: 0, downloadsUsed: 0 },
+            }),
+          ]);
 
           // Reset usage for new billing period
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('stripe_subscription_id', subscriptionId)
-            .single();
+          const profile = await prisma.profile.findFirst({
+            where: { stripeSubscriptionId: subscriptionId },
+            select: { id: true },
+          });
 
           if (profile) {
             // Create new usage record for the billing period
@@ -155,11 +214,17 @@ export async function POST(request: Request) {
             const periodEnd = invoiceData.period_end;
 
             if (periodStart && periodEnd) {
-              await supabase.from('usage').upsert({
-                user_id: profile.id,
-                billing_period_start: new Date(periodStart * 1000).toISOString(),
-                billing_period_end: new Date(periodEnd * 1000).toISOString(),
-                pages_used: 0,
+              const period = new Date(periodStart * 1000).toISOString().slice(0, 7);
+              await prisma.usage.upsert({
+                where: { userId_period: { userId: profile.id, period } },
+                create: {
+                  userId: profile.id,
+                  period,
+                  pagesUsed: 0,
+                },
+                update: {
+                  pagesUsed: 0,
+                },
               });
             }
           }
@@ -177,24 +242,28 @@ export async function POST(request: Request) {
           : invoiceData.subscription?.id ?? null;
 
         if (subscriptionId) {
-          await supabase
-            .from('profiles')
-            .update({
-              subscription_status: 'past_due',
-            })
-            .eq('stripe_subscription_id', subscriptionId);
+          await Promise.all([
+            prisma.profile.updateMany({
+              where: { stripeSubscriptionId: subscriptionId },
+              data: { subscriptionStatus: 'past_due' },
+            }),
+            prisma.subscription.updateMany({
+              where: { stripeSubscriptionId: subscriptionId },
+              data: { status: 'past_due' },
+            }),
+          ]);
         }
         break;
       }
 
       default:
         // Unhandled event type
-        console.log(`Unhandled event type: ${event.type}`);
+        log.info(`Unhandled event type: ${event.type}`);
     }
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error('Webhook error:', error);
+    log.error('Webhook error', error);
     return NextResponse.json(
       { error: 'Webhook handler failed' },
       { status: 500 }

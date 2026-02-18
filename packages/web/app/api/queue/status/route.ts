@@ -4,24 +4,12 @@
  * GET /api/queue/status - Get queue statistics
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { getQueueStats } from '@/lib/queue/service';
+import { log } from '@/lib/logger';
 
-export async function GET() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
+export const GET = withAuth(async () => {
   try {
     const stats = await getQueueStats();
 
@@ -36,10 +24,10 @@ export async function GET() {
       byType: stats.statsByType,
     });
   } catch (error) {
-    console.error('[Queue] Status error:', error);
+    log.error('[Queue] Status error', error);
     return NextResponse.json(
       { error: 'Failed to get queue status', code: 'QUEUE_ERROR' },
       { status: 500 }
     );
   }
-}
+});

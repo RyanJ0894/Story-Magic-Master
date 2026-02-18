@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -89,7 +90,7 @@ export function ScriptEditorSection({
     setSaveError(null);
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/revisions`, {
+      const response = await apiFetch(`/api/projects/${projectId}/revisions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,38 +1,46 @@
-import { createClient } from '@/lib/supabase/server';
+export const dynamic = 'force-dynamic';
+
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/db';
+import { ensureProfile } from '@/lib/ensure-profile';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Plus, FileText, Sparkles, LogOut, Folder, HelpCircle } from 'lucide-react';
+import { Plus, FileText, Sparkles, Folder, HelpCircle } from 'lucide-react';
+import { SignOutButton } from '@/components/auth/sign-out-button';
 import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
+  const { userId } = await auth();
+  if (!userId) {
     redirect('/login');
   }
 
   // Fetch user's projects
-  const { data: projects } = await supabase
-    .from('projects')
-    .select('*')
-    .order('updated_at', { ascending: false });
+  const projects = await prisma.project.findMany({
+    where: { userId },
+    orderBy: { updatedAt: 'desc' },
+  });
 
-  // Fetch user's profile for usage info
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
+  // Fetch (or auto-create) user's profile for usage info
+  const profile = await ensureProfile(userId);
 
-  // Get remaining pages
-  const { data: remainingPages } = await supabase
-    .rpc('get_remaining_pages', { p_user_id: user.id });
+  // Get remaining pages via raw query
+  const remainingResult = await prisma.$queryRaw<[{ remaining: number }]>`
+    SELECT COALESCE(
+      (SELECT p.pages_limit - p.pages_used FROM usage p WHERE p.user_id = ${userId} AND p.period = to_char(now(), 'YYYY-MM') LIMIT 1),
+      CASE
+        WHEN ${profile?.subscriptionTier ?? 'free'} = 'creator' THEN 50
+        WHEN ${profile?.subscriptionTier ?? 'free'} = 'pro' THEN 200
+        WHEN ${profile?.subscriptionTier ?? 'free'} = 'studio' THEN 1000
+        ELSE 3
+      END
+    ) AS remaining
+  `;
+  const remainingPages = remainingResult[0]?.remaining ?? null;
 
   const tierLimits: Record<string, number> = {
     free: 3,
@@ -48,7 +56,7 @@ export default async function DashboardPage() {
     studio: 'Studio',
   };
 
-  const tier = profile?.subscription_tier || 'free';
+  const tier = profile?.subscriptionTier || 'free';
   const limit = tierLimits[tier];
   const remaining = remainingPages ?? limit;
   const usedPages = limit - remaining;
@@ -68,7 +76,7 @@ export default async function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <Link href="/dashboard" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg brand-gradient-br flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
               <span className="font-bold text-lg text-foreground">Story Magic</span>
@@ -98,12 +106,7 @@ export default async function DashboardPage() {
                 </Button>
               </Link>
 
-              <form action="/api/auth/signout" method="post">
-                <Button variant="ghost" size="sm" type="submit" data-testid="signout-button">
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Sign out
-                </Button>
-              </form>
+              <SignOutButton />
             </div>
           </div>
         </div>
@@ -122,7 +125,7 @@ export default async function DashboardPage() {
             </p>
           </div>
           <Link href="/projects/new">
-            <Button className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700" data-testid="new-project-button">
+            <Button className="brand-gradient brand-gradient-hover" data-testid="new-project-button">
               <Plus className="w-4 h-4 mr-2" />
               New Project
             </Button>
@@ -164,9 +167,9 @@ export default async function DashboardPage() {
                     </CardHeader>
                     <CardContent className="pt-0">
                       <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <span>{project.page_count || 0} pages</span>
+                        <span>{project.pageCount || 0} pages</span>
                         <span>
-                          {new Date(project.updated_at).toLocaleDateString()}
+                          {new Date(project.updatedAt).toLocaleDateString()}
                         </span>
                       </div>
                     </CardContent>
@@ -188,7 +191,7 @@ export default async function DashboardPage() {
                 Create your first project to start transforming scripts into immersive audio experiences.
               </p>
               <Link href="/projects/new">
-                <Button className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700">
+                <Button className="brand-gradient brand-gradient-hover">
                   <Plus className="w-4 h-4 mr-2" />
                   Create Your First Project
                 </Button>

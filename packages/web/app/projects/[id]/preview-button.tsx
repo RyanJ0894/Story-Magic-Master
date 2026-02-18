@@ -19,6 +19,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Play, Pause, Loader2, AlertCircle, Volume2 } from 'lucide-react';
+import { apiFetch } from '@/lib/api/fetch';
 import { cn } from '@/lib/utils';
 
 type PreviewState = 'idle' | 'generating' | 'playing' | 'paused' | 'error';
@@ -157,7 +158,7 @@ export function PreviewButton({
     setErrorMessage(null);
 
     try {
-      const response = await fetch('/api/preview', {
+      const response = await apiFetch('/api/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectId, sceneId }),

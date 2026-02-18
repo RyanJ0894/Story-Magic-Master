@@ -7,9 +7,9 @@ import { Play, Pause, Download, Music, Volume2, VolumeX } from 'lucide-react';
 
 interface AudioOutput {
   id: string;
-  file_name: string;
-  file_path: string;
-  duration_seconds?: number;
+  fileName: string;
+  filePath: string;
+  durationSeconds?: number;
   format: string;
 }
 
@@ -172,7 +172,8 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
   }
 
   // Construct the download URL
-  const audioUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${currentOutput.file_path}`;
+  const orchestratorUrl = process.env.NEXT_PUBLIC_ORCHESTRATOR_URL || process.env.ORCHESTRATOR_URL || '';
+  const audioUrl = `${orchestratorUrl}/audio/${currentOutput.filePath}`;
 
   return (
     <div className="space-y-4">
@@ -218,7 +219,7 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
               className="h-2 bg-muted rounded-full cursor-pointer overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
             >
               <div
-                className="h-full bg-gradient-to-r from-violet-500 to-purple-600 rounded-full transition-all duration-100 pointer-events-none"
+                className="h-full brand-gradient-bar rounded-full transition-all duration-100 pointer-events-none"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -228,8 +229,8 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
               <span>
                 {duration
                   ? formatTime(duration)
-                  : currentOutput.duration_seconds
-                  ? formatTime(currentOutput.duration_seconds)
+                  : currentOutput.durationSeconds
+                  ? formatTime(currentOutput.durationSeconds)
                   : '--:--'}
               </span>
             </div>
@@ -269,10 +270,10 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Music className="w-4 h-4" aria-hidden="true" />
-          <span>{currentOutput.file_name}</span>
+          <span>{currentOutput.fileName}</span>
         </div>
         <Button variant="outline" size="sm" asChild data-testid="download-button">
-          <a href={audioUrl} download={currentOutput.file_name}>
+          <a href={audioUrl} download={currentOutput.fileName}>
             <Download className="w-4 h-4 mr-2" aria-hidden="true" />
             Download
           </a>
@@ -313,10 +314,10 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="text-sm truncate block">{output.file_name}</span>
-                  {output.duration_seconds && (
+                  <span className="text-sm truncate block">{output.fileName}</span>
+                  {output.durationSeconds && (
                     <span className="text-xs text-muted-foreground">
-                      {formatTime(output.duration_seconds)}
+                      {formatTime(output.durationSeconds)}
                     </span>
                   )}
                 </div>

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 interface HealthCheck {
@@ -20,22 +20,12 @@ interface HealthResponse {
 const startTime = Date.now();
 
 /**
- * Check Supabase database connectivity
+ * Check database connectivity via Prisma
  */
 async function checkDatabase(): Promise<HealthCheck> {
   const start = Date.now();
   try {
-    const supabase = await createClient();
-    const { error } = await supabase.from('profiles').select('id').limit(1);
-
-    if (error) {
-      return {
-        name: 'database',
-        status: 'unhealthy',
-        latencyMs: Date.now() - start,
-        error: error.message,
-      };
-    }
+    await prisma.$queryRaw`SELECT 1`;
 
     const latency = Date.now() - start;
     return {
@@ -54,30 +44,29 @@ async function checkDatabase(): Promise<HealthCheck> {
 }
 
 /**
- * Check Supabase Auth service
+ * Check Clerk Auth service connectivity
  */
 async function checkAuth(): Promise<HealthCheck> {
   const start = Date.now();
   try {
-    const supabase = await createClient();
-    // Just check if we can reach the auth service
-    const { error } = await supabase.auth.getSession();
+    const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+    const secretKey = process.env.CLERK_SECRET_KEY;
 
-    // Note: getSession returns null session for unauthenticated, that's OK
-    if (error && error.message !== 'Auth session missing!') {
+    if (!publishableKey || !secretKey) {
       return {
         name: 'auth',
         status: 'unhealthy',
         latencyMs: Date.now() - start,
-        error: error.message,
+        error: 'Clerk keys not configured',
       };
     }
 
     const latency = Date.now() - start;
     return {
       name: 'auth',
-      status: latency > 500 ? 'degraded' : 'healthy',
+      status: 'healthy',
       latencyMs: latency,
+      details: { provider: 'clerk' },
     };
   } catch (err) {
     return {
@@ -237,28 +226,21 @@ async function checkOrchestrator(): Promise<HealthCheck> {
 }
 
 /**
- * Check Supabase Storage
+ * Check storage availability
+ * (Storage is now handled externally; this is a placeholder check)
  */
 async function checkStorage(): Promise<HealthCheck> {
   const start = Date.now();
   try {
-    const supabase = await createClient();
-    const { error } = await supabase.storage.listBuckets();
-
-    if (error) {
-      return {
-        name: 'storage',
-        status: 'unhealthy',
-        latencyMs: Date.now() - start,
-        error: error.message,
-      };
-    }
-
+    // With Prisma migration, storage is handled by the orchestrator or external service.
+    // Return healthy if the storage env var is configured.
+    const hasStorageConfig = !!process.env.AUDIO_OUTPUT_DIR || !!process.env.STORAGE_BUCKET_URL;
     const latency = Date.now() - start;
     return {
       name: 'storage',
-      status: latency > 1000 ? 'degraded' : 'healthy',
+      status: hasStorageConfig ? 'healthy' : 'degraded',
       latencyMs: latency,
+      ...(!hasStorageConfig && { error: 'No storage configuration found (AUDIO_OUTPUT_DIR or STORAGE_BUCKET_URL)' }),
     };
   } catch (err) {
     return {

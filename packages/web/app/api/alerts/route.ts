@@ -2,109 +2,105 @@
  * Alerts API Route
  *
  * GET /api/alerts - Get user's alerts
- * POST /api/alerts/mark-read - Mark alerts as read
+ * PATCH /api/alerts - Mark alerts as read
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
-import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // GET - List alerts
 // =============================================================================
 
-export async function GET(request: Request) {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
+export const GET = withAuth(async (request, { userId, prisma }) => {
   const url = new URL(request.url);
   const unreadOnly = url.searchParams.get('unread') === 'true';
   const limit = parseInt(url.searchParams.get('limit') || '50', 10);
 
   try {
-    // First, fetch alerts with project and team info
-    let query = supabase
-      .from('alerts')
-      .select(
-        `
-        id,
-        alert_type,
-        title,
-        message,
-        project_id,
-        team_id,
-        related_user_id,
-        metadata,
-        is_read,
-        read_at,
-        created_at,
-        projects:project_id (
-          id,
-          name
-        ),
-        teams:team_id (
-          id,
-          name
-        )
-      `
-      )
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(limit);
+    // Fetch alerts with project and team info
+    const alerts = await prisma.alert.findMany({
+      where: {
+        userId,
+        ...(unreadOnly && { isRead: false }),
+      },
+      select: {
+        id: true,
+        alertType: true,
+        title: true,
+        message: true,
+        projectId: true,
+        teamId: true,
+        relatedUserId: true,
+        metadata: true,
+        isRead: true,
+        readAt: true,
+        createdAt: true,
+        project: {
+          select: { id: true, name: true },
+        },
+        team: {
+          select: { id: true, name: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
 
-    if (unreadOnly) {
-      query = query.eq('is_read', false);
-    }
+    // Fetch related user profiles separately
+    const relatedUserIds = Array.from(new Set(
+      alerts.map(a => a.relatedUserId).filter(Boolean)
+    )) as string[];
 
-    const { data: alertsData, error } = await query;
-
-    if (error) throw error;
-
-    // Fetch related user profiles separately (since related_user_id references auth.users, not profiles)
-    const relatedUserIds = Array.from(new Set((alertsData || [])
-      .map(a => a.related_user_id)
-      .filter(Boolean))) as string[];
-
-    let profilesMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
+    let profilesMap: Record<string, { fullName: string | null; avatarUrl: string | null }> = {};
 
     if (relatedUserIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url')
-        .in('id', relatedUserIds);
+      const profiles = await prisma.profile.findMany({
+        where: { id: { in: relatedUserIds } },
+        select: { id: true, fullName: true, avatarUrl: true },
+      });
 
-      if (profiles) {
-        profilesMap = Object.fromEntries(
-          profiles.map(p => [p.id, { full_name: p.full_name, avatar_url: p.avatar_url }])
-        );
-      }
+      profilesMap = Object.fromEntries(
+        profiles.map(p => [p.id, { fullName: p.fullName, avatarUrl: p.avatarUrl }])
+      );
     }
 
-    // Merge profile data into alerts
-    const alerts = (alertsData || []).map(alert => ({
-      ...alert,
-      related_user: alert.related_user_id ? profilesMap[alert.related_user_id] || null : null,
+    // Map to snake_case for client compatibility and merge profile data
+    const alertsWithUsers = alerts.map(alert => ({
+      id: alert.id,
+      alert_type: alert.alertType,
+      title: alert.title,
+      message: alert.message,
+      project_id: alert.projectId,
+      team_id: alert.teamId,
+      metadata: alert.metadata,
+      is_read: alert.isRead,
+      read_at: alert.readAt,
+      created_at: alert.createdAt,
+      projects: alert.project,
+      teams: alert.team,
+      related_user: alert.relatedUserId
+        ? profilesMap[alert.relatedUserId]
+          ? {
+              full_name: profilesMap[alert.relatedUserId].fullName,
+              avatar_url: profilesMap[alert.relatedUserId].avatarUrl,
+            }
+          : null
+        : null,
     }));
 
     // Get unread count
-    const { count: unreadCount } = await supabase
-      .from('alerts')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('is_read', false);
+    const unreadCount = await prisma.alert.count({
+      where: { userId, isRead: false },
+    });
 
     return NextResponse.json({
-      alerts: alerts || [],
-      unreadCount: unreadCount || 0,
+      alerts: alertsWithUsers,
+      unreadCount,
     });
   } catch (error) {
-    console.error('[Alerts] Error listing:', error);
+    log.error('[Alerts] Error listing', error);
     return NextResponse.json(
       {
         error: 'Failed to list alerts',
@@ -114,27 +110,13 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // PATCH - Mark alerts as read
 // =============================================================================
 
-export async function PATCH(request: Request) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
+export const PATCH = withAuth(async (request, { userId, prisma }) => {
   let body: { alertIds?: string[]; markAllRead?: boolean };
   try {
     body = await request.json();
@@ -147,28 +129,25 @@ export async function PATCH(request: Request) {
   try {
     if (markAllRead) {
       // Mark all unread alerts as read
-      const { error } = await supabase
-        .from('alerts')
-        .update({
-          is_read: true,
-          read_at: new Date().toISOString(),
-        })
-        .eq('user_id', user.id)
-        .eq('is_read', false);
-
-      if (error) throw error;
+      await prisma.alert.updateMany({
+        where: { userId, isRead: false },
+        data: {
+          isRead: true,
+          readAt: new Date(),
+        },
+      });
     } else if (alertIds && alertIds.length > 0) {
       // Mark specific alerts as read
-      const { error } = await supabase
-        .from('alerts')
-        .update({
-          is_read: true,
-          read_at: new Date().toISOString(),
-        })
-        .eq('user_id', user.id)
-        .in('id', alertIds);
-
-      if (error) throw error;
+      await prisma.alert.updateMany({
+        where: {
+          userId,
+          id: { in: alertIds },
+        },
+        data: {
+          isRead: true,
+          readAt: new Date(),
+        },
+      });
     } else {
       return NextResponse.json(
         { error: 'Must provide alertIds or markAllRead', code: 'VALIDATION_ERROR' },
@@ -178,7 +157,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Alerts] Error marking read:', error);
+    log.error('[Alerts] Error marking read', error);
     return NextResponse.json(
       {
         error: 'Failed to mark alerts as read',
@@ -188,4 +167,4 @@ export async function PATCH(request: Request) {
       { status: 500 }
     );
   }
-}
+});

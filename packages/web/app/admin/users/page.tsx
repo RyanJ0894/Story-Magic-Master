@@ -1,4 +1,7 @@
-import { createClient } from '@/lib/supabase/server';
+export const dynamic = 'force-dynamic';
+
+import { prisma } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,7 +31,6 @@ interface Props {
 
 export default async function AdminUsersPage({ searchParams }: Props) {
   const params = await searchParams;
-  const supabase = await createClient();
 
   const page = parseInt(params.page || '1');
   const search = params.search || '';
@@ -36,47 +38,50 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   const limit = 20;
   const offset = (page - 1) * limit;
 
-  // Build query
-  let query = supabase
-    .from('profiles')
-    .select(`
-      id,
-      full_name,
-      user_type,
-      writer_code,
-      reader_code,
-      created_at,
-      updated_at,
-      subscriptions(id, status, plan)
-    `, { count: 'exact' });
-
-  // Apply filters
+  // Build where clause
+  const where: Prisma.ProfileWhereInput = {};
   if (search) {
-    query = query.or(`full_name.ilike.%${search}%,writer_code.ilike.%${search}%,reader_code.ilike.%${search}%`);
+    where.OR = [
+      { fullName: { contains: search, mode: 'insensitive' } },
+      { writerCode: { contains: search, mode: 'insensitive' } },
+      { readerCode: { contains: search, mode: 'insensitive' } },
+    ];
   }
   if (userType) {
-    query = query.eq('user_type', userType);
+    where.userType = userType;
   }
 
-  // Apply pagination and ordering
-  query = query
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
-
-  const { data: users, count } = await query;
-
-  // Get user emails from auth (we'll need to join this data)
-  const userIds = users?.map(u => u.id) || [];
+  const [users, count] = await Promise.all([
+    prisma.profile.findMany({
+      where,
+      select: {
+        id: true,
+        fullName: true,
+        userType: true,
+        writerCode: true,
+        readerCode: true,
+        createdAt: true,
+        updatedAt: true,
+        subscriptions: { select: { id: true, status: true, plan: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: offset,
+      take: limit,
+    }),
+    prisma.profile.count({ where }),
+  ]);
 
   // Get project counts for each user
-  const { data: projectCounts } = await supabase
-    .from('projects')
-    .select('user_id')
-    .in('user_id', userIds);
+  const userIds = users?.map(u => u.id) || [];
+  const projectCounts = await prisma.project.groupBy({
+    by: ['userId'],
+    where: { userId: { in: userIds } },
+    _count: { id: true },
+  });
 
   const projectCountMap = new Map<string, number>();
-  projectCounts?.forEach(p => {
-    projectCountMap.set(p.user_id, (projectCountMap.get(p.user_id) || 0) + 1);
+  projectCounts.forEach(p => {
+    projectCountMap.set(p.userId, p._count.id);
   });
 
   const totalPages = Math.ceil((count || 0) / limit);
@@ -178,18 +183,18 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
-                        {user.full_name?.[0]?.toUpperCase() || '?'}
+                        {user.fullName?.[0]?.toUpperCase() || '?'}
                       </div>
                       <div>
-                        <p className="font-medium">{user.full_name || 'No name'}</p>
+                        <p className="font-medium">{user.fullName || 'No name'}</p>
                         <p className="text-sm text-muted-foreground font-mono">{user.id.slice(0, 8)}...</p>
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>{getUserTypeBadge(user.user_type)}</TableCell>
+                  <TableCell>{getUserTypeBadge(user.userType)}</TableCell>
                   <TableCell>
                     <code className="text-sm bg-muted px-2 py-1 rounded">
-                      {user.writer_code || user.reader_code || '-'}
+                      {user.writerCode || user.readerCode || '-'}
                     </code>
                   </TableCell>
                   <TableCell>
@@ -197,34 +202,34 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   </TableCell>
                   <TableCell>{projectCountMap.get(user.id) || 0}</TableCell>
                   <TableCell>
-                    {new Date(user.created_at).toLocaleDateString()}
+                    {new Date(user.createdAt).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" aria-label="User actions">
                           <MoreHorizontal className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem>
+                        <DropdownMenuItem disabled>
                           <Eye className="w-4 h-4 mr-2" />
-                          View Details
+                          View Details (coming soon)
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem disabled>
                           <Mail className="w-4 h-4 mr-2" />
-                          Send Email
+                          Send Email (coming soon)
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem disabled>
                           <Shield className="w-4 h-4 mr-2" />
-                          Change Role
+                          Change Role (coming soon)
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">
+                        <DropdownMenuItem disabled className="text-destructive">
                           <Ban className="w-4 h-4 mr-2" />
-                          Suspend User
+                          Suspend User (coming soon)
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

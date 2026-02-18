@@ -6,10 +6,9 @@
  * DELETE /api/projects/[id] - Delete a project
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { withProjectAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
 
 // =============================================================================
 // Input Validation
@@ -25,66 +24,15 @@ const UpdateProjectSchema = z.object({
 // GET - Fetch a single project
 // =============================================================================
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id: projectId } = await params;
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  const { data: project, error } = await supabase
-    .from('projects')
-    .select('*')
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-    .single();
-
-  if (error || !project) {
-    return NextResponse.json(
-      { error: 'Project not found', code: 'PROJECT_NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
+export const GET = withProjectAuth(async (_request, { project }) => {
   return NextResponse.json({ project });
-}
+});
 
 // =============================================================================
 // PATCH - Update a project
 // =============================================================================
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  // CSRF protection
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
-
-  const { id: projectId } = await params;
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
+export const PATCH = withProjectAuth(async (request, { prisma, projectId }) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -107,94 +55,42 @@ export async function PATCH(
     );
   }
 
-  // Verify project exists and belongs to user
-  const { data: existing, error: fetchError } = await supabase
-    .from('projects')
-    .select('id')
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-    .single();
+  const { name, script_text, page_count } = parseResult.data;
 
-  if (fetchError || !existing) {
-    return NextResponse.json(
-      { error: 'Project not found', code: 'PROJECT_NOT_FOUND' },
-      { status: 404 }
-    );
-  }
+  try {
+    const project = await prisma.project.update({
+      where: { id: projectId },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(script_text !== undefined && { scriptText: script_text }),
+        ...(page_count !== undefined && { pageCount: page_count }),
+      },
+    });
 
-  const { data: project, error: updateError } = await supabase
-    .from('projects')
-    .update(parseResult.data)
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-    .select()
-    .single();
-
-  if (updateError) {
+    return NextResponse.json({ project });
+  } catch {
     return NextResponse.json(
       { error: 'Failed to update project', code: 'UPDATE_ERROR' },
       { status: 500 }
     );
   }
-
-  return NextResponse.json({ project });
-}
+});
 
 // =============================================================================
 // DELETE - Delete a project
 // =============================================================================
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  // CSRF protection
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
+export const DELETE = withProjectAuth(async (_request, { prisma, projectId }) => {
+  try {
+    await prisma.project.delete({
+      where: { id: projectId },
+    });
 
-  const { id: projectId } = await params;
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  // Verify project exists and belongs to user
-  const { data: existing, error: fetchError } = await supabase
-    .from('projects')
-    .select('id')
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-    .single();
-
-  if (fetchError || !existing) {
-    return NextResponse.json(
-      { error: 'Project not found', code: 'PROJECT_NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
-  const { error } = await supabase
-    .from('projects')
-    .delete()
-    .eq('id', projectId)
-    .eq('user_id', user.id);
-
-  if (error) {
+    return NextResponse.json({ success: true, deleted: projectId });
+  } catch {
     return NextResponse.json(
       { error: 'Failed to delete project', code: 'DELETE_ERROR' },
       { status: 500 }
     );
   }
-
-  return NextResponse.json({ success: true, deleted: projectId });
-}
+});

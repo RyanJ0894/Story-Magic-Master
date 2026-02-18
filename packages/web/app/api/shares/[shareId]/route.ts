@@ -1,67 +1,47 @@
-import { createClient } from '@/lib/supabase/server';
-import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/api/middleware';
+import { NextResponse } from 'next/server';
 import { hashPassword } from '@/lib/password';
 import { UpdateShareRequestSchema } from '@/lib/api/dto';
-import { validateCsrf } from '@/lib/csrf';
-
-interface RouteParams {
-  params: Promise<{ shareId: string }>;
-}
+import { log } from '@/lib/logger';
 
 // GET /api/shares/[shareId] - Get share details
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  const { shareId } = await params;
-  const supabase = await createClient();
+export const GET = withAuth(async (request, { userId, prisma, params }) => {
+  const shareId = params.shareId;
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const share = await prisma.scriptShare.findFirst({
+    where: {
+      id: shareId,
+      sharedBy: userId,
+    },
+    include: {
+      project: {
+        select: {
+          id: true,
+          name: true,
+          pageCount: true,
+        },
+      },
+    },
+  });
 
-  const { data: share, error } = await supabase
-    .from('script_shares')
-    .select(`
-      *,
-      projects (
-        id,
-        name,
-        page_count
-      )
-    `)
-    .eq('id', shareId)
-    .eq('shared_by', user.id)
-    .single();
-
-  if (error || !share) {
+  if (!share) {
     return NextResponse.json({ error: 'Share not found' }, { status: 404 });
   }
 
   return NextResponse.json({ share });
-}
+});
 
 // PATCH /api/shares/[shareId] - Update share settings
-export async function PATCH(request: NextRequest, { params }: RouteParams) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { shareId } = await params;
-  const supabase = await createClient();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+export const PATCH = withAuth(async (request, { userId, prisma, params }) => {
+  const shareId = params.shareId;
 
   // Verify ownership
-  const { data: existingShare } = await supabase
-    .from('script_shares')
-    .select('id, shared_by')
-    .eq('id', shareId)
-    .single();
+  const existingShare = await prisma.scriptShare.findFirst({
+    where: { id: shareId },
+    select: { id: true, sharedBy: true },
+  });
 
-  if (!existingShare || existingShare.shared_by !== user.id) {
+  if (!existingShare || existingShare.sharedBy !== userId) {
     return NextResponse.json({ error: 'Share not found or not authorized' }, { status: 404 });
   }
 
@@ -88,73 +68,53 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
   const updates: Record<string, unknown> = {};
 
-  if (access_level !== undefined) updates.access_level = access_level;
-  if (expires_at !== undefined) updates.expires_at = expires_at;
-  if (is_active !== undefined) updates.is_active = is_active;
-  if (recipient_email !== undefined) updates.recipient_email = recipient_email;
-  if (recipient_name !== undefined) updates.recipient_name = recipient_name;
-  if (max_plays !== undefined) updates.max_plays = max_plays;
+  if (access_level !== undefined) updates.accessLevel = access_level;
+  if (expires_at !== undefined) updates.expiresAt = expires_at ? new Date(expires_at) : null;
+  if (is_active !== undefined) updates.isActive = is_active;
+  if (recipient_email !== undefined) updates.recipientEmail = recipient_email;
+  if (recipient_name !== undefined) updates.recipientName = recipient_name;
+  if (max_plays !== undefined) updates.maxPlays = max_plays;
   if (password !== undefined) {
-    updates.password_hash = password ? await hashPassword(password) : null;
+    updates.passwordHash = password ? await hashPassword(password) : null;
   }
 
-  updates.updated_at = new Date().toISOString();
+  try {
+    const share = await prisma.scriptShare.update({
+      where: { id: shareId },
+      data: updates,
+    });
 
-  const { data: share, error } = await supabase
-    .from('script_shares')
-    .update(updates)
-    .eq('id', shareId)
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error updating share:', error);
+    return NextResponse.json({ share });
+  } catch (error) {
+    log.error('Error updating share', error);
     return NextResponse.json({ error: 'Failed to update share' }, { status: 500 });
   }
-
-  return NextResponse.json({ share });
-}
+});
 
 // DELETE /api/shares/[shareId] - Revoke/delete share
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { shareId } = await params;
-  const supabase = await createClient();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+export const DELETE = withAuth(async (request, { userId, prisma, params }) => {
+  const shareId = params.shareId;
 
   // Verify ownership
-  const { data: existingShare } = await supabase
-    .from('script_shares')
-    .select('id, shared_by')
-    .eq('id', shareId)
-    .single();
+  const existingShare = await prisma.scriptShare.findFirst({
+    where: { id: shareId },
+    select: { id: true, sharedBy: true },
+  });
 
-  if (!existingShare || existingShare.shared_by !== user.id) {
+  if (!existingShare || existingShare.sharedBy !== userId) {
     return NextResponse.json({ error: 'Share not found or not authorized' }, { status: 404 });
   }
 
-  // Soft delete by deactivating
-  const { error } = await supabase
-    .from('script_shares')
-    .update({
-      is_active: false,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', shareId);
+  try {
+    // Soft delete by deactivating
+    await prisma.scriptShare.update({
+      where: { id: shareId },
+      data: { isActive: false },
+    });
 
-  if (error) {
-    console.error('Error deleting share:', error);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    log.error('Error deleting share', error);
     return NextResponse.json({ error: 'Failed to delete share' }, { status: 500 });
   }
-
-  return NextResponse.json({ success: true });
-}
-
+});

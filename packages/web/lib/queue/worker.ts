@@ -15,7 +15,7 @@ import {
   cleanupExpiredLocks,
 } from './service';
 import { DequeueResult, WorkerConfig, WorkerStatus, JobType } from './types';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { prisma } from '@/lib/db';
 import { processGenerationJob } from '@/lib/generation/processor';
 import { log } from '@/lib/logger';
 
@@ -27,7 +27,7 @@ const DEFAULT_CONFIG: WorkerConfig = {
   workerId: `worker-${process.pid}-${Date.now()}`,
   pollIntervalMs: 5000, // Poll every 5 seconds
   lockDurationSeconds: 300, // 5 minute lock
-  maxConcurrentJobs: 1, // Process one job at a time
+  maxConcurrentJobs: parseInt(process.env.QUEUE_CONCURRENCY || '3', 10),
   jobTypes: undefined, // Process all job types
 };
 
@@ -270,28 +270,19 @@ async function processJob(job: DequeueResult): Promise<void> {
 // Audio generation processor - fetches job metadata and runs the pipeline
 registerProcessor('audio_generation', async (job, context) => {
   // Fetch generation metadata stored by the /api/generate route
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Missing Supabase service role credentials');
-  }
-  const supabase = createServiceClient(supabaseUrl, serviceRoleKey);
+  const jobRow = await prisma.job.findUnique({
+    where: { id: job.jobId },
+    select: { result: true },
+  });
 
-  const { data: jobRow, error: fetchError } = await supabase
-    .from('jobs')
-    .select('result')
-    .eq('id', job.jobId)
-    .single();
-
-  if (fetchError || !jobRow) {
-    throw new Error(`Failed to fetch job metadata: ${fetchError?.message || 'not found'}`);
+  if (!jobRow) {
+    throw new Error('Failed to fetch job metadata: not found');
   }
 
   const metadata = (jobRow.result as Record<string, unknown>)?.metadata as {
     scriptText?: string;
     pageCount?: number;
     voiceOverrides?: Record<string, string>;
-    accessToken?: string;
   } | undefined;
 
   if (!metadata?.scriptText) {
@@ -306,35 +297,25 @@ registerProcessor('audio_generation', async (job, context) => {
     job.userId,
     metadata.scriptText,
     metadata.pageCount || 1,
-    metadata.accessToken,
     metadata.voiceOverrides || {},
   );
 });
 
 // Scene regeneration processor — sends a single scene to the orchestrator
 registerProcessor('scene_regeneration', async (job, context) => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Missing Supabase service role credentials');
-  }
-  const supabase = createServiceClient(supabaseUrl, serviceRoleKey);
-
   // Fetch job metadata stored by the regenerate-scene route
-  const { data: jobRow, error: fetchError } = await supabase
-    .from('jobs')
-    .select('result')
-    .eq('id', job.jobId)
-    .single();
+  const jobRow = await prisma.job.findUnique({
+    where: { id: job.jobId },
+    select: { result: true },
+  });
 
-  if (fetchError || !jobRow) {
-    throw new Error(`Failed to fetch job metadata: ${fetchError?.message || 'not found'}`);
+  if (!jobRow) {
+    throw new Error('Failed to fetch job metadata: not found');
   }
 
   const metadata = (jobRow.result as Record<string, unknown>)?.metadata as {
     sceneIndex?: number;
     scene?: Record<string, unknown>;
-    accessToken?: string;
   } | undefined;
 
   if (metadata?.sceneIndex === undefined || !metadata?.scene) {
@@ -344,11 +325,12 @@ registerProcessor('scene_regeneration', async (job, context) => {
   await context.updateProgress('generating_audio', 10, `Regenerating scene ${metadata.sceneIndex + 1}...`);
 
   const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:22002';
+  const serviceKey = process.env.SERVICE_SECRET_KEY;
   const orchestratorResponse = await fetch(`${orchestratorUrl}/orchestrate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(metadata.accessToken && { 'Authorization': `Bearer ${metadata.accessToken}` }),
+      ...(serviceKey && { 'X-Service-Key': serviceKey }),
     },
     body: JSON.stringify({
       project_id: job.projectId,
@@ -373,17 +355,16 @@ registerProcessor('scene_regeneration', async (job, context) => {
     const fileName = audioUrl.split('/').pop() || 'output.mp3';
     const pathMatch = audioUrl.match(/\/storage\/v1\/object\/public\/(.+)$/);
     const filePath = pathMatch ? pathMatch[1] : `audio/${job.projectId}/${fileName}`;
-    await supabase
-      .from('audio_outputs')
-      .insert({
-        project_id: job.projectId,
-        job_id: job.jobId,
-        file_name: fileName,
-        file_path: filePath,
-        duration_seconds: manifest?.total_duration || null,
+    await prisma.audioOutput.create({
+      data: {
+        projectId: job.projectId,
+        jobId: job.jobId,
+        fileName,
+        filePath,
+        durationSeconds: manifest?.total_duration || null,
         format: fileName.endsWith('.m4a') ? 'm4a' : 'mp3',
-        scene_index: metadata.sceneIndex,
-      });
+      },
+    });
   }
 
   log.info('Scene regeneration complete', {

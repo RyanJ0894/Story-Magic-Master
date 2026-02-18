@@ -51,9 +51,8 @@ TOTAL_COUNT=0
 DRY_RUN=false
 VERBOSE=false
 
-# Supabase credentials for auth tests (loaded from .env.local or environment)
-SUPABASE_URL="${SUPABASE_URL:-}"
-SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-}"
+# Clerk credentials for auth tests (loaded from .env.local or environment)
+CLERK_SECRET_KEY="${CLERK_SECRET_KEY:-}"
 
 # Colors (disabled if output is not a terminal)
 if [ -t 1 ]; then
@@ -95,8 +94,7 @@ Options:
 Environment Variables:
   SMOKE_WEB_URL       Override web URL (lower priority than --web flag)
   SMOKE_ORCH_URL      Override orchestrator URL (lower priority than --orch flag)
-  SUPABASE_URL        Supabase project URL for auth tests
-  SUPABASE_ANON_KEY   Supabase anon key for auth tests
+  CLERK_SECRET_KEY    Clerk secret key for auth tests
 
 Examples:
   ./scripts/smoke-test.sh                              # Test local dev
@@ -227,7 +225,7 @@ json_pretty() {
   fi
 }
 
-# Load Supabase credentials from .env.local files if not already set
+# Load Clerk credentials from .env.local files if not already set
 load_env() {
   local env_file=""
 
@@ -245,12 +243,9 @@ load_env() {
   fi
 
   if [ -n "$env_file" ]; then
-    # Extract Supabase credentials (only if not already set via environment)
-    if [ -z "$SUPABASE_URL" ]; then
-      SUPABASE_URL=$(grep -E '^(NEXT_PUBLIC_)?SUPABASE_URL=' "$env_file" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '"' | tr -d "'") || true
-    fi
-    if [ -z "$SUPABASE_ANON_KEY" ]; then
-      SUPABASE_ANON_KEY=$(grep -E '^(NEXT_PUBLIC_)?SUPABASE_ANON_KEY=' "$env_file" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '"' | tr -d "'") || true
+    # Extract Clerk credentials (only if not already set via environment)
+    if [ -z "$CLERK_SECRET_KEY" ]; then
+      CLERK_SECRET_KEY=$(grep -E '^CLERK_SECRET_KEY=' "$env_file" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '"' | tr -d "'") || true
     fi
   fi
 }
@@ -335,10 +330,10 @@ if [ "$DRY_RUN" = true ]; then
   echo "          GET $ORCH_URL/health"
   echo "          Expect: HTTP 200 with JSON { status: 'ok', service: 'story-magic-orchestrator' }"
   echo ""
-  echo "  Step 3: Auth Flow (Supabase)"
-  echo "          POST \$SUPABASE_URL/auth/v1/signup"
-  echo "          Expect: HTTP 200 (new user) or 422 (duplicate) or 429 (rate-limited)"
-  echo "          Note: Requires SUPABASE_URL and SUPABASE_ANON_KEY from .env.local"
+  echo "  Step 3: Auth Provider (Clerk)"
+  echo "          GET https://api.clerk.com/v1/instance (via Clerk Backend API)"
+  echo "          Expect: HTTP 200 (Clerk reachable) or HTTP 401 (key invalid but service is up)"
+  echo "          Note: Requires CLERK_SECRET_KEY from .env.local"
   echo ""
   echo "  Step 4: Create Project via API"
   echo "          POST $WEB_URL/api/projects"
@@ -364,7 +359,7 @@ if [ "$DRY_RUN" = true ]; then
   exit 0
 fi
 
-# Load Supabase credentials from .env.local for auth testing
+# Load Clerk credentials from .env.local for auth testing
 load_env
 
 # =============================================================================
@@ -434,56 +429,57 @@ else
 fi
 
 # =============================================================================
-# Step 3: Auth Flow (Supabase Signup/Login)
+# Step 3: Auth Provider (Clerk)
 # =============================================================================
-# Tests the Supabase GoTrue auth endpoint directly. This validates that:
-#   - The Supabase project is reachable
-#   - The anon key is valid
-#   - The signup/login flow is functional
+# Tests the Clerk Backend API is reachable and the secret key is valid.
+# GET /v1/instance returns the Clerk instance configuration.
 #
-# We create a throwaway test email. Expected responses:
-#   200 = signup succeeded (user created, may require email confirmation)
-#   422 = validation error or duplicate user (endpoint is live)
-#   429 = rate limited (endpoint is live but throttled)
+# Expected responses:
+#   200 = Clerk API reachable and key valid
+#   401 = Key invalid but Clerk service is up
+#   000 = Connection failed
 
-section "Step 3: Auth Flow (Supabase)"
+section "Step 3: Auth Provider (Clerk)"
 
-if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
-  record_result "Supabase auth test" "skip" "0" "SUPABASE_URL or SUPABASE_ANON_KEY not available (check .env.local)"
+if [ -z "$CLERK_SECRET_KEY" ]; then
+  record_result "Clerk auth test" "skip" "0" "CLERK_SECRET_KEY not available (check .env.local)"
 else
-  # Generate a unique throwaway email to avoid collisions
-  TEST_EMAIL="smoke-test-$(date +%s)@example.invalid"
-  TEST_PASSWORD="SmokeTest!2026SecureTemp"
+  tmpfile=$(mktemp)
+  start_ms=$(now_ms)
 
-  http_post "${SUPABASE_URL}/auth/v1/signup" \
-    "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\"}" \
-    "$API_TIMEOUT" \
-    "apikey: ${SUPABASE_ANON_KEY}"
+  HTTP_STATUS=$(curl -s -o "$tmpfile" -w "%{http_code}" \
+    --connect-timeout "$API_TIMEOUT" \
+    --max-time "$API_TIMEOUT" \
+    -H "Authorization: Bearer ${CLERK_SECRET_KEY}" \
+    "https://api.clerk.com/v1/instance" 2>/dev/null) || HTTP_STATUS="000"
+
+  HTTP_BODY=$(cat "$tmpfile" 2>/dev/null || echo "")
+  rm -f "$tmpfile"
+
+  end_ms=$(now_ms)
+  HTTP_TIME_MS=$((end_ms - start_ms))
 
   case "$HTTP_STATUS" in
     200)
-      record_result "Supabase signup endpoint (new user)" "pass" "$HTTP_TIME_MS"
+      record_result "Clerk API reachable (key valid)" "pass" "$HTTP_TIME_MS"
       ;;
-    422)
-      record_result "Supabase signup endpoint (validation response)" "pass" "$HTTP_TIME_MS"
-      ;;
-    429)
-      record_result "Supabase signup endpoint (rate limited)" "pass" "$HTTP_TIME_MS" "Rate limited - endpoint alive"
+    401|403)
+      record_result "Clerk API reachable (key rejected)" "pass" "$HTTP_TIME_MS" "Service is up, check CLERK_SECRET_KEY"
       ;;
     000)
-      record_result "Supabase signup endpoint" "fail" "$HTTP_TIME_MS" "Connection refused or timed out"
+      record_result "Clerk API" "fail" "$HTTP_TIME_MS" "Connection refused or timed out"
       ;;
     *)
-      record_result "Supabase signup endpoint" "fail" "$HTTP_TIME_MS" "HTTP $HTTP_STATUS (expected 200, 422, or 429)"
+      record_result "Clerk API" "fail" "$HTTP_TIME_MS" "HTTP $HTTP_STATUS (expected 200 or 401)"
       ;;
   esac
 
   if [ "$VERBOSE" = true ]; then
-    echo "  Test email: $TEST_EMAIL"
     echo "  Response:"
     json_pretty "$HTTP_BODY" | sed 's/^/    /'
   fi
 fi
+
 
 # =============================================================================
 # Step 4: Create Project via Web API

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -91,7 +92,7 @@ export default function PublicSharePage() {
       setError(null);
 
       try {
-        const response = await fetch(`/api/shares/access/${code}`);
+        const response = await apiFetch(`/api/shares/access/${code}`);
         const data: ShareResponse = await response.json();
 
         if (!response.ok) {
@@ -132,7 +133,7 @@ export default function PublicSharePage() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/shares/access/${code}`, {
+      const response = await apiFetch(`/api/shares/access/${code}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),
@@ -165,7 +166,7 @@ export default function PublicSharePage() {
     if (!shareData) return;
 
     try {
-      await fetch(`/api/shares/access/${code}/play`, {
+      await apiFetch(`/api/shares/access/${code}/play`, {
         method: 'POST',
       });
     } catch (err) {

@@ -4,34 +4,19 @@
  * GET /api/jobs/[id]/position - Get job's position in queue
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { getQueuePosition } from '@/lib/queue/service';
+import { log } from '@/lib/logger';
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const supabase = await createClient();
-  const { id: jobId } = await params;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
+export const GET = withAuth(async (_request, { userId, prisma, params }) => {
+  const jobId = params.id;
 
   // Verify user owns this job
-  const { data: job } = await supabase
-    .from('jobs')
-    .select('id, user_id, status')
-    .eq('id', jobId)
-    .single();
+  const job = await prisma.job.findUnique({
+    where: { id: jobId },
+    select: { id: true, userId: true, status: true },
+  });
 
   if (!job) {
     return NextResponse.json(
@@ -40,7 +25,7 @@ export async function GET(
     );
   }
 
-  if (job.user_id !== user.id) {
+  if (job.userId !== userId) {
     return NextResponse.json(
       { error: 'Forbidden', code: 'FORBIDDEN' },
       { status: 403 }
@@ -69,10 +54,10 @@ export async function GET(
       jobsAhead: position?.jobsAhead ?? null,
     });
   } catch (error) {
-    console.error('[Queue] Position error:', error);
+    log.error('[Queue] Position error', error);
     return NextResponse.json(
       { error: 'Failed to get queue position', code: 'QUEUE_ERROR' },
       { status: 500 }
     );
   }
-}
+});

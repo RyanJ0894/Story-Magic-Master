@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -56,7 +57,7 @@ export function RevisionTimeline({
     setError(null);
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/revisions?timeline=true`);
+      const response = await apiFetch(`/api/projects/${projectId}/revisions?timeline=true`);
       if (!response.ok) {
         if (response.status === 403) {
           setTimeline(null);

@@ -5,10 +5,10 @@
  * POST /api/teams - Create a new team
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Validation
@@ -25,65 +25,56 @@ const CreateTeamSchema = z.object({
 // GET - List teams
 // =============================================================================
 
-export async function GET() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
+export const GET = withAuth(async (request, { userId, prisma }) => {
   try {
     // Get teams user owns
-    const { data: ownedTeams, error: ownedError } = await supabase
-      .from('teams')
-      .select(
-        `
-        *,
-        team_members (
-          id,
-          user_id,
-          invited_email,
-          role,
-          status,
-          profiles:user_id (
-            full_name,
-            avatar_url
-          )
-        )
-      `
-      )
-      .eq('owner_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (ownedError) throw ownedError;
+    const ownedTeams = await prisma.team.findMany({
+      where: { ownerId: userId },
+      include: {
+        members: {
+          select: {
+            id: true,
+            userId: true,
+            invitedEmail: true,
+            role: true,
+            status: true,
+            user: {
+              select: {
+                fullName: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
     // Get teams user is a member of
-    const { data: memberships, error: memberError } = await supabase
-      .from('team_members')
-      .select(
-        `
-        id,
-        role,
-        status,
-        teams (
-          *,
-          profiles:owner_id (
-            full_name,
-            avatar_url
-          )
-        )
-      `
-      )
-      .eq('user_id', user.id)
-      .eq('status', 'accepted');
+    const memberships = await prisma.teamMember.findMany({
+      where: {
+        userId,
+        status: 'accepted',
+      },
+      select: {
+        id: true,
+        role: true,
+        status: true,
+        team: {
+          include: {
+            owner: {
+              select: {
+                fullName: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
+    });
 
-    if (memberError) throw memberError;
-
-    const memberTeams = memberships?.map((m) => ({
-      ...m.teams,
+    const memberTeams = memberships.map((m) => ({
+      ...m.team,
       membership: {
         id: m.id,
         role: m.role,
@@ -91,12 +82,19 @@ export async function GET() {
       },
     }));
 
+    // Include combined `teams` array for client compatibility
+    const allTeams = [
+      ...ownedTeams.map(t => ({ ...t, role: 'owner' as const })),
+      ...memberTeams,
+    ];
+
     return NextResponse.json({
-      owned: ownedTeams || [],
-      member: memberTeams || [],
+      owned: ownedTeams,
+      member: memberTeams,
+      teams: allTeams,
     });
   } catch (error) {
-    console.error('[Teams] Error listing:', error);
+    log.error('[Teams] Error listing', error);
     return NextResponse.json(
       {
         error: 'Failed to list teams',
@@ -106,27 +104,13 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // POST - Create team
 // =============================================================================
 
-export async function POST(request: Request) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request, { userId, prisma }) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -149,23 +133,19 @@ export async function POST(request: Request) {
   const { name, description, defaultShareAccess, autoShareNewProjects } = parseResult.data;
 
   try {
-    const { data: team, error } = await supabase
-      .from('teams')
-      .insert({
-        owner_id: user.id,
+    const team = await prisma.team.create({
+      data: {
+        ownerId: userId,
         name,
         description: description || null,
-        default_share_access: defaultShareAccess || 'stream',
-        auto_share_new_projects: autoShareNewProjects || false,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
+        defaultShareAccess: defaultShareAccess || 'stream',
+        autoShareNewProjects: autoShareNewProjects || false,
+      },
+    });
 
     return NextResponse.json({ team }, { status: 201 });
   } catch (error) {
-    console.error('[Teams] Error creating:', error);
+    log.error('[Teams] Error creating', error);
     return NextResponse.json(
       {
         error: 'Failed to create team',
@@ -175,4 +155,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

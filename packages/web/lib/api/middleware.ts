@@ -5,24 +5,26 @@
  * boilerplate from Next.js API routes.
  *
  * Usage:
- *   export const GET = withAuth(async (request, { user, supabase }) => { ... });
- *   export const POST = withAuth(async (request, { user, supabase }) => { ... }, { csrf: true });
- *   export const PATCH = withProjectAuth(async (request, { user, supabase, project, projectId }) => { ... });
+ *   export const GET = withAuth(async (request, { userId, prisma }) => { ... });
+ *   export const POST = withAuth(async (request, { userId, prisma }) => { ... }, { csrf: true });
+ *   export const PATCH = withProjectAuth(async (request, { userId, prisma, project, projectId }) => { ... });
  */
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
 import { validateCsrf } from '@/lib/csrf';
 import { rateLimit, getClientIp, type RateLimitTier } from '@/lib/api/rate-limit';
-import type { SupabaseClient, User } from '@supabase/supabase-js';
+import { prisma } from '@/lib/db';
+import type { PrismaClient } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface AuthContext {
-  user: User;
-  supabase: SupabaseClient;
+  userId: string;
+  prisma: PrismaClient;
+  params: Record<string, string>;
 }
 
 export interface ProjectAuthContext extends AuthContext {
@@ -44,11 +46,6 @@ type AuthHandler = (
   ctx: AuthContext,
 ) => Promise<NextResponse | Response>;
 
-type AuthHandlerWithParams = (
-  request: Request,
-  ctx: AuthContext & { params: Record<string, string> },
-) => Promise<NextResponse | Response>;
-
 type ProjectAuthHandler = (
   request: Request,
   ctx: ProjectAuthContext,
@@ -58,10 +55,8 @@ type ProjectAuthHandler = (
 // withAuth — authenticates user, optionally validates CSRF
 // ---------------------------------------------------------------------------
 
-export function withAuth(handler: AuthHandler, options?: WithAuthOptions): (request: Request) => Promise<NextResponse | Response>;
-export function withAuth(handler: AuthHandlerWithParams, options?: WithAuthOptions): (request: Request, route: RouteParams) => Promise<NextResponse | Response>;
 export function withAuth(
-  handler: AuthHandler | AuthHandlerWithParams,
+  handler: AuthHandler,
   options: WithAuthOptions = {},
 ) {
   return async (request: Request, route?: RouteParams) => {
@@ -87,10 +82,9 @@ export function withAuth(
       if (limited) return limited;
     }
 
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { userId } = await auth();
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
         { status: 401 },
@@ -98,7 +92,7 @@ export function withAuth(
     }
 
     const params = route?.params ? await route.params : {};
-    return (handler as AuthHandlerWithParams)(request, { user, supabase, params });
+    return handler(request, { userId, prisma, params });
   };
 }
 
@@ -108,7 +102,7 @@ export function withAuth(
 
 export function withProjectAuth(
   handler: ProjectAuthHandler,
-  options: WithAuthOptions & { select?: string } = {},
+  options: WithAuthOptions = {},
 ) {
   return async (request: Request, route: RouteParams) => {
     const method = request.method.toUpperCase();
@@ -132,10 +126,9 @@ export function withProjectAuth(
       if (limited) return limited;
     }
 
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { userId } = await auth();
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
         { status: 401 },
@@ -152,22 +145,21 @@ export function withProjectAuth(
       );
     }
 
-    const selectCols = options.select || '*';
-    const { data: project, error } = await supabase
-      .from('projects')
-      .select(selectCols)
-      .eq('id', projectId)
-      .eq('user_id', user.id)
-      .single();
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        userId: userId,
+      },
+    });
 
-    if (error || !project) {
+    if (!project) {
       return NextResponse.json(
         { error: 'Project not found', code: 'PROJECT_NOT_FOUND' },
         { status: 404 },
       );
     }
 
-    return handler(request, { user, supabase, projectId, project: project as unknown as Record<string, unknown> });
+    return handler(request, { userId, prisma, params, projectId, project: project as unknown as Record<string, unknown> });
   };
 }
 

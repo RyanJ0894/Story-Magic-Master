@@ -1,7 +1,6 @@
-import { createClient } from '@/lib/supabase/server';
-import { NextResponse, NextRequest } from 'next/server';
+import { withProjectAuth } from '@/lib/api/middleware';
+import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
 
 const VoiceAssignmentSchema = z.object({
   character_name: z.string().min(1),
@@ -19,55 +18,22 @@ const UpdateVoiceAssignmentsSchema = z.object({
  * GET /api/projects/[id]/voice-assignments
  * Returns the saved voice assignments for a project
  */
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id: projectId } = await params;
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const { data: project, error } = await supabase
-    .from('projects')
-    .select('voice_assignments')
-    .eq('id', projectId)
-    .eq('user_id', user.id)
-    .single();
-
-  if (error || !project) {
-    return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-  }
+export const GET = withProjectAuth(async (_request, { prisma, projectId }) => {
+  const project = await prisma.project.findFirst({
+    where: { id: projectId },
+    select: { voiceAssignments: true },
+  });
 
   return NextResponse.json({
-    assignments: project.voice_assignments || [],
+    assignments: project?.voiceAssignments || [],
   });
-}
+});
 
 /**
  * PUT /api/projects/[id]/voice-assignments
  * Saves voice assignments for a project
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { id: projectId } = await params;
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const PUT = withProjectAuth(async (request, { prisma, projectId }) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -85,15 +51,14 @@ export async function PUT(
 
   const { assignments } = parseResult.data;
 
-  const { error } = await supabase
-    .from('projects')
-    .update({ voice_assignments: assignments })
-    .eq('id', projectId)
-    .eq('user_id', user.id);
+  try {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { voiceAssignments: assignments as unknown as [] },
+    });
 
-  if (error) {
+    return NextResponse.json({ success: true, assignments });
+  } catch {
     return NextResponse.json({ error: 'Failed to save voice assignments' }, { status: 500 });
   }
-
-  return NextResponse.json({ success: true, assignments });
-}
+});

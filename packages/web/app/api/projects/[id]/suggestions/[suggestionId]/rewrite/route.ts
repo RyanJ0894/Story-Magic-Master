@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { isFeatureEnabled } from '@/lib/features';
 import { withProjectAuth } from '@/lib/api/middleware';
 import { getSuggestion, generateRewrites } from '@/lib/adviser';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Validation
@@ -93,7 +94,7 @@ export const POST = withProjectAuth(
         rewrites,
       });
     } catch (error) {
-      console.error('[Rewrites] Error generating:', error);
+      log.error('[Rewrites] Error generating', error);
       return NextResponse.json(
         {
           error: 'Failed to generate rewrites',

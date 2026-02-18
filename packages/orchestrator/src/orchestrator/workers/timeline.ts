@@ -11,7 +11,7 @@ import {
 
 // Re-export types for use by other modules
 export type { Timeline, TimelineEvent };
-import { supabaseClient as sb } from '../../lib/supabase.js';
+import { prisma } from '../../lib/prisma.js';
 import { log } from '../../lib/logger.js';
 import type { Scene, AudioCue } from '../../schemas/director-json.js';
 import type { SceneAlignment } from './align.js';
@@ -187,17 +187,21 @@ export async function buildTimeline(
 }
 
 /**
- * Save timeline to database
+ * Save timeline to database via Prisma raw SQL
  */
 async function saveTimeline(scene_id: string, timeline: Timeline): Promise<Timeline> {
-  if (sb) {
+  try {
     const project_id = timeline.project_id || '00000000-0000-0000-0000-000000000001';
 
-    await sb.from('timelines').upsert({
-      project_id,
+    await prisma.$executeRaw`
+      INSERT INTO timelines (project_id, scene_id, timeline_json, created_at)
+      VALUES (${project_id}, ${scene_id}, ${JSON.stringify(timeline)}::jsonb, NOW())
+      ON CONFLICT (project_id, scene_id)
+      DO UPDATE SET timeline_json = ${JSON.stringify(timeline)}::jsonb, created_at = NOW()
+    `;
+  } catch (err) {
+    log.error('Failed to save timeline to DB', err instanceof Error ? err : undefined, {
       scene_id,
-      timeline_json: timeline,
-      created_at: new Date().toISOString(),
     });
   }
 

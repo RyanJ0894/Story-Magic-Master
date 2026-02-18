@@ -1,8 +1,6 @@
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { createClient } from '@/lib/supabase/server';
-import { validateCsrf } from '@/lib/csrf';
-import { rateLimit, getClientIp } from '@/lib/api/rate-limit';
 import { log } from '@/lib/logger';
 
 // Trim the API key to remove any accidental whitespace/newlines
@@ -12,31 +10,20 @@ const openai = new OpenAI({
   apiKey,
 });
 
-export async function POST(request: Request) {
-  // Rate limit: strict (5/min) — LLM call
-  const ip = getClientIp(request);
-  const limited = await rateLimit(`demo-script:${ip}`, 'strict');
-  if (limited) return limited;
-
+export const POST = withAuth(async (request) => {
   try {
-    // CSRF validation
-    const csrfError = validateCsrf(request);
-    if (csrfError) {
-      return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-    }
+    const { prompt: rawPrompt } = await request.json();
 
-    // Auth check
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
-
-    const { prompt } = await request.json();
-
-    if (!prompt || typeof prompt !== 'string') {
+    if (!rawPrompt || typeof rawPrompt !== 'string') {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
+
+    // Sanitize: trim, limit length, strip control characters
+    const prompt = rawPrompt
+      .trim()
+      .slice(0, 500)
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
 
     if (!apiKey) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
@@ -77,7 +64,7 @@ Output ONLY the screenplay text, no explanations.`,
       messages: [
         {
           role: 'user',
-          content: `Generate a short 2-4 word title for a screenplay about: ${prompt}. Output ONLY the title, nothing else.`,
+          content: `Generate a short 2-4 word title for a screenplay about: ${prompt.slice(0, 200)}. Output ONLY the title, nothing else.`,
         },
       ],
     });
@@ -96,4 +83,4 @@ Output ONLY the screenplay text, no explanations.`,
       { status: 500 }
     );
   }
-}
+}, { rateLimit: 'strict' });
