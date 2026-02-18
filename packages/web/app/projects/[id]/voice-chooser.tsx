@@ -197,7 +197,7 @@ function CharacterCard({
             variant="ghost"
             size="sm"
             onClick={onToggleLock}
-            title={assignment?.locked ? 'Unlock voice' : 'Lock voice'}
+            aria-label={assignment?.locked ? 'Unlock voice' : 'Lock voice'}
           >
             {assignment?.locked ? (
               <Lock className="h-4 w-4 text-amber-500" />

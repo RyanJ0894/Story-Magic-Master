@@ -10,6 +10,8 @@ const mockProfileUpdate = vi.fn().mockResolvedValue({});
 const mockProfileUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
 const mockProfileFindFirst = vi.fn().mockResolvedValue({ id: 'user-123' });
 const mockUsageUpsert = vi.fn().mockResolvedValue({});
+const mockSubscriptionUpsert = vi.fn().mockResolvedValue({});
+const mockSubscriptionUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
 
 vi.mock('@/lib/db', () => ({
   prisma: {
@@ -20,6 +22,10 @@ vi.mock('@/lib/db', () => ({
     },
     usage: {
       upsert: (...args: unknown[]) => mockUsageUpsert(...args),
+    },
+    subscription: {
+      upsert: (...args: unknown[]) => mockSubscriptionUpsert(...args),
+      updateMany: (...args: unknown[]) => mockSubscriptionUpdateMany(...args),
     },
   },
 }));

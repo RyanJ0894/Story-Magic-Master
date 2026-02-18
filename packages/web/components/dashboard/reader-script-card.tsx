@@ -80,7 +80,9 @@ export function ReaderScriptCard({
         <div className="flex items-start gap-4">
           {/* Thumbnail / Play Button */}
           <div className="relative flex-shrink-0">
-            <div
+            <button
+              type="button"
+              aria-label={isArchived ? 'Unlock script' : isPlaying ? 'Pause' : 'Play'}
               className={`w-16 h-16 rounded-lg flex items-center justify-center cursor-pointer transition-colors ${
                 isArchived
                   ? 'bg-muted'
@@ -97,7 +99,7 @@ export function ReaderScriptCard({
               ) : (
                 <Play className="w-6 h-6 text-muted-foreground" />
               )}
-            </div>
+            </button>
             {entry.is_favorited && (
               <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-400 rounded-full flex items-center justify-center">
                 <Star className="w-3 h-3 text-white fill-white" />
@@ -183,6 +185,7 @@ export function ReaderScriptCard({
                   size="icon"
                   className="h-8 w-8"
                   onClick={onFavorite}
+                  aria-label={entry.is_favorited ? 'Remove from favorites' : 'Add to favorites'}
                 >
                   {entry.is_favorited ? (
                     <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
@@ -192,7 +195,7 @@ export function ReaderScriptCard({
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="More options">
                       <MoreVertical className="w-4 h-4" />
                     </Button>
                   </DropdownMenuTrigger>

@@ -27,7 +27,7 @@ const DEFAULT_CONFIG: WorkerConfig = {
   workerId: `worker-${process.pid}-${Date.now()}`,
   pollIntervalMs: 5000, // Poll every 5 seconds
   lockDurationSeconds: 300, // 5 minute lock
-  maxConcurrentJobs: 1, // Process one job at a time
+  maxConcurrentJobs: parseInt(process.env.QUEUE_CONCURRENCY || '3', 10),
   jobTypes: undefined, // Process all job types
 };
 

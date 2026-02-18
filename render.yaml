@@ -92,6 +92,10 @@ services:
       - key: UPSTASH_REDIS_REST_TOKEN
         sync: false
 
+      # Queue worker concurrency (default 3, reduce if memory constrained)
+      - key: QUEUE_CONCURRENCY
+        value: "3"
+
       # Feature Flags (Intelligence Features)
       - key: NEXT_PUBLIC_FF_STORY_SCORE
         value: "true"

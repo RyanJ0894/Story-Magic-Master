@@ -87,9 +87,10 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
 
   const getPlanBadge = (subPlan: string) => {
     const colors: Record<string, string> = {
-      starter: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+      free: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
+      creator: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
       pro: 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200',
-      enterprise: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+      studio: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
     };
 
     return (
@@ -155,9 +156,9 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
               className="px-3 py-2 border rounded-md bg-background"
             >
               <option value="">All Plans</option>
-              <option value="starter">Starter</option>
+              <option value="creator">Creator</option>
               <option value="pro">Pro</option>
-              <option value="enterprise">Enterprise</option>
+              <option value="studio">Studio</option>
             </select>
             <Button type="submit">Filter</Button>
             {(status || plan) && (
@@ -222,7 +223,7 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
+                          <Button variant="ghost" size="icon" aria-label="Subscription actions">
                             <MoreHorizontal className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>

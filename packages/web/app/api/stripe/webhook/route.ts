@@ -18,6 +18,14 @@ function getTierFromPriceId(priceId: string): string {
   return priceToTier[priceId] || 'free';
 }
 
+// Generation and download limits per tier
+const TIER_LIMITS: Record<string, { generations: number; downloads: number }> = {
+  free:    { generations: 1,  downloads: 0 },
+  creator: { generations: 5,  downloads: 1 },
+  pro:     { generations: 20, downloads: 5 },
+  studio:  { generations: 100, downloads: 50 },
+};
+
 export async function POST(request: Request) {
   try {
     const body = await request.text();
@@ -51,15 +59,31 @@ export async function POST(request: Request) {
         const subscriptionId = session.subscription as string;
 
         if (userId && customerId && subscriptionId) {
-          // Update user profile with Stripe customer ID and subscription
-          await prisma.profile.update({
-            where: { id: userId },
-            data: {
-              stripeCustomerId: customerId,
-              stripeSubscriptionId: subscriptionId,
-              subscriptionStatus: 'active',
-            },
-          });
+          // Update both Profile and Subscription in parallel
+          await Promise.all([
+            prisma.profile.update({
+              where: { id: userId },
+              data: {
+                stripeCustomerId: customerId,
+                stripeSubscriptionId: subscriptionId,
+                subscriptionStatus: 'active',
+              },
+            }),
+            prisma.subscription.upsert({
+              where: { stripeSubscriptionId: subscriptionId },
+              create: {
+                userId,
+                plan: 'free', // Updated on subscription.created/updated event
+                status: 'active',
+                stripeCustomerId: customerId,
+                stripeSubscriptionId: subscriptionId,
+              },
+              update: {
+                status: 'active',
+                stripeCustomerId: customerId,
+              },
+            }),
+          ]);
         }
         break;
       }
@@ -71,21 +95,52 @@ export async function POST(request: Request) {
         const priceId = subscription.items.data[0]?.price.id;
         const tier = getTierFromPriceId(priceId);
 
-        // Access current_period_end from the subscription object
-        const periodEnd = (subscription as unknown as { current_period_end?: number }).current_period_end;
+        // Access period fields from the Stripe subscription object
+        const sub = subscription as unknown as { current_period_start?: number; current_period_end?: number };
+        const periodStart = sub.current_period_start;
+        const periodEnd = sub.current_period_end;
+        const limits = TIER_LIMITS[tier] || TIER_LIMITS.free;
 
         if (userId) {
-          await prisma.profile.update({
-            where: { id: userId },
-            data: {
-              subscriptionTier: tier,
-              subscriptionStatus: subscription.status,
-              stripeSubscriptionId: subscription.id,
-              currentPeriodEnd: periodEnd
-                ? new Date(periodEnd * 1000)
-                : null,
-            },
-          });
+          await Promise.all([
+            prisma.profile.update({
+              where: { id: userId },
+              data: {
+                subscriptionTier: tier,
+                subscriptionStatus: subscription.status,
+                stripeSubscriptionId: subscription.id,
+                currentPeriodEnd: periodEnd
+                  ? new Date(periodEnd * 1000)
+                  : null,
+              },
+            }),
+            prisma.subscription.upsert({
+              where: { stripeSubscriptionId: subscription.id },
+              create: {
+                userId,
+                plan: tier,
+                status: subscription.status,
+                stripeCustomerId: subscription.customer as string,
+                stripeSubscriptionId: subscription.id,
+                stripePriceId: priceId,
+                currentPeriodStart: periodStart ? new Date(periodStart * 1000) : null,
+                currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : null,
+                cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
+                generationsLimit: limits.generations,
+                downloadsLimit: limits.downloads,
+              },
+              update: {
+                plan: tier,
+                status: subscription.status,
+                stripePriceId: priceId,
+                currentPeriodStart: periodStart ? new Date(periodStart * 1000) : null,
+                currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : null,
+                cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
+                generationsLimit: limits.generations,
+                downloadsLimit: limits.downloads,
+              },
+            }),
+          ]);
         }
         break;
       }
@@ -95,16 +150,30 @@ export async function POST(request: Request) {
         const userId = subscription.metadata?.userId;
 
         if (userId) {
-          // Downgrade to free tier
-          await prisma.profile.update({
-            where: { id: userId },
-            data: {
-              subscriptionTier: 'free',
-              subscriptionStatus: 'canceled',
-              stripeSubscriptionId: null,
-              currentPeriodEnd: null,
-            },
-          });
+          // Downgrade to free tier on both models
+          const updates: Promise<unknown>[] = [
+            prisma.profile.update({
+              where: { id: userId },
+              data: {
+                subscriptionTier: 'free',
+                subscriptionStatus: 'canceled',
+                stripeSubscriptionId: null,
+                currentPeriodEnd: null,
+              },
+            }),
+          ];
+          if (subscription.id) {
+            updates.push(
+              prisma.subscription.updateMany({
+                where: { stripeSubscriptionId: subscription.id },
+                data: {
+                  status: 'canceled',
+                  cancelAtPeriodEnd: false,
+                },
+              }),
+            );
+          }
+          await Promise.all(updates);
         }
         break;
       }
@@ -121,11 +190,17 @@ export async function POST(request: Request) {
           : invoiceData.subscription?.id ?? null;
 
         if (subscriptionId) {
-          // Update subscription status
-          await prisma.profile.updateMany({
-            where: { stripeSubscriptionId: subscriptionId },
-            data: { subscriptionStatus: 'active' },
-          });
+          // Update subscription status on both models
+          await Promise.all([
+            prisma.profile.updateMany({
+              where: { stripeSubscriptionId: subscriptionId },
+              data: { subscriptionStatus: 'active' },
+            }),
+            prisma.subscription.updateMany({
+              where: { stripeSubscriptionId: subscriptionId },
+              data: { status: 'active', generationsUsed: 0, downloadsUsed: 0 },
+            }),
+          ]);
 
           // Reset usage for new billing period
           const profile = await prisma.profile.findFirst({
@@ -167,17 +242,23 @@ export async function POST(request: Request) {
           : invoiceData.subscription?.id ?? null;
 
         if (subscriptionId) {
-          await prisma.profile.updateMany({
-            where: { stripeSubscriptionId: subscriptionId },
-            data: { subscriptionStatus: 'past_due' },
-          });
+          await Promise.all([
+            prisma.profile.updateMany({
+              where: { stripeSubscriptionId: subscriptionId },
+              data: { subscriptionStatus: 'past_due' },
+            }),
+            prisma.subscription.updateMany({
+              where: { stripeSubscriptionId: subscriptionId },
+              data: { status: 'past_due' },
+            }),
+          ]);
         }
         break;
       }
 
       default:
         // Unhandled event type
-        console.log(`Unhandled event type: ${event.type}`);
+        log.info(`Unhandled event type: ${event.type}`);
     }
 
     return NextResponse.json({ received: true });
