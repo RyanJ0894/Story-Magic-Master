@@ -4,31 +4,13 @@
  * POST /api/jobs/[id]/cancel - Cancel a queued job
  */
 
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { cancelJob } from '@/lib/queue/service';
-import { validateCsrf } from '@/lib/csrf';
 import { log } from '@/lib/logger';
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { id: jobId } = await params;
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
+export const POST = withAuth(async (_request, { userId, prisma, params }) => {
+  const jobId = params.id;
 
   // Verify user owns this job and it's cancellable
   const job = await prisma.job.findUnique({
@@ -89,4 +71,4 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});

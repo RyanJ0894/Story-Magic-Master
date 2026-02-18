@@ -304,6 +304,7 @@ describe('Projects API Routes', () => {
 
     it('returns 400 for invalid update payload', async () => {
       mockAuth.mockResolvedValueOnce({ userId: 'user_test123' });
+      mockPrisma.project.findFirst.mockResolvedValueOnce(mockProject);
 
       const request = createRequest(
         `http://localhost:22000/api/projects/${VALID_PROJECT_ID}`,

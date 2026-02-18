@@ -8,19 +8,14 @@
  * to console until the feedback table migration is applied.
  */
 
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
+import { withProjectAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import {
-  FeedbackTarget,
-  FeedbackRating,
-  RejectionReason,
   FeedbackRow,
   rowToFeedback,
   calculateFeedbackStats,
 } from '@/lib/feedback/types';
-import { validateCsrf } from '@/lib/csrf';
 import { log } from '@/lib/logger';
 
 // =============================================================================
@@ -50,38 +45,7 @@ const SubmitFeedbackSchema = z.object({
 // POST - Submit feedback
 // =============================================================================
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { id: projectId } = await params;
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  // Verify project ownership
-  const project = await prisma.project.findFirst({
-    where: { id: projectId, userId },
-    select: { id: true },
-  });
-
-  if (!project) {
-    return NextResponse.json(
-      { error: 'Project not found', code: 'NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
+export const POST = withProjectAuth(async (request, { userId, prisma, projectId }) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -146,39 +110,13 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // GET - Get feedback stats (admin/development)
 // =============================================================================
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id: projectId } = await params;
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  // Verify project ownership
-  const project = await prisma.project.findFirst({
-    where: { id: projectId, userId },
-    select: { id: true },
-  });
-
-  if (!project) {
-    return NextResponse.json(
-      { error: 'Project not found', code: 'NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
+export const GET = withProjectAuth(async (_request, { prisma, projectId }) => {
   try {
     const data = await prisma.$queryRaw<FeedbackRow[]>`
       SELECT * FROM feedback
@@ -213,4 +151,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

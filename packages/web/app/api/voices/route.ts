@@ -7,7 +7,7 @@
  * Uses in-memory caching to avoid excessive ElevenLabs API calls.
  */
 
-import { auth } from '@clerk/nextjs/server';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { log } from '@/lib/logger';
 
@@ -160,15 +160,7 @@ async function getVoices(): Promise<Voice[]> {
   return voices;
 }
 
-export async function GET(request: Request) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
+export const GET = withAuth(async (request) => {
   try {
     // Parse query parameters for filtering
     const url = new URL(request.url);
@@ -203,4 +195,4 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+});

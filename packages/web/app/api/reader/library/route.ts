@@ -1,15 +1,9 @@
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
-import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/api/middleware';
+import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 
 // GET /api/reader/library - Get reader's library
-export async function GET(request: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
+export const GET = withAuth(async (request, { userId, prisma }) => {
   const { searchParams } = new URL(request.url);
   const source = searchParams.get('source');
   const status = searchParams.get('status');
@@ -117,4 +111,4 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json({ entries: transformedEntries });
-}
+});

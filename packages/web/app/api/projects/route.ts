@@ -5,11 +5,9 @@
  * POST /api/projects - Create a new project
  */
 
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
 
 // =============================================================================
 // Input Validation
@@ -29,15 +27,7 @@ const CreateProjectSchema = z.object({
 // GET - List user's projects
 // =============================================================================
 
-export async function GET(request: Request) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
+export const GET = withAuth(async (_request, { userId, prisma }) => {
   try {
     const projects = await prisma.project.findMany({
       where: { userId },
@@ -60,30 +50,13 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // POST - Create a new project
 // =============================================================================
 
-export async function POST(request: Request) {
-  // CSRF protection
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
+export const POST = withAuth(async (request, { userId, prisma }) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -130,4 +103,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

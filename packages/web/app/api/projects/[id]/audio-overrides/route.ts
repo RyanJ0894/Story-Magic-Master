@@ -1,8 +1,6 @@
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
-import { NextResponse, NextRequest } from 'next/server';
+import { withProjectAuth } from '@/lib/api/middleware';
+import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
 
 const AudioOverrideSchema = z.object({
   scene_id: z.string().min(1),
@@ -23,51 +21,22 @@ const UpdateAudioOverridesSchema = z.object({
  * GET /api/projects/[id]/audio-overrides
  * Returns the saved audio overrides for a project
  */
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id: projectId } = await params;
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
+export const GET = withProjectAuth(async (_request, { prisma, projectId }) => {
   const project = await prisma.project.findFirst({
-    where: { id: projectId, userId },
+    where: { id: projectId },
     select: { audioOverrides: true },
   });
 
-  if (!project) {
-    return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-  }
-
   return NextResponse.json({
-    overrides: project.audioOverrides || [],
+    overrides: project?.audioOverrides || [],
   });
-}
+});
 
 /**
  * PUT /api/projects/[id]/audio-overrides
  * Saves audio overrides for a project
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { id: projectId } = await params;
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
+export const PUT = withProjectAuth(async (request, { prisma, projectId }) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -86,17 +55,13 @@ export async function PUT(
   const { overrides } = parseResult.data;
 
   try {
-    const updated = await prisma.project.updateMany({
-      where: { id: projectId, userId },
+    await prisma.project.update({
+      where: { id: projectId },
       data: { audioOverrides: overrides as unknown as [] },
     });
-
-    if (updated.count === 0) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
 
     return NextResponse.json({ success: true, overrides });
   } catch {
     return NextResponse.json({ error: 'Failed to save audio overrides' }, { status: 500 });
   }
-}
+});

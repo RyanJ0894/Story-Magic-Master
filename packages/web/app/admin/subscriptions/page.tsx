@@ -229,18 +229,18 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem>
+                          <DropdownMenuItem disabled>
                             <ExternalLink className="w-4 h-4 mr-2" />
-                            View in Stripe
+                            View in Stripe (coming soon)
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem disabled>
                             <RefreshCw className="w-4 h-4 mr-2" />
-                            Sync with Stripe
+                            Sync with Stripe (coming soon)
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive">
+                          <DropdownMenuItem disabled className="text-destructive">
                             <XCircle className="w-4 h-4 mr-2" />
-                            Cancel Subscription
+                            Cancel Subscription (coming soon)
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

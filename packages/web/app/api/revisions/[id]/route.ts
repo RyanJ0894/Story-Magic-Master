@@ -6,11 +6,10 @@
  * DELETE /api/revisions/[id] - Delete revision
  */
 
-import { auth } from '@clerk/nextjs/server';
+import { withAuth } from '@/lib/api/middleware';
 import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
 import { isFeatureEnabled } from '@/lib/features';
 import {
   getRevision,
@@ -51,10 +50,7 @@ async function verifyRevisionOwnership(
 // GET - Get revision details
 // =============================================================================
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withAuth(async (_request, { userId, params }) => {
   if (!isFeatureEnabled('REVISION_TRACKING')) {
     return NextResponse.json(
       { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
@@ -62,15 +58,7 @@ export async function GET(
     );
   }
 
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  const { id: revisionId } = await params;
+  const revisionId = params.id;
 
   const owned = await verifyRevisionOwnership(revisionId, userId);
   if (!owned) {
@@ -101,16 +89,13 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // PUT - Update revision
 // =============================================================================
 
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const PUT = withAuth(async (request, { userId, params }) => {
   if (!isFeatureEnabled('REVISION_TRACKING')) {
     return NextResponse.json(
       { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
@@ -118,23 +103,7 @@ export async function PUT(
     );
   }
 
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  const { id: revisionId } = await params;
+  const revisionId = params.id;
 
   const owned = await verifyRevisionOwnership(revisionId, userId);
   if (!owned) {
@@ -183,16 +152,13 @@ export async function PUT(
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // DELETE - Delete revision
 // =============================================================================
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const DELETE = withAuth(async (_request, { userId, params }) => {
   if (!isFeatureEnabled('REVISION_TRACKING')) {
     return NextResponse.json(
       { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
@@ -200,23 +166,7 @@ export async function DELETE(
     );
   }
 
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  const { id: revisionId } = await params;
+  const revisionId = params.id;
 
   const owned = await verifyRevisionOwnership(revisionId, userId);
   if (!owned) {
@@ -240,4 +190,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+});

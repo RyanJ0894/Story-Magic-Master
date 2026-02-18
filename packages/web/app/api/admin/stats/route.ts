@@ -1,18 +1,12 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
+import { withAuth } from '@/lib/api/middleware';
 import { mapDbStatsToAdminStats } from '@/lib/api/mappers';
 
 /**
  * GET /api/admin/stats
  * Get platform-wide statistics for admin dashboard
  */
-export async function GET(request: Request) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const GET = withAuth(async (request, { userId, prisma }) => {
   const profile = await prisma.profile.findUnique({
     where: { id: userId },
     select: { userType: true },
@@ -70,4 +64,4 @@ export async function GET(request: Request) {
   const stats = mapDbStatsToAdminStats(dbStats);
 
   return NextResponse.json(stats);
-}
+});

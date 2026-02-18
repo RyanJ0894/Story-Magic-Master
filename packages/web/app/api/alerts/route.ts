@@ -5,22 +5,15 @@
  * PATCH /api/alerts - Mark alerts as read
  */
 
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
-import { validateCsrf } from '@/lib/csrf';
 import { log } from '@/lib/logger';
 
 // =============================================================================
 // GET - List alerts
 // =============================================================================
 
-export async function GET(request: Request) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
+export const GET = withAuth(async (request, { userId, prisma }) => {
   const url = new URL(request.url);
   const unreadOnly = url.searchParams.get('unread') === 'true';
   const limit = parseInt(url.searchParams.get('limit') || '50', 10);
@@ -117,23 +110,13 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // PATCH - Mark alerts as read
 // =============================================================================
 
-export async function PATCH(request: Request) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
+export const PATCH = withAuth(async (request, { userId, prisma }) => {
   let body: { alertIds?: string[]; markAllRead?: boolean };
   try {
     body = await request.json();
@@ -184,4 +167,4 @@ export async function PATCH(request: Request) {
       { status: 500 }
     );
   }
-}
+});

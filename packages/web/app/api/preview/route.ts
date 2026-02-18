@@ -1,9 +1,6 @@
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
-import { rateLimit, getClientIp } from '@/lib/api/rate-limit';
 import { log } from '@/lib/logger';
 
 const PreviewRequestSchema = z.object({
@@ -11,30 +8,7 @@ const PreviewRequestSchema = z.object({
   sceneId: z.string().min(1, 'Scene ID is required'),
 });
 
-export async function POST(request: Request) {
-  // Rate limit: strict (5/min) — expensive TTS preview
-  const ip = getClientIp(request);
-  const limited = await rateLimit(`preview:${ip}`, 'strict');
-  if (limited) return limited;
-
-  // CSRF protection
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({
-      error: 'CSRF validation failed',
-      code: 'CSRF_ERROR',
-    }, { status: 403 });
-  }
-
-  // Auth check
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({
-      error: 'Unauthorized',
-      code: 'AUTH_REQUIRED',
-    }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request, { userId, prisma }) => {
   // Parse and validate request body
   let body: unknown;
   try {
@@ -208,4 +182,4 @@ export async function POST(request: Request) {
       code: 'INTERNAL_ERROR',
     }, { status: 500 });
   }
-}
+}, { rateLimit: 'strict' });

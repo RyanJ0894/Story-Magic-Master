@@ -1,23 +1,8 @@
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
-import { NextRequest, NextResponse } from 'next/server';
-import { validateCsrf } from '@/lib/csrf';
+import { withProjectAuth } from '@/lib/api/middleware';
+import { NextResponse } from 'next/server';
 import { log } from '@/lib/logger';
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
+export const POST = withProjectAuth(async (request, { prisma, projectId }) => {
   const { mode } = await request.json();
 
   if (!mode || !['automatic', 'fine_tuned'].includes(mode)) {
@@ -27,24 +12,10 @@ export async function POST(
     );
   }
 
-  // Verify project belongs to user
-  const project = await prisma.project.findUnique({
-    where: { id: params.id },
-    select: { id: true, userId: true },
-  });
-
-  if (!project) {
-    return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-  }
-
-  if (project.userId !== userId) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
   try {
     // Update preferred workflow mode
     await prisma.project.update({
-      where: { id: params.id },
+      where: { id: projectId },
       data: { preferredWorkflowMode: mode },
     });
 
@@ -56,20 +27,12 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
-  // Get project with workflow mode
-  const project = await prisma.project.findUnique({
-    where: { id: params.id },
+export const GET = withProjectAuth(async (_request, { prisma, projectId }) => {
+  // The project is already fetched by withProjectAuth, but we need specific fields
+  const project = await prisma.project.findFirst({
+    where: { id: projectId },
     select: { id: true, preferredWorkflowMode: true, currentRunNumber: true },
   });
 
@@ -81,4 +44,4 @@ export async function GET(
     preferredMode: project.preferredWorkflowMode,
     currentRunNumber: project.currentRunNumber,
   });
-}
+});

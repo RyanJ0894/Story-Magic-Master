@@ -55,7 +55,7 @@ export default async function AdminSettingsPage() {
               </div>
               <Switch />
             </div>
-            <Button>Save Changes</Button>
+            <Button disabled title="Settings management coming in a future release">Save Changes</Button>
           </CardContent>
         </Card>
 
@@ -96,7 +96,7 @@ export default async function AdminSettingsPage() {
               <Label htmlFor="session-timeout">Session Timeout (hours)</Label>
               <Input id="session-timeout" type="number" defaultValue="24" className="w-32" />
             </div>
-            <Button>Save Changes</Button>
+            <Button disabled title="Settings management coming in a future release">Save Changes</Button>
           </CardContent>
         </Card>
 
@@ -127,7 +127,7 @@ export default async function AdminSettingsPage() {
               </div>
               <Switch defaultChecked />
             </div>
-            <Button>Save Changes</Button>
+            <Button disabled title="Settings management coming in a future release">Save Changes</Button>
           </CardContent>
         </Card>
 
@@ -171,7 +171,7 @@ export default async function AdminSettingsPage() {
               </div>
               <Switch defaultChecked />
             </div>
-            <Button>Save Changes</Button>
+            <Button disabled title="Settings management coming in a future release">Save Changes</Button>
           </CardContent>
         </Card>
 
@@ -207,7 +207,7 @@ export default async function AdminSettingsPage() {
               </div>
               <Input type="number" defaultValue="3" className="w-20" />
             </div>
-            <Button>Save Changes</Button>
+            <Button disabled title="Settings management coming in a future release">Save Changes</Button>
           </CardContent>
         </Card>
 
@@ -226,11 +226,11 @@ export default async function AdminSettingsPage() {
             <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded bg-card flex items-center justify-center text-lg font-bold">
-                  S
+                  C
                 </div>
                 <div>
-                  <p className="font-medium">Supabase</p>
-                  <p className="text-sm text-muted-foreground">Database & Auth</p>
+                  <p className="font-medium">Clerk + Prisma</p>
+                  <p className="text-sm text-muted-foreground">Auth & Database</p>
                 </div>
               </div>
               <Badge variant="default">Connected</Badge>

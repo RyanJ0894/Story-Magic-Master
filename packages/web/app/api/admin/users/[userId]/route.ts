@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
+import { withAuth } from '@/lib/api/middleware';
 import { z } from 'zod';
-import { Prisma } from '@prisma/client';
-import { validateCsrf } from '@/lib/csrf';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
 import { log } from '@/lib/logger';
 
@@ -17,28 +14,15 @@ const UpdateUserSchema = z.object({
 });
 
 // =============================================================================
-// Route Params
-// =============================================================================
-
-interface RouteParams {
-  params: Promise<{ userId: string }>;
-}
-
-// =============================================================================
 // GET /api/admin/users/[userId] - Get user details
 // =============================================================================
 
-export async function GET(request: Request, { params }: RouteParams) {
-  const { userId } = await params;
-
-  const { userId: adminUserId } = await auth();
-  if (!adminUserId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+export const GET = withAuth(async (request, { userId: authUserId, prisma, params }) => {
+  const targetUserId = params.userId;
 
   // Verify admin
   const adminProfile = await prisma.profile.findUnique({
-    where: { id: adminUserId },
+    where: { id: authUserId },
     select: { userType: true },
   });
 
@@ -48,7 +32,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 
   // Fetch user profile with related data
   const userProfile = await prisma.profile.findUnique({
-    where: { id: userId },
+    where: { id: targetUserId },
     select: {
       id: true,
       fullName: true,
@@ -76,7 +60,7 @@ export async function GET(request: Request, { params }: RouteParams) {
 
   // Fetch project count for this user
   const projectCount = await prisma.project.count({
-    where: { userId },
+    where: { userId: targetUserId },
   });
 
   return NextResponse.json({
@@ -85,29 +69,18 @@ export async function GET(request: Request, { params }: RouteParams) {
       project_count: projectCount,
     },
   });
-}
+});
 
 // =============================================================================
 // PATCH /api/admin/users/[userId] - Update user (role, suspend, etc.)
 // =============================================================================
 
-export async function PATCH(request: Request, { params }: RouteParams) {
-  // CSRF protection
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { userId } = await params;
-
-  const { userId: adminUserId } = await auth();
-  if (!adminUserId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+export const PATCH = withAuth(async (request, { userId: authUserId, prisma, params }) => {
+  const targetUserId = params.userId;
 
   // Verify admin
   const adminProfile = await prisma.profile.findUnique({
-    where: { id: adminUserId },
+    where: { id: authUserId },
     select: { userType: true },
   });
 
@@ -135,7 +108,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
   // Verify target user exists
   const existingUser = await prisma.profile.findUnique({
-    where: { id: userId },
+    where: { id: targetUserId },
     select: { id: true, userType: true },
   });
 
@@ -144,7 +117,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   }
 
   // Prevent admin from demoting themselves
-  if (userId === adminUserId && updates.user_type && updates.user_type !== 'admin') {
+  if (targetUserId === authUserId && updates.user_type && updates.user_type !== 'admin') {
     return NextResponse.json({ error: 'Cannot change your own admin role' }, { status: 400 });
   }
 
@@ -155,17 +128,17 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
   try {
     const updatedUser = await prisma.profile.update({
-      where: { id: userId },
+      where: { id: targetUserId },
       data: prismaUpdates,
     });
 
     // Log audit event
     const requestInfo = extractRequestInfo(request);
     await logAuditEvent({
-      user_id: adminUserId,
+      user_id: authUserId,
       action: updates.suspended ? AuditActions.ADMIN_USER_SUSPEND : AuditActions.ADMIN_USER_UPDATE,
       resource_type: ResourceTypes.USER,
-      resource_id: userId,
+      resource_id: targetUserId,
       details: {
         changes: updates,
         previous_user_type: existingUser.userType,
@@ -178,4 +151,4 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     log.error('Error updating user', error);
     return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
   }
-}
+});

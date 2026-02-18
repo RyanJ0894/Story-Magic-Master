@@ -1,13 +1,8 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { withAuth } from '@/lib/api/middleware';
 import { headers } from 'next/headers';
 
-export async function POST() {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.redirect(new URL('/login', 'https://story-magic-web.onrender.com'));
-  }
-
+export const POST = withAuth(async () => {
   // Clerk handles session invalidation client-side.
   // This route redirects to the login page where Clerk's <SignIn /> takes over.
   const headersList = await headers();
@@ -17,4 +12,4 @@ export async function POST() {
     'https://story-magic-web.onrender.com';
 
   return NextResponse.redirect(new URL('/login', origin));
-}
+});

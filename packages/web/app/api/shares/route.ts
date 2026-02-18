@@ -1,19 +1,12 @@
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
-import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/api/middleware';
+import { NextResponse } from 'next/server';
 import { nanoid } from 'nanoid';
 import { hashPassword } from '@/lib/password';
 import { CreateShareRequestSchema } from '@/lib/api/dto';
-import { validateCsrf } from '@/lib/csrf';
 import { log } from '@/lib/logger';
 
 // GET /api/shares - List all shares for current user
-export async function GET(request: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
+export const GET = withAuth(async (request, { userId, prisma }) => {
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get('project_id');
 
@@ -37,20 +30,10 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json({ shares });
-}
+});
 
 // POST /api/shares - Create a new share link
-export async function POST(request: NextRequest) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request, { userId, prisma }) => {
   // Parse and validate request body
   let body;
   try {
@@ -137,4 +120,4 @@ export async function POST(request: NextRequest) {
     log.error('Error creating share', error);
     return NextResponse.json({ error: 'Failed to create share' }, { status: 500 });
   }
-}
+});

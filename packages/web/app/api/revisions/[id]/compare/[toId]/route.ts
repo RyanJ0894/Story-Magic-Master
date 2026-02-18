@@ -4,7 +4,7 @@
  * GET /api/revisions/[id]/compare/[toId] - Compare two revisions
  */
 
-import { auth } from '@clerk/nextjs/server';
+import { withAuth } from '@/lib/api/middleware';
 import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { isFeatureEnabled } from '@/lib/features';
@@ -35,10 +35,7 @@ async function verifyRevisionOwnership(
 // GET - Compare revisions
 // =============================================================================
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string; toId: string }> }
-) {
+export const GET = withAuth(async (_request, { userId, params }) => {
   if (!isFeatureEnabled('REVISION_TRACKING')) {
     return NextResponse.json(
       { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
@@ -46,15 +43,8 @@ export async function GET(
     );
   }
 
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  const { id: fromRevisionId, toId: toRevisionId } = await params;
+  const fromRevisionId = params.id;
+  const toRevisionId = params.toId;
 
   // Verify ownership of both revisions
   const [fromOwned, toOwned] = await Promise.all([
@@ -109,4 +99,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

@@ -1,22 +1,12 @@
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
-import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/api/middleware';
+import { NextResponse } from 'next/server';
 import { hashPassword } from '@/lib/password';
 import { UpdateShareRequestSchema } from '@/lib/api/dto';
-import { validateCsrf } from '@/lib/csrf';
 import { log } from '@/lib/logger';
 
-interface RouteParams {
-  params: Promise<{ shareId: string }>;
-}
-
 // GET /api/shares/[shareId] - Get share details
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  const { shareId } = await params;
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
+export const GET = withAuth(async (request, { userId, prisma, params }) => {
+  const shareId = params.shareId;
 
   const share = await prisma.scriptShare.findFirst({
     where: {
@@ -39,20 +29,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 
   return NextResponse.json({ share });
-}
+});
 
 // PATCH /api/shares/[shareId] - Update share settings
-export async function PATCH(request: NextRequest, { params }: RouteParams) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { shareId } = await params;
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
+export const PATCH = withAuth(async (request, { userId, prisma, params }) => {
+  const shareId = params.shareId;
 
   // Verify ownership
   const existingShare = await prisma.scriptShare.findFirst({
@@ -108,20 +89,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     log.error('Error updating share', error);
     return NextResponse.json({ error: 'Failed to update share' }, { status: 500 });
   }
-}
+});
 
 // DELETE /api/shares/[shareId] - Revoke/delete share
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { shareId } = await params;
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
+export const DELETE = withAuth(async (request, { userId, prisma, params }) => {
+  const shareId = params.shareId;
 
   // Verify ownership
   const existingShare = await prisma.scriptShare.findFirst({
@@ -145,4 +117,4 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     log.error('Error deleting share', error);
     return NextResponse.json({ error: 'Failed to delete share' }, { status: 500 });
   }
-}
+});

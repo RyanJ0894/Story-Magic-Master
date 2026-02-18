@@ -5,11 +5,9 @@
  * POST /api/teams - Create a new team
  */
 
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
 import { log } from '@/lib/logger';
 
 // =============================================================================
@@ -27,12 +25,7 @@ const CreateTeamSchema = z.object({
 // GET - List teams
 // =============================================================================
 
-export async function GET() {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
+export const GET = withAuth(async (request, { userId, prisma }) => {
   try {
     // Get teams user owns
     const ownedTeams = await prisma.team.findMany({
@@ -111,23 +104,13 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // POST - Create team
 // =============================================================================
 
-export async function POST(request: Request) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request, { userId, prisma }) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -172,4 +155,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

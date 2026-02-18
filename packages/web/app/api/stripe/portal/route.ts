@@ -1,23 +1,10 @@
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
+import { withAuth } from '@/lib/api/middleware';
 import { createPortalSession } from '@/lib/stripe/server';
 import { NextResponse } from 'next/server';
-import { validateCsrf } from '@/lib/csrf';
 import { log } from '@/lib/logger';
 
-export async function POST(request: Request) {
-  // CSRF protection
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
+export const POST = withAuth(async (request, { userId, prisma }) => {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-    }
-
     // Get user's Stripe customer ID
     const profile = await prisma.profile.findUnique({
       where: { id: userId },
@@ -47,4 +34,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

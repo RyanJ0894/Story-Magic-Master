@@ -1,30 +1,13 @@
-import { auth } from '@clerk/nextjs/server';
+import { withAuth } from '@/lib/api/middleware';
 import { prisma } from '@/lib/db';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { nanoid } from 'nanoid';
-import { validateCsrf } from '@/lib/csrf';
-import { rateLimit, getClientIp } from '@/lib/api/rate-limit';
 import { log } from '@/lib/logger';
 import fs from 'fs';
 import path from 'path';
 
 // POST /api/reader/upload/process - Process uploaded PDF
-export async function POST(request: NextRequest) {
-  // Rate limit: strict (5/min) — expensive processing pipeline
-  const ip = getClientIp(request);
-  const limited = await rateLimit(`upload:${ip}`, 'strict');
-  if (limited) return limited;
-
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request, { userId, prisma: ctxPrisma }) => {
   const formData = await request.formData();
   const file = formData.get('file') as File | null;
   const name = formData.get('name') as string;
@@ -56,7 +39,7 @@ export async function POST(request: NextRequest) {
     fs.writeFileSync(filePath, fileBuffer);
 
     // Create project record
-    const project = await prisma.project.create({
+    const project = await ctxPrisma.project.create({
       data: {
         id: projectId,
         userId,
@@ -67,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     // Add to reader's library
     try {
-      await prisma.readerLibrary.create({
+      await ctxPrisma.readerLibrary.create({
         data: {
           readerId: userId,
           projectId,
@@ -80,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create job record
-    const job = await prisma.job.create({
+    const job = await ctxPrisma.job.create({
       data: {
         projectId,
         userId,
@@ -104,7 +87,7 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+}, { rateLimit: 'strict' });
 
 // Trigger async processing: read PDF from disk, extract text, queue for generation
 async function triggerProcessing(

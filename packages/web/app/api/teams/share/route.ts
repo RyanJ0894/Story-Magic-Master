@@ -5,11 +5,9 @@
  * DELETE /api/teams/share - Unshare a project from a team
  */
 
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
 
 const ShareSchema = z.object({
   projectId: z.string().uuid('Valid project ID required'),
@@ -26,23 +24,7 @@ const UnshareSchema = z.object({
 // POST - Share project with team
 // =============================================================================
 
-export async function POST(request: Request) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
+export const POST = withAuth(async (request, { userId, prisma }) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -124,29 +106,13 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // DELETE - Unshare project from team
 // =============================================================================
 
-export async function DELETE(request: Request) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
+export const DELETE = withAuth(async (request, { userId, prisma }) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -198,4 +164,4 @@ export async function DELETE(request: Request) {
       { status: 500 }
     );
   }
-}
+});

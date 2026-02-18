@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
+import { withAuth } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { log } from '@/lib/logger';
@@ -20,12 +19,7 @@ const GetAuditLogsQuerySchema = z.object({
  * GET /api/admin/audit-logs
  * List audit log entries with filtering and pagination
  */
-export async function GET(request: Request) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const GET = withAuth(async (request, { userId, prisma }) => {
   const profile = await prisma.profile.findUnique({
     where: { id: userId },
     select: { userType: true },
@@ -103,4 +97,4 @@ export async function GET(request: Request) {
     log.error('Error fetching audit logs', error);
     return NextResponse.json({ error: 'Failed to fetch audit logs' }, { status: 500 });
   }
-}
+});

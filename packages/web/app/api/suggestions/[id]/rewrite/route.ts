@@ -4,11 +4,10 @@
  * POST /api/suggestions/[id]/rewrite - Generate rewrite options
  */
 
-import { auth } from '@clerk/nextjs/server';
+import { withAuth } from '@/lib/api/middleware';
 import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
 import { isFeatureEnabled } from '@/lib/features';
 import { generateRewrites, getRewrites, selectRewrite } from '@/lib/adviser';
 import { log } from '@/lib/logger';
@@ -50,10 +49,7 @@ async function verifySuggestionOwnership(
 // GET - Get existing rewrites
 // =============================================================================
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withAuth(async (_request, { userId, params }) => {
   if (!isFeatureEnabled('STORY_ADVISER')) {
     return NextResponse.json(
       { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
@@ -61,15 +57,7 @@ export async function GET(
     );
   }
 
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  const { id: suggestionId } = await params;
+  const suggestionId = params.id;
 
   const owned = await verifySuggestionOwnership(suggestionId, userId);
   if (!owned) {
@@ -96,16 +84,13 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // POST - Generate rewrites or select one
 // =============================================================================
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const POST = withAuth(async (request, { userId, params }) => {
   if (!isFeatureEnabled('STORY_ADVISER')) {
     return NextResponse.json(
       { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
@@ -113,23 +98,7 @@ export async function POST(
     );
   }
 
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  const { id: suggestionId } = await params;
+  const suggestionId = params.id;
 
   const owned = await verifySuggestionOwnership(suggestionId, userId);
   if (!owned) {
@@ -209,4 +178,4 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});

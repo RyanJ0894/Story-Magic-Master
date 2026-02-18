@@ -214,22 +214,22 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem>
+                        <DropdownMenuItem disabled>
                           <Eye className="w-4 h-4 mr-2" />
-                          View Details
+                          View Details (coming soon)
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem disabled>
                           <Mail className="w-4 h-4 mr-2" />
-                          Send Email
+                          Send Email (coming soon)
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem disabled>
                           <Shield className="w-4 h-4 mr-2" />
-                          Change Role
+                          Change Role (coming soon)
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">
+                        <DropdownMenuItem disabled className="text-destructive">
                           <Ban className="w-4 h-4 mr-2" />
-                          Suspend User
+                          Suspend User (coming soon)
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

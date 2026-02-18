@@ -1,27 +1,14 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
-import { validateCsrf } from '@/lib/csrf';
+import { withAuth } from '@/lib/api/middleware';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
 import { log } from '@/lib/logger';
 
 // =============================================================================
-// Route Params
+// GET /api/admin/subscriptions/[subscriptionId] - Get subscription details
 // =============================================================================
 
-interface RouteParams {
-  params: Promise<{ subscriptionId: string }>;
-}
-
-// =============================================================================
-// Admin Auth Helper
-// =============================================================================
-
-async function verifyAdmin() {
-  const { userId } = await auth();
-  if (!userId) {
-    return { user: null, error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
-  }
+export const GET = withAuth(async (request, { userId, prisma, params }) => {
+  const { subscriptionId } = params;
 
   const profile = await prisma.profile.findUnique({
     where: { id: userId },
@@ -29,21 +16,8 @@ async function verifyAdmin() {
   });
 
   if (profile?.userType !== 'admin') {
-    return { user: null, error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
-
-  return { user: { id: userId }, error: null };
-}
-
-// =============================================================================
-// GET /api/admin/subscriptions/[subscriptionId] - Get subscription details
-// =============================================================================
-
-export async function GET(request: Request, { params }: RouteParams) {
-  const { subscriptionId } = await params;
-
-  const { user, error: authError } = await verifyAdmin();
-  if (authError) return authError;
 
   // Fetch subscription with related profile
   const subscription = await prisma.subscription.findUnique({
@@ -66,23 +40,23 @@ export async function GET(request: Request, { params }: RouteParams) {
   }
 
   return NextResponse.json({ data: subscription });
-}
+});
 
 // =============================================================================
 // POST /api/admin/subscriptions/[subscriptionId] - Cancel or Sync subscription
 // =============================================================================
 
-export async function POST(request: Request, { params }: RouteParams) {
-  // CSRF protection
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+export const POST = withAuth(async (request, { userId, prisma, params }) => {
+  const { subscriptionId } = params;
+
+  const profile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { userType: true },
+  });
+
+  if (profile?.userType !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
-
-  const { subscriptionId } = await params;
-
-  const { user, error: authError } = await verifyAdmin();
-  if (authError || !user) return authError;
 
   // Determine action from the request URL path
   const url = new URL(request.url);
@@ -99,19 +73,20 @@ export async function POST(request: Request, { params }: RouteParams) {
   }
 
   if (action === 'cancel') {
-    return handleCancel(subscription, subscriptionId, user, request);
+    return handleCancel(prisma, subscription, subscriptionId, { id: userId }, request);
   } else if (action === 'sync') {
-    return handleSync(subscription, subscriptionId, user, request);
+    return handleSync(prisma, subscription, subscriptionId, { id: userId }, request);
   }
 
   return NextResponse.json({ error: 'Invalid action. Use /cancel or /sync' }, { status: 400 });
-}
+});
 
 // =============================================================================
 // Cancel Subscription Handler
 // =============================================================================
 
 async function handleCancel(
+  prisma: import('@prisma/client').PrismaClient,
   subscription: Record<string, unknown>,
   subscriptionId: string,
   user: { id: string },
@@ -156,6 +131,7 @@ async function handleCancel(
 // =============================================================================
 
 async function handleSync(
+  prisma: import('@prisma/client').PrismaClient,
   subscription: Record<string, unknown>,
   subscriptionId: string,
   user: { id: string },

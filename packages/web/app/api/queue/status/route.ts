@@ -4,20 +4,12 @@
  * GET /api/queue/status - Get queue statistics
  */
 
-import { auth } from '@clerk/nextjs/server';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { getQueueStats } from '@/lib/queue/service';
 import { log } from '@/lib/logger';
 
-export async function GET() {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
+export const GET = withAuth(async () => {
   try {
     const stats = await getQueueStats();
 
@@ -38,4 +30,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});

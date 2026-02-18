@@ -4,34 +4,16 @@
  * POST /api/admin/corpus/populate - Generate embeddings for scripts without them
  */
 
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { withAuth } from '@/lib/api/middleware';
 import { populateMissingEmbeddings } from '@/lib/comparable/service';
-import { validateCsrf } from '@/lib/csrf';
 import { log } from '@/lib/logger';
 
 // =============================================================================
 // POST - Populate Missing Embeddings
 // =============================================================================
 
-export async function POST(request: Request) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
+export const POST = withAuth(async (request, { userId, prisma }) => {
   // Check if user is admin via profile
   const profile = await prisma.profile.findUnique({
     where: { id: userId },
@@ -64,4 +46,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

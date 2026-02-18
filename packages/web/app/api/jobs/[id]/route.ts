@@ -1,16 +1,7 @@
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
+export const GET = withAuth(async (_request, { userId, prisma, params }) => {
   const jobId = params.id;
 
   // Fetch job with project info
@@ -50,4 +41,4 @@ export async function GET(
     project_id: job.projectId,
     project_status: job.project.status,
   });
-}
+});

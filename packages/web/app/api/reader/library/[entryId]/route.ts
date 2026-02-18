@@ -1,20 +1,10 @@
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
-import { NextRequest, NextResponse } from 'next/server';
-import { validateCsrf } from '@/lib/csrf';
+import { withAuth } from '@/lib/api/middleware';
+import { NextResponse } from 'next/server';
 import { log } from '@/lib/logger';
 
-interface RouteParams {
-  params: Promise<{ entryId: string }>;
-}
-
 // GET /api/reader/library/[entryId] - Get single library entry
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  const { entryId } = await params;
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
+export const GET = withAuth(async (request, { userId, prisma, params }) => {
+  const entryId = params.entryId;
 
   const entry = await prisma.readerLibrary.findFirst({
     where: {
@@ -56,20 +46,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     entry,
     audio: audioOutput,
   });
-}
+});
 
 // PATCH /api/reader/library/[entryId] - Update library entry
-export async function PATCH(request: NextRequest, { params }: RouteParams) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { entryId } = await params;
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
+export const PATCH = withAuth(async (request, { userId, prisma, params }) => {
+  const entryId = params.entryId;
 
   // Verify ownership
   const existingEntry = await prisma.readerLibrary.findFirst({
@@ -123,20 +104,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     log.error('Error updating entry', error);
     return NextResponse.json({ error: 'Failed to update entry' }, { status: 500 });
   }
-}
+});
 
 // DELETE /api/reader/library/[entryId] - Remove from library
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { entryId } = await params;
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
+export const DELETE = withAuth(async (request, { userId, prisma, params }) => {
+  const entryId = params.entryId;
 
   // Verify ownership
   const existingEntry = await prisma.readerLibrary.findFirst({
@@ -160,4 +132,4 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     log.error('Error removing entry', error);
     return NextResponse.json({ error: 'Failed to remove entry' }, { status: 500 });
   }
-}
+});

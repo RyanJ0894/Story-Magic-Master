@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
+import { withAuth } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
-import { validateCsrf } from '@/lib/csrf';
 import { log } from '@/lib/logger';
 
 // Query params schema
@@ -28,12 +26,7 @@ const sortFieldMap: Record<string, string> = {
  * GET /api/admin/users
  * List all users with filtering and pagination
  */
-export async function GET(request: Request) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const GET = withAuth(async (request, { userId, prisma }) => {
   const profile = await prisma.profile.findUnique({
     where: { id: userId },
     select: { userType: true },
@@ -114,7 +107,7 @@ export async function GET(request: Request) {
     log.error('Error fetching users', error);
     return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
   }
-}
+});
 
 // Update user schema
 const UpdateUserSchema = z.object({
@@ -127,17 +120,7 @@ const UpdateUserSchema = z.object({
  * PATCH /api/admin/users
  * Update a user's profile (for admin actions)
  */
-export async function PATCH(request: Request) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { userId: adminUserId } = await auth();
-  if (!adminUserId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const PATCH = withAuth(async (request, { userId: adminUserId, prisma }) => {
   const adminProfile = await prisma.profile.findUnique({
     where: { id: adminUserId },
     select: { userType: true },
@@ -201,4 +184,4 @@ export async function PATCH(request: Request) {
     log.error('Error updating user', error);
     return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
   }
-}
+});

@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
+import { withAuth } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
-import { validateCsrf } from '@/lib/csrf';
 import { log } from '@/lib/logger';
 
 // Query params schema
@@ -19,12 +17,7 @@ const GetSubscriptionsQuerySchema = z.object({
  * GET /api/admin/subscriptions
  * List all subscriptions with filtering and pagination
  */
-export async function GET(request: Request) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const GET = withAuth(async (request, { userId, prisma }) => {
   const profile = await prisma.profile.findUnique({
     where: { id: userId },
     select: { userType: true },
@@ -97,7 +90,7 @@ export async function GET(request: Request) {
     log.error('Error fetching subscriptions', error);
     return NextResponse.json({ error: 'Failed to fetch subscriptions' }, { status: 500 });
   }
-}
+});
 
 // Update subscription schema
 const UpdateSubscriptionSchema = z.object({
@@ -110,17 +103,7 @@ const UpdateSubscriptionSchema = z.object({
  * PATCH /api/admin/subscriptions
  * Perform admin actions on subscriptions
  */
-export async function PATCH(request: Request) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export const PATCH = withAuth(async (request, { userId, prisma }) => {
   const adminProfile = await prisma.profile.findUnique({
     where: { id: userId },
     select: { userType: true },
@@ -205,4 +188,4 @@ export async function PATCH(request: Request) {
     log.error('Error updating subscription', error);
     return NextResponse.json({ error: 'Failed to update subscription' }, { status: 500 });
   }
-}
+});

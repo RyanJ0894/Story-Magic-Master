@@ -24,6 +24,7 @@ import type { PrismaClient } from '@prisma/client';
 export interface AuthContext {
   userId: string;
   prisma: PrismaClient;
+  params: Record<string, string>;
 }
 
 export interface ProjectAuthContext extends AuthContext {
@@ -45,11 +46,6 @@ type AuthHandler = (
   ctx: AuthContext,
 ) => Promise<NextResponse | Response>;
 
-type AuthHandlerWithParams = (
-  request: Request,
-  ctx: AuthContext & { params: Record<string, string> },
-) => Promise<NextResponse | Response>;
-
 type ProjectAuthHandler = (
   request: Request,
   ctx: ProjectAuthContext,
@@ -59,10 +55,8 @@ type ProjectAuthHandler = (
 // withAuth — authenticates user, optionally validates CSRF
 // ---------------------------------------------------------------------------
 
-export function withAuth(handler: AuthHandler, options?: WithAuthOptions): (request: Request) => Promise<NextResponse | Response>;
-export function withAuth(handler: AuthHandlerWithParams, options?: WithAuthOptions): (request: Request, route: RouteParams) => Promise<NextResponse | Response>;
 export function withAuth(
-  handler: AuthHandler | AuthHandlerWithParams,
+  handler: AuthHandler,
   options: WithAuthOptions = {},
 ) {
   return async (request: Request, route?: RouteParams) => {
@@ -98,7 +92,7 @@ export function withAuth(
     }
 
     const params = route?.params ? await route.params : {};
-    return (handler as AuthHandlerWithParams)(request, { userId, prisma, params });
+    return handler(request, { userId, prisma, params });
   };
 }
 
@@ -165,7 +159,7 @@ export function withProjectAuth(
       );
     }
 
-    return handler(request, { userId, prisma, projectId, project: project as unknown as Record<string, unknown> });
+    return handler(request, { userId, prisma, params, projectId, project: project as unknown as Record<string, unknown> });
   };
 }
 

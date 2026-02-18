@@ -1,8 +1,6 @@
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
-import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/api/middleware';
+import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { validateCsrf } from '@/lib/csrf';
 import { log } from '@/lib/logger';
 
 // Lazy initialization to avoid build-time errors when STRIPE_SECRET_KEY is not set
@@ -15,17 +13,7 @@ function getStripe(): Stripe {
 }
 
 // POST /api/reader/upload/create-payment - Create payment intent for upload
-export async function POST(request: NextRequest) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request, { userId, prisma }) => {
   const body = await request.json();
   const { price, needsOCR } = body;
 
@@ -74,4 +62,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

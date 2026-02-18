@@ -6,11 +6,9 @@
  * DELETE /api/projects/[id] - Delete a project
  */
 
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
+import { withProjectAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateCsrf } from '@/lib/csrf';
 
 // =============================================================================
 // Input Validation
@@ -26,68 +24,15 @@ const UpdateProjectSchema = z.object({
 // GET - Fetch a single project
 // =============================================================================
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id: projectId } = await params;
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  try {
-    const project = await prisma.project.findFirst({
-      where: { id: projectId, userId },
-    });
-
-    if (!project) {
-      return NextResponse.json(
-        { error: 'Project not found', code: 'PROJECT_NOT_FOUND' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ project });
-  } catch {
-    return NextResponse.json(
-      { error: 'Project not found', code: 'PROJECT_NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-}
+export const GET = withProjectAuth(async (_request, { project }) => {
+  return NextResponse.json({ project });
+});
 
 // =============================================================================
 // PATCH - Update a project
 // =============================================================================
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  // CSRF protection
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
-
-  const { id: projectId } = await params;
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
+export const PATCH = withProjectAuth(async (request, { prisma, projectId }) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -110,19 +55,6 @@ export async function PATCH(
     );
   }
 
-  // Verify project exists and belongs to user
-  const existing = await prisma.project.findFirst({
-    where: { id: projectId, userId },
-    select: { id: true },
-  });
-
-  if (!existing) {
-    return NextResponse.json(
-      { error: 'Project not found', code: 'PROJECT_NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
   const { name, script_text, page_count } = parseResult.data;
 
   try {
@@ -142,48 +74,13 @@ export async function PATCH(
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // DELETE - Delete a project
 // =============================================================================
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  // CSRF protection
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json(
-      { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-      { status: 403 }
-    );
-  }
-
-  const { id: projectId } = await params;
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-      { status: 401 }
-    );
-  }
-
-  // Verify project exists and belongs to user
-  const existing = await prisma.project.findFirst({
-    where: { id: projectId, userId },
-    select: { id: true },
-  });
-
-  if (!existing) {
-    return NextResponse.json(
-      { error: 'Project not found', code: 'PROJECT_NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
+export const DELETE = withProjectAuth(async (_request, { prisma, projectId }) => {
   try {
     await prisma.project.delete({
       where: { id: projectId },
@@ -196,4 +93,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+});

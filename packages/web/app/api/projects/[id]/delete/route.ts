@@ -1,35 +1,14 @@
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
+import { withProjectAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
-import { validateCsrf } from '@/lib/csrf';
 
-export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  // CSRF protection
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.redirect(new URL('/login', request.url));
-  }
-
+export const POST = withProjectAuth(async (request, { prisma, projectId }) => {
   try {
-    // Delete project (cascade will handle jobs and audio_outputs)
-    const deleted = await prisma.project.deleteMany({
-      where: { id: params.id, userId },
+    await prisma.project.delete({
+      where: { id: projectId },
     });
-
-    if (deleted.count === 0) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
 
     return NextResponse.redirect(new URL('/dashboard', request.url));
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Delete failed' }, { status: 500 });
   }
-}
+});

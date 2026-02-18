@@ -1,8 +1,6 @@
-import { auth } from '@clerk/nextjs/server';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { validateCsrf } from '@/lib/csrf';
-import { rateLimit, getClientIp } from '@/lib/api/rate-limit';
 import { log } from '@/lib/logger';
 
 // Trim the API key to remove any accidental whitespace/newlines
@@ -12,25 +10,8 @@ const openai = new OpenAI({
   apiKey,
 });
 
-export async function POST(request: Request) {
-  // Rate limit: strict (5/min) — LLM call
-  const ip = getClientIp(request);
-  const limited = await rateLimit(`demo-script:${ip}`, 'strict');
-  if (limited) return limited;
-
+export const POST = withAuth(async (request) => {
   try {
-    // CSRF validation
-    const csrfError = validateCsrf(request);
-    if (csrfError) {
-      return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-    }
-
-    // Auth check
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-    }
-
     const { prompt: rawPrompt } = await request.json();
 
     if (!rawPrompt || typeof rawPrompt !== 'string') {
@@ -102,4 +83,4 @@ Output ONLY the screenplay text, no explanations.`,
       { status: 500 }
     );
   }
-}
+}, { rateLimit: 'strict' });

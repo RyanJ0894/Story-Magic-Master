@@ -6,12 +6,10 @@
  * DELETE /api/teams/[teamId]/members - Remove member
  */
 
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/db';
+import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { sendTeamInviteEmail } from '@/lib/email';
-import { validateCsrf } from '@/lib/csrf';
 import { log } from '@/lib/logger';
 
 // =============================================================================
@@ -31,16 +29,8 @@ const RemoveMemberSchema = z.object({
 // GET - List members
 // =============================================================================
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ teamId: string }> }
-) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
-  const { teamId } = await params;
+export const GET = withAuth(async (request, { userId, prisma, params }) => {
+  const teamId = params.teamId;
 
   // Verify user has access to this team
   const team = await prisma.team.findUnique({
@@ -111,27 +101,14 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // POST - Invite member
 // =============================================================================
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ teamId: string }> }
-) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
-  const { teamId } = await params;
+export const POST = withAuth(async (request, { userId, prisma, params }) => {
+  const teamId = params.teamId;
 
   // Only team owner can invite
   const team = await prisma.team.findFirst({
@@ -264,27 +241,14 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});
 
 // =============================================================================
 // DELETE - Remove member
 // =============================================================================
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ teamId: string }> }
-) {
-  const csrfError = validateCsrf(request);
-  if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
-  }
-
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
-  }
-
-  const { teamId } = await params;
+export const DELETE = withAuth(async (request, { userId, prisma, params }) => {
+  const teamId = params.teamId;
 
   // Only team owner can remove members
   const team = await prisma.team.findFirst({
@@ -344,4 +308,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+});

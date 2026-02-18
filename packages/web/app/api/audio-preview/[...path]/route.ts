@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
+import { withAuth } from '@/lib/api/middleware';
 
 /**
  * GET /api/audio-preview/music/m_string_orchestra_uplifting_01.mp3
@@ -7,17 +7,8 @@ import { auth } from '@clerk/nextjs/server';
  * Proxies audio file requests to the orchestrator's static file server
  * so the frontend can play preview clips without exposing the orchestrator URL.
  */
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
-) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const { path } = await params;
-  const filePath = path.join('/');
+export const GET = withAuth(async (_request, { params }) => {
+  const filePath = (params.path as unknown as string[]).join('/');
 
   // Basic path traversal prevention
   if (filePath.includes('..') || filePath.includes('//')) {
@@ -61,4 +52,4 @@ export async function GET(
       { status: 502 }
     );
   }
-}
+});
