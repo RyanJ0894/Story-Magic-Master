@@ -13,6 +13,11 @@ interface RouteParams {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   const { code } = await params;
 
+  // Rate limit: loose (60/min) per IP to prevent enumeration/abuse on this public endpoint (TD-063)
+  const ip = getClientIp(request);
+  const limited = await rateLimit(`share-access:${ip}`, 'loose');
+  if (limited) return limited;
+
   // Get share by code
   const share = await prisma.scriptShare.findFirst({
     where: {

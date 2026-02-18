@@ -54,4 +54,4 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
       { status: 500 }
     );
   }
-});
+}, { rateLimit: 'strict' });

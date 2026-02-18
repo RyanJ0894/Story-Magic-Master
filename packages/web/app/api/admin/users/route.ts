@@ -166,4 +166,4 @@ export const PATCH = withAdminAuth(async (request, { userId: adminUserId, prisma
     log.error('Error updating user', error);
     return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
   }
-});
+}, { rateLimit: 'strict' });

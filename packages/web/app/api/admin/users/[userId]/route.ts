@@ -151,4 +151,4 @@ export const PATCH = withAuth(async (request, { userId: authUserId, prisma, para
     log.error('Error updating user', error);
     return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
   }
-});
+}, { rateLimit: 'strict' });

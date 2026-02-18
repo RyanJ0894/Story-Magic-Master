@@ -110,7 +110,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="py-12 border-t border-border">
         <div className="max-w-6xl mx-auto px-4">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
+          <div className="grid md:grid-cols-5 gap-8 mb-8">
             <div>
               <Link href="/" className="flex items-center gap-2 mb-4">
                 <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
@@ -147,6 +147,13 @@ export default function Home() {
                 <li><Link href="/dashboard" className="hover:text-brand-600 focus-visible:outline-none focus-visible:text-brand-600 focus-visible:underline">Dashboard</Link></li>
               </ul>
             </div>
+            <div>
+              <h4 className="font-semibold mb-4">Legal</h4>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><Link href="/terms" className="hover:text-brand-600 focus-visible:outline-none focus-visible:text-brand-600 focus-visible:underline">Terms of Service</Link></li>
+                <li><Link href="/privacy" className="hover:text-brand-600 focus-visible:outline-none focus-visible:text-brand-600 focus-visible:underline">Privacy Policy</Link></li>
+              </ul>
+            </div>
           </div>
           <div className="pt-8 border-t border-border text-center text-muted-foreground">
             <p className="mb-2">
@@ -157,7 +164,13 @@ export default function Home() {
                 www.StoryMagicApp.net
               </a>
             </p>
-            <p>&copy; 2026 Story Magic. All rights reserved.</p>
+            <p>
+              &copy; 2026 Story Magic. All rights reserved.
+              {' '}&middot;{' '}
+              <Link href="/terms" className="hover:text-brand-600 transition-colors">Terms</Link>
+              {' '}&middot;{' '}
+              <Link href="/privacy" className="hover:text-brand-600 transition-colors">Privacy</Link>
+            </p>
           </div>
         </div>
       </footer>

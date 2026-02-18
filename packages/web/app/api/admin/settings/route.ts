@@ -87,4 +87,4 @@ export const PUT = withAdminAuth(async (request, { userId, prisma }) => {
     log.error('Error saving platform settings', error);
     return NextResponse.json({ error: 'Failed to save platform settings' }, { status: 500 });
   }
-});
+}, { rateLimit: 'strict' });

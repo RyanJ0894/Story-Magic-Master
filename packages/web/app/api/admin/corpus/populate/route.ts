@@ -33,4 +33,4 @@ export const POST = withAdminAuth(async (request, { userId, prisma }) => {
       { status: 500 }
     );
   }
-});
+}, { rateLimit: 'strict' });

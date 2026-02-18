@@ -34,7 +34,16 @@ export const POST = withAuth(async (request, { userId, prisma: ctxPrisma }) => {
     const uploadsDir = path.join(process.cwd(), 'uploads', projectId);
     fs.mkdirSync(uploadsDir, { recursive: true });
 
-    const fileName = file.name;
+    // Sanitize filename: strip path traversal sequences, null bytes, and unsafe characters (TD-064)
+    const rawName = file.name || 'upload.pdf';
+    const baseName = rawName
+      .replace(/\0/g, '')                   // strip null bytes
+      .replace(/\.\./g, '')                 // strip path traversal
+      .replace(/[/\\]/g, '')                // strip directory separators
+      .replace(/[<>:"|?*\x00-\x1F]/g, '_') // replace OS-unsafe chars
+      .trim() || 'upload.pdf';
+    // Ensure the file has a .pdf extension since we only accept PDFs
+    const fileName = baseName.endsWith('.pdf') ? baseName : `${baseName}.pdf`;
     const filePath = path.join(uploadsDir, fileName);
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     fs.writeFileSync(filePath, fileBuffer);

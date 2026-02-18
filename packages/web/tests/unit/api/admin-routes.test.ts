@@ -60,6 +60,7 @@ const mockPrisma = {
     create: vi.fn(),
   },
   $transaction: vi.fn(),
+  $queryRaw: vi.fn(),
 };
 vi.mock('@/lib/db', () => ({
   prisma: mockPrisma,
@@ -229,17 +230,20 @@ describe('GET /api/admin/stats', () => {
 
   it('returns 200 with stats when authenticated as admin', async () => {
     setupAdmin();
-    // Mock all the count calls
-    mockPrisma.profile.count
-      .mockResolvedValueOnce(100) // totalUsers
-      .mockResolvedValueOnce(60) // writerCount
-      .mockResolvedValueOnce(40) // readerCount
-      .mockResolvedValueOnce(5) // newUsersToday
-      .mockResolvedValueOnce(20) // newUsersWeek
-      .mockResolvedValueOnce(50); // newUsersMonth
-    mockPrisma.subscription.count.mockResolvedValueOnce(25); // activeSubscriptionCount
-    mockPrisma.project.count.mockResolvedValueOnce(200); // projectCount
-    mockPrisma.scriptShare.count.mockResolvedValueOnce(30); // shareCount
+    // Mock $queryRaw — single row with all counts (TD-058 optimisation)
+    mockPrisma.$queryRaw.mockResolvedValueOnce([
+      {
+        total_users: BigInt(100),
+        writer_count: BigInt(60),
+        reader_count: BigInt(40),
+        active_subscription_count: BigInt(25),
+        project_count: BigInt(200),
+        share_count: BigInt(30),
+        new_users_today: BigInt(5),
+        new_users_week: BigInt(20),
+        new_users_month: BigInt(50),
+      },
+    ]);
 
     const req = createRequest('http://localhost:22000/api/admin/stats');
     const res = await getStats(req);

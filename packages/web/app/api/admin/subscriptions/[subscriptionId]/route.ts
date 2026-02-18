@@ -61,7 +61,7 @@ export const POST = withAdminAuth(async (request, { userId, prisma, params }) =>
   }
 
   return NextResponse.json({ error: 'Invalid action. Use /cancel or /sync' }, { status: 400 });
-});
+}, { rateLimit: 'strict' });
 
 // =============================================================================
 // Cancel Subscription Handler

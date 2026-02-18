@@ -170,4 +170,4 @@ export const PATCH = withAdminAuth(async (request, { userId, prisma }) => {
     log.error('Error updating subscription', error);
     return NextResponse.json({ error: 'Failed to update subscription' }, { status: 500 });
   }
-});
+}, { rateLimit: 'strict' });
