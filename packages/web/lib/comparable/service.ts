@@ -255,7 +255,7 @@ export async function populateMissingEmbeddings(): Promise<number> {
     try {
       const embedding = await generateLoglineEmbedding(script.logline);
 
-      await prisma.$queryRaw`
+      await prisma.$executeRaw`
         UPDATE script_corpus
         SET logline_embedding = ${toPgvectorFormat(embedding)}::vector
         WHERE id = ${script.id}::uuid

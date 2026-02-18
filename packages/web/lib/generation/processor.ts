@@ -237,7 +237,7 @@ export async function processGenerationJob(
     // Step 5: Increment usage
     await updateJobProgress('finalizing', 95, 'Finalizing and updating usage...');
 
-    await prisma.$queryRaw`SELECT increment_usage(${userId}, ${pageCount}::integer)`;
+    await prisma.$executeRaw`SELECT increment_usage(${userId}, ${pageCount}::integer)`;
 
     // Step 6: Mark job as completed
     const completionTime = new Date();

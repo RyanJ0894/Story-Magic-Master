@@ -150,7 +150,7 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
 
     // Increment preview usage on success
     try {
-      await prisma.$queryRaw`
+      await prisma.$executeRaw`
         SELECT increment_preview_usage(${userId}::text)
       `;
     } catch (incrementError) {
