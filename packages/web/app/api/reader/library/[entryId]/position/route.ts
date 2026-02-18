@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 interface RouteParams {
   params: Promise<{ entryId: string }>;
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       completed: entry.completed,
     });
   } catch (error) {
-    console.error('Error updating position:', error);
+    log.error('Error updating position', error);
     return NextResponse.json({ error: 'Failed to update position' }, { status: 500 });
   }
 }

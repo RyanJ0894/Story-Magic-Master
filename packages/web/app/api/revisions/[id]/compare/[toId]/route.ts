@@ -9,6 +9,7 @@ import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { isFeatureEnabled } from '@/lib/features';
 import { compareRevisions } from '@/lib/revisions';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Helper to verify ownership
@@ -98,7 +99,7 @@ export async function GET(
 
     return NextResponse.json({ comparison: sanitizedComparison });
   } catch (error) {
-    console.error('[Revision Compare] Error:', error);
+    log.error('[Revision Compare] Error', error);
     return NextResponse.json(
       {
         error: 'Failed to compare revisions',

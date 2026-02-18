@@ -4,6 +4,7 @@ import { createCheckoutSession } from '@/lib/stripe/server';
 import { STRIPE_CONFIG } from '@/lib/stripe/config';
 import { NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 export async function POST(request: Request) {
   // CSRF protection
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ sessionId: session.id, url: session.url });
   } catch (error) {
-    console.error('Checkout error:', error);
+    log.error('Checkout error', error);
     return NextResponse.json(
       { error: 'Failed to create checkout session' },
       { status: 500 }

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { createPortalSession } from '@/lib/stripe/server';
 import { NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 export async function POST(request: Request) {
   // CSRF protection
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ url: session.url });
   } catch (error) {
-    console.error('Portal error:', error);
+    log.error('Portal error', error);
     return NextResponse.json(
       { error: 'Failed to create portal session' },
       { status: 500 }

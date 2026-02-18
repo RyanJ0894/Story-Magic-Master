@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 interface RouteParams {
   params: Promise<{ entryId: string }>;
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       is_favorited: entry.isFavorited,
     });
   } catch (error) {
-    console.error('Error updating favorite:', error);
+    log.error('Error updating favorite', error);
     return NextResponse.json({ error: 'Failed to update favorite' }, { status: 500 });
   }
 }

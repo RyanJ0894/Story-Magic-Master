@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // Query params schema
 const GetSubscriptionsQuerySchema = z.object({
@@ -93,7 +94,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    console.error('Error fetching subscriptions:', error);
+    log.error('Error fetching subscriptions', error);
     return NextResponse.json({ error: 'Failed to fetch subscriptions' }, { status: 500 });
   }
 }
@@ -201,7 +202,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json(updatedSubscription);
   } catch (error) {
-    console.error('Error updating subscription:', error);
+    log.error('Error updating subscription', error);
     return NextResponse.json({ error: 'Failed to update subscription' }, { status: 500 });
   }
 }

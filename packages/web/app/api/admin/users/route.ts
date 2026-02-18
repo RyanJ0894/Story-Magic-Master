@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // Query params schema
 const GetUsersQuerySchema = z.object({
@@ -110,7 +111,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    console.error('Error fetching users:', error);
+    log.error('Error fetching users', error);
     return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
   }
 }
@@ -197,7 +198,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json(updatedUser);
   } catch (error) {
-    console.error('Error updating user:', error);
+    log.error('Error updating user', error);
     return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
   }
 }

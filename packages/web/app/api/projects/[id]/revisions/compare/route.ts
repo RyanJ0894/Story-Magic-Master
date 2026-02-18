@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { isFeatureEnabled } from '@/lib/features';
 import { withProjectAuth } from '@/lib/api/middleware';
 import { compareRevisions, getRevision } from '@/lib/revisions';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // GET - Compare two revisions
@@ -58,7 +59,7 @@ export const GET = withProjectAuth(
       const comparison = await compareRevisions(fromId, toId);
       return NextResponse.json({ comparison });
     } catch (error) {
-      console.error('[Revisions] Error comparing:', error);
+      log.error('[Revisions] Error comparing', error);
       return NextResponse.json(
         {
           error: 'Failed to compare revisions',

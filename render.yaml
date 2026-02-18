@@ -26,7 +26,7 @@ services:
     region: oregon
     plan: starter
     branch: main
-    autoDeploy: true
+    autoDeploy: false  # Deploys gated on CI — triggered via RENDER_DEPLOY_HOOK_* secrets
     numInstances: 1
 
     # Node/pnpm versions
@@ -113,7 +113,7 @@ services:
     region: oregon
     plan: standard
     branch: main
-    autoDeploy: true
+    autoDeploy: false  # Deploys gated on CI — triggered via RENDER_DEPLOY_HOOK_* secrets
     # Scale up: increase numInstances when traffic demands.
     # No in-process state - jobs are tracked in PostgreSQL, audio in persistent disk.
     numInstances: 1
@@ -134,7 +134,7 @@ services:
     disk:
       name: audio-storage
       mountPath: /var/data/audio
-      sizeGB: 1
+      sizeGB: 5
 
     # Environment variables
     envVars:

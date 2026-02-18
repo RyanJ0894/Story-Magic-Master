@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // Lazy initialization to avoid build-time errors when STRIPE_SECRET_KEY is not set
 function getStripe(): Stripe {
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
       paymentIntentId: paymentIntent.id,
     });
   } catch (error) {
-    console.error('Error creating payment intent:', error);
+    log.error('Error creating payment intent', error);
     return NextResponse.json(
       { error: 'Failed to create payment' },
       { status: 500 }

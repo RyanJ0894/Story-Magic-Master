@@ -21,6 +21,7 @@ import {
   calculateFeedbackStats,
 } from '@/lib/feedback/types';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Validation
@@ -135,7 +136,7 @@ export async function POST(
       });
     }
 
-    console.error('[Feedback] Error submitting:', error);
+    log.error('[Feedback] Error submitting', error);
     return NextResponse.json(
       {
         error: 'Failed to submit feedback',
@@ -202,7 +203,7 @@ export async function GET(
       });
     }
 
-    console.error('[Feedback] Error fetching:', error);
+    log.error('[Feedback] Error fetching', error);
     return NextResponse.json(
       {
         error: 'Failed to fetch feedback',

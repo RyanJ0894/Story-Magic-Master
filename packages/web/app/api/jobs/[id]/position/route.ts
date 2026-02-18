@@ -8,6 +8,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { getQueuePosition } from '@/lib/queue/service';
+import { log } from '@/lib/logger';
 
 export async function GET(
   request: Request,
@@ -65,7 +66,7 @@ export async function GET(
       jobsAhead: position?.jobsAhead ?? null,
     });
   } catch (error) {
-    console.error('[Queue] Position error:', error);
+    log.error('[Queue] Position error', error);
     return NextResponse.json(
       { error: 'Failed to get queue position', code: 'QUEUE_ERROR' },
       { status: 500 }

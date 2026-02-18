@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
 import { validateCsrf } from '@/lib/csrf';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Route Params
@@ -145,7 +146,7 @@ async function handleCancel(
       message: 'Subscription canceled (database updated). Stripe integration pending.',
     });
   } catch (error) {
-    console.error('Error canceling subscription:', error);
+    log.error('Error canceling subscription', error);
     return NextResponse.json({ error: 'Failed to cancel subscription' }, { status: 500 });
   }
 }
@@ -188,7 +189,7 @@ async function handleSync(
       message: 'Sync attempted (stub). Stripe integration pending.',
     });
   } catch (error) {
-    console.error('Error syncing subscription:', error);
+    log.error('Error syncing subscription', error);
     return NextResponse.json({ error: 'Failed to sync subscription' }, { status: 500 });
   }
 }

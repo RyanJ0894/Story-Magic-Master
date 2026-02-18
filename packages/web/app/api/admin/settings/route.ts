@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // Validation schema for PUT body
 const UpdateSettingsSchema = z.object({
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ settings });
   } catch (error) {
-    console.error('Error fetching platform settings:', error);
+    log.error('Error fetching platform settings', error);
     return NextResponse.json({ error: 'Failed to fetch platform settings' }, { status: 500 });
   }
 }
@@ -119,7 +120,7 @@ export async function PUT(request: Request) {
     // Return the saved settings
     return NextResponse.json({ settings, updated_at: now });
   } catch (error) {
-    console.error('Error saving platform settings:', error);
+    log.error('Error saving platform settings', error);
     return NextResponse.json({ error: 'Failed to save platform settings' }, { status: 500 });
   }
 }

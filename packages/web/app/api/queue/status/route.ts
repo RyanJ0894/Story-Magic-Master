@@ -7,6 +7,7 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { getQueueStats } from '@/lib/queue/service';
+import { log } from '@/lib/logger';
 
 export async function GET() {
   const { userId } = await auth();
@@ -31,7 +32,7 @@ export async function GET() {
       byType: stats.statsByType,
     });
   } catch (error) {
-    console.error('[Queue] Status error:', error);
+    log.error('[Queue] Status error', error);
     return NextResponse.json(
       { error: 'Failed to get queue status', code: 'QUEUE_ERROR' },
       { status: 500 }

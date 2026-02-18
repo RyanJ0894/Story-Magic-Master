@@ -9,6 +9,7 @@ import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { cancelJob } from '@/lib/queue/service';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 export async function POST(
   request: Request,
@@ -82,7 +83,7 @@ export async function POST(
       message: 'Job cancelled successfully',
     });
   } catch (error) {
-    console.error('[Queue] Cancel error:', error);
+    log.error('[Queue] Cancel error', error);
     return NextResponse.json(
       { error: 'Failed to cancel job', code: 'CANCEL_ERROR' },
       { status: 500 }

@@ -2,6 +2,7 @@ import { constructWebhookEvent } from '@/lib/stripe/server';
 import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
+import { log } from '@/lib/logger';
 
 // Map Stripe price IDs to subscription tiers
 function getTierFromPriceId(priceId: string): string {
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
     try {
       event = constructWebhookEvent(body, signature);
     } catch (err) {
-      console.error('Webhook signature verification failed:', err);
+      log.error('Webhook signature verification failed', err);
       return NextResponse.json(
         { error: 'Invalid signature' },
         { status: 400 }
@@ -181,7 +182,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error('Webhook error:', error);
+    log.error('Webhook error', error);
     return NextResponse.json(
       { error: 'Webhook handler failed' },
       { status: 500 }

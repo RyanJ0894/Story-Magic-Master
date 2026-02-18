@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { validateCsrf } from '@/lib/csrf';
 import { isFeatureEnabled } from '@/lib/features';
 import { generateRewrites, getRewrites, selectRewrite } from '@/lib/adviser';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Validation
@@ -85,7 +86,7 @@ export async function GET(
       rewrites,
     });
   } catch (error) {
-    console.error('[Rewrite] Error fetching:', error);
+    log.error('[Rewrite] Error fetching', error);
     return NextResponse.json(
       {
         error: 'Failed to fetch rewrites',
@@ -155,7 +156,7 @@ export async function POST(
         selected: rewrite,
       });
     } catch (error) {
-      console.error('[Rewrite] Error selecting:', error);
+      log.error('[Rewrite] Error selecting', error);
       return NextResponse.json(
         {
           error: 'Failed to select rewrite',
@@ -198,7 +199,7 @@ export async function POST(
       rewrites,
     });
   } catch (error) {
-    console.error('[Rewrite] Error generating:', error);
+    log.error('[Rewrite] Error generating', error);
     return NextResponse.json(
       {
         error: 'Failed to generate rewrites',

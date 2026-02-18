@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { validateCsrf } from '@/lib/csrf';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Input Validation
@@ -174,7 +175,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
     return NextResponse.json({ data: updatedUser });
   } catch (error) {
-    console.error('Error updating user:', error);
+    log.error('Error updating user', error);
     return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
   }
 }

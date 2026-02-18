@@ -5,6 +5,7 @@ import { nanoid } from 'nanoid';
 import { hashPassword } from '@/lib/password';
 import { CreateShareRequestSchema } from '@/lib/api/dto';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // GET /api/shares - List all shares for current user
 export async function GET(request: NextRequest) {
@@ -133,7 +134,7 @@ export async function POST(request: NextRequest) {
       shareCode,
     });
   } catch (error) {
-    console.error('Error creating share:', error);
+    log.error('Error creating share', error);
     return NextResponse.json({ error: 'Failed to create share' }, { status: 500 });
   }
 }

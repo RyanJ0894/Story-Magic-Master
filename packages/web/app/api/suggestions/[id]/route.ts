@@ -18,6 +18,7 @@ import {
   deleteSuggestion,
   getRewrites,
 } from '@/lib/adviser';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Validation
@@ -103,7 +104,7 @@ export async function GET(
       rewrites,
     });
   } catch (error) {
-    console.error('[Suggestion] Error fetching:', error);
+    log.error('[Suggestion] Error fetching', error);
     return NextResponse.json(
       {
         error: 'Failed to fetch suggestion',
@@ -190,7 +191,7 @@ export async function PUT(
       suggestion,
     });
   } catch (error) {
-    console.error('[Suggestion] Error responding:', error);
+    log.error('[Suggestion] Error responding', error);
     return NextResponse.json(
       {
         error: 'Failed to respond to suggestion',
@@ -250,7 +251,7 @@ export async function DELETE(
       success: true,
     });
   } catch (error) {
-    console.error('[Suggestion] Error deleting:', error);
+    log.error('[Suggestion] Error deleting', error);
     return NextResponse.json(
       {
         error: 'Failed to delete suggestion',

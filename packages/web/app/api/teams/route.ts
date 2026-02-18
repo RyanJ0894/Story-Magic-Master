@@ -10,6 +10,7 @@ import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Validation
@@ -100,7 +101,7 @@ export async function GET() {
       teams: allTeams,
     });
   } catch (error) {
-    console.error('[Teams] Error listing:', error);
+    log.error('[Teams] Error listing', error);
     return NextResponse.json(
       {
         error: 'Failed to list teams',
@@ -161,7 +162,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ team }, { status: 201 });
   } catch (error) {
-    console.error('[Teams] Error creating:', error);
+    log.error('[Teams] Error creating', error);
     return NextResponse.json(
       {
         error: 'Failed to create team',

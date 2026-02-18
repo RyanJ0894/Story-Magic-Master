@@ -10,6 +10,7 @@ import { withProjectAuth } from '@/lib/api/middleware';
 import { pdf } from '@react-pdf/renderer';
 import { StoryScorePDF } from '@/lib/export/StoryScorePDF';
 import { getLatestScore } from '@/lib/scoring/service';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // GET - Generate PDF
@@ -60,7 +61,7 @@ export const GET = withProjectAuth(
         },
       });
     } catch (error) {
-      console.error('[Export] Error generating PDF:', error);
+      log.error('[Export] Error generating PDF', error);
       return NextResponse.json(
         {
           error: 'Failed to generate PDF',

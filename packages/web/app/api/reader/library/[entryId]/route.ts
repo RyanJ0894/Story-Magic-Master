@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 interface RouteParams {
   params: Promise<{ entryId: string }>;
@@ -119,7 +120,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ entry });
   } catch (error) {
-    console.error('Error updating entry:', error);
+    log.error('Error updating entry', error);
     return NextResponse.json({ error: 'Failed to update entry' }, { status: 500 });
   }
 }
@@ -156,7 +157,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error removing entry:', error);
+    log.error('Error removing entry', error);
     return NextResponse.json({ error: 'Failed to remove entry' }, { status: 500 });
   }
 }

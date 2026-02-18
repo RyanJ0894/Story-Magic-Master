@@ -14,6 +14,7 @@ import {
   getRevisionTimeline,
   createRevision,
 } from '@/lib/revisions';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Validation
@@ -51,7 +52,7 @@ export const GET = withProjectAuth(
       const revisions = await getRevisions(projectId);
       return NextResponse.json({ revisions });
     } catch (error) {
-      console.error('[Revisions] Error fetching:', error);
+      log.error('[Revisions] Error fetching', error);
       return NextResponse.json(
         {
           error: 'Failed to fetch revisions',
@@ -111,7 +112,7 @@ export const POST = withProjectAuth(
         revision,
       });
     } catch (error) {
-      console.error('[Revisions] Error creating:', error);
+      log.error('[Revisions] Error creating', error);
       return NextResponse.json(
         {
           error: 'Failed to create revision',

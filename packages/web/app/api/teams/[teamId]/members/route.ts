@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { sendTeamInviteEmail } from '@/lib/email';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Validation
@@ -100,7 +101,7 @@ export async function GET(
       isOwner,
     });
   } catch (error) {
-    console.error('[TeamMembers] Error listing:', error);
+    log.error('[TeamMembers] Error listing', error);
     return NextResponse.json(
       {
         error: 'Failed to list members',
@@ -227,7 +228,7 @@ export async function POST(
     });
 
     if (!emailResult.success) {
-      console.error('[TeamMembers] Email send failed:', emailResult.error);
+      log.error('[TeamMembers] Email send failed', undefined, { error: emailResult.error });
       // Don't fail the whole operation, just log
     }
 
@@ -253,7 +254,7 @@ export async function POST(
       { status: 201 }
     );
   } catch (error) {
-    console.error('[TeamMembers] Error inviting:', error);
+    log.error('[TeamMembers] Error inviting', error);
     return NextResponse.json(
       {
         error: 'Failed to invite member',
@@ -333,7 +334,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[TeamMembers] Error removing:', error);
+    log.error('[TeamMembers] Error removing', error);
     return NextResponse.json(
       {
         error: 'Failed to remove member',

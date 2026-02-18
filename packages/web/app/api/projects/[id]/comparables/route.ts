@@ -9,6 +9,7 @@ import { isFeatureEnabled } from '@/lib/features';
 import { withProjectAuth } from '@/lib/api/middleware';
 import { searchComparables } from '@/lib/comparable/service';
 import { ProductionStatus } from '@/lib/comparable/types';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // GET - Search Comparables
@@ -44,7 +45,7 @@ export const GET = withProjectAuth(
         matchCount: comparables.length,
       });
     } catch (error) {
-      console.error('[Comparables] Error:', error);
+      log.error('[Comparables] Error', error);
 
       const message = error instanceof Error ? error.message : 'Failed to search comparables';
 

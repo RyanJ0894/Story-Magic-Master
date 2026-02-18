@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
+import { log } from '@/lib/logger';
 
 // Query params schema
 const GetAuditLogsQuerySchema = z.object({
@@ -99,7 +100,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    console.error('Error fetching audit logs:', error);
+    log.error('Error fetching audit logs', error);
     return NextResponse.json({ error: 'Failed to fetch audit logs' }, { status: 500 });
   }
 }

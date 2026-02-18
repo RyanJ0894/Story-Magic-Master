@@ -9,6 +9,7 @@
 
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
+import { log } from '@/lib/logger';
 
 // Voice type matching the frontend
 interface Voice {
@@ -70,7 +71,7 @@ async function fetchElevenLabsVoices(): Promise<Voice[]> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
 
   if (!apiKey) {
-    console.warn('[Voices API] No ElevenLabs API key, using curated voices');
+    log.warn('[Voices API] No ElevenLabs API key, using curated voices');
     return CURATED_VOICES;
   }
 
@@ -83,7 +84,7 @@ async function fetchElevenLabsVoices(): Promise<Voice[]> {
     });
 
     if (!response.ok) {
-      console.error('[Voices API] ElevenLabs API error:', response.status);
+      log.error('[Voices API] ElevenLabs API error', undefined, { status: response.status });
       return CURATED_VOICES;
     }
 
@@ -119,7 +120,7 @@ async function fetchElevenLabsVoices(): Promise<Voice[]> {
     console.log(`[Voices API] Fetched ${voices.length} voices (${voices.filter(v => v.is_custom).length} custom)`);
     return voices;
   } catch (error) {
-    console.error('[Voices API] Failed to fetch from ElevenLabs:', error);
+    log.error('[Voices API] Failed to fetch from ElevenLabs', error);
     return CURATED_VOICES;
   }
 }
@@ -192,7 +193,7 @@ export async function GET(request: Request) {
       cached: Date.now() - cacheTimestamp < 1000 ? false : true,
     });
   } catch (error) {
-    console.error('[Voices API] Error:', error);
+    log.error('[Voices API] Error', error);
     return NextResponse.json(
       {
         error: 'Failed to fetch voices',

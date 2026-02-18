@@ -9,6 +9,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // GET - List alerts
@@ -106,7 +107,7 @@ export async function GET(request: Request) {
       unreadCount,
     });
   } catch (error) {
-    console.error('[Alerts] Error listing:', error);
+    log.error('[Alerts] Error listing', error);
     return NextResponse.json(
       {
         error: 'Failed to list alerts',
@@ -173,7 +174,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Alerts] Error marking read:', error);
+    log.error('[Alerts] Error marking read', error);
     return NextResponse.json(
       {
         error: 'Failed to mark alerts as read',

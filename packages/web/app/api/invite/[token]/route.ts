@@ -9,6 +9,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // GET - Get invite details
@@ -81,7 +82,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('[Invite] Error getting:', error);
+    log.error('[Invite] Error getting', error);
     return NextResponse.json(
       {
         error: 'Failed to get invite',
@@ -196,7 +197,7 @@ export async function POST(
       },
     });
   } catch (error) {
-    console.error('[Invite] Error accepting:', error);
+    log.error('[Invite] Error accepting', error);
     return NextResponse.json(
       {
         error: 'Failed to accept invite',

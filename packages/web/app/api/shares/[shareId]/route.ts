@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { hashPassword } from '@/lib/password';
 import { UpdateShareRequestSchema } from '@/lib/api/dto';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 interface RouteParams {
   params: Promise<{ shareId: string }>;
@@ -104,7 +105,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ share });
   } catch (error) {
-    console.error('Error updating share:', error);
+    log.error('Error updating share', error);
     return NextResponse.json({ error: 'Failed to update share' }, { status: 500 });
   }
 }
@@ -141,7 +142,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting share:', error);
+    log.error('Error deleting share', error);
     return NextResponse.json({ error: 'Failed to delete share' }, { status: 500 });
   }
 }

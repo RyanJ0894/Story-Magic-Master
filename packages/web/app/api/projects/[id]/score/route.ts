@@ -16,6 +16,7 @@ import {
   getScoreHistory,
   type GenerateScoreResponse,
 } from '@/lib/scoring';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Input Validation
@@ -61,7 +62,7 @@ export const GET = withProjectAuth(
         return NextResponse.json({ score });
       }
     } catch (error) {
-      console.error('[StoryScore] Error fetching score:', error);
+      log.error('[StoryScore] Error fetching score', error);
       return NextResponse.json(
         {
           error: 'Failed to fetch score',
@@ -143,7 +144,7 @@ export const POST = withProjectAuth(
 
       return NextResponse.json(response);
     } catch (error) {
-      console.error('[StoryScore] Error generating score:', error);
+      log.error('[StoryScore] Error generating score', error);
 
       const response: GenerateScoreResponse = {
         success: false,

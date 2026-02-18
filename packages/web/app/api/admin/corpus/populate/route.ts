@@ -9,6 +9,7 @@ import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { populateMissingEmbeddings } from '@/lib/comparable/service';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // POST - Populate Missing Embeddings
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
       message: `Generated embeddings for ${updatedCount} scripts`,
     });
   } catch (error) {
-    console.error('[Admin] Populate embeddings error:', error);
+    log.error('[Admin] Populate embeddings error', error);
     return NextResponse.json(
       {
         error: 'Failed to populate embeddings',

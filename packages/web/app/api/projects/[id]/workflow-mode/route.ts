@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
+import { log } from '@/lib/logger';
 
 export async function POST(
   request: NextRequest,
@@ -49,7 +50,7 @@ export async function POST(
 
     return NextResponse.json({ success: true, mode });
   } catch (error) {
-    console.error('Error updating workflow mode:', error);
+    log.error('Error updating workflow mode', error);
     return NextResponse.json(
       { error: 'Failed to update workflow mode' },
       { status: 500 }

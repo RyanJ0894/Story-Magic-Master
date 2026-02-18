@@ -17,6 +17,7 @@ import {
   updateRevisionLabel,
   deleteRevision,
 } from '@/lib/revisions';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Validation
@@ -90,7 +91,7 @@ export async function GET(
 
     return NextResponse.json({ revision });
   } catch (error) {
-    console.error('[Revision] Error fetching:', error);
+    log.error('[Revision] Error fetching', error);
     return NextResponse.json(
       {
         error: 'Failed to fetch revision',
@@ -172,7 +173,7 @@ export async function PUT(
       revision,
     });
   } catch (error) {
-    console.error('[Revision] Error updating:', error);
+    log.error('[Revision] Error updating', error);
     return NextResponse.json(
       {
         error: 'Failed to update revision',
@@ -229,7 +230,7 @@ export async function DELETE(
     await deleteRevision(revisionId);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Revision] Error deleting:', error);
+    log.error('[Revision] Error deleting', error);
     return NextResponse.json(
       {
         error: 'Failed to delete revision',
