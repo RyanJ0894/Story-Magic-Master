@@ -23,13 +23,13 @@ export const GET = withAdminAuth(async (request, { userId, prisma }) => {
   // Parse query params
   const { searchParams } = new URL(request.url);
   const parseResult = GetAuditLogsQuerySchema.safeParse({
-    page: searchParams.get('page'),
-    limit: searchParams.get('limit'),
-    action: searchParams.get('action'),
-    resource: searchParams.get('resource'),
-    userId: searchParams.get('userId'),
-    startDate: searchParams.get('startDate'),
-    endDate: searchParams.get('endDate'),
+    page: searchParams.get('page') ?? undefined,
+    limit: searchParams.get('limit') ?? undefined,
+    action: searchParams.get('action') ?? undefined,
+    resource: searchParams.get('resource') ?? undefined,
+    userId: searchParams.get('userId') ?? undefined,
+    startDate: searchParams.get('startDate') ?? undefined,
+    endDate: searchParams.get('endDate') ?? undefined,
   });
 
   if (!parseResult.success) {

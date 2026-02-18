@@ -22,29 +22,223 @@ vi.mock('@clerk/nextjs/server', () => ({
   auth: () => mockAuth(),
 }));
 
-// Mock Prisma - include all models needed
+// Mock Prisma - all models from prisma/schema.prisma with standard CRUD methods
 const mockPrisma = {
-  alert: {
-    findMany: vi.fn(),
-    count: vi.fn(),
-    updateMany: vi.fn(),
-  },
   profile: {
     findMany: vi.fn(),
-    findUnique: vi.fn(),
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+    upsert: vi.fn(),
+  },
+  project: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+  },
+  job: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+  },
+  jobLog: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+  },
+  audioOutput: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+  },
+  usage: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+    upsert: vi.fn(),
+  },
+  subscription: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+  },
+  purchase: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+  },
+  scriptShare: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+  },
+  readerLibrary: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+  },
+  contentAccessLog: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+  },
+  storyScore: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+  },
+  suggestion: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+  },
+  rewrite: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+  },
+  revision: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+  },
+  scriptCorpus: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
   },
   team: {
     findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
     create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
   },
   teamMember: {
     findMany: vi.fn(),
-  },
-  job: {
+    findFirst: vi.fn(),
     findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+  },
+  teamShare: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+  },
+  alert: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+    updateMany: vi.fn(),
+  },
+  alertPreference: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+    upsert: vi.fn(),
+  },
+  auditLog: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+  },
+  platformSetting: {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    count: vi.fn(),
+    upsert: vi.fn(),
   },
   $queryRaw: vi.fn(),
+  $executeRaw: vi.fn(),
+  $transaction: vi.fn(),
 };
 vi.mock('@/lib/db', () => ({
   prisma: mockPrisma,
@@ -652,12 +846,41 @@ describe('GET /api/health', () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.status).toBeDefined();
-    expect(data.timestamp).toBeDefined();
-    expect(data.version).toBeDefined();
+
+    // Verify top-level response structure
+    expect(data).toEqual(
+      expect.objectContaining({
+        status: expect.stringMatching(/^(healthy|degraded|unhealthy)$/),
+        timestamp: expect.any(String),
+        version: expect.any(String),
+        uptime: expect.any(Number),
+        checks: expect.any(Array),
+      })
+    );
+
+    // Validate timestamp is a valid ISO date
+    expect(new Date(data.timestamp).toISOString()).toBe(data.timestamp);
+
+    // Uptime should be non-negative
     expect(data.uptime).toBeGreaterThanOrEqual(0);
-    expect(data.checks).toBeInstanceOf(Array);
-    expect(data.checks.length).toBeGreaterThanOrEqual(3);
+
+    // Should have exactly 6 checks (database, auth, storage, elevenlabs, openai, orchestrator)
+    expect(data.checks).toHaveLength(6);
+
+    // Every check must have at minimum name and status fields
+    for (const check of data.checks) {
+      expect(check).toEqual(
+        expect.objectContaining({
+          name: expect.any(String),
+          status: expect.stringMatching(/^(healthy|degraded|unhealthy)$/),
+        })
+      );
+      // latencyMs should be a number when present
+      if (check.latencyMs !== undefined) {
+        expect(typeof check.latencyMs).toBe('number');
+        expect(check.latencyMs).toBeGreaterThanOrEqual(0);
+      }
+    }
   });
 
   it('returns 503 when database is unhealthy', async () => {
@@ -676,6 +899,22 @@ describe('GET /api/health', () => {
     // Database is a critical service, so overall should be unhealthy -> 503
     expect(res.status).toBe(503);
     expect(data.status).toBe('unhealthy');
+
+    // Verify the database check is reported as unhealthy
+    const dbCheck = data.checks.find((c: { name: string }) => c.name === 'database');
+    expect(dbCheck).toBeDefined();
+    expect(dbCheck.status).toBe('unhealthy');
+
+    // Auth check should also be unhealthy (keys were removed)
+    const authCheck = data.checks.find((c: { name: string }) => c.name === 'auth');
+    expect(authCheck).toBeDefined();
+    expect(authCheck.status).toBe('unhealthy');
+
+    // Response structure should still be well-formed even when unhealthy
+    expect(data.timestamp).toBeDefined();
+    expect(data.version).toBeDefined();
+    expect(data.checks).toBeInstanceOf(Array);
+    expect(data.checks.length).toBeGreaterThanOrEqual(3);
   });
 
   it('includes all service checks in response', async () => {
@@ -685,12 +924,43 @@ describe('GET /api/health', () => {
     const res = await getHealth();
     const data = await res.json();
 
+    const expectedServices = ['database', 'auth', 'storage', 'elevenlabs', 'openai', 'orchestrator'];
     const checkNames = data.checks.map((c: { name: string }) => c.name);
-    expect(checkNames).toContain('database');
-    expect(checkNames).toContain('auth');
-    expect(checkNames).toContain('storage');
-    expect(checkNames).toContain('elevenlabs');
-    expect(checkNames).toContain('openai');
-    expect(checkNames).toContain('orchestrator');
+
+    // Every expected service must be present
+    for (const service of expectedServices) {
+      expect(checkNames).toContain(service);
+    }
+
+    // No duplicate service names
+    const uniqueNames = new Set(checkNames);
+    expect(uniqueNames.size).toBe(checkNames.length);
+
+    // Each check must have the standard shape (name, status, optional latencyMs)
+    for (const check of data.checks) {
+      expect(check.name).toEqual(expect.any(String));
+      expect(check.status).toEqual(expect.stringMatching(/^(healthy|degraded|unhealthy)$/));
+    }
+  });
+
+  it('returns degraded when non-critical service is unhealthy', async () => {
+    // Database healthy
+    mockPrisma.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
+
+    // External services fail (elevenlabs, openai, orchestrator)
+    mockFetch.mockRejectedValue(new Error('Network error'));
+
+    const res = await getHealth();
+    const data = await res.json();
+
+    // Non-critical failures should result in degraded, not unhealthy
+    expect(res.status).toBe(200);
+    expect(data.status).toBe('degraded');
+
+    // Database and auth should still be healthy
+    const dbCheck = data.checks.find((c: { name: string }) => c.name === 'database');
+    expect(dbCheck.status).toBe('healthy');
+    const authCheck = data.checks.find((c: { name: string }) => c.name === 'auth');
+    expect(authCheck.status).toBe('healthy');
   });
 });

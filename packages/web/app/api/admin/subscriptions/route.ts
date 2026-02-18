@@ -21,10 +21,10 @@ export const GET = withAdminAuth(async (request, { userId, prisma }) => {
   // Parse query params
   const { searchParams } = new URL(request.url);
   const parseResult = GetSubscriptionsQuerySchema.safeParse({
-    page: searchParams.get('page'),
-    limit: searchParams.get('limit'),
-    status: searchParams.get('status'),
-    plan: searchParams.get('plan'),
+    page: searchParams.get('page') ?? undefined,
+    limit: searchParams.get('limit') ?? undefined,
+    status: searchParams.get('status') ?? undefined,
+    plan: searchParams.get('plan') ?? undefined,
   });
 
   if (!parseResult.success) {

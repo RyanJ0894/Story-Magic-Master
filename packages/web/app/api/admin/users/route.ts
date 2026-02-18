@@ -30,12 +30,12 @@ export const GET = withAdminAuth(async (request, { userId, prisma }) => {
   // Parse query params
   const { searchParams } = new URL(request.url);
   const parseResult = GetUsersQuerySchema.safeParse({
-    page: searchParams.get('page'),
-    limit: searchParams.get('limit'),
-    search: searchParams.get('search'),
-    type: searchParams.get('type'),
-    sortBy: searchParams.get('sortBy'),
-    sortOrder: searchParams.get('sortOrder'),
+    page: searchParams.get('page') ?? undefined,
+    limit: searchParams.get('limit') ?? undefined,
+    search: searchParams.get('search') ?? undefined,
+    type: searchParams.get('type') ?? undefined,
+    sortBy: searchParams.get('sortBy') ?? undefined,
+    sortOrder: searchParams.get('sortOrder') ?? undefined,
   });
 
   if (!parseResult.success) {
