@@ -86,6 +86,12 @@ export default function NewProjectPage() {
       return;
     }
 
+    if (scriptText.trim().length < 100) {
+      toast.error('Script must be at least 100 characters long');
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await apiFetch('/api/projects', {
         method: 'POST',

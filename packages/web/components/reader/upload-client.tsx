@@ -291,6 +291,8 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
                   ? 'border-violet-500 bg-violet-50 dark:bg-violet-950'
                   : 'border-border hover:border-violet-400'
               }`}
+              role="button"
+              aria-label="Upload screenplay file"
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -307,6 +309,7 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
                   type="file"
                   accept=".pdf,application/pdf"
                   className="hidden"
+                  aria-label="Select PDF screenplay file"
                   onChange={handleFileSelect}
                 />
                 <Button variant="outline" asChild>

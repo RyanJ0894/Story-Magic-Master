@@ -69,9 +69,11 @@ function PricingContent() {
         </p>
 
         {/* Interval Toggle */}
-        <div className="mt-8 flex items-center justify-center gap-4">
+        <div className="mt-8 flex items-center justify-center gap-4" role="radiogroup" aria-label="Billing interval">
           <button
             onClick={() => setInterval('monthly')}
+            role="radio"
+            aria-checked={interval === 'monthly'}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
               interval === 'monthly'
                 ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300'
@@ -82,6 +84,8 @@ function PricingContent() {
           </button>
           <button
             onClick={() => setInterval('yearly')}
+            role="radio"
+            aria-checked={interval === 'yearly'}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
               interval === 'yearly'
                 ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300'
