@@ -359,7 +359,7 @@ export default function GenerateButton({
     <Button
       onClick={handleGenerate}
       disabled={loading || status === 'processing'}
-      className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
+      className="brand-gradient brand-gradient-hover"
       size="lg"
       data-testid="generate-button"
     >

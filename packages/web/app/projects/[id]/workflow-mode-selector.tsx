@@ -214,7 +214,7 @@ export function WorkflowModeSelector({
           size="lg"
           disabled={!selectedMode || isSubmitting}
           onClick={handleContinue}
-          className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 min-w-[200px]"
+          className="brand-gradient brand-gradient-hover min-w-[200px]"
         >
           {isSubmitting ? (
             <>

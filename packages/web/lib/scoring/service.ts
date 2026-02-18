@@ -21,10 +21,14 @@ import {
 } from './types';
 import { buildScoringPrompt, validateLLMResponse } from './prompts';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy-initialized OpenAI client (avoids crash if OPENAI_API_KEY is unset at import time)
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return _openai;
+}
 
 /**
  * Generate a new score for a project's script
@@ -50,7 +54,7 @@ export async function generateScore(
   );
 
   // Call OpenAI
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model,
     messages: [
       {

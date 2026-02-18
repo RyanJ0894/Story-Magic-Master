@@ -12,10 +12,10 @@ function getStripe(): Stripe {
   return new Stripe(key);
 }
 
-// POST /api/reader/upload/create-payment - Create payment intent for upload
+// POST /api/reader/upload/create-payment - Create Stripe Checkout Session for upload
 export const POST = withAuth(async (request, { userId, prisma }) => {
   const body = await request.json();
-  const { price, needsOCR } = body;
+  const { price, needsOCR, scriptName } = body;
 
   // Validate price
   const expectedPrice = needsOCR ? 8 : 5;
@@ -25,19 +25,31 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
 
   try {
     const stripe = getStripe();
+    const origin = request.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || '';
 
-    // Create Stripe payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: price * 100, // Convert to cents
-      currency: 'usd',
+    // Create Stripe Checkout Session (hosted payment page)
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            unit_amount: price * 100,
+            product_data: {
+              name: `Script Processing: ${scriptName || 'Upload'}`,
+              description: needsOCR ? 'OCR + standard processing' : 'Standard processing',
+            },
+          },
+          quantity: 1,
+        },
+      ],
       metadata: {
-        user_id: userId,
+        userId,
         type: 'reader_upload',
-        needs_ocr: String(needsOCR),
+        needsOCR: String(needsOCR),
       },
-      automatic_payment_methods: {
-        enabled: true,
-      },
+      success_url: `${origin}/reader/upload/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/reader/upload`,
     });
 
     // Record purchase intent
@@ -46,17 +58,14 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
         userId,
         purchaseType: needsOCR ? 'upload_ocr' : 'upload',
         amountCents: price * 100,
-        stripePaymentIntentId: paymentIntent.id,
+        stripePaymentIntentId: session.id,
         status: 'pending',
       },
     });
 
-    return NextResponse.json({
-      clientSecret: paymentIntent.client_secret,
-      paymentIntentId: paymentIntent.id,
-    });
+    return NextResponse.json({ url: session.url });
   } catch (error) {
-    log.error('Error creating payment intent', error);
+    log.error('Error creating checkout session', error);
     return NextResponse.json(
       { error: 'Failed to create payment' },
       { status: 500 }

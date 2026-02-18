@@ -179,7 +179,7 @@ export default function InvitePage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center">
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg brand-gradient-br flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
               <span className="font-bold text-lg text-foreground">Story Magic</span>
@@ -246,7 +246,7 @@ export default function InvitePage() {
               <Button
                 onClick={handleAccept}
                 disabled={accepting}
-                className="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
+                className="w-full brand-gradient brand-gradient-hover"
               >
                 {accepting ? (
                   <>

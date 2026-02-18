@@ -81,7 +81,7 @@ function ScoreAnalysisStep({ context }: { context: WizardContext }) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-center">
-          <div className="w-32 h-32 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+          <div className="w-32 h-32 rounded-full brand-gradient-br flex items-center justify-center">
             <span className="text-4xl font-bold text-white">{score.overallScore}</span>
           </div>
         </div>

@@ -4,6 +4,8 @@
  * Types for the job queue system with FIFO processing and priority support.
  */
 
+import { z } from 'zod';
+
 // =============================================================================
 // Job Types
 // =============================================================================
@@ -42,6 +44,18 @@ export interface JobProgress {
   retryAttempt?: number;
   updatedAt?: string;
 }
+
+// Zod schemas for JSON column validation
+export const jobProgressSchema = z.object({
+  step: z.string(),
+  percent: z.number().min(0).max(100),
+  details: z.string().optional(),
+  error: z.string().optional(),
+  retryAttempt: z.number().int().min(0).optional(),
+  updatedAt: z.string().optional(),
+});
+
+export const jobResultSchema = z.record(z.string(), z.unknown());
 
 // =============================================================================
 // Queue Operations
@@ -124,7 +138,7 @@ export interface WorkerStatus {
 }
 
 // =============================================================================
-// Database Row Types (for Supabase)
+// Database Row Types
 // =============================================================================
 
 export interface JobRow {

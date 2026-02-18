@@ -128,7 +128,7 @@ export default function NewProjectPage() {
             </Link>
             <div className="h-6 w-px bg-border" />
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg brand-gradient-br flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
               <h1 className="font-semibold text-foreground">New Project</h1>
@@ -241,7 +241,7 @@ The door CHIMES. MARCUS (40s, distinguished) enters...`}
                   <Button
                     type="submit"
                     disabled={loading || !name || !scriptText}
-                    className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
+                    className="brand-gradient brand-gradient-hover"
                     data-testid="create-project-button"
                   >
                     {loading ? (
@@ -296,7 +296,7 @@ The door CHIMES. MARCUS (40s, distinguished) enters...`}
             <Button
               onClick={generateDemoScript}
               disabled={generatingScript || !aiPrompt.trim()}
-              className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
+              className="brand-gradient brand-gradient-hover"
             >
               {generatingScript ? (
                 <>

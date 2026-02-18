@@ -9,6 +9,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
+import { rateLimit, getClientIp } from '@/lib/api/rate-limit';
 import { log } from '@/lib/logger';
 
 // =============================================================================
@@ -102,6 +103,11 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  // Rate limit invite acceptance (strict — prevents brute-force token guessing)
+  const ip = getClientIp(request);
+  const limited = await rateLimit(`invite:${ip}`, 'strict');
+  if (limited) return limited;
+
   const csrfError = validateCsrf(request);
   if (csrfError) {
     return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });

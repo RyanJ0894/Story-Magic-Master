@@ -20,6 +20,8 @@ import {
   QueuePosition,
   QueueStats,
   QueueSummary,
+  jobProgressSchema,
+  jobResultSchema,
 } from './types';
 
 // =============================================================================
@@ -40,6 +42,18 @@ export async function enqueue(options: EnqueueOptions): Promise<EnqueueResult> {
     metadata,
   } = options;
 
+  const initialProgress = {
+    step: 'queued',
+    percent: 0,
+    details: 'Waiting in queue...',
+    updatedAt: new Date().toISOString(),
+  };
+  jobProgressSchema.parse(initialProgress);
+
+  if (metadata) {
+    jobResultSchema.parse({ metadata });
+  }
+
   const job = await prisma.job.create({
     data: {
       projectId,
@@ -49,12 +63,7 @@ export async function enqueue(options: EnqueueOptions): Promise<EnqueueResult> {
       priority,
       maxRetries,
       estimatedDurationMs: estimatedDurationMs ?? null,
-      progress: {
-        step: 'queued',
-        percent: 0,
-        details: 'Waiting in queue...',
-        updated_at: new Date().toISOString(),
-      },
+      progress: initialProgress,
       result: metadata ? ({ metadata } as Record<string, unknown> as Prisma.InputJsonValue) : Prisma.JsonNull,
     },
   });
@@ -127,6 +136,10 @@ export async function completeJob(
   jobId: string,
   result?: Record<string, unknown>
 ): Promise<boolean> {
+  if (result) {
+    jobResultSchema.parse(result);
+  }
+
   const dbResult = await prisma.$queryRaw<Array<{ complete_job: boolean }>>`
     SELECT complete_job(${jobId}::uuid, ${result ? JSON.stringify(result) : null}::jsonb)
   `;
@@ -168,13 +181,16 @@ export async function updateJobProgress(
   jobId: string,
   progress: Partial<JobProgress>
 ): Promise<void> {
+  const fullProgress = {
+    ...progress,
+    updatedAt: new Date().toISOString(),
+  };
+  jobProgressSchema.parse(fullProgress);
+
   await prisma.job.update({
     where: { id: jobId },
     data: {
-      progress: {
-        ...progress,
-        updated_at: new Date().toISOString(),
-      },
+      progress: fullProgress,
     },
   });
 }
@@ -378,12 +394,12 @@ export async function cancelJob(jobId: string, userId: string): Promise<boolean>
       status: 'failed',
       error: 'Cancelled by user',
       completedAt: new Date(),
-      progress: {
+      progress: jobProgressSchema.parse({
         step: 'cancelled',
         percent: 0,
         error: 'Cancelled by user',
-        updated_at: new Date().toISOString(),
-      },
+        updatedAt: new Date().toISOString(),
+      }),
     },
   });
 

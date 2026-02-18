@@ -20,6 +20,21 @@ body {
   min-height: 100vh;
 }
 
+@layer components {
+  .brand-gradient {
+    @apply bg-gradient-to-r from-violet-600 to-purple-600;
+  }
+  .brand-gradient-hover {
+    @apply hover:from-violet-700 hover:to-purple-700;
+  }
+  .brand-gradient-br {
+    @apply bg-gradient-to-br from-violet-500 to-purple-600;
+  }
+  .brand-gradient-bar {
+    @apply bg-gradient-to-r from-violet-500 to-purple-600;
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

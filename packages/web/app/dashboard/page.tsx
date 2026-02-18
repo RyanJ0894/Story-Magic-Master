@@ -76,7 +76,7 @@ export default async function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <Link href="/dashboard" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg brand-gradient-br flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
               <span className="font-bold text-lg text-foreground">Story Magic</span>
@@ -125,7 +125,7 @@ export default async function DashboardPage() {
             </p>
           </div>
           <Link href="/projects/new">
-            <Button className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700" data-testid="new-project-button">
+            <Button className="brand-gradient brand-gradient-hover" data-testid="new-project-button">
               <Plus className="w-4 h-4 mr-2" />
               New Project
             </Button>
@@ -191,7 +191,7 @@ export default async function DashboardPage() {
                 Create your first project to start transforming scripts into immersive audio experiences.
               </p>
               <Link href="/projects/new">
-                <Button className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700">
+                <Button className="brand-gradient brand-gradient-hover">
                   <Plus className="w-4 h-4 mr-2" />
                   Create Your First Project
                 </Button>

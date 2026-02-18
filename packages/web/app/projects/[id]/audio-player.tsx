@@ -219,7 +219,7 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
               className="h-2 bg-muted rounded-full cursor-pointer overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
             >
               <div
-                className="h-full bg-gradient-to-r from-violet-500 to-purple-600 rounded-full transition-all duration-100 pointer-events-none"
+                className="h-full brand-gradient-bar rounded-full transition-all duration-100 pointer-events-none"
                 style={{ width: `${progress}%` }}
               />
             </div>

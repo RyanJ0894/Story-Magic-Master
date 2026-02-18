@@ -125,13 +125,11 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
 
   const handlePayAndProcess = async () => {
     setIsUploading(true);
-    setStep('processing');
     setError(null);
 
     try {
-      // Step 1: Create payment intent
-      setProcessingStatus('Creating payment...');
-      setUploadProgress(10);
+      // Step 1: Create Stripe Checkout Session and redirect
+      setProcessingStatus('Redirecting to payment...');
 
       const paymentResponse = await apiFetch('/api/reader/upload/create-payment', {
         method: 'POST',
@@ -139,12 +137,23 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
         body: JSON.stringify({
           price,
           needsOCR: preview?.needsOCR,
+          scriptName,
         }),
       });
 
       if (!paymentResponse.ok) {
         throw new Error('Payment failed');
       }
+
+      const { url } = await paymentResponse.json();
+      if (url) {
+        window.location.href = url;
+        return;
+      }
+
+      // Fallback: if no URL returned, proceed with processing
+      setStep('processing');
+      setUploadProgress(10);
 
       // Step 2: Upload file
       setProcessingStatus('Uploading script...');
@@ -427,23 +436,9 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
               </div>
             </div>
 
-            {/* Payment form placeholder - would integrate Stripe Elements */}
-            <div className="p-4 border rounded-lg space-y-4">
-              <div className="space-y-2">
-                <Label>Card Number</Label>
-                <Input placeholder="1234 5678 9012 3456" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Expiry</Label>
-                  <Input placeholder="MM/YY" />
-                </div>
-                <div className="space-y-2">
-                  <Label>CVC</Label>
-                  <Input placeholder="123" />
-                </div>
-              </div>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              You&apos;ll be redirected to Stripe&apos;s secure checkout to complete your payment.
+            </p>
 
             <div className="flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => setStep('preview')}>
@@ -456,7 +451,7 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
             </div>
 
             <p className="text-xs text-center text-muted-foreground">
-              Your payment is secured with 256-bit SSL encryption
+              Payments are securely handled by Stripe
             </p>
           </CardContent>
         </Card>
