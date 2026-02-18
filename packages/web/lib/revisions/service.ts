@@ -108,8 +108,8 @@ export async function createRevision(
         createdBy: options?.userId || null,
       },
     });
-  } catch (err) {
-    throw new Error(`Failed to create revision: ${err instanceof Error ? err.message : String(err)}`);
+  } catch (error) {
+    throw new Error(`Failed to create revision: ${error instanceof Error ? error.message : String(error)}`);
   }
 
   // Also update the project's script_text
@@ -157,8 +157,8 @@ export async function createRevision(
           });
         }
       }
-    } catch (err) {
-      log.error('Failed to auto-score revision', err);
+    } catch (error) {
+      log.error('Failed to auto-score revision', error);
       // Don't throw - revision was created successfully
     }
   }
@@ -358,8 +358,8 @@ export async function updateRevisionLabel(
     });
 
     return rowToRevision(toRevisionRow(data));
-  } catch (err) {
-    throw new Error(`Failed to update revision: ${err instanceof Error ? err.message : String(err)}`);
+  } catch (error) {
+    throw new Error(`Failed to update revision: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -385,7 +385,7 @@ export async function deleteRevision(revisionId: string): Promise<void> {
     await prisma.revision.delete({
       where: { id: revisionId },
     });
-  } catch (err) {
-    throw new Error(`Failed to delete revision: ${err instanceof Error ? err.message : String(err)}`);
+  } catch (error) {
+    throw new Error(`Failed to delete revision: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

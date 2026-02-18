@@ -186,8 +186,8 @@ export async function rateLimit(
       }
       return null;
     }
-  } catch (err) {
-    log.error('Redis rate limit error, falling back to in-memory', err);
+  } catch (error) {
+    log.error('Redis rate limit error, falling back to in-memory', error);
   }
 
   // In-memory fallback

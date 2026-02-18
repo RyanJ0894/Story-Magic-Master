@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { nanoid } from 'nanoid';
 import { log } from '@/lib/logger';
+import { orchestratorGenerate } from '@/lib/orchestrator-fetch';
 import fs from 'fs';
 import path from 'path';
 
@@ -96,8 +97,6 @@ async function triggerProcessing(
   filePath: string,
   needsOCR: boolean,
 ) {
-  const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:22002';
-
   try {
     // Update job status to processing
     await prisma.job.update({
@@ -150,17 +149,9 @@ async function triggerProcessing(
     });
 
     // Call orchestrator to parse into director JSON
-    const serviceKey = process.env.SERVICE_SECRET_KEY;
-    const response = await fetch(`${orchestratorUrl}/generate-scenes`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(serviceKey && { 'X-Service-Key': serviceKey }),
-      },
-      body: JSON.stringify({
-        project_id: projectId,
-        script_text: pdfText,
-      }),
+    const response = await orchestratorGenerate('/generate-scenes', {
+      project_id: projectId,
+      script_text: pdfText,
     });
 
     if (!response.ok) {

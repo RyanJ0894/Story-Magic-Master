@@ -4,6 +4,24 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     await import('./sentry.server.config');
 
+    // Validate environment variables at startup
+    const { validateEnv } = await import('./lib/env-validation');
+    const { valid, errors, warnings } = validateEnv();
+
+    if (!valid) {
+      for (const error of errors) {
+        log.error(`[Env Validation] MISSING REQUIRED: ${error}`);
+      }
+    }
+
+    for (const warning of warnings) {
+      log.warn(`[Env Validation] Optional: ${warning}`);
+    }
+
+    if (valid) {
+      log.info('[Env Validation] All required environment variables are set');
+    }
+
     // Start the queue worker for background job processing.
     // The worker polls for 'queued' jobs and processes them with retry + lock support.
     // Only runs in persistent Node.js processes (Render.com), not in edge or build contexts.

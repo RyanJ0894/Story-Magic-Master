@@ -221,8 +221,8 @@ export async function generateScore(
 
     // Return with database-generated ID
     return rowToStoryScore(toStoryScoreRow(insertedRow));
-  } catch (err) {
-    throw new Error(`Failed to save score: ${err instanceof Error ? err.message : String(err)}`);
+  } catch (error) {
+    throw new Error(`Failed to save score: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -262,8 +262,8 @@ export async function deleteScore(scoreId: string): Promise<void> {
     await prisma.storyScore.delete({
       where: { id: scoreId },
     });
-  } catch (err) {
-    throw new Error(`Failed to delete score: ${err instanceof Error ? err.message : String(err)}`);
+  } catch (error) {
+    throw new Error(`Failed to delete score: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 

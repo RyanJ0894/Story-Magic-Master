@@ -201,8 +201,8 @@ export async function generateSuggestions(
       });
 
       suggestions.push(rowToSuggestion(toSuggestionRow(inserted)));
-    } catch (err) {
-      log.error('Failed to insert suggestion', err);
+    } catch (error) {
+      log.error('Failed to insert suggestion', error);
       continue;
     }
   }
@@ -280,8 +280,8 @@ export async function respondToSuggestion(
     });
 
     return rowToSuggestion(toSuggestionRow(data));
-  } catch (err) {
-    throw new Error(`Failed to update suggestion: ${err instanceof Error ? err.message : String(err)}`);
+  } catch (error) {
+    throw new Error(`Failed to update suggestion: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -293,8 +293,8 @@ export async function deleteSuggestion(suggestionId: string): Promise<void> {
     await prisma.suggestion.delete({
       where: { id: suggestionId },
     });
-  } catch (err) {
-    throw new Error(`Failed to delete suggestion: ${err instanceof Error ? err.message : String(err)}`);
+  } catch (error) {
+    throw new Error(`Failed to delete suggestion: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -386,8 +386,8 @@ export async function generateRewrites(
       });
 
       rewrites.push(rowToRewrite(toRewriteRow(inserted)));
-    } catch (err) {
-      log.error('Failed to insert rewrite', err);
+    } catch (error) {
+      log.error('Failed to insert rewrite', error);
       continue;
     }
   }
@@ -443,8 +443,8 @@ export async function selectRewrite(rewriteId: string): Promise<Rewrite> {
     });
 
     return rowToRewrite(toRewriteRow(data));
-  } catch (err) {
-    throw new Error(`Failed to select rewrite: ${err instanceof Error ? err.message : String(err)}`);
+  } catch (error) {
+    throw new Error(`Failed to select rewrite: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -490,7 +490,7 @@ export async function getSuggestionStats(projectId: string): Promise<{
       important: Number(row?.important ?? 0),
       minor: Number(row?.minor ?? 0),
     };
-  } catch (err) {
-    throw new Error(`Failed to get stats: ${err instanceof Error ? err.message : String(err)}`);
+  } catch (error) {
+    throw new Error(`Failed to get stats: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

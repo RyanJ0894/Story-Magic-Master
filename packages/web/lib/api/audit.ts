@@ -34,9 +34,9 @@ export async function logAuditEvent(entry: AuditLogEntry): Promise<void> {
         userAgent: entry.user_agent ?? null,
       },
     });
-  } catch (err) {
+  } catch (error) {
     // Silently fail - don't break the main flow for audit logging failures
-    log.error('Audit logging error', err);
+    log.error('Audit logging error', error);
   }
 }
 

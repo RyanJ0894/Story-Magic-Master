@@ -2,6 +2,7 @@ import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { log } from '@/lib/logger';
+import { orchestratorPost } from '@/lib/orchestrator-fetch';
 
 const PreviewRequestSchema = z.object({
   projectId: z.string().uuid('Invalid project ID format'),
@@ -121,20 +122,10 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
   }
 
   // Call orchestrator POST /preview
-  const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:22002';
-  const serviceKey = process.env.SERVICE_SECRET_KEY;
-
   try {
-    const response = await fetch(`${orchestratorUrl}/preview`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(serviceKey && { 'X-Service-Key': serviceKey }),
-      },
-      body: JSON.stringify({
-        project_id: projectId,
-        scene,
-      }),
+    const response = await orchestratorPost('/preview', {
+      project_id: projectId,
+      scene,
     });
 
     if (!response.ok) {

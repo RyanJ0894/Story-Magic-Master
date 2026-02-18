@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { orchestratorHealthCheck } from '@/lib/orchestrator-fetch';
 
 interface HealthCheck {
   name: string;
@@ -33,12 +34,12 @@ async function checkDatabase(): Promise<HealthCheck> {
       status: latency > 1000 ? 'degraded' : 'healthy',
       latencyMs: latency,
     };
-  } catch (err) {
+  } catch (error) {
     return {
       name: 'database',
       status: 'unhealthy',
       latencyMs: Date.now() - start,
-      error: err instanceof Error ? err.message : 'Unknown error',
+      error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }
@@ -68,12 +69,12 @@ async function checkAuth(): Promise<HealthCheck> {
       latencyMs: latency,
       details: { provider: 'clerk' },
     };
-  } catch (err) {
+  } catch (error) {
     return {
       name: 'auth',
       status: 'unhealthy',
       latencyMs: Date.now() - start,
-      error: err instanceof Error ? err.message : 'Unknown error',
+      error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }
@@ -118,12 +119,12 @@ async function checkElevenLabs(): Promise<HealthCheck> {
       status: latency > 2000 ? 'degraded' : 'healthy',
       latencyMs: latency,
     };
-  } catch (err) {
+  } catch (error) {
     return {
       name: 'elevenlabs',
       status: 'degraded', // Don't fail health completely if ElevenLabs is slow
       latencyMs: Date.now() - start,
-      error: err instanceof Error ? err.message : 'Unknown error',
+      error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }
@@ -168,12 +169,12 @@ async function checkOpenAI(): Promise<HealthCheck> {
       status: latency > 2000 ? 'degraded' : 'healthy',
       latencyMs: latency,
     };
-  } catch (err) {
+  } catch (error) {
     return {
       name: 'openai',
       status: 'degraded',
       latencyMs: Date.now() - start,
-      error: err instanceof Error ? err.message : 'Unknown error',
+      error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }
@@ -194,10 +195,7 @@ async function checkOrchestrator(): Promise<HealthCheck> {
   }
 
   try {
-    const response = await fetch(`${orchestratorUrl}/health`, {
-      method: 'GET',
-      signal: AbortSignal.timeout(5000),
-    });
+    const response = await orchestratorHealthCheck('/health');
 
     const latency = Date.now() - start;
 
@@ -215,12 +213,12 @@ async function checkOrchestrator(): Promise<HealthCheck> {
       status: latency > 1000 ? 'degraded' : 'healthy',
       latencyMs: latency,
     };
-  } catch (err) {
+  } catch (error) {
     return {
       name: 'orchestrator',
       status: 'unhealthy',
       latencyMs: Date.now() - start,
-      error: err instanceof Error ? err.message : 'Unknown error',
+      error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }
@@ -242,12 +240,12 @@ async function checkStorage(): Promise<HealthCheck> {
       latencyMs: latency,
       ...(!hasStorageConfig && { error: 'No storage configuration found (AUDIO_OUTPUT_DIR or STORAGE_BUCKET_URL)' }),
     };
-  } catch (err) {
+  } catch (error) {
     return {
       name: 'storage',
       status: 'unhealthy',
       latencyMs: Date.now() - start,
-      error: err instanceof Error ? err.message : 'Unknown error',
+      error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }

@@ -108,9 +108,9 @@ export async function callLLMAndParse<T>(options: CallLLMOptions<T>): Promise<T>
     });
 
     content = response.choices[0]?.message?.content ?? null;
-  } catch (err) {
+  } catch (error) {
     throw new LLMCallError(
-      `OpenAI API call failed: ${err instanceof Error ? err.message : String(err)}`,
+      `OpenAI API call failed: ${error instanceof Error ? error.message : String(error)}`,
       'api_call'
     );
   }
@@ -192,9 +192,9 @@ export async function callLLMText(options: CallLLMTextOptions): Promise<string> 
     });
 
     content = response.choices[0]?.message?.content ?? null;
-  } catch (err) {
+  } catch (error) {
     throw new LLMCallError(
-      `OpenAI API call failed: ${err instanceof Error ? err.message : String(err)}`,
+      `OpenAI API call failed: ${error instanceof Error ? error.message : String(error)}`,
       'api_call'
     );
   }

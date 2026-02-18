@@ -197,8 +197,8 @@ export async function addToCorpus(script: {
     `;
 
     return result[0].id;
-  } catch (err) {
-    log.error('[Comparable] Insert error', err);
+  } catch (error) {
+    log.error('[Comparable] Insert error', error);
     throw new Error('Failed to add script to corpus');
   }
 }
@@ -263,8 +263,8 @@ export async function populateMissingEmbeddings(): Promise<number> {
       `;
 
       updated++;
-    } catch (err) {
-      log.error(`[Comparable] Failed to embed script ${script.id}`, err);
+    } catch (error) {
+      log.error(`[Comparable] Failed to embed script ${script.id}`, error);
     }
   }
 

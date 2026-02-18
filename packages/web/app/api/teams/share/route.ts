@@ -8,6 +8,7 @@
 import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { log } from '@/lib/logger';
 
 const ShareSchema = z.object({
   projectId: z.string().uuid('Valid project ID required'),
@@ -101,6 +102,7 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
       message: `Project shared with ${team.name}`,
     });
   } catch (error) {
+    log.error('[TeamShare] Error sharing project', error);
     return NextResponse.json(
       { error: 'Failed to share project', code: 'SHARE_ERROR' },
       { status: 500 }
@@ -159,6 +161,7 @@ export const DELETE = withAuth(async (request, { userId, prisma }) => {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    log.error('[TeamShare] Error unsharing project', error);
     return NextResponse.json(
       { error: 'Failed to unshare project', code: 'UNSHARE_ERROR' },
       { status: 500 }

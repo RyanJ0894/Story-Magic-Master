@@ -7,6 +7,7 @@
 
 import { prisma } from '@/lib/db';
 import { log } from '@/lib/logger';
+import { orchestratorGenerate } from '@/lib/orchestrator-fetch';
 
 // =============================================================================
 // Logging Helpers
@@ -39,8 +40,8 @@ async function logJobEvent(
         errorStack: errorStack ?? null,
       },
     });
-  } catch (err) {
-    log.error('Failed to write job log', err);
+  } catch (error) {
+    log.error('Failed to write job log', error);
   }
 }
 
@@ -115,9 +116,7 @@ export async function processGenerationJob(
     // Step 2: Call Director Agent to parse script
     await updateJobProgress('parsing', 10, 'Parsing script and assigning voices...');
 
-    const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:22002';
-    const serviceKey = process.env.SERVICE_SECRET_KEY;
-    logProgress(jobId, 'parsing', `Calling orchestrator at ${orchestratorUrl}/generate-scenes`);
+    logProgress(jobId, 'parsing', `Calling orchestrator /generate-scenes`);
 
     const generateScenesBody: Record<string, unknown> = {
       project_id: projectId,
@@ -128,14 +127,7 @@ export async function processGenerationJob(
       logProgress(jobId, 'parsing', `Voice overrides for ${Object.keys(voiceOverrides).length} character(s)`);
     }
 
-    const directorResponse = await fetch(`${orchestratorUrl}/generate-scenes`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(serviceKey && { 'X-Service-Key': serviceKey }),
-      },
-      body: JSON.stringify(generateScenesBody),
-    });
+    const directorResponse = await orchestratorGenerate('/generate-scenes', generateScenesBody);
 
     if (!directorResponse.ok) {
       const errorBody = await directorResponse.text();
@@ -188,18 +180,11 @@ export async function processGenerationJob(
 
     // Step 3: Call Orchestrator to generate audio
     await updateJobProgress('generating_audio', 30, 'Generating TTS audio for all dialogue...');
-    logProgress(jobId, 'generating_audio', `Calling orchestrator at ${orchestratorUrl}/orchestrate with ${sceneCount} scenes`);
+    logProgress(jobId, 'generating_audio', `Calling orchestrator /orchestrate with ${sceneCount} scenes`);
 
-    const orchestratorResponse = await fetch(`${orchestratorUrl}/orchestrate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(serviceKey && { 'X-Service-Key': serviceKey }),
-      },
-      body: JSON.stringify({
-        project_id: projectId,
-        scenes: directorJson.scenes || [],
-      }),
+    const orchestratorResponse = await orchestratorGenerate('/orchestrate', {
+      project_id: projectId,
+      scenes: directorJson.scenes || [],
     });
 
     if (!orchestratorResponse.ok) {

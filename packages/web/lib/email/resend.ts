@@ -78,11 +78,11 @@ export async function sendTeamInviteEmail(params: {
 
     log.info('[Email] Team invite sent', { id: data?.id });
     return { success: true, id: data?.id };
-  } catch (err) {
-    log.error('[Email] Team invite exception', err);
+  } catch (error) {
+    log.error('[Email] Team invite exception', error);
     return {
       success: false,
-      error: err instanceof Error ? err.message : 'Unknown error',
+      error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }
@@ -133,11 +133,11 @@ export async function sendScriptStatusChangeEmail(params: {
 
     log.info('[Email] Status change sent', { id: data?.id });
     return { success: true, id: data?.id };
-  } catch (err) {
-    log.error('[Email] Status change exception', err);
+  } catch (error) {
+    log.error('[Email] Status change exception', error);
     return {
       success: false,
-      error: err instanceof Error ? err.message : 'Unknown error',
+      error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }
@@ -184,11 +184,11 @@ export async function sendScriptSharedEmail(params: {
 
     log.info('[Email] Script shared sent', { id: data?.id });
     return { success: true, id: data?.id };
-  } catch (err) {
-    log.error('[Email] Script shared exception', err);
+  } catch (error) {
+    log.error('[Email] Script shared exception', error);
     return {
       success: false,
-      error: err instanceof Error ? err.message : 'Unknown error',
+      error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }
@@ -230,8 +230,8 @@ export async function sendBatchEmails(
       } else {
         sent += data?.data?.length || 0;
       }
-    } catch (err) {
-      log.error('[Email] Batch send exception', err);
+    } catch (error) {
+      log.error('[Email] Batch send exception', error);
       failed += batch.length;
     }
   }

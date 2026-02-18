@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/api/middleware';
+import { orchestratorFetch } from '@/lib/orchestrator-fetch';
 
 /**
  * GET /api/audio-preview/music/m_string_orchestra_uplifting_01.mp3
@@ -20,11 +21,11 @@ export const GET = withAuth(async (_request, { params }) => {
     return NextResponse.json({ error: 'Invalid file type' }, { status: 400 });
   }
 
-  const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:22002';
-  const audioUrl = `${orchestratorUrl}/audio-preview/${filePath}`;
-
   try {
-    const response = await fetch(audioUrl);
+    const { response } = await orchestratorFetch(`/audio-preview/${filePath}`, {
+      timeoutMs: 15_000,
+      retries: 1,
+    });
 
     if (!response.ok) {
       return NextResponse.json(

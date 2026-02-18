@@ -20,6 +20,7 @@ import { processGenerationJob } from '@/lib/generation/processor';
 import { generateScore } from '@/lib/scoring/service';
 import { generateSuggestions } from '@/lib/adviser/service';
 import { log } from '@/lib/logger';
+import { orchestratorGenerate } from '@/lib/orchestrator-fetch';
 
 // =============================================================================
 // Worker Configuration
@@ -326,18 +327,9 @@ registerProcessor('scene_regeneration', async (job, context) => {
 
   await context.updateProgress('generating_audio', 10, `Regenerating scene ${metadata.sceneIndex + 1}...`);
 
-  const orchestratorUrl = process.env.ORCHESTRATOR_URL || 'http://localhost:22002';
-  const serviceKey = process.env.SERVICE_SECRET_KEY;
-  const orchestratorResponse = await fetch(`${orchestratorUrl}/orchestrate`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(serviceKey && { 'X-Service-Key': serviceKey }),
-    },
-    body: JSON.stringify({
-      project_id: job.projectId,
-      scenes: [metadata.scene],
-    }),
+  const orchestratorResponse = await orchestratorGenerate('/orchestrate', {
+    project_id: job.projectId,
+    scenes: [metadata.scene],
   });
 
   if (!orchestratorResponse.ok) {
