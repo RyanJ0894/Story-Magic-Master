@@ -163,7 +163,7 @@ describe('Projects API Routes', () => {
       const data = await response.json();
 
       expect(response.status).toBe(201);
-      expect(data.project.name).toBe('New Script');
+      expect(data.name).toBe('New Script');
     });
 
     it('returns 400 when name is missing', async () => {
