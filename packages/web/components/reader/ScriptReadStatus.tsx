@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { log } from '@/lib/logger';
 import { apiFetch } from '@/lib/api/fetch';
 import { Button } from '@/components/ui/button';
 import {
@@ -49,7 +50,7 @@ export function ScriptReadStatus({
       setStatus(newStatus);
       onStatusChange?.(newStatus);
     } catch (error) {
-      console.error('Failed to update read status:', error);
+      log.error('Failed to update read status', error);
     } finally {
       setLoading(false);
     }
@@ -199,7 +200,7 @@ export function ScriptReadStatusCompact({
       setStatus(newStatus);
       onStatusChange?.(newStatus);
     } catch (error) {
-      console.error('Failed to update read status:', error);
+      log.error('Failed to update read status', error);
     } finally {
       setLoading(false);
     }

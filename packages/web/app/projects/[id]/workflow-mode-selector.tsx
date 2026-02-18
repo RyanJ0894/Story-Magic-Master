@@ -8,6 +8,7 @@
  */
 
 import { useState } from 'react';
+import { log } from '@/lib/logger';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -108,7 +109,7 @@ export function WorkflowModeSelector({
 
       onModeSelected(selectedMode);
     } catch (error) {
-      console.error('Error saving workflow mode:', error);
+      log.error('Error saving workflow mode', error);
       // Still proceed even if save fails
       onModeSelected(selectedMode);
     } finally {

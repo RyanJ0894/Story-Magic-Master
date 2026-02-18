@@ -4,6 +4,7 @@
  * Finds similar scripts in the corpus using embedding similarity search.
  */
 
+import { log } from '@/lib/logger';
 import { prisma } from '@/lib/db';
 import {
   ComparableScript,
@@ -197,7 +198,7 @@ export async function addToCorpus(script: {
 
     return result[0].id;
   } catch (err) {
-    console.error('[Comparable] Insert error:', err);
+    log.error('[Comparable] Insert error', err);
     throw new Error('Failed to add script to corpus');
   }
 }
@@ -263,7 +264,7 @@ export async function populateMissingEmbeddings(): Promise<number> {
 
       updated++;
     } catch (err) {
-      console.error(`[Comparable] Failed to embed script ${script.id}:`, err);
+      log.error(`[Comparable] Failed to embed script ${script.id}`, err);
     }
   }
 

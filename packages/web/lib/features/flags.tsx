@@ -36,7 +36,7 @@ export const FEATURES: Record<string, FeatureDefinition> = {
     key: 'STORY_SCORE',
     name: 'StoryScore',
     description: 'AI-powered 12-dimension screenplay evaluation',
-    defaultEnabled: false,
+    defaultEnabled: true,
     phase: 1,
   },
 
@@ -45,7 +45,7 @@ export const FEATURES: Record<string, FeatureDefinition> = {
     key: 'STORY_ADVISER',
     name: 'Story-Adviser',
     description: 'Inline suggestions with AI rewrites',
-    defaultEnabled: false,
+    defaultEnabled: true,
     dependsOn: ['STORY_SCORE'], // Requires StoryScore
     phase: 2,
   },
@@ -55,7 +55,7 @@ export const FEATURES: Record<string, FeatureDefinition> = {
     key: 'REVISION_TRACKING',
     name: 'Revision Tracking',
     description: 'Track script versions and score trajectory',
-    defaultEnabled: false,
+    defaultEnabled: true,
     dependsOn: ['STORY_SCORE'],
     phase: 2,
   },
@@ -65,7 +65,7 @@ export const FEATURES: Record<string, FeatureDefinition> = {
     key: 'SCRIPT_EDITOR',
     name: 'Script Editor',
     description: 'In-app script editing with CodeMirror',
-    defaultEnabled: false,
+    defaultEnabled: true,
     dependsOn: ['STORY_ADVISER'],
     phase: 2,
   },
@@ -164,6 +164,7 @@ export function getFeature(key: FeatureKey) {
 // React Hooks & Components
 // =============================================================================
 
+import { log } from '@/lib/logger';
 import { ReactNode } from 'react';
 
 interface FeatureGateProps {
@@ -228,15 +229,14 @@ export function MultiFeatureGate({
 export function logFeatureFlags(): void {
   if (process.env.NODE_ENV !== 'development') return;
 
-  console.group('🚩 Feature Flags');
+  const flags: Record<string, string> = {};
   for (const [key, feature] of Object.entries(FEATURES)) {
     const enabled = isFeatureEnabled(key as FeatureKey);
-    console.log(
-      `${enabled ? '✅' : '❌'} ${feature.name} (Phase ${feature.phase})`,
-      enabled ? '' : `- Set NEXT_PUBLIC_FF_${key}=true to enable`
-    );
+    flags[key] = enabled
+      ? `enabled (Phase ${feature.phase})`
+      : `disabled (Phase ${feature.phase}) - Set NEXT_PUBLIC_FF_${key}=true to enable`;
   }
-  console.groupEnd();
+  log.debug('Feature Flags', flags);
 }
 
 /**

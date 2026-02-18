@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { log } from '@/lib/logger';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -87,7 +88,7 @@ export function ShareModal({
       });
       setShareUrl(result.url);
     } catch (error) {
-      console.error('Failed to create share:', error);
+      log.error('Failed to create share', error);
       toast({
         variant: 'destructive',
         title: 'Share link failed',

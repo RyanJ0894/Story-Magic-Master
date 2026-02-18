@@ -4,6 +4,7 @@
  * Handles creating, retrieving, and comparing script revisions.
  */
 
+import { log } from '@/lib/logger';
 import { prisma } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import {
@@ -157,7 +158,7 @@ export async function createRevision(
         }
       }
     } catch (err) {
-      console.error('Failed to auto-score revision:', err);
+      log.error('Failed to auto-score revision', err);
       // Don't throw - revision was created successfully
     }
   }

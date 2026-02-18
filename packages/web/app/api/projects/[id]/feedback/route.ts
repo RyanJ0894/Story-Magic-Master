@@ -86,7 +86,7 @@ export const POST = withProjectAuth(async (request, { userId, prisma, projectId 
     // If feedback table doesn't exist, log and return success anyway
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.includes('relation') && errorMessage.includes('does not exist')) {
-      console.log('[Feedback] Table does not exist, feedback logged:', {
+      log.info('[Feedback] Table does not exist, feedback logged', {
         projectId,
         target,
         targetId,

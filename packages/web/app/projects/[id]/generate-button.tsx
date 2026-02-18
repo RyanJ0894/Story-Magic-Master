@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { log } from '@/lib/logger';
 import { apiFetch } from '@/lib/api/fetch';
 import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
@@ -93,7 +94,7 @@ export default function GenerateButton({
         setQueuePosition(null);
       }
     } catch (error) {
-      console.error('Error polling queue position:', error);
+      log.error('Error polling queue position', error);
     }
   }, []);
 
@@ -102,7 +103,7 @@ export default function GenerateButton({
     try {
       const response = await apiFetch(`/api/jobs/${jobId}`);
       if (!response.ok) {
-        console.error('Failed to fetch job status');
+        log.error('Failed to fetch job status');
         return;
       }
       const data: JobStatus = await response.json();
@@ -129,7 +130,7 @@ export default function GenerateButton({
         router.refresh();
       }
     } catch (error) {
-      console.error('Error polling job status:', error);
+      log.error('Error polling job status', error);
     }
   }, [router]);
 
@@ -210,7 +211,7 @@ export default function GenerateButton({
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to start generation';
       toast.error(message);
-      console.error('Generation start error:', error);
+      log.error('Generation start error', error);
       setLoading(false);
       router.refresh();
     }

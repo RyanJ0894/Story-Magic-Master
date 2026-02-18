@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { log } from '@/lib/logger';
 import { Button } from '@/components/ui/button';
 
 export default function AdminError({
@@ -11,7 +12,7 @@ export default function AdminError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Admin error:', error);
+    log.error('Admin error', error);
   }, [error]);
 
   return (

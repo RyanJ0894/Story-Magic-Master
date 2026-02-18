@@ -1,3 +1,5 @@
+import { log } from '@/lib/logger';
+
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     await import('./sentry.server.config');
@@ -8,7 +10,7 @@ export async function register() {
     if (process.env.DATABASE_URL) {
       const { startWorker } = await import('./lib/queue/worker');
       startWorker({ pollIntervalMs: 5000, lockDurationSeconds: 600 });
-      console.log('[Instrumentation] Queue worker started');
+      log.info('[Instrumentation] Queue worker started');
     }
   }
 

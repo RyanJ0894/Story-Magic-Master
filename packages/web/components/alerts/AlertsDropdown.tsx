@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { log } from '@/lib/logger';
 import { apiFetch } from '@/lib/api/fetch';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -72,7 +73,7 @@ export function AlertsDropdown() {
       setAlerts(data.alerts || []);
       setUnreadCount(data.unreadCount || 0);
     } catch (error) {
-      console.error('Failed to fetch alerts:', error);
+      log.error('Failed to fetch alerts', error);
     } finally {
       setLoading(false);
     }
@@ -102,7 +103,7 @@ export function AlertsDropdown() {
       );
       setUnreadCount((prev) => Math.max(0, prev - alertIds.length));
     } catch (error) {
-      console.error('Failed to mark alerts as read:', error);
+      log.error('Failed to mark alerts as read', error);
     }
   };
 
@@ -117,7 +118,7 @@ export function AlertsDropdown() {
       setAlerts((prev) => prev.map((alert) => ({ ...alert, is_read: true })));
       setUnreadCount(0);
     } catch (error) {
-      console.error('Failed to mark all as read:', error);
+      log.error('Failed to mark all as read', error);
     }
   };
 

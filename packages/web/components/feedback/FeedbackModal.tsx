@@ -8,6 +8,7 @@
  */
 
 import { useState } from 'react';
+import { log } from '@/lib/logger';
 import { useToast } from '@/hooks/use-toast';
 import { apiFetch } from '@/lib/api/fetch';
 import {
@@ -145,7 +146,7 @@ export function FeedbackModal({
         handleClose();
       }, 1500);
     } catch (error) {
-      console.error('Failed to submit feedback:', error);
+      log.error('Failed to submit feedback', error);
       toast({
         variant: 'destructive',
         title: 'Submission failed',

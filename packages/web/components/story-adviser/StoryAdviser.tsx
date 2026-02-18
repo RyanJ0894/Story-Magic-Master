@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { log } from '@/lib/logger';
 import { apiFetch } from '@/lib/api/fetch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -81,7 +82,7 @@ export function StoryAdviser({
       setSuggestions(data.suggestions || []);
       setStats(data.stats || null);
     } catch (err) {
-      console.error('Failed to fetch suggestions:', err);
+      log.error('Failed to fetch suggestions', err);
       setError(err instanceof Error ? err.message : 'Failed to load suggestions');
     } finally {
       setIsFetching(false);
@@ -137,7 +138,7 @@ export function StoryAdviser({
       // Refresh stats
       fetchSuggestions();
     } catch (err) {
-      console.error('Failed to accept suggestion:', err);
+      log.error('Failed to accept suggestion', err);
     }
   };
 
@@ -157,7 +158,7 @@ export function StoryAdviser({
       );
       fetchSuggestions();
     } catch (err) {
-      console.error('Failed to reject suggestion:', err);
+      log.error('Failed to reject suggestion', err);
     }
   };
 
@@ -177,7 +178,7 @@ export function StoryAdviser({
       );
       fetchSuggestions();
     } catch (err) {
-      console.error('Failed to dismiss suggestion:', err);
+      log.error('Failed to dismiss suggestion', err);
     }
   };
 
@@ -202,7 +203,7 @@ export function StoryAdviser({
       // Refresh suggestions to update state
       await fetchSuggestions();
     } catch (err) {
-      console.error('Failed to select rewrite:', err);
+      log.error('Failed to select rewrite', err);
       throw err;
     }
   };

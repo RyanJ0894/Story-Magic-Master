@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { log } from '@/lib/logger';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -361,7 +362,7 @@ export function VoiceChooser({
           }
         }
       } catch (err) {
-        console.error('[VoiceChooser] Error loading saved assignments:', err);
+        log.error('[VoiceChooser] Error loading saved assignments', err);
       }
     };
     loadSavedAssignments();
@@ -376,7 +377,7 @@ export function VoiceChooser({
         body: JSON.stringify({ assignments: newAssignments }),
       });
     } catch (err) {
-      console.error('[VoiceChooser] Error saving assignments:', err);
+      log.error('[VoiceChooser] Error saving assignments', err);
     }
   }, [projectId]);
 
@@ -483,7 +484,7 @@ export function VoiceChooser({
         setError(null);
       } catch (err) {
         setError('Failed to load voice catalog');
-        console.error('[VoiceChooser] Error fetching voices:', err);
+        log.error('[VoiceChooser] Error fetching voices', err);
       } finally {
         setIsLoading(false);
       }

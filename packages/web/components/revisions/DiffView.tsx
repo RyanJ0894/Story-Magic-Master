@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { log } from '@/lib/logger';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -79,7 +80,7 @@ export function DiffView({
       const data = await response.json();
       setComparison(data.comparison);
     } catch (err) {
-      console.error('Failed to fetch comparison:', err);
+      log.error('Failed to fetch comparison', err);
       setError(err instanceof Error ? err.message : 'Failed to load comparison');
     } finally {
       setIsLoading(false);

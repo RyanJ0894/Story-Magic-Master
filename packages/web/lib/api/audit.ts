@@ -5,6 +5,7 @@
  * Uses Prisma client for database operations.
  */
 
+import { log } from '@/lib/logger';
 import { prisma } from '@/lib/db';
 
 export interface AuditLogEntry {
@@ -35,7 +36,7 @@ export async function logAuditEvent(entry: AuditLogEntry): Promise<void> {
     });
   } catch (err) {
     // Silently fail - don't break the main flow for audit logging failures
-    console.error('Audit logging error:', err);
+    log.error('Audit logging error', err);
   }
 }
 

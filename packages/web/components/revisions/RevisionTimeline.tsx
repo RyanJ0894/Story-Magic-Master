@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { log } from '@/lib/logger';
 import { apiFetch } from '@/lib/api/fetch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -69,7 +70,7 @@ export function RevisionTimeline({
       const data = await response.json();
       setTimeline(data.timeline);
     } catch (err) {
-      console.error('Failed to fetch timeline:', err);
+      log.error('Failed to fetch timeline', err);
       setError(err instanceof Error ? err.message : 'Failed to load revisions');
     } finally {
       setIsLoading(false);

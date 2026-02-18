@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { log } from '@/lib/logger';
 import {
   Dialog,
   DialogContent,
@@ -116,7 +117,7 @@ export function RewriteModal({
         }
       }
     } catch (err) {
-      console.error('Failed to fetch rewrites:', err);
+      log.error('Failed to fetch rewrites', err);
     }
   };
 
@@ -173,7 +174,7 @@ export function RewriteModal({
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
     } catch (err) {
-      console.error('Failed to copy:', err);
+      log.error('Failed to copy', err);
     }
   };
 

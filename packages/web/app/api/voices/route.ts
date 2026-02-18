@@ -117,7 +117,7 @@ async function fetchElevenLabsVoices(): Promise<Voice[]> {
       return a.name.localeCompare(b.name);
     });
 
-    console.log(`[Voices API] Fetched ${voices.length} voices (${voices.filter(v => v.is_custom).length} custom)`);
+    log.info(`[Voices API] Fetched ${voices.length} voices`, { total: voices.length, custom: voices.filter(v => v.is_custom).length });
     return voices;
   } catch (error) {
     log.error('[Voices API] Failed to fetch from ElevenLabs', error);

@@ -4,6 +4,7 @@
  * Handles all transactional email sending for Story Magic
  */
 
+import { log } from '@/lib/logger';
 import { Resend } from 'resend';
 import { render } from '@react-email/components';
 import TeamInviteEmail from '@/emails/TeamInviteEmail';
@@ -71,14 +72,14 @@ export async function sendTeamInviteEmail(params: {
     });
 
     if (error) {
-      console.error('[Email] Team invite failed:', error);
+      log.error('[Email] Team invite failed', error);
       return { success: false, error: error.message };
     }
 
-    console.log('[Email] Team invite sent:', data?.id);
+    log.info('[Email] Team invite sent', { id: data?.id });
     return { success: true, id: data?.id };
   } catch (err) {
-    console.error('[Email] Team invite exception:', err);
+    log.error('[Email] Team invite exception', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Unknown error',
@@ -126,14 +127,14 @@ export async function sendScriptStatusChangeEmail(params: {
     });
 
     if (error) {
-      console.error('[Email] Status change failed:', error);
+      log.error('[Email] Status change failed', error);
       return { success: false, error: error.message };
     }
 
-    console.log('[Email] Status change sent:', data?.id);
+    log.info('[Email] Status change sent', { id: data?.id });
     return { success: true, id: data?.id };
   } catch (err) {
-    console.error('[Email] Status change exception:', err);
+    log.error('[Email] Status change exception', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Unknown error',
@@ -177,14 +178,14 @@ export async function sendScriptSharedEmail(params: {
     });
 
     if (error) {
-      console.error('[Email] Script shared failed:', error);
+      log.error('[Email] Script shared failed', error);
       return { success: false, error: error.message };
     }
 
-    console.log('[Email] Script shared sent:', data?.id);
+    log.info('[Email] Script shared sent', { id: data?.id });
     return { success: true, id: data?.id };
   } catch (err) {
-    console.error('[Email] Script shared exception:', err);
+    log.error('[Email] Script shared exception', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Unknown error',
@@ -224,13 +225,13 @@ export async function sendBatchEmails(
       );
 
       if (error) {
-        console.error('[Email] Batch send error:', error);
+        log.error('[Email] Batch send error', error);
         failed += batch.length;
       } else {
         sent += data?.data?.length || 0;
       }
     } catch (err) {
-      console.error('[Email] Batch send exception:', err);
+      log.error('[Email] Batch send exception', err);
       failed += batch.length;
     }
   }

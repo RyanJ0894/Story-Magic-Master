@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { log } from '@/lib/logger';
 import { apiFetch } from '@/lib/api/fetch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -276,7 +277,7 @@ export function StoryScore({
         setScore(data.score);
       }
     } catch (err) {
-      console.error('Failed to fetch score:', err);
+      log.error('Failed to fetch score', err);
       // Don't show error for fetch failures - just show generate button
     } finally {
       setIsFetching(false);

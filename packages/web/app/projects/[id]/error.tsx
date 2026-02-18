@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { log } from '@/lib/logger';
 import { Button } from '@/components/ui/button';
 
 export default function ProjectError({
@@ -11,7 +12,7 @@ export default function ProjectError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Project error:', error);
+    log.error('Project error', error);
   }, [error]);
 
   return (

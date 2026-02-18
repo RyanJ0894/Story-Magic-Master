@@ -5,6 +5,7 @@
  * Uses OpenAI GPT-4o for fast, cost-effective generation.
  */
 
+import { log } from '@/lib/logger';
 import { getOpenAI } from '@/lib/ai/openai';
 import { prisma } from '@/lib/db';
 import { getLatestScore } from '@/lib/scoring';
@@ -201,7 +202,7 @@ export async function generateSuggestions(
 
       suggestions.push(rowToSuggestion(toSuggestionRow(inserted)));
     } catch (err) {
-      console.error('Failed to insert suggestion:', err);
+      log.error('Failed to insert suggestion', err);
       continue;
     }
   }
@@ -386,7 +387,7 @@ export async function generateRewrites(
 
       rewrites.push(rowToRewrite(toRewriteRow(inserted)));
     } catch (err) {
-      console.error('Failed to insert rewrite:', err);
+      log.error('Failed to insert rewrite', err);
       continue;
     }
   }
