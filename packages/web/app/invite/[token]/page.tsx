@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -42,7 +43,7 @@ export default function InvitePage() {
   useEffect(() => {
     async function fetchInvite() {
       try {
-        const res = await fetch(`/api/invite/${token}`);
+        const res = await apiFetch(`/api/invite/${token}`);
         const data = await res.json();
 
         if (!res.ok) {
@@ -66,7 +67,7 @@ export default function InvitePage() {
     setError(null);
 
     try {
-      const res = await fetch(`/api/invite/${token}`, {
+      const res = await apiFetch(`/api/invite/${token}`, {
         method: 'POST',
       });
 

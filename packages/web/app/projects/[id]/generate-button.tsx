@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -76,7 +77,7 @@ export default function GenerateButton({
   // Poll for queue position
   const pollQueuePosition = useCallback(async (jobId: string) => {
     try {
-      const response = await fetch(`/api/jobs/${jobId}/position`);
+      const response = await apiFetch(`/api/jobs/${jobId}/position`);
       if (!response.ok) return;
       const data: QueuePosition & { status: string } = await response.json();
       setQueuePosition({
@@ -99,7 +100,7 @@ export default function GenerateButton({
   // Poll for job status
   const pollJobStatus = useCallback(async (jobId: string) => {
     try {
-      const response = await fetch(`/api/jobs/${jobId}`);
+      const response = await apiFetch(`/api/jobs/${jobId}`);
       if (!response.ok) {
         console.error('Failed to fetch job status');
         return;
@@ -184,7 +185,7 @@ export default function GenerateButton({
     // Trigger generation via API — the server handles usage checks,
     // project status updates, and job creation
     try {
-      const response = await fetch('/api/generate', {
+      const response = await apiFetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

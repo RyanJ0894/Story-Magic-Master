@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -64,7 +65,7 @@ export function AlertsDropdown() {
 
   const fetchAlerts = useCallback(async () => {
     try {
-      const res = await fetch('/api/alerts?limit=20');
+      const res = await apiFetch('/api/alerts?limit=20');
       if (!res.ok) return;
 
       const data = await res.json();
@@ -88,7 +89,7 @@ export function AlertsDropdown() {
 
   const markAsRead = async (alertIds: string[]) => {
     try {
-      await fetch('/api/alerts', {
+      await apiFetch('/api/alerts', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ alertIds }),
@@ -107,7 +108,7 @@ export function AlertsDropdown() {
 
   const markAllAsRead = async () => {
     try {
-      await fetch('/api/alerts', {
+      await apiFetch('/api/alerts', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ markAllRead: true }),

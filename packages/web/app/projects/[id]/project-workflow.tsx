@@ -12,6 +12,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -933,7 +934,7 @@ export function ProjectWorkflow({
                           variant="outline"
                           onClick={async () => {
                             try {
-                              const res = await fetch('/api/teams');
+                              const res = await apiFetch('/api/teams');
                               if (!res.ok) {
                                 toast.error('Failed to load teams');
                                 return;
@@ -946,7 +947,7 @@ export function ProjectWorkflow({
                               }
                               // Share with first team (for MVP)
                               const team = teams[0];
-                              const shareRes = await fetch('/api/teams/share', {
+                              const shareRes = await apiFetch('/api/teams/share', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({

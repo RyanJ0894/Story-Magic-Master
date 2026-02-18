@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -132,7 +133,7 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
       setProcessingStatus('Creating payment...');
       setUploadProgress(10);
 
-      const paymentResponse = await fetch('/api/reader/upload/create-payment', {
+      const paymentResponse = await apiFetch('/api/reader/upload/create-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -154,7 +155,7 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
       formData.append('name', scriptName);
       formData.append('needsOCR', String(preview?.needsOCR || false));
 
-      const uploadResponse = await fetch('/api/reader/upload/process', {
+      const uploadResponse = await apiFetch('/api/reader/upload/process', {
         method: 'POST',
         body: formData,
       });
@@ -177,7 +178,7 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
         await new Promise(resolve => setTimeout(resolve, 5000));
         attempts++;
 
-        const statusResponse = await fetch(`/api/jobs/${jobId}/status`);
+        const statusResponse = await apiFetch(`/api/jobs/${jobId}/status`);
         const { status, progress, message } = await statusResponse.json();
 
         setProcessingStatus(message || 'Processing...');

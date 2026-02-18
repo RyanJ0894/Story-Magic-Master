@@ -31,11 +31,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 });
     }
 
-    const { prompt } = await request.json();
+    const { prompt: rawPrompt } = await request.json();
 
-    if (!prompt || typeof prompt !== 'string') {
+    if (!rawPrompt || typeof rawPrompt !== 'string') {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
+
+    // Sanitize: trim, limit length, strip control characters
+    const prompt = rawPrompt
+      .trim()
+      .slice(0, 500)
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
 
     if (!apiKey) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
@@ -76,7 +83,7 @@ Output ONLY the screenplay text, no explanations.`,
       messages: [
         {
           role: 'user',
-          content: `Generate a short 2-4 word title for a screenplay about: ${prompt}. Output ONLY the title, nothing else.`,
+          content: `Generate a short 2-4 word title for a screenplay about: ${prompt.slice(0, 200)}. Output ONLY the title, nothing else.`,
         },
       ],
     });

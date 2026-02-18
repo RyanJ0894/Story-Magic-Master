@@ -29,6 +29,7 @@ import {
   AlertTriangle,
   ArrowRight,
 } from 'lucide-react';
+import { apiFetch } from '@/lib/api/fetch';
 import { Suggestion, Rewrite, SUGGESTION_CATEGORIES } from '@/lib/adviser/types';
 
 // =============================================================================
@@ -104,7 +105,7 @@ export function RewriteModal({
     if (!suggestion) return;
 
     try {
-      const response = await fetch(`/api/suggestions/${suggestion.id}/rewrite`);
+      const response = await apiFetch(`/api/suggestions/${suggestion.id}/rewrite`);
       if (response.ok) {
         const data = await response.json();
         setRewrites(data.rewrites || []);
@@ -126,7 +127,7 @@ export function RewriteModal({
     setError(null);
 
     try {
-      const response = await fetch(`/api/suggestions/${suggestion.id}/rewrite`, {
+      const response = await apiFetch(`/api/suggestions/${suggestion.id}/rewrite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

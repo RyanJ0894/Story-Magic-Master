@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -260,7 +261,7 @@ export function StoryScore({
     setError(null);
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/score`);
+      const response = await apiFetch(`/api/projects/${projectId}/score`);
       if (!response.ok) {
         if (response.status === 404 || response.status === 403) {
           // No score exists or feature disabled
@@ -292,7 +293,7 @@ export function StoryScore({
     setError(null);
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/score`, {
+      const response = await apiFetch(`/api/projects/${projectId}/score`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),

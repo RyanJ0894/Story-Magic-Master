@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -50,7 +51,7 @@ export default function NewProjectPage() {
     setGeneratingScript(true);
 
     try {
-      const response = await fetch('/api/generate-demo-script', {
+      const response = await apiFetch('/api/generate-demo-script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: aiPrompt }),
@@ -86,7 +87,7 @@ export default function NewProjectPage() {
     }
 
     try {
-      const response = await fetch('/api/projects', {
+      const response = await apiFetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

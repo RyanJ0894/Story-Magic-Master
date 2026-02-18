@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { apiFetch } from '@/lib/api/fetch';
 import {
   Dialog,
   DialogContent,
@@ -723,7 +724,7 @@ export function AudioChooser({ projectId, directorJson, disabled, remainingPrevi
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(`/api/projects/${projectId}/audio-overrides`);
+        const res = await apiFetch(`/api/projects/${projectId}/audio-overrides`);
         if (res.ok) {
           const data = await res.json();
           setOverrides(data.overrides || []);
@@ -742,7 +743,7 @@ export function AudioChooser({ projectId, directorJson, disabled, remainingPrevi
     setOverrides(newOverrides);
     setSaving(true);
     try {
-      await fetch(`/api/projects/${projectId}/audio-overrides`, {
+      await apiFetch(`/api/projects/${projectId}/audio-overrides`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ overrides: newOverrides }),
@@ -847,7 +848,7 @@ export function AudioChooser({ projectId, directorJson, disabled, remainingPrevi
   const handleRegenerateScene = useCallback(async (sceneIndex: number) => {
     setRegeneratingScene(sceneIndex);
     try {
-      const res = await fetch(`/api/projects/${projectId}/regenerate-scene`, {
+      const res = await apiFetch(`/api/projects/${projectId}/regenerate-scene`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sceneIndex }),

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { Button } from '@/components/ui/button';
 import {
   Tooltip,
@@ -37,7 +38,7 @@ export function ScriptReadStatus({
     setLoading(true);
 
     try {
-      const res = await fetch(`/api/reader/library/${entryId}`, {
+      const res = await apiFetch(`/api/reader/library/${entryId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ readStatus: newStatus }),
@@ -187,7 +188,7 @@ export function ScriptReadStatusCompact({
     setLoading(true);
 
     try {
-      const res = await fetch(`/api/reader/library/${entryId}`, {
+      const res = await apiFetch(`/api/reader/library/${entryId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ readStatus: newStatus }),

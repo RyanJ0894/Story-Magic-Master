@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -103,7 +104,7 @@ export function ReaderDashboardClient({
 
   const handleFavorite = async (entry: ReaderLibraryEntryDetailed) => {
     try {
-      const response = await fetch(`/api/reader/library/${entry.id}/favorite`, {
+      const response = await apiFetch(`/api/reader/library/${entry.id}/favorite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_favorited: !entry.is_favorited }),
@@ -134,7 +135,7 @@ export function ReaderDashboardClient({
     }
 
     try {
-      const response = await fetch(`/api/reader/library/${entry.id}`, {
+      const response = await apiFetch(`/api/reader/library/${entry.id}`, {
         method: 'DELETE',
       });
 

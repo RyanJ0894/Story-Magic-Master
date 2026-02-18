@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -82,7 +83,7 @@ export function WriterDashboardClient({
     }
 
     try {
-      const response = await fetch(`/api/projects/${script.project_id}`, {
+      const response = await apiFetch(`/api/projects/${script.project_id}`, {
         method: 'DELETE',
       });
 

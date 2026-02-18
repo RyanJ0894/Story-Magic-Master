@@ -19,6 +19,7 @@ import {
   Clock,
   CheckCircle,
 } from 'lucide-react';
+import { apiFetch } from '@/lib/api/fetch';
 import { cn } from '@/lib/utils';
 
 type WorkflowMode = 'automatic' | 'fine_tuned';
@@ -95,7 +96,7 @@ export function WorkflowModeSelector({
 
     // Update preferred mode in database
     try {
-      const response = await fetch(`/api/projects/${projectId}/workflow-mode`, {
+      const response = await apiFetch(`/api/projects/${projectId}/workflow-mode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: selectedMode }),

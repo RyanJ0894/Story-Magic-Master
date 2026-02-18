@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
+import { apiFetch } from '@/lib/api/fetch';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -34,7 +35,7 @@ function PricingContent() {
     setLoading(tier);
 
     try {
-      const response = await fetch('/api/stripe/checkout', {
+      const response = await apiFetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tier, interval }),
