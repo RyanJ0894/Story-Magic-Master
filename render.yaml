@@ -26,7 +26,7 @@ services:
     region: oregon
     plan: starter
     branch: main
-    autoDeploy: false  # Deploys gated on CI — triggered via RENDER_DEPLOY_HOOK_* secrets
+    autoDeploy: true
     numInstances: 1
 
     # Node/pnpm versions
@@ -142,7 +142,7 @@ services:
     region: oregon
     plan: starter
     branch: main
-    autoDeploy: false
+    autoDeploy: true
 
     buildCommand: |
       corepack enable &&
@@ -205,7 +205,7 @@ services:
     region: oregon
     plan: standard
     branch: main
-    autoDeploy: false  # Deploys gated on CI — triggered via RENDER_DEPLOY_HOOK_* secrets
+    autoDeploy: true
     # Scale up: increase numInstances when traffic demands.
     # No in-process state - jobs are tracked in PostgreSQL, audio in persistent disk.
     numInstances: 1
