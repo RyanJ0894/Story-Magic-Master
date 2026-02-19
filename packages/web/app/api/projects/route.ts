@@ -5,9 +5,10 @@
  * POST /api/projects - Create a new project
  */
 
-import { withAuth, parseBody, errorResponse } from '@/lib/api/middleware';
+import { withAuth, parseBody } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { listProjects, createProject } from '@/lib/services/projects';
 
 // =============================================================================
 // Input Validation
@@ -29,20 +30,7 @@ const CreateProjectSchema = z.object({
 
 export const GET = withAuth(async (_request, { userId, prisma }) => {
   try {
-    const projects = await prisma.project.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        name: true,
-        scriptText: true,
-        pageCount: true,
-        voiceAssignments: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
-
+    const projects = await listProjects(prisma, userId);
     return NextResponse.json({ projects });
   } catch {
     return NextResponse.json(
@@ -64,17 +52,13 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
   // Support both camelCase and snake_case field names
   const scriptText = data.scriptText || data.script_text;
   const pageCount = data.pageCount ?? data.page_count;
-  const description = data.description;
 
   try {
-    const project = await prisma.project.create({
-      data: {
-        userId,
-        name: data.name,
-        description: description || null,
-        scriptText: scriptText || null,
-        pageCount: pageCount || 0,
-      },
+    const project = await createProject(prisma, userId, {
+      name: data.name,
+      description: data.description,
+      scriptText: scriptText || null,
+      pageCount: pageCount || 0,
     });
 
     return NextResponse.json(project, { status: 201 });

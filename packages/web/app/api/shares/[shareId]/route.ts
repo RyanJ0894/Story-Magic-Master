@@ -1,28 +1,14 @@
 import { withAuth, verifyOwnership, parseBody, errorResponse } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
-import { hashPassword } from '@/lib/password';
 import { UpdateShareRequestSchema } from '@/lib/api/dto';
 import { log } from '@/lib/logger';
+import { getShare, updateShare, revokeShare } from '@/lib/services/shares';
 
 // GET /api/shares/[shareId] - Get share details
 export const GET = withAuth(async (request, { userId, prisma, params }) => {
   const shareId = params.shareId;
 
-  const share = await prisma.scriptShare.findFirst({
-    where: {
-      id: shareId,
-      sharedBy: userId,
-    },
-    include: {
-      project: {
-        select: {
-          id: true,
-          name: true,
-          pageCount: true,
-        },
-      },
-    },
-  });
+  const share = await getShare(prisma, shareId, userId);
 
   if (!share) {
     return errorResponse('Share not found', 404, { code: 'NOT_FOUND' });
@@ -58,22 +44,15 @@ export const PATCH = withAuth(async (request, { userId, prisma, params }) => {
     password,
   } = parsed.data;
 
-  const updates: Record<string, unknown> = {};
-
-  if (access_level !== undefined) updates.accessLevel = access_level;
-  if (expires_at !== undefined) updates.expiresAt = expires_at ? new Date(expires_at) : null;
-  if (is_active !== undefined) updates.isActive = is_active;
-  if (recipient_email !== undefined) updates.recipientEmail = recipient_email;
-  if (recipient_name !== undefined) updates.recipientName = recipient_name;
-  if (max_plays !== undefined) updates.maxPlays = max_plays;
-  if (password !== undefined) {
-    updates.passwordHash = password ? await hashPassword(password) : null;
-  }
-
   try {
-    const share = await prisma.scriptShare.update({
-      where: { id: shareId },
-      data: updates,
+    const share = await updateShare(prisma, shareId, {
+      accessLevel: access_level,
+      expiresAt: expires_at,
+      isActive: is_active,
+      recipientEmail: recipient_email,
+      recipientName: recipient_name,
+      maxPlays: max_plays,
+      password,
     });
 
     return NextResponse.json({ share });
@@ -98,12 +77,7 @@ export const DELETE = withAuth(async (request, { userId, prisma, params }) => {
   if ('error' in ownerCheck) return ownerCheck.error;
 
   try {
-    // Soft delete by deactivating
-    await prisma.scriptShare.update({
-      where: { id: shareId },
-      data: { isActive: false },
-    });
-
+    await revokeShare(prisma, shareId);
     return NextResponse.json({ success: true });
   } catch (error) {
     log.error('Error deleting share', error);

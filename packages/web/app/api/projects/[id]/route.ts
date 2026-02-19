@@ -9,6 +9,7 @@
 import { withProjectAuth, parseBody } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { updateProject, deleteProject } from '@/lib/services/projects';
 
 // =============================================================================
 // Input Validation
@@ -39,13 +40,10 @@ export const PATCH = withProjectAuth(async (request, { prisma, projectId }) => {
   const { name, script_text, page_count } = parsed.data;
 
   try {
-    const project = await prisma.project.update({
-      where: { id: projectId },
-      data: {
-        ...(name !== undefined && { name }),
-        ...(script_text !== undefined && { scriptText: script_text }),
-        ...(page_count !== undefined && { pageCount: page_count }),
-      },
+    const project = await updateProject(prisma, projectId, {
+      name,
+      scriptText: script_text,
+      pageCount: page_count,
     });
 
     return NextResponse.json({ project });
@@ -63,10 +61,7 @@ export const PATCH = withProjectAuth(async (request, { prisma, projectId }) => {
 
 export const DELETE = withProjectAuth(async (_request, { prisma, projectId }) => {
   try {
-    await prisma.project.delete({
-      where: { id: projectId },
-    });
-
+    await deleteProject(prisma, projectId);
     return NextResponse.json({ success: true, deleted: projectId });
   } catch {
     return NextResponse.json(

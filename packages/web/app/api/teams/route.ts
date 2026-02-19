@@ -9,6 +9,7 @@ import { withAuth, parseBody } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { log } from '@/lib/logger';
+import { listTeams, createTeam } from '@/lib/services/teams';
 
 // =============================================================================
 // Validation
@@ -27,72 +28,8 @@ const CreateTeamSchema = z.object({
 
 export const GET = withAuth(async (request, { userId, prisma }) => {
   try {
-    // Get teams user owns
-    const ownedTeams = await prisma.team.findMany({
-      where: { ownerId: userId },
-      include: {
-        members: {
-          select: {
-            id: true,
-            userId: true,
-            invitedEmail: true,
-            role: true,
-            status: true,
-            user: {
-              select: {
-                fullName: true,
-                avatarUrl: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    // Get teams user is a member of
-    const memberships = await prisma.teamMember.findMany({
-      where: {
-        userId,
-        status: 'accepted',
-      },
-      select: {
-        id: true,
-        role: true,
-        status: true,
-        team: {
-          include: {
-            owner: {
-              select: {
-                fullName: true,
-                avatarUrl: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    const memberTeams = memberships.map((m) => ({
-      ...m.team,
-      membership: {
-        id: m.id,
-        role: m.role,
-        status: m.status,
-      },
-    }));
-
-    // Include combined `teams` array for client compatibility
-    const allTeams = [
-      ...ownedTeams.map(t => ({ ...t, role: 'owner' as const })),
-      ...memberTeams,
-    ];
-
-    return NextResponse.json({
-      owned: ownedTeams,
-      member: memberTeams,
-      teams: allTeams,
-    });
+    const result = await listTeams(prisma, userId);
+    return NextResponse.json(result);
   } catch (error) {
     log.error('[Teams] Error listing', error);
     return NextResponse.json(
@@ -117,14 +54,11 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
   const { name, description, defaultShareAccess, autoShareNewProjects } = parsed.data;
 
   try {
-    const team = await prisma.team.create({
-      data: {
-        ownerId: userId,
-        name,
-        description: description || null,
-        defaultShareAccess: defaultShareAccess || 'stream',
-        autoShareNewProjects: autoShareNewProjects || false,
-      },
+    const team = await createTeam(prisma, userId, {
+      name,
+      description,
+      defaultShareAccess,
+      autoShareNewProjects,
     });
 
     return NextResponse.json({ team }, { status: 201 });

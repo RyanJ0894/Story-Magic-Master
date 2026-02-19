@@ -9,8 +9,13 @@
 import { withAuth, parseBody, errorResponse } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { sendTeamInviteEmail } from '@/lib/email';
 import { log } from '@/lib/logger';
+import {
+  listMembers,
+  addMember,
+  removeMember,
+  TeamServiceError,
+} from '@/lib/services/teams';
 
 // =============================================================================
 // Validation
@@ -32,65 +37,13 @@ const RemoveMemberSchema = z.object({
 export const GET = withAuth(async (request, { userId, prisma, params }) => {
   const teamId = params.teamId;
 
-  // Verify user has access to this team
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
-    select: { id: true, ownerId: true },
-  });
-
-  if (!team) {
-    return errorResponse('Team not found', 404, { code: 'NOT_FOUND' });
-  }
-
-  // Check if user is owner or member
-  const isOwner = team.ownerId === userId;
-  if (!isOwner) {
-    const membership = await prisma.teamMember.findFirst({
-      where: {
-        teamId,
-        userId,
-        status: 'accepted',
-      },
-      select: { id: true },
-    });
-
-    if (!membership) {
-      return errorResponse('Access denied', 403, { code: 'FORBIDDEN' });
-    }
-  }
-
   try {
-    const members = await prisma.teamMember.findMany({
-      where: { teamId },
-      select: {
-        id: true,
-        userId: true,
-        invitedEmail: true,
-        role: true,
-        status: true,
-        invitedAt: true,
-        acceptedAt: true,
-        user: {
-          select: {
-            fullName: true,
-            avatarUrl: true,
-            id: true,
-          },
-        },
-        inviter: {
-          select: {
-            fullName: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    return NextResponse.json({
-      members,
-      isOwner,
-    });
+    const result = await listMembers(prisma, teamId, userId);
+    return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof TeamServiceError) {
+      return errorResponse(error.message, error.statusCode, { code: error.code });
+    }
     log.error('[TeamMembers] Error listing', error);
     return errorResponse('Failed to list members', 500, { code: 'LIST_ERROR', details: error instanceof Error ? error.message : 'Unknown error' });
   }
@@ -103,102 +56,19 @@ export const GET = withAuth(async (request, { userId, prisma, params }) => {
 export const POST = withAuth(async (request, { userId, prisma, params }) => {
   const teamId = params.teamId;
 
-  // Only team owner can invite
-  const team = await prisma.team.findFirst({
-    where: {
-      id: teamId,
-      ownerId: userId,
-    },
-    select: { id: true, name: true, ownerId: true },
-  });
-
-  if (!team) {
-    return errorResponse('Team not found or not authorized', 404, { code: 'NOT_FOUND' });
-  }
-
   const parsed = await parseBody(request, InviteMemberSchema);
   if ('error' in parsed) return parsed.error;
 
   const { email, role } = parsed.data;
 
-  // Check if already invited
-  const existing = await prisma.teamMember.findFirst({
-    where: {
-      teamId,
-      invitedEmail: email.toLowerCase(),
-    },
-    select: { id: true, status: true },
-  });
-
-  if (existing) {
-    if (existing.status === 'accepted') {
-      return errorResponse('This person is already a team member', 400, { code: 'ALREADY_MEMBER' });
-    }
-    if (existing.status === 'pending') {
-      return errorResponse('An invitation is already pending for this email', 400, { code: 'INVITE_PENDING' });
-    }
-  }
-
-  // Check if user exists
-  const existingUser = await prisma.profile.findFirst({
-    where: { email: email.toLowerCase() },
-    select: { id: true, fullName: true },
-  });
-
-  // Get inviter's name
-  const inviterProfile = await prisma.profile.findUnique({
-    where: { id: userId },
-    select: { fullName: true },
-  });
-
   try {
-    // Create the invite
-    const member = await prisma.teamMember.create({
-      data: {
-        teamId,
-        userId: existingUser?.id || null,
-        invitedEmail: email.toLowerCase(),
-        role: role || 'member',
-        status: 'pending',
-        invitedBy: userId,
-      },
-    });
+    const result = await addMember(prisma, teamId, userId, { email, role });
 
-    // Send invite email
-    const emailResult = await sendTeamInviteEmail({
-      to: email,
-      inviterName: inviterProfile?.fullName || 'A colleague',
-      teamName: team.name,
-      inviteToken: member.inviteToken!,
-    });
-
-    if (!emailResult.success) {
-      log.error('[TeamMembers] Email send failed', undefined, { error: emailResult.error });
-      // Don't fail the whole operation, just log
-    }
-
-    // Create alert for invitee if they have an account
-    if (existingUser?.id) {
-      await prisma.alert.create({
-        data: {
-          userId: existingUser.id,
-          alertType: 'team_invite',
-          title: `You've been invited to join ${team.name}`,
-          message: `${inviterProfile?.fullName || 'Someone'} invited you to join their team.`,
-          teamId,
-          relatedUserId: userId,
-        },
-      });
-    }
-
-    return NextResponse.json(
-      {
-        member,
-        emailSent: emailResult.success,
-      },
-      { status: 201 }
-    );
+    return NextResponse.json(result, { status: 201 });
   } catch (error) {
+    if (error instanceof TeamServiceError) {
+      return errorResponse(error.message, error.statusCode, { code: error.code });
+    }
     log.error('[TeamMembers] Error inviting', error);
     return errorResponse('Failed to invite member', 500, { code: 'INVITE_ERROR', details: error instanceof Error ? error.message : 'Unknown error' });
   }
@@ -211,35 +81,18 @@ export const POST = withAuth(async (request, { userId, prisma, params }) => {
 export const DELETE = withAuth(async (request, { userId, prisma, params }) => {
   const teamId = params.teamId;
 
-  // Only team owner can remove members
-  const team = await prisma.team.findFirst({
-    where: {
-      id: teamId,
-      ownerId: userId,
-    },
-    select: { id: true, ownerId: true },
-  });
-
-  if (!team) {
-    return errorResponse('Team not found or not authorized', 404, { code: 'NOT_FOUND' });
-  }
-
   const parsed = await parseBody(request, RemoveMemberSchema);
   if ('error' in parsed) return parsed.error;
 
   const { memberId } = parsed.data;
 
   try {
-    await prisma.teamMember.updateMany({
-      where: {
-        id: memberId,
-        teamId,
-      },
-      data: { status: 'removed' },
-    });
-
+    await removeMember(prisma, teamId, userId, memberId);
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof TeamServiceError) {
+      return errorResponse(error.message, error.statusCode, { code: error.code });
+    }
     log.error('[TeamMembers] Error removing', error);
     return errorResponse('Failed to remove member', 500, { code: 'REMOVE_ERROR', details: error instanceof Error ? error.message : 'Unknown error' });
   }

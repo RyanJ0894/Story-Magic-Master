@@ -5,6 +5,7 @@ import { verifyPassword, isBcryptHash, hashPassword } from '@/lib/password';
 import { VerifySharePasswordRequestSchema } from '@/lib/api/dto';
 import { rateLimit, getClientIp } from '@/lib/api/rate-limit';
 import { errorResponse } from '@/lib/api/error-response';
+import { accessShare, ShareServiceError } from '@/lib/services/shares';
 
 interface RouteParams {
   params: Promise<{ code: string }>;
@@ -19,134 +20,28 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const limited = await rateLimit(`share-access:${ip}`, 'loose');
   if (limited) return limited;
 
-  // Get share by code
-  const share = await prisma.scriptShare.findFirst({
-    where: {
-      shareCode: code,
-      isActive: true,
-    },
-    include: {
-      project: {
-        select: {
-          id: true,
-          name: true,
-          pageCount: true,
-          userId: true,
-          user: {
-            select: {
-              fullName: true,
-              writerCode: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!share) {
-    return errorResponse('Share not found or expired', 404, { code: 'NOT_FOUND' });
-  }
-
-  // Check expiration
-  if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
-    return errorResponse('This share link has expired', 410, { code: 'EXPIRED' });
-  }
-
-  // Check max plays
-  if (share.maxPlays && share.playCount >= share.maxPlays) {
-    return errorResponse('This share link has reached its play limit', 410, { code: 'PLAY_LIMIT_REACHED' });
-  }
-
-  // Check if password protected
-  if (share.passwordHash) {
-    return NextResponse.json({
-      requiresPassword: true,
-      projectName: share.project?.name,
-      writerName: share.project?.user?.fullName,
-    });
-  }
-
-  // Check writer subscription status
-  const subscription = await prisma.subscription.findFirst({
-    where: {
-      userId: share.project?.userId,
-      status: { in: ['active', 'trialing'] },
-    },
-    select: { id: true },
-  });
-
-  if (!subscription) {
-    return errorResponse('This content is temporarily unavailable (writer subscription inactive)', 403, { code: 'SUBSCRIPTION_INACTIVE' });
-  }
-
-  // Increment view count
-  await prisma.scriptShare.update({
-    where: { id: share.id },
-    data: {
-      viewCount: (share.viewCount || 0) + 1,
-      lastAccessedAt: new Date(),
-    },
-  });
-
   // Get current user if logged in
   const { userId } = await auth();
 
-  // If logged in, add to reader's library
-  if (userId) {
-    // Check if already in library
-    const existingEntry = await prisma.readerLibrary.findFirst({
-      where: {
-        readerId: userId,
-        projectId: share.projectId,
-      },
-      select: { id: true },
-    });
+  try {
+    const result = await accessShare(prisma, code, userId);
 
-    if (!existingEntry) {
-      try {
-        await prisma.readerLibrary.create({
-          data: {
-            readerId: userId,
-            projectId: share.projectId,
-            source: 'received',
-            shareId: share.id,
-            status: 'active',
-          },
-        });
-      } catch {
-        // Ignore unique constraint violations
-      }
+    // Handle password-protected shares
+    if (result.requiresPassword) {
+      return NextResponse.json({
+        requiresPassword: true,
+        projectName: result.projectName,
+        writerName: result.writerName,
+      });
     }
+
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof ShareServiceError) {
+      return errorResponse(error.message, error.statusCode, { code: error.code });
+    }
+    return errorResponse('Internal server error', 500);
   }
-
-  // Get audio output for streaming
-  const audioOutput = await prisma.audioOutput.findFirst({
-    where: { projectId: share.projectId },
-    select: { id: true, filePath: true, durationSeconds: true },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  return NextResponse.json({
-    share: {
-      id: share.id,
-      accessLevel: share.accessLevel,
-      expiresAt: share.expiresAt,
-    },
-    project: {
-      id: share.project?.id,
-      name: share.project?.name,
-      pageCount: share.project?.pageCount,
-    },
-    writer: {
-      name: share.project?.user?.fullName ?? '',
-      code: share.project?.user?.writerCode ?? '',
-    },
-    audio: audioOutput ? {
-      url: audioOutput.filePath,
-      duration: audioOutput.durationSeconds,
-    } : null,
-    canDownload: share.accessLevel === 'download',
-  });
 }
 
 // POST /api/shares/access/[code] - Verify password for protected share

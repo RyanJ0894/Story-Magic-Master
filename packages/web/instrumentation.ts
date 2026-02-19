@@ -25,10 +25,15 @@ export async function register() {
     // Start the queue worker for background job processing.
     // The worker polls for 'queued' jobs and processes them with retry + lock support.
     // Only runs in persistent Node.js processes (Render.com), not in edge or build contexts.
-    if (process.env.DATABASE_URL) {
+    //
+    // When WORKER_MODE=standalone, the worker runs as a separate process (see worker.ts),
+    // so we skip starting it inside Next.js to avoid duplicate job processing.
+    if (process.env.DATABASE_URL && process.env.WORKER_MODE !== 'standalone') {
       const { startWorker } = await import('./lib/queue/worker');
       startWorker({ pollIntervalMs: 5000, lockDurationSeconds: 600 });
-      log.info('[Instrumentation] Queue worker started');
+      log.info('[Instrumentation] Queue worker started (embedded mode)');
+    } else if (process.env.WORKER_MODE === 'standalone') {
+      log.info('[Instrumentation] Queue worker skipped (standalone mode)');
     }
   }
 

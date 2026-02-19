@@ -1,13 +1,11 @@
 import { withProjectAuth, errorResponse } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { log } from '@/lib/logger';
+import { deleteProject } from '@/lib/services/projects';
 
 export const POST = withProjectAuth(async (request, { prisma, projectId }) => {
   try {
-    await prisma.project.delete({
-      where: { id: projectId },
-    });
-
+    await deleteProject(prisma, projectId);
     return NextResponse.redirect(new URL('/dashboard', request.url));
   } catch (error) {
     log.error('Error deleting project', error);

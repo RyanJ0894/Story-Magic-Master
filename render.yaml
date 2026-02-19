@@ -112,6 +112,11 @@ services:
       - key: UPSTASH_REDIS_REST_TOKEN
         sync: false
 
+      # Queue worker mode: set to "standalone" when using the dedicated worker service.
+      # When unset or any other value, the worker runs embedded in the Next.js process.
+      # - key: WORKER_MODE
+      #   value: standalone
+
       # Queue worker concurrency (default 3, reduce if memory constrained)
       - key: QUEUE_CONCURRENCY
         value: "3"
@@ -127,6 +132,69 @@ services:
         value: "true"
       - key: NEXT_PUBLIC_FF_EXPORT_REPORTS
         value: "true"
+
+  # =============================================================================
+  # BACKGROUND WORKER (Queue Processor)
+  # =============================================================================
+  - type: worker
+    name: story-magic-worker
+    runtime: node
+    region: oregon
+    plan: starter
+    branch: main
+    autoDeploy: false
+
+    buildCommand: |
+      corepack enable &&
+      corepack prepare pnpm@9.1.0 --activate &&
+      pnpm install --frozen-lockfile &&
+      cd packages/web && npx prisma generate && cd ../.. &&
+      pnpm --filter @story-magic/web build
+    startCommand: cd packages/web && pnpm worker
+
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+
+      # Standalone worker mode — prevents Next.js from also starting a worker
+      - key: WORKER_MODE
+        value: standalone
+
+      # Database (Render PostgreSQL - from database reference)
+      - key: DATABASE_URL
+        fromDatabase:
+          name: story-magic-db
+          property: connectionString
+      - key: DIRECT_DATABASE_URL
+        fromDatabase:
+          name: story-magic-db
+          property: connectionString
+
+      # OpenAI (needed for intelligence features: scoring, suggestions)
+      - key: OPENAI_API_KEY
+        sync: false
+
+      # Orchestrator URL (needed for audio generation jobs)
+      - key: ORCHESTRATOR_URL
+        sync: false
+
+      # Inter-service auth
+      - key: SERVICE_SECRET_KEY
+        sync: false
+
+      # Sentry
+      - key: SENTRY_DSN
+        sync: false
+
+      # Queue worker concurrency (default 3, increase for dedicated worker)
+      - key: QUEUE_CONCURRENCY
+        value: "3"
+
+      # ElevenLabs (needed if generation processor calls TTS directly)
+      - key: ELEVENLABS_API_KEY
+        sync: false
 
   # =============================================================================
   # ORCHESTRATOR SERVICE (Node.js/Express)

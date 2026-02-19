@@ -17,7 +17,9 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report",
     "test:component": "vitest run --config vitest.config.component.mts",
-    "test:all": "pnpm test && pnpm test:component && pnpm test:e2e"
+    "test:all": "pnpm test && pnpm test:component && pnpm test:e2e",
+    "worker": "tsx worker.ts",
+    "seed:corpus": "tsx scripts/seed-corpus.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.37.3",
