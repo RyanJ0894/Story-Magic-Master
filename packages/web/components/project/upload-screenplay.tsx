@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Upload, FileText, X } from 'lucide-react';
 
-const ACCEPTED_EXTENSIONS = '.txt,.md,.docx,.pdf';
+const ACCEPTED_EXTENSIONS = '.txt,.md,.docx,.pdf,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 function formatFileSize(bytes: number): string {
