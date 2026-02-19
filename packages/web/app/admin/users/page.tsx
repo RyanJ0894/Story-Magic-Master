@@ -72,7 +72,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   ]);
 
   // Get project counts for each user
-  const userIds = users?.map(u => u.id) || [];
+  const userIds = users?.map((u: { id: string }) => u.id) || [];
   const projectCounts = await prisma.project.groupBy({
     by: ['userId'],
     where: { userId: { in: userIds } },
@@ -80,7 +80,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   });
 
   const projectCountMap = new Map<string, number>();
-  projectCounts.forEach(p => {
+  projectCounts.forEach((p: { userId: string; _count: { id: number } }) => {
     projectCountMap.set(p.userId, p._count.id);
   });
 
@@ -178,7 +178,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users?.map((user) => (
+              {users?.map((user: { id: string; fullName: string | null; userType: string; writerCode: string | null; readerCode: string | null; createdAt: Date; updatedAt: Date; subscriptions: { id: string; status: string; plan: string }[] }) => (
                 <TableRow key={user.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">

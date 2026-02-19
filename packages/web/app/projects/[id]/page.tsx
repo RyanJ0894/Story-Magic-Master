@@ -67,7 +67,7 @@ export default async function ProjectPage({
   }
 
   // Enrich jobs with audio info
-  const enrichedJobs = allJobs?.map(job => {
+  const enrichedJobs = allJobs?.map((job: typeof allJobs[number]) => {
     const jobAudio = audioByJobId.get(job.id) || [];
     return {
       id: job.id,
@@ -77,7 +77,7 @@ export default async function ProjectPage({
       createdAt: job.createdAt.toISOString(),
       completedAt: job.completedAt?.toISOString(),
       hasAudio: jobAudio.length > 0,
-      audioOutputs: jobAudio.map(a => ({
+      audioOutputs: jobAudio.map((a: typeof jobAudio[number]) => ({
         id: a.id,
         fileName: a.fileName,
         filePath: a.filePath,
@@ -193,7 +193,7 @@ export default async function ProjectPage({
             currentRunNumber: project.currentRunNumber ?? 0,
           }}
           storyScore={storyScore ? { id: storyScore.id, overallScore: Number(storyScore.overallScore) } : null}
-          audioOutputs={audioOutputs?.map(a => ({
+          audioOutputs={audioOutputs?.map((a: typeof audioOutputs[number]) => ({
             id: a.id,
             fileName: a.fileName,
             filePath: a.filePath,

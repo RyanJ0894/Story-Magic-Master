@@ -251,7 +251,7 @@ export async function getScoreHistory(projectId: string): Promise<StoryScore[]> 
     orderBy: { version: 'desc' },
   });
 
-  return data.map((d) => rowToStoryScore(toStoryScoreRow(d)));
+  return data.map((d: Record<string, unknown>) => rowToStoryScore(toStoryScoreRow(d)));
 }
 
 /**

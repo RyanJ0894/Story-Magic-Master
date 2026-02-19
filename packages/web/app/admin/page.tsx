@@ -152,7 +152,7 @@ export default async function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentUsers?.map((user) => (
+              {recentUsers?.map((user: { id: string; fullName: string | null; userType: string; createdAt: Date }) => (
                 <div key={user.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
@@ -187,7 +187,7 @@ export default async function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentSubscriptions?.map((sub) => {
+              {recentSubscriptions?.map((sub: { id: string; userId: string; plan: string; status: string; createdAt: Date; user: { fullName: string | null } | null }) => {
                 return (
                   <div key={sub.id} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">

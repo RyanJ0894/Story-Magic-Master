@@ -142,7 +142,7 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
     },
   });
 
-  log.info('Job queued', { jobId: jobId.slice(0, 8), projectId, type: 'generation' });
+  log.info('Job queued', { jobId: jobId!.slice(0, 8), projectId, type: 'generation' });
 
   return NextResponse.json({
     success: true,

@@ -47,16 +47,16 @@ export default async function WriterDashboardPage() {
   });
 
   // Fetch audio outputs to check which have audio
-  const projectIds = projects.map(p => p.id);
+  const projectIds = projects.map((p: typeof projects[number]) => p.id);
   const audioOutputs = await prisma.audioOutput.findMany({
     where: { projectId: { in: projectIds } },
     select: { projectId: true },
   });
 
   // Build scripts with stats
-  const scripts: WriterScriptSummary[] = (projects || []).map(project => {
-    const projectShares = shares?.filter(s => s.projectId === project.id) || [];
-    const hasAudio = audioOutputs?.some(a => a.projectId === project.id);
+  const scripts: WriterScriptSummary[] = (projects || []).map((project: typeof projects[number]) => {
+    const projectShares = shares?.filter((s: typeof shares[number]) => s.projectId === project.id) || [];
+    const hasAudio = audioOutputs?.some((a: typeof audioOutputs[number]) => a.projectId === project.id);
 
     return {
       project_id: project.id,
@@ -66,7 +66,7 @@ export default async function WriterDashboardPage() {
       created_at: project.createdAt.toISOString(),
       share_count: projectShares.length,
       reader_count: projectShares.length, // Simplified
-      total_views: projectShares.reduce((sum, s) => sum + (s.viewCount || 0), 0),
+      total_views: projectShares.reduce((sum: number, s: typeof shares[number]) => sum + (s.viewCount || 0), 0),
       audio_generated: hasAudio || false,
     };
   });
@@ -87,9 +87,9 @@ export default async function WriterDashboardPage() {
   // Calculate totals
   const stats = {
     totalScripts: scripts.length,
-    totalShares: scripts.reduce((sum, s) => sum + s.share_count, 0),
-    totalReaders: scripts.reduce((sum, s) => sum + s.reader_count, 0),
-    totalViews: scripts.reduce((sum, s) => sum + s.total_views, 0),
+    totalShares: scripts.reduce((sum: number, s: WriterScriptSummary) => sum + s.share_count, 0),
+    totalReaders: scripts.reduce((sum: number, s: WriterScriptSummary) => sum + s.reader_count, 0),
+    totalViews: scripts.reduce((sum: number, s: WriterScriptSummary) => sum + s.total_views, 0),
   };
 
   const writerCode = profile?.writerCode || 'LOADING';

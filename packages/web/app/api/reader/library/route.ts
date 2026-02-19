@@ -58,9 +58,9 @@ export const GET = withAuth(async (request, { userId, prisma }) => {
 
   // Check writer subscription status and audio durations in parallel
   const writerIds = Array.from(
-    new Set(entries.map(e => e.project?.userId).filter(Boolean) as string[])
+    new Set(entries.map((e: typeof entries[number]) => e.project?.userId).filter(Boolean) as string[])
   );
-  const projectIds = entries.map(e => e.projectId).filter(Boolean);
+  const projectIds = entries.map((e: typeof entries[number]) => e.projectId).filter(Boolean);
 
   const [activeSubscriptions, audioOutputs] = await Promise.all([
     prisma.subscription.findMany({
@@ -76,11 +76,11 @@ export const GET = withAuth(async (request, { userId, prisma }) => {
     }),
   ]);
 
-  const activeWriterIds = new Set(activeSubscriptions.map(s => s.userId));
-  const durationMap = new Map(audioOutputs.map(a => [a.projectId, a.durationSeconds]));
+  const activeWriterIds = new Set(activeSubscriptions.map((s: typeof activeSubscriptions[number]) => s.userId));
+  const durationMap = new Map(audioOutputs.map((a: typeof audioOutputs[number]) => [a.projectId, a.durationSeconds]));
 
   // Transform entries
-  const transformedEntries = entries.map(entry => {
+  const transformedEntries = entries.map((entry: typeof entries[number]) => {
     const project = entry.project;
     const writerProfile = project?.user;
     const writerId = project?.userId;

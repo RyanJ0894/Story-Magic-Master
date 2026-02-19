@@ -194,7 +194,7 @@ export async function getRevisions(projectId: string): Promise<Revision[]> {
     orderBy: { versionNumber: 'desc' },
   });
 
-  return (data || []).map((row) => rowToRevision(toRevisionRow(row)));
+  return (data || []).map((row: Record<string, unknown>) => rowToRevision(toRevisionRow(row)));
 }
 
 /**
@@ -235,7 +235,7 @@ export async function getRevisionTimeline(projectId: string): Promise<RevisionTi
     SELECT * FROM get_revision_timeline(${projectId}::uuid)
   `;
 
-  const entries: RevisionTimelineEntry[] = (timelineData || []).map((row) => ({
+  const entries: RevisionTimelineEntry[] = (timelineData || []).map((row: typeof timelineData[number]) => ({
     id: row.id,
     versionNumber: row.version_number,
     label: row.label || undefined,
@@ -262,7 +262,7 @@ export async function getRevisionTimeline(projectId: string): Promise<RevisionTi
 
   let scoreTrajectory: ScoreTrajectory | undefined;
   if (trajectoryData && trajectoryData.length > 0) {
-    const dataPoints = trajectoryData.map((row) => ({
+    const dataPoints = trajectoryData.map((row: typeof trajectoryData[number]) => ({
       revisionId: row.revision_id,
       versionNumber: row.version_number,
       score: row.score,

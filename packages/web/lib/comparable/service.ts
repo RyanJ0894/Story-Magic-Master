@@ -85,7 +85,7 @@ export async function searchComparables(
     )
   `;
 
-  const comparables: ComparableScript[] = (data || []).map((row) => ({
+  const comparables: ComparableScript[] = (data || []).map((row: typeof data[number]) => ({
     id: row.id,
     title: row.title,
     logline: row.logline,
@@ -139,7 +139,7 @@ export async function searchComparablesByLogline(
     )
   `;
 
-  return (data || []).map((row) => ({
+  return (data || []).map((row: typeof data[number]) => ({
     id: row.id,
     title: row.title,
     logline: row.logline,
@@ -218,10 +218,10 @@ export async function getCorpusStats(): Promise<{
 
   const totalScripts = scripts.length;
   const producedCount =
-    scripts.filter((s) => s.productionStatus === 'produced').length;
+    scripts.filter((s: typeof scripts[number]) => s.productionStatus === 'produced').length;
 
   const genreCounts: Record<string, number> = {};
-  scripts.forEach((s) => {
+  scripts.forEach((s: typeof scripts[number]) => {
     (s.genre || []).forEach((g: string) => {
       genreCounts[g] = (genreCounts[g] || 0) + 1;
     });

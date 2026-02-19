@@ -93,7 +93,7 @@ export default async function AdminAnalyticsPage() {
 
   // Process daily signups for a simple bar representation
   const signupsByDay = new Map<string, number>();
-  dailySignups?.forEach(signup => {
+  dailySignups?.forEach((signup: { createdAt: Date }) => {
     const day = new Date(signup.createdAt).toLocaleDateString();
     signupsByDay.set(day, (signupsByDay.get(day) || 0) + 1);
   });
@@ -328,7 +328,7 @@ export default async function AdminAnalyticsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentProjects?.map((project) => {
+              {recentProjects?.map((project: { id: string; name: string; createdAt: Date; user: { fullName: string | null } | null }) => {
                 return (
                   <div key={project.id} className="flex items-center justify-between">
                     <div>
@@ -355,7 +355,7 @@ export default async function AdminAnalyticsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentShares?.map((share) => (
+              {recentShares?.map((share: { id: string; shareToken: string | null; createdAt: Date; viewCount: number }) => (
                 <div key={share.id} className="flex items-center justify-between">
                   <div>
                     <p className="font-medium font-mono">{share.shareToken}</p>

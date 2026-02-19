@@ -63,7 +63,7 @@ export const GET = withAuth(async (request, { userId, prisma }) => {
 
     // Fetch related user profiles separately
     const relatedUserIds = Array.from(new Set(
-      alerts.map(a => a.relatedUserId).filter(Boolean)
+      alerts.map((a: typeof alerts[number]) => a.relatedUserId).filter(Boolean)
     )) as string[];
 
     let profilesMap: Record<string, { fullName: string | null; avatarUrl: string | null }> = {};
@@ -75,12 +75,12 @@ export const GET = withAuth(async (request, { userId, prisma }) => {
       });
 
       profilesMap = Object.fromEntries(
-        profiles.map(p => [p.id, { fullName: p.fullName, avatarUrl: p.avatarUrl }])
+        profiles.map((p: typeof profiles[number]) => [p.id, { fullName: p.fullName, avatarUrl: p.avatarUrl }])
       );
     }
 
     // Map to snake_case for client compatibility and merge profile data
-    const alertsWithUsers = alerts.map(alert => ({
+    const alertsWithUsers = alerts.map((alert: typeof alerts[number]) => ({
       id: alert.id,
       alert_type: alert.alertType,
       title: alert.title,

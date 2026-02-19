@@ -191,7 +191,7 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {subscriptions?.map((sub) => {
+              {subscriptions?.map((sub: { id: string; userId: string; plan: string; status: string; stripeCustomerId: string | null; cancelAtPeriodEnd: boolean; currentPeriodStart: Date | null; currentPeriodEnd: Date | null; createdAt: Date; user: { id: string; fullName: string | null; userType: string } | null }) => {
                 return (
                   <TableRow key={sub.id}>
                     <TableCell>

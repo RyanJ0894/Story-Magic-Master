@@ -289,7 +289,7 @@ export async function getProjectJobs(projectId: string): Promise<Job[]> {
     orderBy: { createdAt: 'desc' },
   });
 
-  return jobs.map((job) => ({
+  return jobs.map((job: typeof jobs[number]) => ({
     id: job.id,
     projectId: job.projectId,
     userId: job.userId,
@@ -342,7 +342,7 @@ export async function getQueueStats(): Promise<QueueSummary> {
     };
   }
 
-  const stats: QueueStats[] = data.map((row) => ({
+  const stats: QueueStats[] = data.map((row: typeof data[number]) => ({
     jobType: row.job_type as JobType,
     queuedCount: Number(row.queued_count) || 0,
     processingCount: Number(row.processing_count) || 0,

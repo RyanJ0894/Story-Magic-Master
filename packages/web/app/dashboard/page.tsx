@@ -148,7 +148,7 @@ export default async function DashboardPage() {
         {/* Projects Grid */}
         {projects && projects.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {projects.map((project) => {
+            {projects.map((project: typeof projects[number]) => {
               const status = statusConfig[project.status] || statusConfig.draft;
               return (
                 <Link key={project.id} href={`/projects/${project.id}`}>

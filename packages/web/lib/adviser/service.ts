@@ -239,7 +239,7 @@ export async function getSuggestions(
     orderBy: { startLine: 'asc' },
   });
 
-  return sortSuggestions(data.map((d) => rowToSuggestion(toSuggestionRow(d))));
+  return sortSuggestions(data.map((d: Record<string, unknown>) => rowToSuggestion(toSuggestionRow(d))));
 }
 
 /**
@@ -329,7 +329,7 @@ export async function generateRewrites(
   });
 
   if (existing && existing.length >= count) {
-    return existing.map((d) => rowToRewrite(toRewriteRow(d)));
+    return existing.map((d: Record<string, unknown>) => rowToRewrite(toRewriteRow(d)));
   }
 
   // Build prompt
@@ -404,7 +404,7 @@ export async function getRewrites(suggestionId: string): Promise<Rewrite[]> {
     orderBy: { createdAt: 'asc' },
   });
 
-  return data.map((d) => rowToRewrite(toRewriteRow(d)));
+  return data.map((d: Record<string, unknown>) => rowToRewrite(toRewriteRow(d)));
 }
 
 /**

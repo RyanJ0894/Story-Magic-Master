@@ -105,7 +105,7 @@ export const GET = withProjectAuth(async (_request, { prisma, projectId }) => {
       ORDER BY created_at DESC
     `;
 
-    const feedbacks = (data || []).map((row) => rowToFeedback(row));
+    const feedbacks = (data || []).map((row: FeedbackRow) => rowToFeedback(row));
     const stats = calculateFeedbackStats(feedbacks);
 
     return NextResponse.json({

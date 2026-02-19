@@ -45,10 +45,10 @@ export default async function ReaderDashboardPage() {
     select: { userId: true },
   });
 
-  const activeWriterIds = new Set(activeSubscriptions.map(s => s.userId));
+  const activeWriterIds = new Set(activeSubscriptions.map((s: typeof activeSubscriptions[number]) => s.userId));
 
   // Transform to detailed entries
-  const entries: ReaderLibraryEntryDetailed[] = (libraryEntries || []).map(entry => {
+  const entries: ReaderLibraryEntryDetailed[] = (libraryEntries || []).map((entry: typeof libraryEntries[number]) => {
     const project = entry.project;
     const writerProfile = project?.user;
     const writerId = project?.userId;

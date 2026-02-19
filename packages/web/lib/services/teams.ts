@@ -95,7 +95,7 @@ export async function listTeams(prisma: PrismaClient, userId: string) {
     },
   });
 
-  const memberTeams = memberships.map((m) => ({
+  const memberTeams = memberships.map((m: typeof memberships[number]) => ({
     ...m.team,
     membership: {
       id: m.id,
@@ -105,7 +105,7 @@ export async function listTeams(prisma: PrismaClient, userId: string) {
   }));
 
   const allTeams = [
-    ...ownedTeams.map((t) => ({ ...t, role: 'owner' as const })),
+    ...ownedTeams.map((t: typeof ownedTeams[number]) => ({ ...t, role: 'owner' as const })),
     ...memberTeams,
   ];
 
