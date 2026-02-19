@@ -9,8 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Upload, FileText, X } from 'lucide-react';
 
-const ACCEPTED_EXTENSIONS = '.txt,.md,.docx';
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ACCEPTED_EXTENSIONS = '.txt,.md,.docx,.pdf';
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -40,12 +40,12 @@ export function UploadScreenplay({
   const handleFile = useCallback(
     (selectedFile: File) => {
       const ext = selectedFile.name.slice(selectedFile.name.lastIndexOf('.')).toLowerCase();
-      if (!['.txt', '.md', '.docx'].includes(ext)) {
-        toast.error('Unsupported file type. Please upload a .txt, .md, or .docx file.');
+      if (!['.txt', '.md', '.docx', '.pdf'].includes(ext)) {
+        toast.error('Unsupported file type. Please upload a .txt, .md, .docx, or .pdf file.');
         return;
       }
       if (selectedFile.size > MAX_FILE_SIZE) {
-        toast.error('File too large. Maximum size is 5MB.');
+        toast.error('File too large. Maximum size is 10MB.');
         return;
       }
       setFile(selectedFile);
@@ -150,7 +150,7 @@ export function UploadScreenplay({
             Drop your screenplay here or click to browse
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Supports .docx, .md, and .txt files (max 5MB)
+            Supports .pdf, .docx, .md, and .txt files (max 10MB)
           </p>
         </div>
         <input

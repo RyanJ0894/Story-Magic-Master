@@ -1,8 +1,8 @@
 import mammoth from 'mammoth';
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB (PDFs can be larger)
 const WORDS_PER_PAGE = 250;
-const ALLOWED_EXTENSIONS = ['.txt', '.md', '.docx'] as const;
+const ALLOWED_EXTENSIONS = ['.txt', '.md', '.docx', '.pdf'] as const;
 
 type AllowedExtension = (typeof ALLOWED_EXTENSIONS)[number];
 
@@ -42,13 +42,13 @@ export async function parseScreenplay(
 
   if (!ALLOWED_EXTENSIONS.includes(ext as AllowedExtension)) {
     throw new Error(
-      `Unsupported file type "${ext}". Accepted formats: .txt, .md, .docx`
+      `Unsupported file type "${ext}". Accepted formats: .txt, .md, .docx, .pdf`
     );
   }
 
   if (buffer.length > MAX_FILE_SIZE) {
     throw new Error(
-      `File too large (${(buffer.length / 1024 / 1024).toFixed(1)}MB). Maximum size is 5MB.`
+      `File too large (${(buffer.length / 1024 / 1024).toFixed(1)}MB). Maximum size is 10MB.`
     );
   }
 
@@ -62,6 +62,16 @@ export async function parseScreenplay(
     case '.docx': {
       const result = await mammoth.extractRawText({ buffer });
       text = result.value;
+      break;
+    }
+    case '.pdf': {
+      // Dynamic import to avoid pdf-parse loading test fixtures at module init
+      const mod = await import('pdf-parse');
+      // Handle CJS default export interop
+      const pdfParse = (typeof mod === 'function' ? mod : mod.default ?? mod) as
+        (buf: Buffer) => Promise<{ text: string }>;
+      const pdfResult = await pdfParse(buffer);
+      text = pdfResult.text;
       break;
     }
   }

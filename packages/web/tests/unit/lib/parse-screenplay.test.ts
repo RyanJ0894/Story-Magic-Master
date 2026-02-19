@@ -10,6 +10,12 @@ vi.mock('mammoth', () => ({
   default: { extractRawText: (...args: unknown[]) => mockExtractRawText(...args) },
 }));
 
+// Mock pdf-parse
+const mockPdfParse = vi.fn();
+vi.mock('pdf-parse', () => ({
+  default: (...args: unknown[]) => mockPdfParse(...args),
+}));
+
 import {
   parseScreenplay,
   getProjectNameFromFilename,
@@ -51,8 +57,20 @@ describe('parseScreenplay', () => {
     expect(result.text).toBe(extractedText);
   });
 
-  it('rejects files larger than 5MB', async () => {
-    const bigBuffer = Buffer.alloc(6 * 1024 * 1024);
+  it('parses a .pdf file using pdf-parse', async () => {
+    const pdfText = 'INT. COURTROOM - DAY\n\nThe judge speaks.';
+    mockPdfParse.mockResolvedValue({ text: pdfText });
+    const buffer = Buffer.from('fake-pdf-bytes');
+
+    const result = await parseScreenplay(buffer, 'script.pdf');
+
+    expect(mockPdfParse).toHaveBeenCalledWith(buffer);
+    expect(result.text).toBe(pdfText);
+    expect(result.pageCount).toBe(1);
+  });
+
+  it('rejects files larger than 10MB', async () => {
+    const bigBuffer = Buffer.alloc(11 * 1024 * 1024);
 
     await expect(parseScreenplay(bigBuffer, 'huge.txt')).rejects.toThrow(
       /File too large/
@@ -60,9 +78,9 @@ describe('parseScreenplay', () => {
   });
 
   it('rejects unsupported file types', async () => {
-    const buffer = Buffer.from('pdf content');
+    const buffer = Buffer.from('some content');
 
-    await expect(parseScreenplay(buffer, 'file.pdf')).rejects.toThrow(
+    await expect(parseScreenplay(buffer, 'file.xlsx')).rejects.toThrow(
       /Unsupported file type/
     );
   });

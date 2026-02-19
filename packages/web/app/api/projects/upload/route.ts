@@ -1,7 +1,7 @@
 /**
  * Projects Upload API Route
  *
- * POST /api/projects/upload - Upload a screenplay file (.txt, .md, .docx) and create a project
+ * POST /api/projects/upload - Upload a screenplay file (.txt, .md, .docx, .pdf) and create a project
  */
 
 import { withAuth } from '@/lib/api/middleware';
@@ -12,10 +12,11 @@ import { createProject } from '@/lib/services/projects';
 const ACCEPTED_MIME_TYPES = new Set([
   'text/plain',
   'text/markdown',
+  'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
 
-const ACCEPTED_EXTENSIONS = new Set(['.txt', '.md', '.docx']);
+const ACCEPTED_EXTENSIONS = new Set(['.txt', '.md', '.docx', '.pdf']);
 
 function getExtension(filename: string): string {
   const dot = filename.lastIndexOf('.');
@@ -46,7 +47,7 @@ export const POST = withAuth(
     if (!ACCEPTED_EXTENSIONS.has(ext)) {
       return NextResponse.json(
         {
-          error: `Unsupported file type "${ext}". Accepted formats: .txt, .md, .docx`,
+          error: `Unsupported file type "${ext}". Accepted formats: .txt, .md, .docx, .pdf`,
           code: 'UNSUPPORTED_TYPE',
         },
         { status: 400 }

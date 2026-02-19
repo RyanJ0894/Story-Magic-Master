@@ -154,8 +154,19 @@ describe('POST /api/projects/upload', () => {
     expect(data.code).toBe('MISSING_FILE');
   });
 
+  it('creates a project from a .pdf file upload', async () => {
+    const file = createFile('fake-pdf', 'screenplay.pdf', 'application/pdf');
+    const request = createFormDataRequest({ file });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(data.id).toBe(PROJECT_ID);
+  });
+
   it('rejects unsupported file types', async () => {
-    const file = createFile('pdf content', 'doc.pdf', 'application/pdf');
+    const file = createFile('spreadsheet', 'doc.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     const request = createFormDataRequest({ file });
 
     const response = await POST(request);
