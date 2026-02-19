@@ -395,10 +395,10 @@ registerProcessor('score_generation', async (job, context) => {
   log.info('Score generation complete', {
     jobId: job.jobId.slice(0, 8),
     projectId: job.projectId,
-    overallScore: score.overall,
+    overallScore: score.overallScore,
   });
 
-  return { scoreId: score.id, overall: score.overall, rating: score.rating };
+  return { scoreId: score.id, overallScore: score.overallScore, rating: score.rating };
 });
 
 // Suggestion generation processor — runs Story-Adviser analysis on a project

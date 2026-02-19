@@ -21,12 +21,8 @@ export function errorResponse(
   status: number,
   opts?: ErrorResponseOptions,
 ) {
-  return NextResponse.json(
-    {
-      error: message,
-      ...(opts?.code && { code: opts.code }),
-      ...(opts?.details && { details: opts.details }),
-    },
-    { status },
-  );
+  const body: Record<string, unknown> = { error: message };
+  if (opts?.code) body.code = opts.code;
+  if (opts?.details !== undefined) body.details = opts.details;
+  return NextResponse.json(body, { status });
 }

@@ -39,7 +39,7 @@ export const GET = withAuth(async (_request, { userId, prisma }) => {
     if (!preferences) {
       // Return default preferences without persisting
       preferences = {
-        id: null,
+        id: '',
         userId,
         emailTeamInvites: true,
         emailScriptShared: true,
@@ -49,8 +49,8 @@ export const GET = withAuth(async (_request, { userId, prisma }) => {
         emailGenerationComplete: false,
         inappAll: true,
         emailDigestFrequency: 'instant',
-        createdAt: null,
-        updatedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
     }
 

@@ -364,7 +364,7 @@ export async function accessShare(
       code: share.project?.user?.writerCode ?? '',
     },
     audio: audioOutput
-      ? { url: audioOutput.filePath, duration: audioOutput.durationSeconds }
+      ? { url: audioOutput.filePath, duration: audioOutput.durationSeconds ? Number(audioOutput.durationSeconds) : null }
       : null,
     canDownload: share.accessLevel === 'download',
   };

@@ -75,7 +75,7 @@ export const FEATURES: Record<string, FeatureDefinition> = {
     key: 'COMPARABLE_SCRIPTS',
     name: 'Comparable Scripts',
     description: 'Find similar scripts in corpus',
-    defaultEnabled: false,
+    defaultEnabled: true,
     dependsOn: ['STORY_SCORE'],
     phase: 3,
   },
@@ -85,13 +85,22 @@ export const FEATURES: Record<string, FeatureDefinition> = {
     key: 'EXPORT_REPORTS',
     name: 'Export Reports',
     description: 'PDF export of StoryScore reports',
-    defaultEnabled: false,
+    defaultEnabled: true,
     dependsOn: ['STORY_SCORE'],
     phase: 3,
   },
+
+  // Story Explorer - interactive graph visualization
+  STORY_EXPLORER: {
+    key: 'STORY_EXPLORER',
+    name: 'Story Explorer',
+    description: 'Interactive scene flow and character network visualization',
+    defaultEnabled: true,
+    phase: 2,
+  },
 };
 
-export type FeatureKey = 'STORY_SCORE' | 'STORY_ADVISER' | 'REVISION_TRACKING' | 'SCRIPT_EDITOR' | 'COMPARABLE_SCRIPTS' | 'EXPORT_REPORTS';
+export type FeatureKey = 'STORY_SCORE' | 'STORY_ADVISER' | 'REVISION_TRACKING' | 'SCRIPT_EDITOR' | 'COMPARABLE_SCRIPTS' | 'EXPORT_REPORTS' | 'STORY_EXPLORER';
 
 // =============================================================================
 // Feature Flag Checking

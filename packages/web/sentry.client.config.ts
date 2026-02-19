@@ -22,13 +22,13 @@ Sentry.init({
       maskAllText: true,
       blockAllMedia: false,
       // Block screenplay content areas from session replays entirely
-      blockSelector: [
+      block: [
         '[data-testid="script-textarea"]',
         '[data-testid="script-editor"]',
         '[data-testid="player-content"]',
         '.script-content',
         '.screenplay-text',
-      ].join(','),
+      ],
     }),
   ],
 

@@ -29,7 +29,6 @@ import {
   RefreshCw,
   History,
   FileText,
-  Download,
 } from 'lucide-react';
 import {
   StoryScore as StoryScoreType,
@@ -538,18 +537,23 @@ export function StoryScore({
             )}
             Rescore
           </Button>
-          <Button variant="outline" size="sm" disabled>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => document.getElementById('revision-section')?.scrollIntoView({ behavior: 'smooth' })}
+          >
             <History className="w-4 h-4 mr-2" />
             View History
           </Button>
-          <Button variant="outline" size="sm" disabled>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => document.getElementById('story-adviser-section')?.scrollIntoView({ behavior: 'smooth' })}
+          >
             <FileText className="w-4 h-4 mr-2" />
             Get Suggestions
           </Button>
-          <Button variant="outline" size="sm" disabled>
-            <Download className="w-4 h-4 mr-2" />
-            Export Report
-          </Button>
+          <ExportButton projectId={projectId} />
         </div>
       </CardContent>
     </Card>

@@ -90,8 +90,9 @@ export async function POST(request: Request) {
         const priceId = subscription.items.data[0]?.price.id;
         const tier = getTierFromPriceId(priceId);
 
-        const periodStart = subscription.current_period_start;
-        const periodEnd = subscription.current_period_end;
+        const firstItem = subscription.items.data[0];
+        const periodStart = firstItem?.current_period_start;
+        const periodEnd = firstItem?.current_period_end;
         const limits = TIER_LIMITS[tier] || TIER_LIMITS.free;
 
         if (userId) {
@@ -173,9 +174,10 @@ export async function POST(request: Request) {
 
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object as Stripe.Invoice;
-        const subscriptionId = typeof invoice.subscription === 'string'
-          ? invoice.subscription
-          : invoice.subscription?.id ?? null;
+        const subRef = invoice.parent?.subscription_details?.subscription;
+        const subscriptionId = subRef
+          ? (typeof subRef === 'string' ? subRef : subRef.id)
+          : null;
 
         if (subscriptionId) {
           // Update subscription status on both models
@@ -222,9 +224,10 @@ export async function POST(request: Request) {
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice;
-        const subscriptionId = typeof invoice.subscription === 'string'
-          ? invoice.subscription
-          : invoice.subscription?.id ?? null;
+        const failedSubRef = invoice.parent?.subscription_details?.subscription;
+        const subscriptionId = failedSubRef
+          ? (typeof failedSubRef === 'string' ? failedSubRef : failedSubRef.id)
+          : null;
 
         if (subscriptionId) {
           await Promise.all([

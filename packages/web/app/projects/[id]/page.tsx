@@ -8,6 +8,8 @@ import { StoryScoreSection } from '@/components/storyscore';
 import { StoryAdviserSection } from '@/components/story-adviser';
 import { RevisionSection } from '@/components/revisions';
 import { ComparableSection } from '@/components/comparable';
+import { StoryExplorerSection } from '@/components/story-explorer';
+import { ScriptEditorWrapper } from '@/components/script-editor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -210,47 +212,34 @@ export default async function ProjectPage({
           remainingPreviews={remainingPreviews ?? 0}
         />
 
+        {/* Story Explorer */}
+        <StoryExplorerSection directorJson={project.directorJson} />
+
         {/* Intelligence Features */}
         <StoryScoreSection
           projectId={project.id}
           scriptText={project.scriptText || ''}
         />
 
-        <StoryAdviserSection
-          projectId={project.id}
-          scriptText={project.scriptText || ''}
-        />
+        <div id="story-adviser-section">
+          <StoryAdviserSection
+            projectId={project.id}
+            scriptText={project.scriptText || ''}
+          />
+        </div>
 
-        <RevisionSection projectId={project.id} />
+        <div id="revision-section">
+          <RevisionSection projectId={project.id} />
+        </div>
 
         <ComparableSection projectId={project.id} hasScore={!!storyScore} />
 
-        {/* Script Preview - Collapsible */}
-        <Collapsible>
-          <Card>
-            <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 transition-colors">
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-5 h-5" aria-hidden="true" />
-                    Script Preview
-                  </div>
-                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                </CardTitle>
-                <CardDescription>
-                  View your original screenplay text
-                </CardDescription>
-              </CardHeader>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent>
-                <pre className="whitespace-pre-wrap font-mono text-sm bg-muted p-4 rounded-lg overflow-auto max-h-96 border border-border">
-                  {project.scriptText}
-                </pre>
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
+        {/* Script Editor */}
+        <ScriptEditorWrapper
+          projectId={project.id}
+          initialScriptText={project.scriptText ?? ''}
+          suggestions={[]}
+        />
 
         {/* Danger Zone - Collapsible */}
         <Collapsible>

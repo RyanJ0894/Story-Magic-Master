@@ -69,6 +69,7 @@ interface EnrichedJob {
     fileName: string;
     filePath: string;
     durationSeconds?: number;
+    format?: string;
   }>;
   error?: string;
   progress?: {

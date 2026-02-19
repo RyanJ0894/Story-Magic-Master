@@ -135,15 +135,19 @@ async function handleSync(
     }
 
     // Map Stripe subscription data to local database fields
+    const firstItem = stripeSubscription.items?.data?.[0];
     const syncData: Record<string, unknown> = {
       status: stripeSubscription.status,
       cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
-      currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000),
+      currentPeriodStart: firstItem?.current_period_start
+        ? new Date(firstItem.current_period_start * 1000)
+        : undefined,
+      currentPeriodEnd: firstItem?.current_period_end
+        ? new Date(firstItem.current_period_end * 1000)
+        : undefined,
     };
 
     // Sync plan from the first subscription item's price if available
-    const firstItem = stripeSubscription.items?.data?.[0];
     if (firstItem?.price?.id) {
       syncData.stripePriceId = firstItem.price.id;
     }

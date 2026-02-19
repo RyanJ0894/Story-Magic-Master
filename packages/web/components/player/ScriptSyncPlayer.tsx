@@ -44,7 +44,7 @@ interface AudioOutput {
   fileName: string;
   filePath: string;
   durationSeconds?: number;
-  format: string;
+  format?: string;
 }
 
 interface ScriptSyncPlayerProps {

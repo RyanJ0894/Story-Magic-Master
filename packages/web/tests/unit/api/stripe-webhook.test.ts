@@ -157,8 +157,8 @@ describe('Stripe Webhook Handler', () => {
           id: 'sub_xyz789',
           metadata: { userId: 'user-123' },
           status: 'active',
-          items: { data: [{ price: { id: 'price_pro_monthly' } }] },
-          current_period_end: 1735689600, // 2025-01-01
+          items: { data: [{ price: { id: 'price_pro_monthly' }, current_period_start: 1733097600, current_period_end: 1735689600 }] },
+          cancel_at_period_end: false,
         })
       );
 
@@ -183,8 +183,8 @@ describe('Stripe Webhook Handler', () => {
           id: 'sub_123',
           metadata: { userId: 'user-123' },
           status: 'active',
-          items: { data: [{ price: { id: 'price_creator_yearly' } }] },
-          current_period_end: 1735689600,
+          items: { data: [{ price: { id: 'price_creator_yearly' }, current_period_start: 1733097600, current_period_end: 1735689600 }] },
+          cancel_at_period_end: false,
         })
       );
 
@@ -204,8 +204,8 @@ describe('Stripe Webhook Handler', () => {
           id: 'sub_123',
           metadata: { userId: 'user-123' },
           status: 'active',
-          items: { data: [{ price: { id: 'price_unknown' } }] },
-          current_period_end: 1735689600,
+          items: { data: [{ price: { id: 'price_unknown' }, current_period_start: 1733097600, current_period_end: 1735689600 }] },
+          cancel_at_period_end: false,
         })
       );
 
@@ -249,7 +249,7 @@ describe('Stripe Webhook Handler', () => {
     it('should set subscription status to active and reset usage', async () => {
       mockConstructWebhookEvent.mockReturnValue(
         createStripeEvent('invoice.payment_succeeded', {
-          subscription: 'sub_xyz789',
+          parent: { subscription_details: { subscription: 'sub_xyz789' } },
           period_start: 1704067200, // 2024-01-01
           period_end: 1706745600, // 2024-02-01
         })
@@ -287,7 +287,7 @@ describe('Stripe Webhook Handler', () => {
     it('should set subscription status to past_due', async () => {
       mockConstructWebhookEvent.mockReturnValue(
         createStripeEvent('invoice.payment_failed', {
-          subscription: 'sub_xyz789',
+          parent: { subscription_details: { subscription: 'sub_xyz789' } },
         })
       );
 
