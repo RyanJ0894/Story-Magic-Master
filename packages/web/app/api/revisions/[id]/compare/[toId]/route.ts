@@ -1,102 +1,34 @@
 /**
- * Revision Comparison API Route
+ * DEPRECATED: Top-level Revision Compare Route
  *
- * GET /api/revisions/[id]/compare/[toId] - Compare two revisions
+ * This route is deprecated in favor of the project-scoped route:
+ *   GET /api/projects/[id]/revisions/compare?from=xxx&to=yyy
+ *
+ * Kept for backwards compatibility. Returns 308 permanent redirects
+ * to guide clients toward the canonical project-scoped endpoints.
  */
 
 import { withAuth } from '@/lib/api/middleware';
 import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import { isFeatureEnabled } from '@/lib/features';
-import { compareRevisions } from '@/lib/revisions';
-import { log } from '@/lib/logger';
 
-// =============================================================================
-// Helper to verify ownership
-// =============================================================================
-
-async function verifyRevisionOwnership(
-  revisionId: string,
-  userId: string
-): Promise<boolean> {
+async function getProjectIdForRevision(revisionId: string): Promise<string | null> {
   const revision = await prisma.revision.findUnique({
     where: { id: revisionId },
-    select: {
-      project: { select: { userId: true } },
-    },
+    select: { projectId: true },
   });
-
-  if (!revision) return false;
-
-  return revision.project.userId === userId;
+  return revision?.projectId ?? null;
 }
 
-// =============================================================================
-// GET - Compare revisions
-// =============================================================================
-
-export const GET = withAuth(async (_request, { userId, params }) => {
-  if (!isFeatureEnabled('REVISION_TRACKING')) {
-    return NextResponse.json(
-      { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
-      { status: 403 }
-    );
+export const GET = withAuth(async (request, { params }) => {
+  const projectId = await getProjectIdForRevision(params.id);
+  if (!projectId) {
+    return NextResponse.json({ error: 'Revision not found', code: 'NOT_FOUND' }, { status: 404 });
   }
 
-  const fromRevisionId = params.id;
-  const toRevisionId = params.toId;
-
-  // Verify ownership of both revisions
-  const [fromOwned, toOwned] = await Promise.all([
-    verifyRevisionOwnership(fromRevisionId, userId),
-    verifyRevisionOwnership(toRevisionId, userId),
-  ]);
-
-  if (!fromOwned || !toOwned) {
-    return NextResponse.json(
-      { error: 'One or both revisions not found', code: 'NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
-  try {
-    const comparison = await compareRevisions(fromRevisionId, toRevisionId);
-
-    // Don't send full script text in comparison response
-    const sanitizedComparison = {
-      fromRevision: {
-        id: comparison.fromRevision.id,
-        versionNumber: comparison.fromRevision.versionNumber,
-        label: comparison.fromRevision.label,
-        wordCount: comparison.fromRevision.wordCount,
-        pageCount: comparison.fromRevision.pageCount,
-        overallScore: comparison.fromRevision.overallScore,
-        createdAt: comparison.fromRevision.createdAt,
-      },
-      toRevision: {
-        id: comparison.toRevision.id,
-        versionNumber: comparison.toRevision.versionNumber,
-        label: comparison.toRevision.label,
-        wordCount: comparison.toRevision.wordCount,
-        pageCount: comparison.toRevision.pageCount,
-        overallScore: comparison.toRevision.overallScore,
-        createdAt: comparison.toRevision.createdAt,
-      },
-      changes: comparison.changes,
-      diff: comparison.diff,
-      scoreComparison: comparison.scoreComparison,
-    };
-
-    return NextResponse.json({ comparison: sanitizedComparison });
-  } catch (error) {
-    log.error('[Revision Compare] Error', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to compare revisions',
-        code: 'COMPARE_ERROR',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
-  }
+  const url = new URL(request.url);
+  url.pathname = `/api/projects/${projectId}/revisions/compare`;
+  url.searchParams.set('from', params.id);
+  url.searchParams.set('to', params.toId);
+  return NextResponse.redirect(url.toString(), 308);
 });

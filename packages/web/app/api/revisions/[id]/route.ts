@@ -1,174 +1,52 @@
 /**
- * Individual Revision API Route
+ * DEPRECATED: Top-level Revision Route
  *
- * GET /api/revisions/[id] - Get revision details
- * PUT /api/revisions/[id] - Update revision (label)
- * DELETE /api/revisions/[id] - Delete revision
+ * This route is deprecated in favor of the project-scoped routes:
+ *   GET/POST  /api/projects/[id]/revisions
+ *   Individual revision operations should go through project-scoped routes.
+ *
+ * Kept for backwards compatibility. Returns 308 permanent redirects
+ * to guide clients toward the canonical project-scoped endpoints.
  */
 
-import { withAuth, parseBody } from '@/lib/api/middleware';
+import { withAuth } from '@/lib/api/middleware';
 import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import { z } from 'zod';
-import { isFeatureEnabled } from '@/lib/features';
-import {
-  getRevision,
-  updateRevisionLabel,
-  deleteRevision,
-} from '@/lib/revisions';
-import { log } from '@/lib/logger';
 
-// =============================================================================
-// Validation
-// =============================================================================
-
-const UpdateRevisionSchema = z.object({
-  label: z.string().min(1).max(200),
-});
-
-// =============================================================================
-// Helper to verify ownership
-// =============================================================================
-
-async function verifyRevisionOwnership(
-  revisionId: string,
-  userId: string
-): Promise<boolean> {
+async function getProjectIdForRevision(revisionId: string): Promise<string | null> {
   const revision = await prisma.revision.findUnique({
     where: { id: revisionId },
-    select: {
-      project: { select: { userId: true } },
-    },
+    select: { projectId: true },
   });
-
-  if (!revision) return false;
-
-  return revision.project.userId === userId;
+  return revision?.projectId ?? null;
 }
 
-// =============================================================================
-// GET - Get revision details
-// =============================================================================
+function buildRedirectUrl(request: Request, projectId: string): string {
+  const url = new URL(request.url);
+  url.pathname = `/api/projects/${projectId}/revisions`;
+  return url.toString();
+}
 
-export const GET = withAuth(async (_request, { userId, params }) => {
-  if (!isFeatureEnabled('REVISION_TRACKING')) {
-    return NextResponse.json(
-      { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
-      { status: 403 }
-    );
+export const GET = withAuth(async (request, { params }) => {
+  const projectId = await getProjectIdForRevision(params.id);
+  if (!projectId) {
+    return NextResponse.json({ error: 'Revision not found', code: 'NOT_FOUND' }, { status: 404 });
   }
-
-  const revisionId = params.id;
-
-  const owned = await verifyRevisionOwnership(revisionId, userId);
-  if (!owned) {
-    return NextResponse.json(
-      { error: 'Revision not found', code: 'NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
-  try {
-    const revision = await getRevision(revisionId);
-    if (!revision) {
-      return NextResponse.json(
-        { error: 'Revision not found', code: 'NOT_FOUND' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ revision });
-  } catch (error) {
-    log.error('[Revision] Error fetching', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to fetch revision',
-        code: 'FETCH_ERROR',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
-  }
+  return NextResponse.redirect(buildRedirectUrl(request, projectId), 308);
 });
 
-// =============================================================================
-// PUT - Update revision
-// =============================================================================
-
-export const PUT = withAuth(async (request, { userId, params }) => {
-  if (!isFeatureEnabled('REVISION_TRACKING')) {
-    return NextResponse.json(
-      { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
-      { status: 403 }
-    );
+export const PUT = withAuth(async (request, { params }) => {
+  const projectId = await getProjectIdForRevision(params.id);
+  if (!projectId) {
+    return NextResponse.json({ error: 'Revision not found', code: 'NOT_FOUND' }, { status: 404 });
   }
-
-  const revisionId = params.id;
-
-  const owned = await verifyRevisionOwnership(revisionId, userId);
-  if (!owned) {
-    return NextResponse.json(
-      { error: 'Revision not found', code: 'NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
-  const parsed = await parseBody(request, UpdateRevisionSchema);
-  if ('error' in parsed) return parsed.error;
-
-  try {
-    const revision = await updateRevisionLabel(revisionId, parsed.data.label);
-    return NextResponse.json({
-      success: true,
-      revision,
-    });
-  } catch (error) {
-    log.error('[Revision] Error updating', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to update revision',
-        code: 'UPDATE_ERROR',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
-  }
+  return NextResponse.redirect(buildRedirectUrl(request, projectId), 308);
 });
 
-// =============================================================================
-// DELETE - Delete revision
-// =============================================================================
-
-export const DELETE = withAuth(async (_request, { userId, params }) => {
-  if (!isFeatureEnabled('REVISION_TRACKING')) {
-    return NextResponse.json(
-      { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
-      { status: 403 }
-    );
+export const DELETE = withAuth(async (request, { params }) => {
+  const projectId = await getProjectIdForRevision(params.id);
+  if (!projectId) {
+    return NextResponse.json({ error: 'Revision not found', code: 'NOT_FOUND' }, { status: 404 });
   }
-
-  const revisionId = params.id;
-
-  const owned = await verifyRevisionOwnership(revisionId, userId);
-  if (!owned) {
-    return NextResponse.json(
-      { error: 'Revision not found', code: 'NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
-  try {
-    await deleteRevision(revisionId);
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    log.error('[Revision] Error deleting', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to delete revision',
-        code: 'DELETE_ERROR',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
-  }
+  return NextResponse.redirect(buildRedirectUrl(request, projectId), 308);
 });

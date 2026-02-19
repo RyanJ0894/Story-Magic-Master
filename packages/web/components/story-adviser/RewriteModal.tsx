@@ -38,6 +38,7 @@ import { Suggestion, Rewrite, SUGGESTION_CATEGORIES } from '@/lib/adviser/types'
 // =============================================================================
 
 interface RewriteModalProps {
+  projectId: string;
   suggestion: Suggestion | null;
   isOpen: boolean;
   onClose: () => void;
@@ -73,6 +74,7 @@ const styleOptions: { value: RewriteStyle; label: string; description: string }[
 // =============================================================================
 
 export function RewriteModal({
+  projectId,
   suggestion,
   isOpen,
   onClose,
@@ -106,7 +108,7 @@ export function RewriteModal({
     if (!suggestion) return;
 
     try {
-      const response = await apiFetch(`/api/suggestions/${suggestion.id}/rewrite`);
+      const response = await apiFetch(`/api/projects/${projectId}/suggestions/${suggestion.id}/rewrite`);
       if (response.ok) {
         const data = await response.json();
         setRewrites(data.rewrites || []);
@@ -128,7 +130,7 @@ export function RewriteModal({
     setError(null);
 
     try {
-      const response = await apiFetch(`/api/suggestions/${suggestion.id}/rewrite`, {
+      const response = await apiFetch(`/api/projects/${projectId}/suggestions/${suggestion.id}/rewrite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

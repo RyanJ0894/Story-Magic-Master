@@ -1,181 +1,43 @@
 /**
- * Rewrite Generation API Route
+ * DEPRECATED: Top-level Rewrite Route
  *
- * POST /api/suggestions/[id]/rewrite - Generate rewrite options
+ * This route is deprecated in favor of the project-scoped route:
+ *   /api/projects/[id]/suggestions/[suggestionId]/rewrite
+ *
+ * Kept for backwards compatibility. Returns 308 permanent redirects
+ * to guide clients toward the canonical project-scoped endpoints.
  */
 
 import { withAuth } from '@/lib/api/middleware';
 import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import { z } from 'zod';
-import { isFeatureEnabled } from '@/lib/features';
-import { generateRewrites, getRewrites, selectRewrite } from '@/lib/adviser';
-import { log } from '@/lib/logger';
 
-// =============================================================================
-// Validation
-// =============================================================================
-
-const GenerateRewriteSchema = z.object({
-  count: z.number().min(1).max(5).optional(),
-  style: z.enum(['conservative', 'moderate', 'bold']).optional(),
-});
-
-const SelectRewriteSchema = z.object({
-  rewriteId: z.string().uuid(),
-});
-
-// =============================================================================
-// Helper to verify ownership
-// =============================================================================
-
-async function verifySuggestionOwnership(
-  suggestionId: string,
-  userId: string
-): Promise<boolean> {
+async function getProjectIdForSuggestion(suggestionId: string): Promise<string | null> {
   const suggestion = await prisma.suggestion.findUnique({
     where: { id: suggestionId },
-    select: {
-      project: { select: { userId: true } },
-    },
+    select: { projectId: true },
   });
-
-  if (!suggestion) return false;
-
-  return suggestion.project.userId === userId;
+  return suggestion?.projectId ?? null;
 }
 
-// =============================================================================
-// GET - Get existing rewrites
-// =============================================================================
+function buildRedirectUrl(request: Request, projectId: string, suggestionId: string): string {
+  const url = new URL(request.url);
+  url.pathname = `/api/projects/${projectId}/suggestions/${suggestionId}/rewrite`;
+  return url.toString();
+}
 
-export const GET = withAuth(async (_request, { userId, params }) => {
-  if (!isFeatureEnabled('STORY_ADVISER')) {
-    return NextResponse.json(
-      { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
-      { status: 403 }
-    );
+export const GET = withAuth(async (request, { params }) => {
+  const projectId = await getProjectIdForSuggestion(params.id);
+  if (!projectId) {
+    return NextResponse.json({ error: 'Suggestion not found', code: 'NOT_FOUND' }, { status: 404 });
   }
-
-  const suggestionId = params.id;
-
-  const owned = await verifySuggestionOwnership(suggestionId, userId);
-  if (!owned) {
-    return NextResponse.json(
-      { error: 'Suggestion not found', code: 'NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
-  try {
-    const rewrites = await getRewrites(suggestionId);
-
-    return NextResponse.json({
-      rewrites,
-    });
-  } catch (error) {
-    log.error('[Rewrite] Error fetching', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to fetch rewrites',
-        code: 'FETCH_ERROR',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
-  }
+  return NextResponse.redirect(buildRedirectUrl(request, projectId, params.id), 308);
 });
 
-// =============================================================================
-// POST - Generate rewrites or select one
-// =============================================================================
-
-export const POST = withAuth(async (request, { userId, params }) => {
-  if (!isFeatureEnabled('STORY_ADVISER')) {
-    return NextResponse.json(
-      { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
-      { status: 403 }
-    );
+export const POST = withAuth(async (request, { params }) => {
+  const projectId = await getProjectIdForSuggestion(params.id);
+  if (!projectId) {
+    return NextResponse.json({ error: 'Suggestion not found', code: 'NOT_FOUND' }, { status: 404 });
   }
-
-  const suggestionId = params.id;
-
-  const owned = await verifySuggestionOwnership(suggestionId, userId);
-  if (!owned) {
-    return NextResponse.json(
-      { error: 'Suggestion not found', code: 'NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    body = {};
-  }
-
-  // Check if this is a select request
-  const selectResult = SelectRewriteSchema.safeParse(body);
-  if (selectResult.success) {
-    try {
-      const rewrite = await selectRewrite(selectResult.data.rewriteId);
-      return NextResponse.json({
-        success: true,
-        selected: rewrite,
-      });
-    } catch (error) {
-      log.error('[Rewrite] Error selecting', error);
-      return NextResponse.json(
-        {
-          error: 'Failed to select rewrite',
-          code: 'SELECT_ERROR',
-          details: error instanceof Error ? error.message : 'Unknown error',
-        },
-        { status: 500 }
-      );
-    }
-  }
-
-  // Otherwise, generate rewrites
-  const generateResult = GenerateRewriteSchema.safeParse(body);
-  if (!generateResult.success) {
-    return NextResponse.json(
-      {
-        error: 'Invalid request',
-        code: 'VALIDATION_ERROR',
-        details: generateResult.error.flatten().fieldErrors,
-      },
-      { status: 400 }
-    );
-  }
-
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json(
-      { error: 'OpenAI API key not configured', code: 'CONFIG_ERROR' },
-      { status: 500 }
-    );
-  }
-
-  try {
-    const rewrites = await generateRewrites(suggestionId, {
-      count: generateResult.data.count,
-      style: generateResult.data.style,
-    });
-
-    return NextResponse.json({
-      success: true,
-      rewrites,
-    });
-  } catch (error) {
-    log.error('[Rewrite] Error generating', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to generate rewrites',
-        code: 'GENERATION_ERROR',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
-  }
+  return NextResponse.redirect(buildRedirectUrl(request, projectId, params.id), 308);
 });

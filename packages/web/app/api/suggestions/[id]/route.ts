@@ -1,195 +1,51 @@
 /**
- * Individual Suggestion API Route
+ * DEPRECATED: Top-level Suggestion Route
  *
- * GET /api/suggestions/[id] - Get suggestion details
- * PUT /api/suggestions/[id] - Respond to suggestion
- * DELETE /api/suggestions/[id] - Delete suggestion
+ * This route is deprecated in favor of the project-scoped route:
+ *   /api/projects/[id]/suggestions/[suggestionId]
+ *
+ * Kept for backwards compatibility. Returns 308 permanent redirects
+ * to guide clients toward the canonical project-scoped endpoints.
  */
 
-import { withAuth, parseBody } from '@/lib/api/middleware';
+import { withAuth } from '@/lib/api/middleware';
 import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import { z } from 'zod';
-import { isFeatureEnabled } from '@/lib/features';
-import {
-  getSuggestion,
-  respondToSuggestion,
-  deleteSuggestion,
-  getRewrites,
-} from '@/lib/adviser';
-import { log } from '@/lib/logger';
 
-// =============================================================================
-// Validation
-// =============================================================================
-
-const RespondSchema = z.object({
-  status: z.enum(['accepted', 'rejected', 'dismissed']),
-  feedback: z.string().max(1000).optional(),
-});
-
-// =============================================================================
-// Helper to verify ownership
-// =============================================================================
-
-async function verifySuggestionOwnership(
-  suggestionId: string,
-  userId: string
-): Promise<{ owned: boolean; projectId?: string }> {
+async function getProjectIdForSuggestion(suggestionId: string): Promise<string | null> {
   const suggestion = await prisma.suggestion.findUnique({
     where: { id: suggestionId },
-    select: {
-      projectId: true,
-      project: { select: { userId: true } },
-    },
+    select: { projectId: true },
   });
-
-  if (!suggestion) return { owned: false };
-
-  return {
-    owned: suggestion.project.userId === userId,
-    projectId: suggestion.projectId,
-  };
+  return suggestion?.projectId ?? null;
 }
 
-// =============================================================================
-// GET - Get suggestion details with rewrites
-// =============================================================================
+function buildRedirectUrl(request: Request, projectId: string, suggestionId: string): string {
+  const url = new URL(request.url);
+  url.pathname = `/api/projects/${projectId}/suggestions/${suggestionId}`;
+  return url.toString();
+}
 
-export const GET = withAuth(async (_request, { userId, params }) => {
-  if (!isFeatureEnabled('STORY_ADVISER')) {
-    return NextResponse.json(
-      { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
-      { status: 403 }
-    );
+export const GET = withAuth(async (request, { params }) => {
+  const projectId = await getProjectIdForSuggestion(params.id);
+  if (!projectId) {
+    return NextResponse.json({ error: 'Suggestion not found', code: 'NOT_FOUND' }, { status: 404 });
   }
-
-  const suggestionId = params.id;
-
-  const { owned } = await verifySuggestionOwnership(suggestionId, userId);
-  if (!owned) {
-    return NextResponse.json(
-      { error: 'Suggestion not found', code: 'NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
-  try {
-    const [suggestion, rewrites] = await Promise.all([
-      getSuggestion(suggestionId),
-      getRewrites(suggestionId),
-    ]);
-
-    if (!suggestion) {
-      return NextResponse.json(
-        { error: 'Suggestion not found', code: 'NOT_FOUND' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({
-      suggestion,
-      rewrites,
-    });
-  } catch (error) {
-    log.error('[Suggestion] Error fetching', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to fetch suggestion',
-        code: 'FETCH_ERROR',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
-  }
+  return NextResponse.redirect(buildRedirectUrl(request, projectId, params.id), 308);
 });
 
-// =============================================================================
-// PUT - Respond to suggestion
-// =============================================================================
-
-export const PUT = withAuth(async (request, { userId, params }) => {
-  if (!isFeatureEnabled('STORY_ADVISER')) {
-    return NextResponse.json(
-      { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
-      { status: 403 }
-    );
+export const PUT = withAuth(async (request, { params }) => {
+  const projectId = await getProjectIdForSuggestion(params.id);
+  if (!projectId) {
+    return NextResponse.json({ error: 'Suggestion not found', code: 'NOT_FOUND' }, { status: 404 });
   }
-
-  const suggestionId = params.id;
-
-  const { owned } = await verifySuggestionOwnership(suggestionId, userId);
-  if (!owned) {
-    return NextResponse.json(
-      { error: 'Suggestion not found', code: 'NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
-  const parsed = await parseBody(request, RespondSchema);
-  if ('error' in parsed) return parsed.error;
-
-  try {
-    const suggestion = await respondToSuggestion(
-      suggestionId,
-      parsed.data.status,
-      parsed.data.feedback
-    );
-
-    return NextResponse.json({
-      success: true,
-      suggestion,
-    });
-  } catch (error) {
-    log.error('[Suggestion] Error responding', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to respond to suggestion',
-        code: 'UPDATE_ERROR',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
-  }
+  return NextResponse.redirect(buildRedirectUrl(request, projectId, params.id), 308);
 });
 
-// =============================================================================
-// DELETE - Delete suggestion
-// =============================================================================
-
-export const DELETE = withAuth(async (_request, { userId, params }) => {
-  if (!isFeatureEnabled('STORY_ADVISER')) {
-    return NextResponse.json(
-      { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },
-      { status: 403 }
-    );
+export const DELETE = withAuth(async (request, { params }) => {
+  const projectId = await getProjectIdForSuggestion(params.id);
+  if (!projectId) {
+    return NextResponse.json({ error: 'Suggestion not found', code: 'NOT_FOUND' }, { status: 404 });
   }
-
-  const suggestionId = params.id;
-
-  const { owned } = await verifySuggestionOwnership(suggestionId, userId);
-  if (!owned) {
-    return NextResponse.json(
-      { error: 'Suggestion not found', code: 'NOT_FOUND' },
-      { status: 404 }
-    );
-  }
-
-  try {
-    await deleteSuggestion(suggestionId);
-
-    return NextResponse.json({
-      success: true,
-    });
-  } catch (error) {
-    log.error('[Suggestion] Error deleting', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to delete suggestion',
-        code: 'DELETE_ERROR',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
-  }
+  return NextResponse.redirect(buildRedirectUrl(request, projectId, params.id), 308);
 });

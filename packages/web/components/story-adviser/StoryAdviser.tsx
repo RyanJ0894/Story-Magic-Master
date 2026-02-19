@@ -123,8 +123,8 @@ export function StoryAdviser({
   // Handle suggestion actions
   const handleAccept = async (id: string) => {
     try {
-      const response = await apiFetch(`/api/suggestions/${id}`, {
-        method: 'PUT',
+      const response = await apiFetch(`/api/projects/${projectId}/suggestions/${id}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'accepted' }),
       });
@@ -144,8 +144,8 @@ export function StoryAdviser({
 
   const handleReject = async (id: string) => {
     try {
-      const response = await apiFetch(`/api/suggestions/${id}`, {
-        method: 'PUT',
+      const response = await apiFetch(`/api/projects/${projectId}/suggestions/${id}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'rejected' }),
       });
@@ -164,8 +164,8 @@ export function StoryAdviser({
 
   const handleDismiss = async (id: string) => {
     try {
-      const response = await apiFetch(`/api/suggestions/${id}`, {
-        method: 'PUT',
+      const response = await apiFetch(`/api/projects/${projectId}/suggestions/${id}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'dismissed' }),
       });
@@ -192,7 +192,7 @@ export function StoryAdviser({
 
   const handleSelectRewrite = async (rewriteId: string) => {
     try {
-      const response = await apiFetch(`/api/suggestions/${rewriteSuggestion?.id}/rewrite`, {
+      const response = await apiFetch(`/api/projects/${projectId}/suggestions/${rewriteSuggestion?.id}/rewrite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rewriteId }),
@@ -330,6 +330,7 @@ export function StoryAdviser({
 
       {/* Rewrite Modal */}
       <RewriteModal
+        projectId={projectId}
         suggestion={rewriteSuggestion}
         isOpen={isRewriteModalOpen}
         onClose={() => {
