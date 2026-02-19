@@ -19,7 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ArrowLeft, FileText, Loader2, Sparkles, Wand2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { UploadScreenplay } from '@/components/project/upload-screenplay';
+import { ArrowLeft, FileText, Loader2, Sparkles, Upload, Wand2 } from 'lucide-react';
 
 // Show demo button (enabled for demos)
 const SHOW_DEMO_BUTTON = true;
@@ -170,57 +172,70 @@ export default function NewProjectPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid gap-6 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Project Name *</Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    placeholder="My Screenplay"
-                    className="h-11"
-                    data-testid="project-name-input"
-                  />
-                </div>
+            <Tabs defaultValue="paste" data-testid="new-project-tabs">
+              <TabsList className="mb-6">
+                <TabsTrigger value="paste" data-testid="tab-paste">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Paste Text
+                </TabsTrigger>
+                <TabsTrigger value="upload" data-testid="tab-upload">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload File
+                </TabsTrigger>
+              </TabsList>
 
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Input
-                    id="description"
-                    type="text"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="A short description"
-                    className="h-11"
-                    data-testid="project-description-input"
-                  />
-                </div>
-              </div>
+              <TabsContent value="paste">
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  <div className="grid gap-6 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Project Name *</Label>
+                      <Input
+                        id="name"
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        required
+                        placeholder="My Screenplay"
+                        className="h-11"
+                        data-testid="project-name-input"
+                      />
+                    </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="script">Script *</Label>
-                  <div className="flex items-center gap-4 text-sm">
-                    <span className="text-muted-foreground">
-                      {wordCount.toLocaleString()} words
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium" data-testid="page-count-display">
-                      ~{pageCount} page{pageCount !== 1 ? 's' : ''}
-                    </span>
+                    <div className="space-y-2">
+                      <Label htmlFor="description">Description</Label>
+                      <Input
+                        id="description"
+                        type="text"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="A short description"
+                        className="h-11"
+                        data-testid="project-description-input"
+                      />
+                    </div>
                   </div>
-                </div>
-                <Textarea
-                  id="script"
-                  value={scriptText}
-                  onChange={(e) => setScriptText(e.target.value)}
-                  required
-                  rows={20}
-                  className="font-mono text-sm resize-none"
-                  data-testid="script-textarea"
-                  placeholder={`Paste your screenplay here...
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="script">Script *</Label>
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="text-muted-foreground">
+                          {wordCount.toLocaleString()} words
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium" data-testid="page-count-display">
+                          ~{pageCount} page{pageCount !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    </div>
+                    <Textarea
+                      id="script"
+                      value={scriptText}
+                      onChange={(e) => setScriptText(e.target.value)}
+                      required
+                      rows={20}
+                      className="font-mono text-sm resize-none"
+                      data-testid="script-textarea"
+                      placeholder={`Paste your screenplay here...
 
 INT. COFFEE SHOP - DAY
 
@@ -231,37 +246,48 @@ SARAH
 This is it. Today's the day.
 
 The door CHIMES. MARCUS (40s, distinguished) enters...`}
-                />
-              </div>
+                    />
+                  </div>
 
-              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-4 pt-6 border-t border-border">
-                <p className="text-sm text-muted-foreground">
-                  This will use <strong className="text-foreground">{pageCount}</strong> page{pageCount !== 1 ? 's' : ''} from your quota.
-                </p>
-                <div className="flex gap-3">
-                  <Link href="/dashboard">
-                    <Button type="button" variant="outline">
-                      Cancel
-                    </Button>
-                  </Link>
-                  <Button
-                    type="submit"
-                    disabled={loading || !name || !scriptText}
-                    className="brand-gradient brand-gradient-hover"
-                    data-testid="create-project-button"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      'Create Project'
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </form>
+                  <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-4 pt-6 border-t border-border">
+                    <p className="text-sm text-muted-foreground">
+                      This will use <strong className="text-foreground">{pageCount}</strong> page{pageCount !== 1 ? 's' : ''} from your quota.
+                    </p>
+                    <div className="flex gap-3">
+                      <Link href="/dashboard">
+                        <Button type="button" variant="outline">
+                          Cancel
+                        </Button>
+                      </Link>
+                      <Button
+                        type="submit"
+                        disabled={loading || !name || !scriptText}
+                        className="brand-gradient brand-gradient-hover"
+                        data-testid="create-project-button"
+                      >
+                        {loading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          'Create Project'
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </form>
+              </TabsContent>
+
+              <TabsContent value="upload">
+                <UploadScreenplay
+                  name={name}
+                  onNameChange={setName}
+                  description={description}
+                  onDescriptionChange={setDescription}
+                />
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </main>
