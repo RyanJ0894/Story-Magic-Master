@@ -1,4 +1,4 @@
-import { withAuth, parseBody } from '@/lib/api/middleware';
+import { withAuth, parseBody, errorResponse } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { z } from 'zod';
@@ -27,7 +27,7 @@ export const POST = withAuth(async (request) => {
       .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
 
     if (!apiKey) {
-      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+      return errorResponse('OpenAI API key not configured', 500, { code: 'CONFIG_ERROR' });
     }
 
     const completion = await openai.chat.completions.create({
@@ -79,9 +79,6 @@ Output ONLY the screenplay text, no explanations.`,
     });
   } catch (error) {
     log.error('Demo script generation error', error);
-    return NextResponse.json(
-      { error: 'Failed to generate script' },
-      { status: 500 }
-    );
+    return errorResponse('Failed to generate script', 500);
   }
 }, { rateLimit: 'strict' });

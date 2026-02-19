@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withAdminAuth } from '@/lib/api/middleware';
+import { withAdminAuth, parseBody, errorResponse } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
@@ -39,7 +39,7 @@ export const GET = withAdminAuth(async (request, { userId, prisma }) => {
   });
 
   if (!parseResult.success) {
-    return NextResponse.json({ error: 'Invalid query parameters' }, { status: 400 });
+    return errorResponse('Invalid query parameters', 400, { code: 'VALIDATION_ERROR' });
   }
 
   const { page, limit, search, type, sortBy, sortOrder } = parseResult.data;
@@ -96,12 +96,13 @@ export const GET = withAdminAuth(async (request, { userId, prisma }) => {
     });
   } catch (error) {
     log.error('Error fetching users', error);
-    return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
+    return errorResponse('Failed to fetch users', 500);
   }
 });
 
-// Update user schema
-const UpdateUserSchema = z.object({
+// Update user schema (includes userId for identifying the target)
+const UpdateUserBodySchema = z.object({
+  userId: z.string().min(1, 'userId is required'),
   user_type: z.enum(['writer', 'reader', 'admin']).optional(),
   full_name: z.string().max(100).optional(),
   suspended: z.boolean().optional(),
@@ -112,29 +113,10 @@ const UpdateUserSchema = z.object({
  * Update a user's profile (for admin actions)
  */
 export const PATCH = withAdminAuth(async (request, { userId: adminUserId, prisma }) => {
-  // Parse request body
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
+  const parsed = await parseBody(request, UpdateUserBodySchema);
+  if ('error' in parsed) return parsed.error;
 
-  const { userId, ...updateData } = body;
-
-  if (!userId || typeof userId !== 'string') {
-    return NextResponse.json({ error: 'userId is required' }, { status: 400 });
-  }
-
-  const parseResult = UpdateUserSchema.safeParse(updateData);
-  if (!parseResult.success) {
-    return NextResponse.json({
-      error: 'Invalid request body',
-      details: parseResult.error.format(),
-    }, { status: 400 });
-  }
-
-  const updates = parseResult.data;
+  const { userId, ...updates } = parsed.data;
 
   // Build Prisma update data with camelCase
   const prismaUpdates: Record<string, unknown> = {};
@@ -164,6 +146,6 @@ export const PATCH = withAdminAuth(async (request, { userId: adminUserId, prisma
     return NextResponse.json(updatedUser);
   } catch (error) {
     log.error('Error updating user', error);
-    return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
+    return errorResponse('Failed to update user', 500);
   }
 }, { rateLimit: 'strict' });

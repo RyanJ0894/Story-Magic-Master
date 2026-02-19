@@ -6,7 +6,7 @@
  * DELETE /api/revisions/[id] - Delete revision
  */
 
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, parseBody } from '@/lib/api/middleware';
 import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -113,30 +113,11 @@ export const PUT = withAuth(async (request, { userId, params }) => {
     );
   }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: 'Invalid JSON body', code: 'PARSE_ERROR' },
-      { status: 400 }
-    );
-  }
-
-  const parseResult = UpdateRevisionSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json(
-      {
-        error: 'Invalid request',
-        code: 'VALIDATION_ERROR',
-        details: parseResult.error.flatten().fieldErrors,
-      },
-      { status: 400 }
-    );
-  }
+  const parsed = await parseBody(request, UpdateRevisionSchema);
+  if ('error' in parsed) return parsed.error;
 
   try {
-    const revision = await updateRevisionLabel(revisionId, parseResult.data.label);
+    const revision = await updateRevisionLabel(revisionId, parsed.data.label);
     return NextResponse.json({
       success: true,
       revision,

@@ -5,7 +5,7 @@
  * POST /api/teams - Create a new team
  */
 
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, parseBody } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { log } from '@/lib/logger';
@@ -111,26 +111,10 @@ export const GET = withAuth(async (request, { userId, prisma }) => {
 // =============================================================================
 
 export const POST = withAuth(async (request, { userId, prisma }) => {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body', code: 'PARSE_ERROR' }, { status: 400 });
-  }
+  const parsed = await parseBody(request, CreateTeamSchema);
+  if ('error' in parsed) return parsed.error;
 
-  const parseResult = CreateTeamSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json(
-      {
-        error: 'Invalid request',
-        code: 'VALIDATION_ERROR',
-        details: parseResult.error.flatten().fieldErrors,
-      },
-      { status: 400 }
-    );
-  }
-
-  const { name, description, defaultShareAccess, autoShareNewProjects } = parseResult.data;
+  const { name, description, defaultShareAccess, autoShareNewProjects } = parsed.data;
 
   try {
     const team = await prisma.team.create({

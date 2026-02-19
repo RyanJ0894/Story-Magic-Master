@@ -93,8 +93,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: packages/web/.next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('packages/web/**/*.ts', 'packages/web/**/*.tsx') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+            nextjs-${{ runner.os }}-
+
       - name: Generate Prisma client
         run: pnpm --filter @story-magic/web exec prisma generate
+
+      - name: Build orchestrator
+        run: pnpm --filter @story-magic/orchestrator build
 
       - name: Build web
         run: pnpm --filter @story-magic/web build

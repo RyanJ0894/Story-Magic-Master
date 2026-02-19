@@ -1,4 +1,4 @@
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, errorResponse } from '@/lib/api/middleware';
 import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { nanoid } from 'nanoid';
@@ -15,15 +15,15 @@ export const POST = withAuth(async (request, { userId, prisma: ctxPrisma }) => {
   const needsOCR = formData.get('needsOCR') === 'true';
 
   if (!file) {
-    return NextResponse.json({ error: 'File required' }, { status: 400 });
+    return errorResponse('File required', 400, { code: 'MISSING_FILE' });
   }
 
   if (!name) {
-    return NextResponse.json({ error: 'Name required' }, { status: 400 });
+    return errorResponse('Name required', 400, { code: 'MISSING_NAME' });
   }
 
   if (file.type !== 'application/pdf') {
-    return NextResponse.json({ error: 'Only PDF files accepted' }, { status: 400 });
+    return errorResponse('Only PDF files accepted', 400, { code: 'INVALID_FILE_TYPE' });
   }
 
   try {
@@ -92,10 +92,7 @@ export const POST = withAuth(async (request, { userId, prisma: ctxPrisma }) => {
     });
   } catch (error) {
     log.error('Processing error', error);
-    return NextResponse.json(
-      { error: 'Failed to process upload' },
-      { status: 500 }
-    );
+    return errorResponse('Failed to process upload', 500);
   }
 }, { rateLimit: 'strict' });
 

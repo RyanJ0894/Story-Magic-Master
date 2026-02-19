@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withAdminAuth } from '@/lib/api/middleware';
+import { withAdminAuth, parseBody, errorResponse } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
@@ -28,7 +28,7 @@ export const GET = withAdminAuth(async (request, { userId, prisma }) => {
   });
 
   if (!parseResult.success) {
-    return NextResponse.json({ error: 'Invalid query parameters' }, { status: 400 });
+    return errorResponse('Invalid query parameters', 400, { code: 'VALIDATION_ERROR' });
   }
 
   const { page, limit, status, plan } = parseResult.data;
@@ -79,7 +79,7 @@ export const GET = withAdminAuth(async (request, { userId, prisma }) => {
     });
   } catch (error) {
     log.error('Error fetching subscriptions', error);
-    return NextResponse.json({ error: 'Failed to fetch subscriptions' }, { status: 500 });
+    return errorResponse('Failed to fetch subscriptions', 500);
   }
 });
 
@@ -95,23 +95,10 @@ const UpdateSubscriptionSchema = z.object({
  * Perform admin actions on subscriptions
  */
 export const PATCH = withAdminAuth(async (request, { userId, prisma }) => {
-  // Parse request body
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
+  const parsed = await parseBody(request, UpdateSubscriptionSchema);
+  if ('error' in parsed) return parsed.error;
 
-  const parseResult = UpdateSubscriptionSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json({
-      error: 'Invalid request body',
-      details: parseResult.error.format(),
-    }, { status: 400 });
-  }
-
-  const { subscriptionId, action, plan } = parseResult.data;
+  const { subscriptionId, action, plan } = parsed.data;
 
   // Get current subscription
   const subscription = await prisma.subscription.findUnique({
@@ -119,7 +106,7 @@ export const PATCH = withAdminAuth(async (request, { userId, prisma }) => {
   });
 
   if (!subscription) {
-    return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
+    return errorResponse('Subscription not found', 404, { code: 'NOT_FOUND' });
   }
 
   let updates: Prisma.SubscriptionUpdateInput = {};
@@ -138,7 +125,7 @@ export const PATCH = withAdminAuth(async (request, { userId, prisma }) => {
 
     case 'update_plan':
       if (!plan) {
-        return NextResponse.json({ error: 'Plan is required for update_plan action' }, { status: 400 });
+        return errorResponse('Plan is required for update_plan action', 400, { code: 'MISSING_PLAN' });
       }
       updates = { plan };
       break;
@@ -168,6 +155,6 @@ export const PATCH = withAdminAuth(async (request, { userId, prisma }) => {
     return NextResponse.json(updatedSubscription);
   } catch (error) {
     log.error('Error updating subscription', error);
-    return NextResponse.json({ error: 'Failed to update subscription' }, { status: 500 });
+    return errorResponse('Failed to update subscription', 500);
   }
 }, { rateLimit: 'strict' });

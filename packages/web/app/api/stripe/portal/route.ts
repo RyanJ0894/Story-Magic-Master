@@ -1,4 +1,4 @@
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, errorResponse } from '@/lib/api/middleware';
 import { createPortalSession } from '@/lib/stripe/server';
 import { NextResponse } from 'next/server';
 import { log } from '@/lib/logger';
@@ -12,10 +12,7 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
     });
 
     if (!profile?.stripeCustomerId) {
-      return NextResponse.json(
-        { error: 'No subscription found' },
-        { status: 400 }
-      );
+      return errorResponse('No subscription found', 400, { code: 'NO_SUBSCRIPTION' });
     }
 
     // Create portal session
@@ -29,9 +26,6 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
     return NextResponse.json({ url: session.url });
   } catch (error) {
     log.error('Portal error', error);
-    return NextResponse.json(
-      { error: 'Failed to create portal session' },
-      { status: 500 }
-    );
+    return errorResponse('Failed to create portal session', 500);
   }
 });

@@ -1,4 +1,4 @@
-import { withAuth, verifyOwnership } from '@/lib/api/middleware';
+import { withAuth, verifyOwnership, parseBody, errorResponse } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { hashPassword } from '@/lib/password';
 import { UpdateShareRequestSchema } from '@/lib/api/dto';
@@ -25,7 +25,7 @@ export const GET = withAuth(async (request, { userId, prisma, params }) => {
   });
 
   if (!share) {
-    return NextResponse.json({ error: 'Share not found' }, { status: 404 });
+    return errorResponse('Share not found', 404, { code: 'NOT_FOUND' });
   }
 
   return NextResponse.json({ share });
@@ -45,16 +45,8 @@ export const PATCH = withAuth(async (request, { userId, prisma, params }) => {
   });
   if ('error' in ownerCheck) return ownerCheck.error;
 
-  // Parse and validate request body
-  const body = await request.json();
-  const parseResult = UpdateShareRequestSchema.safeParse(body);
-
-  if (!parseResult.success) {
-    return NextResponse.json(
-      { error: 'Invalid request', details: parseResult.error.flatten().fieldErrors },
-      { status: 400 }
-    );
-  }
+  const parsed = await parseBody(request, UpdateShareRequestSchema);
+  if ('error' in parsed) return parsed.error;
 
   const {
     access_level,
@@ -64,7 +56,7 @@ export const PATCH = withAuth(async (request, { userId, prisma, params }) => {
     recipient_name,
     max_plays,
     password,
-  } = parseResult.data;
+  } = parsed.data;
 
   const updates: Record<string, unknown> = {};
 
@@ -87,7 +79,7 @@ export const PATCH = withAuth(async (request, { userId, prisma, params }) => {
     return NextResponse.json({ share });
   } catch (error) {
     log.error('Error updating share', error);
-    return NextResponse.json({ error: 'Failed to update share' }, { status: 500 });
+    return errorResponse('Failed to update share', 500);
   }
 });
 
@@ -115,6 +107,6 @@ export const DELETE = withAuth(async (request, { userId, prisma, params }) => {
     return NextResponse.json({ success: true });
   } catch (error) {
     log.error('Error deleting share', error);
-    return NextResponse.json({ error: 'Failed to delete share' }, { status: 500 });
+    return errorResponse('Failed to delete share', 500);
   }
 });

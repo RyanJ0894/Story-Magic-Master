@@ -1,4 +1,4 @@
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, parseBody, errorResponse } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { log } from '@/lib/logger';
 import { z } from 'zod';
@@ -20,22 +20,13 @@ export const POST = withAuth(async (request, { userId, prisma, params }) => {
   });
 
   if (!existingEntry || existingEntry.readerId !== userId) {
-    return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
+    return errorResponse('Entry not found', 404, { code: 'NOT_FOUND' });
   }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON', code: 'INVALID_JSON' }, { status: 400 });
-  }
+  const parsed = await parseBody(request, PositionSchema);
+  if ('error' in parsed) return parsed.error;
 
-  const parseResult = PositionSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json({ error: 'Invalid request', code: 'VALIDATION_ERROR', details: parseResult.error.flatten().fieldErrors }, { status: 400 });
-  }
-
-  const { position, duration, completed } = parseResult.data;
+  const { position, duration, completed } = parsed.data;
 
   const updates: Record<string, unknown> = {
     playPositionSeconds: Math.floor(position),
@@ -70,6 +61,6 @@ export const POST = withAuth(async (request, { userId, prisma, params }) => {
     });
   } catch (error) {
     log.error('Error updating position', error);
-    return NextResponse.json({ error: 'Failed to update position' }, { status: 500 });
+    return errorResponse('Failed to update position', 500);
   }
 });

@@ -16,6 +16,8 @@ import { validateCsrf } from '@/lib/csrf';
 import { rateLimit, getClientIp, type RateLimitTier } from '@/lib/api/rate-limit';
 import { prisma } from '@/lib/db';
 import type { PrismaClient } from '@prisma/client';
+import { errorResponse } from '@/lib/api/error-response';
+export { errorResponse } from '@/lib/api/error-response';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -67,10 +69,7 @@ export function withAuth(
     if (shouldCheckCsrf) {
       const csrfError = validateCsrf(request);
       if (csrfError) {
-        return NextResponse.json(
-          { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-          { status: 403 },
-        );
+        return errorResponse('CSRF validation failed', 403, { code: 'CSRF_ERROR' });
       }
     }
 
@@ -85,10 +84,7 @@ export function withAuth(
     const { userId } = await auth();
 
     if (!userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-        { status: 401 },
-      );
+      return errorResponse('Unauthorized', 401, { code: 'AUTH_REQUIRED' });
     }
 
     const params = route?.params ? await route.params : {};
@@ -111,10 +107,7 @@ export function withProjectAuth(
     if (shouldCheckCsrf) {
       const csrfError = validateCsrf(request);
       if (csrfError) {
-        return NextResponse.json(
-          { error: 'CSRF validation failed', code: 'CSRF_ERROR' },
-          { status: 403 },
-        );
+        return errorResponse('CSRF validation failed', 403, { code: 'CSRF_ERROR' });
       }
     }
 
@@ -129,20 +122,14 @@ export function withProjectAuth(
     const { userId } = await auth();
 
     if (!userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
-        { status: 401 },
-      );
+      return errorResponse('Unauthorized', 401, { code: 'AUTH_REQUIRED' });
     }
 
     const params = await route.params;
     const projectId = params.id;
 
     if (!projectId) {
-      return NextResponse.json(
-        { error: 'Project ID required', code: 'MISSING_PROJECT_ID' },
-        { status: 400 },
-      );
+      return errorResponse('Project ID required', 400, { code: 'MISSING_PROJECT_ID' });
     }
 
     const project = await prisma.project.findFirst({
@@ -153,10 +140,7 @@ export function withProjectAuth(
     });
 
     if (!project) {
-      return NextResponse.json(
-        { error: 'Project not found', code: 'PROJECT_NOT_FOUND' },
-        { status: 404 },
-      );
+      return errorResponse('Project not found', 404, { code: 'PROJECT_NOT_FOUND' });
     }
 
     return handler(request, { userId, prisma, params, projectId, project: project as unknown as Record<string, unknown> });
@@ -192,7 +176,7 @@ export function withAdminAuth(
     });
 
     if (profile?.userType !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return errorResponse('Forbidden', 403, { code: 'FORBIDDEN' });
     }
 
     return handler(request, { ...ctx, profile: { id: profile.id, userType: profile.userType } });
@@ -239,10 +223,7 @@ export async function verifyOwnership<T = Record<string, unknown>>(
   const prismaModel = (prisma as unknown as Record<string, { findFirst: Function }>)[model];
   if (!prismaModel) {
     return {
-      error: NextResponse.json(
-        { error: 'Internal error', code: 'INVALID_MODEL' },
-        { status: 500 },
-      ),
+      error: errorResponse('Internal error', 500, { code: 'INVALID_MODEL' }),
     };
   }
 
@@ -253,10 +234,7 @@ export async function verifyOwnership<T = Record<string, unknown>>(
 
   if (!resource || (resource as Record<string, unknown>)[ownerField] !== userId) {
     return {
-      error: NextResponse.json(
-        { error: 'Not found', code: 'NOT_FOUND' },
-        { status: 404 },
-      ),
+      error: errorResponse('Not found', 404, { code: 'NOT_FOUND' }),
     };
   }
 
@@ -278,24 +256,17 @@ export async function parseBody<T extends z.ZodTypeAny>(
     body = await request.json();
   } catch {
     return {
-      error: NextResponse.json(
-        { error: 'Invalid JSON in request body', code: 'INVALID_JSON' },
-        { status: 400 },
-      ),
+      error: errorResponse('Invalid JSON in request body', 400, { code: 'INVALID_JSON' }),
     };
   }
 
   const result = schema.safeParse(body);
   if (!result.success) {
     return {
-      error: NextResponse.json(
-        {
-          error: 'Invalid request parameters',
-          code: 'VALIDATION_ERROR',
-          details: result.error.flatten().fieldErrors,
-        },
-        { status: 400 },
-      ),
+      error: errorResponse('Invalid request parameters', 400, {
+        code: 'VALIDATION_ERROR',
+        details: result.error.flatten().fieldErrors,
+      }),
     };
   }
 

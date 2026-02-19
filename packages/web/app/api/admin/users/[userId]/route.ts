@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, parseBody, errorResponse } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
 import { log } from '@/lib/logger';
@@ -27,7 +27,7 @@ export const GET = withAuth(async (request, { userId: authUserId, prisma, params
   });
 
   if (adminProfile?.userType !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    return errorResponse('Forbidden', 403, { code: 'FORBIDDEN' });
   }
 
   // Fetch user profile with related data
@@ -55,7 +55,7 @@ export const GET = withAuth(async (request, { userId: authUserId, prisma, params
   });
 
   if (!userProfile) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    return errorResponse('User not found', 404, { code: 'NOT_FOUND' });
   }
 
   // Fetch project count for this user
@@ -85,26 +85,13 @@ export const PATCH = withAuth(async (request, { userId: authUserId, prisma, para
   });
 
   if (adminProfile?.userType !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    return errorResponse('Forbidden', 403, { code: 'FORBIDDEN' });
   }
 
-  // Parse request body
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
+  const parsed = await parseBody(request, UpdateUserSchema);
+  if ('error' in parsed) return parsed.error;
 
-  const parseResult = UpdateUserSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json({
-      error: 'Invalid request body',
-      details: parseResult.error.format(),
-    }, { status: 400 });
-  }
-
-  const updates = parseResult.data;
+  const updates = parsed.data;
 
   // Verify target user exists
   const existingUser = await prisma.profile.findUnique({
@@ -113,12 +100,12 @@ export const PATCH = withAuth(async (request, { userId: authUserId, prisma, para
   });
 
   if (!existingUser) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    return errorResponse('User not found', 404, { code: 'NOT_FOUND' });
   }
 
   // Prevent admin from demoting themselves
   if (targetUserId === authUserId && updates.user_type && updates.user_type !== 'admin') {
-    return NextResponse.json({ error: 'Cannot change your own admin role' }, { status: 400 });
+    return errorResponse('Cannot change your own admin role', 400, { code: 'SELF_DEMOTE' });
   }
 
   // Build Prisma update data with camelCase
@@ -149,6 +136,6 @@ export const PATCH = withAuth(async (request, { userId: authUserId, prisma, para
     return NextResponse.json({ data: updatedUser });
   } catch (error) {
     log.error('Error updating user', error);
-    return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
+    return errorResponse('Failed to update user', 500);
   }
 }, { rateLimit: 'strict' });

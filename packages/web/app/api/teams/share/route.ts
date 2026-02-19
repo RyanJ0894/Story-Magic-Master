@@ -5,7 +5,7 @@
  * DELETE /api/teams/share - Unshare a project from a team
  */
 
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, parseBody } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { log } from '@/lib/logger';
@@ -26,25 +26,10 @@ const UnshareSchema = z.object({
 // =============================================================================
 
 export const POST = withAuth(async (request, { userId, prisma }) => {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: 'Invalid JSON', code: 'INVALID_JSON' },
-      { status: 400 }
-    );
-  }
+  const parsed = await parseBody(request, ShareSchema);
+  if ('error' in parsed) return parsed.error;
 
-  const parseResult = ShareSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json(
-      { error: 'Invalid parameters', code: 'VALIDATION_ERROR', details: parseResult.error.flatten().fieldErrors },
-      { status: 400 }
-    );
-  }
-
-  const { projectId, teamId, accessLevel } = parseResult.data;
+  const { projectId, teamId, accessLevel } = parsed.data;
 
   // Verify user owns the project
   const project = await prisma.project.findFirst({
@@ -115,25 +100,10 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
 // =============================================================================
 
 export const DELETE = withAuth(async (request, { userId, prisma }) => {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: 'Invalid JSON', code: 'INVALID_JSON' },
-      { status: 400 }
-    );
-  }
+  const parsed = await parseBody(request, UnshareSchema);
+  if ('error' in parsed) return parsed.error;
 
-  const parseResult = UnshareSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json(
-      { error: 'Invalid parameters', code: 'VALIDATION_ERROR' },
-      { status: 400 }
-    );
-  }
-
-  const { projectId, teamId } = parseResult.data;
+  const { projectId, teamId } = parsed.data;
 
   // Verify user owns the project
   const project = await prisma.project.findFirst({

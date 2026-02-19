@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { errorResponse } from '@/lib/api/error-response';
 
 /**
  * POST /api/shares/access/[code]/play
@@ -12,7 +13,7 @@ export async function POST(
   const { code } = await params;
 
   if (!code || code.length < 6) {
-    return NextResponse.json({ error: 'Invalid share code' }, { status: 400 });
+    return errorResponse('Invalid share code', 400, { code: 'INVALID_CODE' });
   }
 
   try {
@@ -23,7 +24,7 @@ export async function POST(
     });
 
     if (!share) {
-      return NextResponse.json({ error: 'Share not found' }, { status: 404 });
+      return errorResponse('Share not found', 404, { code: 'NOT_FOUND' });
     }
 
     await prisma.scriptShare.update({
@@ -33,6 +34,6 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch {
-    return NextResponse.json({ error: 'Failed to track play' }, { status: 500 });
+    return errorResponse('Failed to track play', 500);
   }
 }

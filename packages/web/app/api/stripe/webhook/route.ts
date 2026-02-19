@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { log } from '@/lib/logger';
+import { errorResponse } from '@/lib/api/error-response';
 
 // Map Stripe price IDs to subscription tiers
 function getTierFromPriceId(priceId: string): string {
@@ -32,10 +33,7 @@ export async function POST(request: Request) {
     const signature = request.headers.get('stripe-signature');
 
     if (!signature) {
-      return NextResponse.json(
-        { error: 'Missing stripe-signature header' },
-        { status: 400 }
-      );
+      return errorResponse('Missing stripe-signature header', 400, { code: 'MISSING_SIGNATURE' });
     }
 
     // Verify webhook signature
@@ -44,10 +42,7 @@ export async function POST(request: Request) {
       event = constructWebhookEvent(body, signature);
     } catch (error) {
       log.error('Webhook signature verification failed', error);
-      return NextResponse.json(
-        { error: 'Invalid signature' },
-        { status: 400 }
-      );
+      return errorResponse('Invalid signature', 400, { code: 'INVALID_SIGNATURE' });
     }
 
     // Handle the event
@@ -254,9 +249,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ received: true });
   } catch (error) {
     log.error('Webhook error', error);
-    return NextResponse.json(
-      { error: 'Webhook handler failed' },
-      { status: 500 }
-    );
+    return errorResponse('Webhook handler failed', 500);
   }
 }

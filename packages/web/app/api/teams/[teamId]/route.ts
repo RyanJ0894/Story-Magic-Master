@@ -6,7 +6,7 @@
  * DELETE /api/teams/[teamId] - Delete team (owner only)
  */
 
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, parseBody } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { log } from '@/lib/logger';
@@ -117,30 +117,11 @@ export const PATCH = withAuth(async (request, { userId, prisma, params }) => {
     );
   }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: 'Invalid JSON body', code: 'PARSE_ERROR' },
-      { status: 400 },
-    );
-  }
-
-  const parseResult = UpdateTeamSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json(
-      {
-        error: 'Invalid request',
-        code: 'VALIDATION_ERROR',
-        details: parseResult.error.flatten().fieldErrors,
-      },
-      { status: 400 },
-    );
-  }
+  const parsed = await parseBody(request, UpdateTeamSchema);
+  if ('error' in parsed) return parsed.error;
 
   const updates: Record<string, unknown> = {};
-  const data = parseResult.data;
+  const data = parsed.data;
 
   if (data.name !== undefined) updates.name = data.name;
   if (data.description !== undefined) updates.description = data.description;

@@ -1,4 +1,4 @@
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, errorResponse } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 
 /**
@@ -20,7 +20,7 @@ export const GET = withAuth(async (_request, { userId, prisma, params }) => {
   });
 
   if (!job || job.project.userId !== userId) {
-    return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    return errorResponse('Job not found', 404, { code: 'NOT_FOUND' });
   }
 
   const progress = job.progress as Record<string, unknown> | null;

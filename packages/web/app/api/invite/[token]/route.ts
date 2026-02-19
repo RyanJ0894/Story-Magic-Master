@@ -11,6 +11,7 @@ import { NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
 import { rateLimit, getClientIp } from '@/lib/api/rate-limit';
 import { log } from '@/lib/logger';
+import { errorResponse } from '@/lib/api/error-response';
 
 // =============================================================================
 // GET - Get invite details
@@ -52,23 +53,16 @@ export async function GET(
     });
 
     if (!invite) {
-      return NextResponse.json(
-        { error: 'Invite not found or expired', code: 'NOT_FOUND' },
-        { status: 404 }
-      );
+      return errorResponse('Invite not found or expired', 404, { code: 'NOT_FOUND' });
     }
 
     if (invite.status !== 'pending') {
-      return NextResponse.json(
-        {
-          error:
-            invite.status === 'accepted'
-              ? 'This invite has already been accepted'
-              : 'This invite is no longer valid',
-          code: 'INVALID_STATUS',
-          status: invite.status,
-        },
-        { status: 400 }
+      return errorResponse(
+        invite.status === 'accepted'
+          ? 'This invite has already been accepted'
+          : 'This invite is no longer valid',
+        400,
+        { code: 'INVALID_STATUS', details: { status: invite.status } },
       );
     }
 
@@ -84,14 +78,7 @@ export async function GET(
     });
   } catch (error) {
     log.error('[Invite] Error getting', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to get invite',
-        code: 'GET_ERROR',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return errorResponse('Failed to get invite', 500, { code: 'GET_ERROR', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 }
 
@@ -110,21 +97,14 @@ export async function POST(
 
   const csrfError = validateCsrf(request);
   if (csrfError) {
-    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+    return errorResponse('CSRF validation failed', 403, { code: 'CSRF_ERROR' });
   }
 
   const { token } = await params;
 
   const { userId } = await auth();
   if (!userId) {
-    return NextResponse.json(
-      {
-        error: 'Please sign in to accept this invite',
-        code: 'AUTH_REQUIRED',
-        redirectTo: `/login?redirect=/invite/${token}`,
-      },
-      { status: 401 }
-    );
+    return errorResponse('Please sign in to accept this invite', 401, { code: 'AUTH_REQUIRED', details: { redirectTo: `/login?redirect=/invite/${token}` } });
   }
 
   try {
@@ -147,22 +127,16 @@ export async function POST(
     });
 
     if (!invite) {
-      return NextResponse.json(
-        { error: 'Invite not found or expired', code: 'NOT_FOUND' },
-        { status: 404 }
-      );
+      return errorResponse('Invite not found or expired', 404, { code: 'NOT_FOUND' });
     }
 
     if (invite.status !== 'pending') {
-      return NextResponse.json(
-        {
-          error:
-            invite.status === 'accepted'
-              ? 'This invite has already been accepted'
-              : 'This invite is no longer valid',
-          code: 'INVALID_STATUS',
-        },
-        { status: 400 }
+      return errorResponse(
+        invite.status === 'accepted'
+          ? 'This invite has already been accepted'
+          : 'This invite is no longer valid',
+        400,
+        { code: 'INVALID_STATUS' },
       );
     }
 
@@ -204,13 +178,6 @@ export async function POST(
     });
   } catch (error) {
     log.error('[Invite] Error accepting', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to accept invite',
-        code: 'ACCEPT_ERROR',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return errorResponse('Failed to accept invite', 500, { code: 'ACCEPT_ERROR', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 }

@@ -8,7 +8,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { isFeatureEnabled } from '@/lib/features';
-import { withProjectAuth } from '@/lib/api/middleware';
+import { withProjectAuth, parseBody } from '@/lib/api/middleware';
 import {
   getRevisions,
   getRevisionTimeline,
@@ -78,32 +78,13 @@ export const POST = withProjectAuth(
       );
     }
 
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json(
-        { error: 'Invalid JSON body', code: 'PARSE_ERROR' },
-        { status: 400 }
-      );
-    }
-
-    const parseResult = CreateRevisionSchema.safeParse(body);
-    if (!parseResult.success) {
-      return NextResponse.json(
-        {
-          error: 'Invalid request',
-          code: 'VALIDATION_ERROR',
-          details: parseResult.error.flatten().fieldErrors,
-        },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, CreateRevisionSchema);
+    if ('error' in parsed) return parsed.error;
 
     try {
-      const revision = await createRevision(projectId, parseResult.data.scriptText, {
-        label: parseResult.data.label,
-        autoScore: parseResult.data.autoScore,
+      const revision = await createRevision(projectId, parsed.data.scriptText, {
+        label: parsed.data.label,
+        autoScore: parsed.data.autoScore,
         userId,
       });
 

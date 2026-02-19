@@ -1,4 +1,4 @@
-import { withProjectAuth } from '@/lib/api/middleware';
+import { withProjectAuth, parseBody, errorResponse } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -37,22 +37,10 @@ export const GET = withProjectAuth(async (_request, { prisma, projectId }) => {
  * Saves audio overrides for a project
  */
 export const PUT = withProjectAuth(async (request, { prisma, projectId }) => {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
+  const parsed = await parseBody(request, UpdateAudioOverridesSchema);
+  if ('error' in parsed) return parsed.error;
 
-  const parseResult = UpdateAudioOverridesSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json({
-      error: 'Invalid request',
-      details: parseResult.error.flatten().fieldErrors,
-    }, { status: 400 });
-  }
-
-  const { overrides } = parseResult.data;
+  const { overrides } = parsed.data;
 
   try {
     await prisma.project.update({
@@ -62,6 +50,6 @@ export const PUT = withProjectAuth(async (request, { prisma, projectId }) => {
 
     return NextResponse.json({ success: true, overrides });
   } catch {
-    return NextResponse.json({ error: 'Failed to save audio overrides' }, { status: 500 });
+    return errorResponse('Failed to save audio overrides', 500);
   }
 });

@@ -7,7 +7,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { isFeatureEnabled } from '@/lib/features';
-import { withProjectAuth } from '@/lib/api/middleware';
+import { withProjectAuth, parseBody } from '@/lib/api/middleware';
 import { getSuggestion, respondToSuggestion } from '@/lib/adviser';
 import { log } from '@/lib/logger';
 
@@ -54,34 +54,14 @@ export const PATCH = withProjectAuth(
       );
     }
 
-    // Parse body
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json(
-        { error: 'Invalid JSON body', code: 'PARSE_ERROR' },
-        { status: 400 }
-      );
-    }
-
-    const parseResult = UpdateSuggestionSchema.safeParse(body);
-    if (!parseResult.success) {
-      return NextResponse.json(
-        {
-          error: 'Invalid request',
-          code: 'VALIDATION_ERROR',
-          details: parseResult.error.flatten().fieldErrors,
-        },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseBody(request, UpdateSuggestionSchema);
+    if ('error' in parsed) return parsed.error;
 
     try {
       const updated = await respondToSuggestion(
         suggestionId,
-        parseResult.data.status,
-        parseResult.data.feedback
+        parsed.data.status,
+        parsed.data.feedback
       );
 
       return NextResponse.json({ success: true, suggestion: updated });

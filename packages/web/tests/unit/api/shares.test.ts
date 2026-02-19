@@ -117,7 +117,7 @@ describe('Shares API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toBe('Invalid request');
+      expect(data.error).toBe('Invalid request parameters');
     });
 
     it('returns 400 when project_id is not a valid UUID', async () => {

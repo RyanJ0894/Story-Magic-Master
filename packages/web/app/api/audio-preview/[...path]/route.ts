@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, errorResponse } from '@/lib/api/middleware';
 import { orchestratorFetch } from '@/lib/orchestrator-fetch';
 
 /**
@@ -13,12 +13,12 @@ export const GET = withAuth(async (_request, { params }) => {
 
   // Basic path traversal prevention
   if (filePath.includes('..') || filePath.includes('//')) {
-    return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
+    return errorResponse('Invalid path', 400, { code: 'INVALID_PATH' });
   }
 
   // Only allow audio file extensions
   if (!filePath.match(/\.(mp3|wav|m4a|ogg|flac)$/i)) {
-    return NextResponse.json({ error: 'Invalid file type' }, { status: 400 });
+    return errorResponse('Invalid file type', 400, { code: 'INVALID_FILE_TYPE' });
   }
 
   try {
@@ -28,17 +28,14 @@ export const GET = withAuth(async (_request, { params }) => {
     });
 
     if (!response.ok) {
-      return NextResponse.json(
-        { error: 'Audio file not found' },
-        { status: response.status }
-      );
+      return errorResponse('Audio file not found', response.status, { code: 'NOT_FOUND' });
     }
 
     const contentType = response.headers.get('content-type') || 'audio/mpeg';
     const body = response.body;
 
     if (!body) {
-      return NextResponse.json({ error: 'Empty response' }, { status: 502 });
+      return errorResponse('Empty response', 502, { code: 'EMPTY_RESPONSE' });
     }
 
     return new NextResponse(body as ReadableStream, {
@@ -48,9 +45,6 @@ export const GET = withAuth(async (_request, { params }) => {
       },
     });
   } catch {
-    return NextResponse.json(
-      { error: 'Failed to fetch audio from orchestrator' },
-      { status: 502 }
-    );
+    return errorResponse('Failed to fetch audio from orchestrator', 502);
   }
 });

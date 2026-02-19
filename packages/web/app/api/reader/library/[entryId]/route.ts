@@ -1,4 +1,4 @@
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, parseBody, errorResponse } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { log } from '@/lib/logger';
 import { z } from 'zod';
@@ -42,7 +42,7 @@ export const GET = withAuth(async (request, { userId, prisma, params }) => {
   });
 
   if (!entry) {
-    return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
+    return errorResponse('Entry not found', 404, { code: 'NOT_FOUND' });
   }
 
   // Get audio output
@@ -68,22 +68,13 @@ export const PATCH = withAuth(async (request, { userId, prisma, params }) => {
   });
 
   if (!existingEntry || existingEntry.readerId !== userId) {
-    return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
+    return errorResponse('Entry not found', 404, { code: 'NOT_FOUND' });
   }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON', code: 'INVALID_JSON' }, { status: 400 });
-  }
+  const parsed = await parseBody(request, PatchEntrySchema);
+  if ('error' in parsed) return parsed.error;
 
-  const parseResult = PatchEntrySchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json({ error: 'Invalid request', code: 'VALIDATION_ERROR', details: parseResult.error.flatten().fieldErrors }, { status: 400 });
-  }
-
-  const { notes, tags, play_position_seconds, completed, readStatus } = parseResult.data;
+  const { notes, tags, play_position_seconds, completed, readStatus } = parsed.data;
 
   const updates: Record<string, unknown> = {};
 
@@ -109,7 +100,7 @@ export const PATCH = withAuth(async (request, { userId, prisma, params }) => {
     return NextResponse.json({ entry });
   } catch (error) {
     log.error('Error updating entry', error);
-    return NextResponse.json({ error: 'Failed to update entry' }, { status: 500 });
+    return errorResponse('Failed to update entry', 500);
   }
 });
 
@@ -124,7 +115,7 @@ export const DELETE = withAuth(async (request, { userId, prisma, params }) => {
   });
 
   if (!existingEntry || existingEntry.readerId !== userId) {
-    return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
+    return errorResponse('Entry not found', 404, { code: 'NOT_FOUND' });
   }
 
   try {
@@ -137,6 +128,6 @@ export const DELETE = withAuth(async (request, { userId, prisma, params }) => {
     return NextResponse.json({ success: true });
   } catch (error) {
     log.error('Error removing entry', error);
-    return NextResponse.json({ error: 'Failed to remove entry' }, { status: 500 });
+    return errorResponse('Failed to remove entry', 500);
   }
 });

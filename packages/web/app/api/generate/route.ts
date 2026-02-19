@@ -1,4 +1,4 @@
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, parseBody, errorResponse } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { log } from '@/lib/logger';
@@ -58,28 +58,11 @@ function validateScriptContent(text: string): { valid: boolean; error?: string }
 }
 
 export const POST = withAuth(async (request, { userId, prisma }) => {
-  // Parse and validate request body
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({
-      error: 'Invalid JSON in request body',
-      code: 'INVALID_JSON',
-    }, { status: 400 });
-  }
+  const parsed = await parseBody(request, GenerateRequestSchema);
+  if ('error' in parsed) return parsed.error;
 
-  const parseResult = GenerateRequestSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json({
-      error: 'Invalid request parameters',
-      code: 'VALIDATION_ERROR',
-      details: parseResult.error.flatten().fieldErrors,
-    }, { status: 400 });
-  }
-
-  const { projectId, workflowMode } = parseResult.data;
-  let { jobId } = parseResult.data;
+  const { projectId, workflowMode } = parsed.data;
+  let { jobId } = parsed.data;
 
   // Fetch project
   const project = await prisma.project.findFirst({

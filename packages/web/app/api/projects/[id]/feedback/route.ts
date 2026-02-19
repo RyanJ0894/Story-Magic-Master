@@ -8,7 +8,7 @@
  * to console until the feedback table migration is applied.
  */
 
-import { withProjectAuth } from '@/lib/api/middleware';
+import { withProjectAuth, parseBody } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import {
@@ -46,29 +46,10 @@ const SubmitFeedbackSchema = z.object({
 // =============================================================================
 
 export const POST = withProjectAuth(async (request, { userId, prisma, projectId }) => {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: 'Invalid JSON body', code: 'PARSE_ERROR' },
-      { status: 400 }
-    );
-  }
+  const parsed = await parseBody(request, SubmitFeedbackSchema);
+  if ('error' in parsed) return parsed.error;
 
-  const parseResult = SubmitFeedbackSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json(
-      {
-        error: 'Invalid request',
-        code: 'VALIDATION_ERROR',
-        details: parseResult.error.flatten().fieldErrors,
-      },
-      { status: 400 }
-    );
-  }
-
-  const { target, targetId, rating, rejectionReason, comment, metadata } = parseResult.data;
+  const { target, targetId, rating, rejectionReason, comment, metadata } = parsed.data;
 
   try {
     // Insert feedback via raw SQL since no Prisma model exists yet

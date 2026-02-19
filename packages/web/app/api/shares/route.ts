@@ -1,4 +1,4 @@
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, parseBody, errorResponse } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { nanoid } from 'nanoid';
 import { hashPassword } from '@/lib/password';
@@ -34,21 +34,8 @@ export const GET = withAuth(async (request, { userId, prisma }) => {
 
 // POST /api/shares - Create a new share link
 export const POST = withAuth(async (request, { userId, prisma }) => {
-  // Parse and validate request body
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
-  }
-  const parseResult = CreateShareRequestSchema.safeParse(body);
-
-  if (!parseResult.success) {
-    return NextResponse.json(
-      { error: 'Invalid request', details: parseResult.error.flatten().fieldErrors },
-      { status: 400 }
-    );
-  }
+  const parsed = await parseBody(request, CreateShareRequestSchema);
+  if ('error' in parsed) return parsed.error;
 
   const {
     project_id,
@@ -58,7 +45,7 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
     recipient_name,
     max_plays,
     password,
-  } = parseResult.data;
+  } = parsed.data;
 
   // Verify user owns this project
   const project = await prisma.project.findFirst({
@@ -67,11 +54,11 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
   });
 
   if (!project) {
-    return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    return errorResponse('Project not found', 404, { code: 'NOT_FOUND' });
   }
 
   if (project.userId !== userId) {
-    return NextResponse.json({ error: 'Not authorized to share this project' }, { status: 403 });
+    return errorResponse('Not authorized to share this project', 403, { code: 'FORBIDDEN' });
   }
 
   // Check subscription status
@@ -83,10 +70,7 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
   });
 
   if (!subscription) {
-    return NextResponse.json(
-      { error: 'Active subscription required to share scripts' },
-      { status: 403 }
-    );
+    return errorResponse('Active subscription required to share scripts', 403, { code: 'SUBSCRIPTION_REQUIRED' });
   }
 
   // Generate share code
@@ -118,6 +102,6 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
     });
   } catch (error) {
     log.error('Error creating share', error);
-    return NextResponse.json({ error: 'Failed to create share' }, { status: 500 });
+    return errorResponse('Failed to create share', 500);
   }
 });

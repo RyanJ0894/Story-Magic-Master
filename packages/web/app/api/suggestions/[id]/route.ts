@@ -6,7 +6,7 @@
  * DELETE /api/suggestions/[id] - Delete suggestion
  */
 
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, parseBody } from '@/lib/api/middleware';
 import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -126,33 +126,14 @@ export const PUT = withAuth(async (request, { userId, params }) => {
     );
   }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: 'Invalid JSON', code: 'INVALID_JSON' },
-      { status: 400 }
-    );
-  }
-
-  const parseResult = RespondSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json(
-      {
-        error: 'Invalid request',
-        code: 'VALIDATION_ERROR',
-        details: parseResult.error.flatten().fieldErrors,
-      },
-      { status: 400 }
-    );
-  }
+  const parsed = await parseBody(request, RespondSchema);
+  if ('error' in parsed) return parsed.error;
 
   try {
     const suggestion = await respondToSuggestion(
       suggestionId,
-      parseResult.data.status,
-      parseResult.data.feedback
+      parsed.data.status,
+      parsed.data.feedback
     );
 
     return NextResponse.json({

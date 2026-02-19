@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withAdminAuth } from '@/lib/api/middleware';
+import { withAdminAuth, parseBody, errorResponse } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { log } from '@/lib/logger';
 
@@ -31,7 +31,7 @@ export const GET = withAdminAuth(async (request, { userId, prisma }) => {
     return NextResponse.json({ settings });
   } catch (error) {
     log.error('Error fetching platform settings', error);
-    return NextResponse.json({ error: 'Failed to fetch platform settings' }, { status: 500 });
+    return errorResponse('Failed to fetch platform settings', 500);
   }
 });
 
@@ -42,24 +42,10 @@ export const GET = withAdminAuth(async (request, { userId, prisma }) => {
  * Each key/value pair is upserted into platform_settings with updated_by and updated_at.
  */
 export const PUT = withAdminAuth(async (request, { userId, prisma }) => {
-  // Parse request body
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
+  const parsed = await parseBody(request, UpdateSettingsSchema);
+  if ('error' in parsed) return parsed.error;
 
-  // Validate with Zod
-  const parseResult = UpdateSettingsSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json({
-      error: 'Invalid request body',
-      details: parseResult.error.format(),
-    }, { status: 400 });
-  }
-
-  const { settings } = parseResult.data;
+  const { settings } = parsed.data;
   const now = new Date().toISOString();
 
   try {
@@ -85,6 +71,6 @@ export const PUT = withAdminAuth(async (request, { userId, prisma }) => {
     return NextResponse.json({ settings, updated_at: now });
   } catch (error) {
     log.error('Error saving platform settings', error);
-    return NextResponse.json({ error: 'Failed to save platform settings' }, { status: 500 });
+    return errorResponse('Failed to save platform settings', 500);
   }
 }, { rateLimit: 'strict' });

@@ -6,7 +6,7 @@
  * DELETE /api/projects/[id] - Delete a project
  */
 
-import { withProjectAuth } from '@/lib/api/middleware';
+import { withProjectAuth, parseBody } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -33,29 +33,10 @@ export const GET = withProjectAuth(async (_request, { project }) => {
 // =============================================================================
 
 export const PATCH = withProjectAuth(async (request, { prisma, projectId }) => {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: 'Invalid JSON in request body', code: 'INVALID_JSON' },
-      { status: 400 }
-    );
-  }
+  const parsed = await parseBody(request, UpdateProjectSchema);
+  if ('error' in parsed) return parsed.error;
 
-  const parseResult = UpdateProjectSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json(
-      {
-        error: 'Invalid request parameters',
-        code: 'VALIDATION_ERROR',
-        details: parseResult.error.flatten().fieldErrors,
-      },
-      { status: 400 }
-    );
-  }
-
-  const { name, script_text, page_count } = parseResult.data;
+  const { name, script_text, page_count } = parsed.data;
 
   try {
     const project = await prisma.project.update({

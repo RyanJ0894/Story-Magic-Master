@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { withAdminAuth } from '@/lib/api/middleware';
+import { withAdminAuth, errorResponse } from '@/lib/api/middleware';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
 import { log } from '@/lib/logger';
+import { getSubscription } from '@/lib/stripe/server';
 
 // =============================================================================
 // GET /api/admin/subscriptions/[subscriptionId] - Get subscription details
@@ -27,7 +28,7 @@ export const GET = withAdminAuth(async (request, { userId, prisma, params }) => 
   });
 
   if (!subscription) {
-    return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
+    return errorResponse('Subscription not found', 404, { code: 'NOT_FOUND' });
   }
 
   return NextResponse.json({ data: subscription });
@@ -51,7 +52,7 @@ export const POST = withAdminAuth(async (request, { userId, prisma, params }) =>
   });
 
   if (!subscription) {
-    return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
+    return errorResponse('Subscription not found', 404, { code: 'NOT_FOUND' });
   }
 
   if (action === 'cancel') {
@@ -60,7 +61,7 @@ export const POST = withAdminAuth(async (request, { userId, prisma, params }) =>
     return handleSync(prisma, subscription, subscriptionId, { id: userId }, request);
   }
 
-  return NextResponse.json({ error: 'Invalid action. Use /cancel or /sync' }, { status: 400 });
+  return errorResponse('Invalid action. Use /cancel or /sync', 400, { code: 'INVALID_ACTION' });
 }, { rateLimit: 'strict' });
 
 // =============================================================================
@@ -104,7 +105,7 @@ async function handleCancel(
     });
   } catch (error) {
     log.error('Error canceling subscription', error);
-    return NextResponse.json({ error: 'Failed to cancel subscription' }, { status: 500 });
+    return errorResponse('Failed to cancel subscription', 500);
   }
 }
 
@@ -120,10 +121,39 @@ async function handleSync(
   request: Request,
 ) {
   try {
-    // For now, update the timestamp to indicate a sync was attempted
+    const stripeSubscriptionId = subscription.stripeSubscriptionId as string | null;
+
+    if (!stripeSubscriptionId) {
+      return errorResponse('No Stripe subscription ID linked to this subscription', 400, { code: 'MISSING_STRIPE_ID' });
+    }
+
+    // Fetch the current subscription state from Stripe
+    const stripeSubscription = await getSubscription(stripeSubscriptionId);
+
+    if (!stripeSubscription) {
+      return errorResponse('Subscription not found in Stripe', 404, { code: 'STRIPE_NOT_FOUND' });
+    }
+
+    // Map Stripe subscription data to local database fields
+    const syncData: Record<string, unknown> = {
+      status: stripeSubscription.status,
+      cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+      currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000),
+      currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000),
+    };
+
+    // Sync plan from the first subscription item's price if available
+    const firstItem = stripeSubscription.items?.data?.[0];
+    if (firstItem?.price?.id) {
+      syncData.stripePriceId = firstItem.price.id;
+    }
+    if (firstItem?.price?.lookup_key) {
+      syncData.plan = firstItem.price.lookup_key;
+    }
+
     const updated = await prisma.subscription.update({
       where: { id: subscriptionId },
-      data: {}, // updatedAt auto-updates via @updatedAt
+      data: syncData,
     });
 
     // Log audit event
@@ -135,19 +165,20 @@ async function handleSync(
       resource_id: subscriptionId,
       details: {
         admin_action: true,
-        sync_attempted: true,
+        sync_completed: true,
         target_user_id: subscription.userId,
-        note: 'Stripe sync stub - actual Stripe API integration pending',
+        stripe_status: stripeSubscription.status,
+        synced_fields: Object.keys(syncData),
       },
       ...requestInfo,
     });
 
     return NextResponse.json({
       data: updated,
-      message: 'Sync attempted (stub). Stripe integration pending.',
+      message: 'Subscription synced from Stripe successfully.',
     });
   } catch (error) {
-    log.error('Error syncing subscription', error);
-    return NextResponse.json({ error: 'Failed to sync subscription' }, { status: 500 });
+    log.error('Error syncing subscription from Stripe', error);
+    return errorResponse('Failed to sync subscription from Stripe', 500);
   }
 }

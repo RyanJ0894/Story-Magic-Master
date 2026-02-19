@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withAdminAuth } from '@/lib/api/middleware';
+import { withAdminAuth, errorResponse } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { log } from '@/lib/logger';
@@ -33,7 +33,7 @@ export const GET = withAdminAuth(async (request, { userId, prisma }) => {
   });
 
   if (!parseResult.success) {
-    return NextResponse.json({ error: 'Invalid query parameters' }, { status: 400 });
+    return errorResponse('Invalid query parameters', 400, { code: 'VALIDATION_ERROR' });
   }
 
   const { page, limit, action, resource, userId: filterUserId, startDate, endDate } = parseResult.data;
@@ -86,6 +86,6 @@ export const GET = withAdminAuth(async (request, { userId, prisma }) => {
     });
   } catch (error) {
     log.error('Error fetching audit logs', error);
-    return NextResponse.json({ error: 'Failed to fetch audit logs' }, { status: 500 });
+    return errorResponse('Failed to fetch audit logs', 500);
   }
 });

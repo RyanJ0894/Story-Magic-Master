@@ -189,7 +189,7 @@ describe('PATCH /api/shares/[shareId]', () => {
 
     expect(res.status).toBe(400);
     const data = await res.json();
-    expect(data.error).toBe('Invalid request');
+    expect(data.error).toBe('Invalid request parameters');
   });
 
   it('updates share settings successfully', async () => {

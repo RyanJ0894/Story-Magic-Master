@@ -104,6 +104,17 @@ vi.mock('@/lib/api/audit', () => ({
   },
 }));
 
+// Mock Stripe server helpers
+const mockGetSubscription = vi.fn();
+vi.mock('@/lib/stripe/server', () => ({
+  getSubscription: (...args: unknown[]) => mockGetSubscription(...args),
+  getStripeServer: vi.fn(),
+  createCheckoutSession: vi.fn(),
+  createPortalSession: vi.fn(),
+  cancelSubscription: vi.fn(),
+  constructWebhookEvent: vi.fn(),
+}));
+
 // Mock populateMissingEmbeddings
 const mockPopulateMissingEmbeddings = vi.fn();
 vi.mock('@/lib/comparable/service', () => ({
@@ -903,6 +914,19 @@ describe('POST /api/admin/subscriptions/[subscriptionId]', () => {
       id: 'sub_1',
       userId: 'user_1',
       status: 'active',
+      stripeSubscriptionId: 'sub_stripe_123',
+    });
+    mockGetSubscription.mockResolvedValueOnce({
+      id: 'sub_stripe_123',
+      status: 'active',
+      cancel_at_period_end: false,
+      current_period_start: 1700000000,
+      current_period_end: 1702592000,
+      items: {
+        data: [
+          { price: { id: 'price_abc', lookup_key: 'pro' } },
+        ],
+      },
     });
     mockPrisma.subscription.update.mockResolvedValueOnce({
       id: 'sub_1',
@@ -920,7 +944,55 @@ describe('POST /api/admin/subscriptions/[subscriptionId]', () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data.message).toContain('Sync');
+    expect(data.message).toContain('synced');
+    expect(mockGetSubscription).toHaveBeenCalledWith('sub_stripe_123');
+  });
+
+  it('returns 400 when subscription has no stripeSubscriptionId', async () => {
+    setupAdmin();
+    mockPrisma.subscription.findUnique.mockResolvedValueOnce({
+      id: 'sub_1',
+      userId: 'user_1',
+      status: 'active',
+      stripeSubscriptionId: null,
+    });
+
+    const req = createRequest(
+      'http://localhost:22000/api/admin/subscriptions/sub_1/sync',
+      { method: 'POST' },
+    );
+    const res = await postSubscription(
+      req,
+      routeParams({ subscriptionId: 'sub_1' }),
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data.error).toContain('No Stripe subscription ID');
+  });
+
+  it('returns 404 when Stripe subscription not found', async () => {
+    setupAdmin();
+    mockPrisma.subscription.findUnique.mockResolvedValueOnce({
+      id: 'sub_1',
+      userId: 'user_1',
+      status: 'active',
+      stripeSubscriptionId: 'sub_stripe_gone',
+    });
+    mockGetSubscription.mockResolvedValueOnce(null);
+
+    const req = createRequest(
+      'http://localhost:22000/api/admin/subscriptions/sub_1/sync',
+      { method: 'POST' },
+    );
+    const res = await postSubscription(
+      req,
+      routeParams({ subscriptionId: 'sub_1' }),
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(data.error).toContain('not found in Stripe');
   });
 });
 

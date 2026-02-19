@@ -1,4 +1,4 @@
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, parseBody } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { log } from '@/lib/logger';
@@ -10,27 +10,10 @@ const PreviewRequestSchema = z.object({
 });
 
 export const POST = withAuth(async (request, { userId, prisma }) => {
-  // Parse and validate request body
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({
-      error: 'Invalid JSON in request body',
-      code: 'INVALID_JSON',
-    }, { status: 400 });
-  }
+  const parsed = await parseBody(request, PreviewRequestSchema);
+  if ('error' in parsed) return parsed.error;
 
-  const parseResult = PreviewRequestSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json({
-      error: 'Invalid request parameters',
-      code: 'VALIDATION_ERROR',
-      details: parseResult.error.flatten().fieldErrors,
-    }, { status: 400 });
-  }
-
-  const { projectId, sceneId } = parseResult.data;
+  const { projectId, sceneId } = parsed.data;
 
   // Fetch project (verify ownership and get director_json)
   const project = await prisma.project.findFirst({

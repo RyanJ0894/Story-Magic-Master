@@ -1,4 +1,4 @@
-import { withAuth, parseBody } from '@/lib/api/middleware';
+import { withAuth, parseBody, errorResponse } from '@/lib/api/middleware';
 import { createCheckoutSession } from '@/lib/stripe/server';
 import { STRIPE_CONFIG } from '@/lib/stripe/config';
 import { NextResponse } from 'next/server';
@@ -23,10 +23,7 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
       ];
 
     if (!priceId) {
-      return NextResponse.json(
-        { error: 'Price not configured. Please contact support.' },
-        { status: 500 }
-      );
+      return errorResponse('Price not configured. Please contact support.', 500, { code: 'CONFIG_ERROR' });
     }
 
     // Get user email from profile for Stripe
@@ -49,9 +46,6 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
     return NextResponse.json({ sessionId: session.id, url: session.url });
   } catch (error) {
     log.error('Checkout error', error);
-    return NextResponse.json(
-      { error: 'Failed to create checkout session' },
-      { status: 500 }
-    );
+    return errorResponse('Failed to create checkout session', 500);
   }
 }, { rateLimit: 'strict' });

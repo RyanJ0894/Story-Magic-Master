@@ -6,7 +6,7 @@
  * DELETE /api/teams/[teamId]/members - Remove member
  */
 
-import { withAuth } from '@/lib/api/middleware';
+import { withAuth, parseBody, errorResponse } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { sendTeamInviteEmail } from '@/lib/email';
@@ -39,7 +39,7 @@ export const GET = withAuth(async (request, { userId, prisma, params }) => {
   });
 
   if (!team) {
-    return NextResponse.json({ error: 'Team not found', code: 'NOT_FOUND' }, { status: 404 });
+    return errorResponse('Team not found', 404, { code: 'NOT_FOUND' });
   }
 
   // Check if user is owner or member
@@ -55,7 +55,7 @@ export const GET = withAuth(async (request, { userId, prisma, params }) => {
     });
 
     if (!membership) {
-      return NextResponse.json({ error: 'Access denied', code: 'FORBIDDEN' }, { status: 403 });
+      return errorResponse('Access denied', 403, { code: 'FORBIDDEN' });
     }
   }
 
@@ -92,14 +92,7 @@ export const GET = withAuth(async (request, { userId, prisma, params }) => {
     });
   } catch (error) {
     log.error('[TeamMembers] Error listing', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to list members',
-        code: 'LIST_ERROR',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return errorResponse('Failed to list members', 500, { code: 'LIST_ERROR', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 
@@ -120,32 +113,13 @@ export const POST = withAuth(async (request, { userId, prisma, params }) => {
   });
 
   if (!team) {
-    return NextResponse.json(
-      { error: 'Team not found or not authorized', code: 'NOT_FOUND' },
-      { status: 404 }
-    );
+    return errorResponse('Team not found or not authorized', 404, { code: 'NOT_FOUND' });
   }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body', code: 'PARSE_ERROR' }, { status: 400 });
-  }
+  const parsed = await parseBody(request, InviteMemberSchema);
+  if ('error' in parsed) return parsed.error;
 
-  const parseResult = InviteMemberSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json(
-      {
-        error: 'Invalid request',
-        code: 'VALIDATION_ERROR',
-        details: parseResult.error.flatten().fieldErrors,
-      },
-      { status: 400 }
-    );
-  }
-
-  const { email, role } = parseResult.data;
+  const { email, role } = parsed.data;
 
   // Check if already invited
   const existing = await prisma.teamMember.findFirst({
@@ -158,16 +132,10 @@ export const POST = withAuth(async (request, { userId, prisma, params }) => {
 
   if (existing) {
     if (existing.status === 'accepted') {
-      return NextResponse.json(
-        { error: 'This person is already a team member', code: 'ALREADY_MEMBER' },
-        { status: 400 }
-      );
+      return errorResponse('This person is already a team member', 400, { code: 'ALREADY_MEMBER' });
     }
     if (existing.status === 'pending') {
-      return NextResponse.json(
-        { error: 'An invitation is already pending for this email', code: 'INVITE_PENDING' },
-        { status: 400 }
-      );
+      return errorResponse('An invitation is already pending for this email', 400, { code: 'INVITE_PENDING' });
     }
   }
 
@@ -232,14 +200,7 @@ export const POST = withAuth(async (request, { userId, prisma, params }) => {
     );
   } catch (error) {
     log.error('[TeamMembers] Error inviting', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to invite member',
-        code: 'INVITE_ERROR',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return errorResponse('Failed to invite member', 500, { code: 'INVITE_ERROR', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 
@@ -260,32 +221,13 @@ export const DELETE = withAuth(async (request, { userId, prisma, params }) => {
   });
 
   if (!team) {
-    return NextResponse.json(
-      { error: 'Team not found or not authorized', code: 'NOT_FOUND' },
-      { status: 404 }
-    );
+    return errorResponse('Team not found or not authorized', 404, { code: 'NOT_FOUND' });
   }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body', code: 'PARSE_ERROR' }, { status: 400 });
-  }
+  const parsed = await parseBody(request, RemoveMemberSchema);
+  if ('error' in parsed) return parsed.error;
 
-  const parseResult = RemoveMemberSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json(
-      {
-        error: 'Invalid request',
-        code: 'VALIDATION_ERROR',
-        details: parseResult.error.flatten().fieldErrors,
-      },
-      { status: 400 }
-    );
-  }
-
-  const { memberId } = parseResult.data;
+  const { memberId } = parsed.data;
 
   try {
     await prisma.teamMember.updateMany({
@@ -299,13 +241,6 @@ export const DELETE = withAuth(async (request, { userId, prisma, params }) => {
     return NextResponse.json({ success: true });
   } catch (error) {
     log.error('[TeamMembers] Error removing', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to remove member',
-        code: 'REMOVE_ERROR',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return errorResponse('Failed to remove member', 500, { code: 'REMOVE_ERROR', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 });

@@ -1,4 +1,4 @@
-import { withAuth, parseBody } from '@/lib/api/middleware';
+import { withAuth, parseBody, errorResponse } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { z } from 'zod';
@@ -30,7 +30,7 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
   // Validate price matches OCR selection
   const expectedPrice = needsOCR ? 8 : 5;
   if (price !== expectedPrice) {
-    return NextResponse.json({ error: 'Invalid price' }, { status: 400 });
+    return errorResponse('Invalid price', 400, { code: 'INVALID_PRICE' });
   }
 
   try {
@@ -76,9 +76,6 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
     return NextResponse.json({ url: session.url });
   } catch (error) {
     log.error('Error creating checkout session', error);
-    return NextResponse.json(
-      { error: 'Failed to create payment' },
-      { status: 500 }
-    );
+    return errorResponse('Failed to create payment', 500);
   }
 });

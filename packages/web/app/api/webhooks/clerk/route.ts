@@ -3,6 +3,7 @@ import { Webhook } from 'svix';
 import { headers } from 'next/headers';
 import { prisma } from '@/lib/db';
 import { log } from '@/lib/logger';
+import { errorResponse } from '@/lib/api/error-response';
 
 interface ClerkWebhookEvent {
   type: string;
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
 
   if (!WEBHOOK_SECRET) {
     log.error('CLERK_WEBHOOK_SECRET not configured');
-    return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
+    return errorResponse('Webhook secret not configured', 500, { code: 'CONFIG_ERROR' });
   }
 
   // Verify the webhook signature
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
   const svixSignature = headerPayload.get('svix-signature');
 
   if (!svixId || !svixTimestamp || !svixSignature) {
-    return NextResponse.json({ error: 'Missing svix headers' }, { status: 400 });
+    return errorResponse('Missing svix headers', 400, { code: 'MISSING_HEADERS' });
   }
 
   const payload = await request.text();
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
     }) as ClerkWebhookEvent;
   } catch (error) {
     log.error('Webhook verification failed', error);
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+    return errorResponse('Invalid signature', 400, { code: 'INVALID_SIGNATURE' });
   }
 
   // Handle events

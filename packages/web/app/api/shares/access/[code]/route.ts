@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyPassword, isBcryptHash, hashPassword } from '@/lib/password';
 import { VerifySharePasswordRequestSchema } from '@/lib/api/dto';
 import { rateLimit, getClientIp } from '@/lib/api/rate-limit';
+import { errorResponse } from '@/lib/api/error-response';
 
 interface RouteParams {
   params: Promise<{ code: string }>;
@@ -43,17 +44,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   });
 
   if (!share) {
-    return NextResponse.json({ error: 'Share not found or expired' }, { status: 404 });
+    return errorResponse('Share not found or expired', 404, { code: 'NOT_FOUND' });
   }
 
   // Check expiration
   if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
-    return NextResponse.json({ error: 'This share link has expired' }, { status: 410 });
+    return errorResponse('This share link has expired', 410, { code: 'EXPIRED' });
   }
 
   // Check max plays
   if (share.maxPlays && share.playCount >= share.maxPlays) {
-    return NextResponse.json({ error: 'This share link has reached its play limit' }, { status: 410 });
+    return errorResponse('This share link has reached its play limit', 410, { code: 'PLAY_LIMIT_REACHED' });
   }
 
   // Check if password protected
@@ -75,10 +76,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   });
 
   if (!subscription) {
-    return NextResponse.json(
-      { error: 'This content is temporarily unavailable (writer subscription inactive)' },
-      { status: 403 }
-    );
+    return errorResponse('This content is temporarily unavailable (writer subscription inactive)', 403, { code: 'SUBSCRIPTION_INACTIVE' });
   }
 
   // Increment view count
@@ -165,10 +163,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const parseResult = VerifySharePasswordRequestSchema.safeParse(body);
 
   if (!parseResult.success) {
-    return NextResponse.json(
-      { error: 'Invalid request', details: parseResult.error.flatten().fieldErrors },
-      { status: 400 }
-    );
+    return errorResponse('Invalid request', 400, {
+      code: 'VALIDATION_ERROR',
+      details: parseResult.error.flatten().fieldErrors,
+    });
   }
 
   const { password } = parseResult.data;
@@ -198,13 +196,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   });
 
   if (!share) {
-    return NextResponse.json({ error: 'Share not found' }, { status: 404 });
+    return errorResponse('Share not found', 404, { code: 'NOT_FOUND' });
   }
 
   // Verify password (supports both bcrypt and legacy SHA-256 hashes)
   if (!share.passwordHash) {
     // No password set - this shouldn't happen as we only get here for protected shares
-    return NextResponse.json({ error: 'Share configuration error' }, { status: 500 });
+    return errorResponse('Share configuration error', 500, { code: 'CONFIG_ERROR' });
   }
 
   let isValid = false;
@@ -224,16 +222,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
   }
   if (!isValid) {
-    return NextResponse.json({ error: 'Incorrect password' }, { status: 401 });
+    return errorResponse('Incorrect password', 401, { code: 'INVALID_PASSWORD' });
   }
 
   // Same checks as GET
   if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
-    return NextResponse.json({ error: 'This share link has expired' }, { status: 410 });
+    return errorResponse('This share link has expired', 410, { code: 'EXPIRED' });
   }
 
   if (share.maxPlays && share.playCount >= share.maxPlays) {
-    return NextResponse.json({ error: 'This share link has reached its play limit' }, { status: 410 });
+    return errorResponse('This share link has reached its play limit', 410, { code: 'PLAY_LIMIT_REACHED' });
   }
 
   // Check writer subscription
@@ -246,10 +244,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   });
 
   if (!subscription) {
-    return NextResponse.json(
-      { error: 'This content is temporarily unavailable' },
-      { status: 403 }
-    );
+    return errorResponse('This content is temporarily unavailable', 403, { code: 'SUBSCRIPTION_INACTIVE' });
   }
 
   // Increment view count
