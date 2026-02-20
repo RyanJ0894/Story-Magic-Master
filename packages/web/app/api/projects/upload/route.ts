@@ -9,19 +9,15 @@ import { NextResponse } from 'next/server';
 import { parseScreenplay, getProjectNameFromFilename } from '@/lib/upload/parse-screenplay';
 import { createProject } from '@/lib/services/projects';
 
-const ACCEPTED_MIME_TYPES = new Set([
-  'text/plain',
-  'text/markdown',
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-]);
-
 const ACCEPTED_EXTENSIONS = new Set(['.txt', '.md', '.docx', '.pdf']);
 
 function getExtension(filename: string): string {
   const dot = filename.lastIndexOf('.');
   return dot === -1 ? '' : filename.slice(dot).toLowerCase();
 }
+
+// Allow uploads up to 10MB (Next.js App Router defaults to 1MB)
+export const maxDuration = 30;
 
 export const POST = withAuth(
   async (request, { userId, prisma }) => {
@@ -50,14 +46,6 @@ export const POST = withAuth(
           error: `Unsupported file type "${ext}". Accepted formats: .txt, .md, .docx, .pdf`,
           code: 'UNSUPPORTED_TYPE',
         },
-        { status: 400 }
-      );
-    }
-
-    // Check MIME type (browsers may send text/plain for .md files, so also check extension)
-    if (!ACCEPTED_MIME_TYPES.has(file.type) && ext !== '.md') {
-      return NextResponse.json(
-        { error: 'Invalid file type', code: 'INVALID_MIME' },
         { status: 400 }
       );
     }
