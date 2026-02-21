@@ -132,6 +132,8 @@ services:
         value: "true"
       - key: NEXT_PUBLIC_FF_EXPORT_REPORTS
         value: "true"
+      - key: NEXT_PUBLIC_FF_STORY_EXPLORER
+        value: "true"
 
   # =============================================================================
   # BACKGROUND WORKER (Queue Processor) — currently disabled to save costs.
