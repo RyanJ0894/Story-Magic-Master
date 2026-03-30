@@ -20,7 +20,7 @@ export const MODELS = {
   // Production scoring — best literary analysis, 200K context
   PRODUCTION: 'claude-sonnet-4-6' as const,
   // Batch corpus scoring — cheap, fast, 1M context
-  BATCH: 'gemini-2.0-flash' as const,
+  BATCH: 'gemini-2.5-flash' as const,
   // Fallback
   FALLBACK: 'gpt-4o' as const,
 } as const;

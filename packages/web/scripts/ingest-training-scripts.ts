@@ -24,7 +24,7 @@ const DRY_RUN = process.argv.includes('--dry-run');
 // Paths
 // =============================================================================
 
-const REPO_ROOT = path.resolve(__dirname, '../../../../..');
+const REPO_ROOT = path.resolve(__dirname, '../../..');
 const SCRIPTS_DIR = path.join(REPO_ROOT, 'docs', 'StoryScore Scripts');
 const EXCEL_PATH = path.join(SCRIPTS_DIR, 'storyscore_50_script_training_dataset.xlsx');
 
