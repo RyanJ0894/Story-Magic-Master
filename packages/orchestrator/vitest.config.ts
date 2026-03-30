@@ -6,6 +6,11 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
     exclude: ['node_modules', 'dist'],
+    env: {
+      // Prisma requires DATABASE_URL at initialization — provide a dummy for tests.
+      // Real DB calls are mocked; this just prevents PrismaClientInitializationError.
+      DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

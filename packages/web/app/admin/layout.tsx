@@ -9,6 +9,7 @@ const navigation: AdminNavItem[] = [
   { name: 'Subscriptions', href: '/admin/subscriptions', icon: 'CreditCard' },
   { name: 'Analytics', href: '/admin/analytics', icon: 'BarChart3' },
   { name: 'Audit Log', href: '/admin/audit-log', icon: 'FileText' },
+  { name: 'Corpus', href: '/admin/corpus', icon: 'BookOpen' },
   { name: 'Settings', href: '/admin/settings', icon: 'Settings' },
 ];
 

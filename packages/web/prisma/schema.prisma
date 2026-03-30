@@ -532,12 +532,48 @@ model ScriptCorpus {
   createdAt         DateTime                     @default(now()) @map("created_at")
   updatedAt         DateTime                     @default(now()) @updatedAt @map("updated_at")
 
+  // Training dataset fields
+  scriptText        String?                      @map("script_text")
+  datasetCategory   String?                      @map("dataset_category") // Oscar Winner, Black List, Produced Benchmark, Weak Film, TV Benchmark
+  act1BreakPage     Int?                         @map("act1_break_page")
+  act2BreakPage     Int?                         @map("act2_break_page")
+  dialoguePct       Decimal?                     @map("dialogue_pct") @db.Decimal(5, 2)
+  sceneCount        Int?                         @map("scene_count")
+  conflictDensity   Decimal?                     @map("conflict_density") @db.Decimal(5, 3)
+  emotionalArcScore Decimal?                     @map("emotional_arc_score") @db.Decimal(4, 2)
+  pageCount         Int?                         @map("page_count")
+  pdfFilename       String?                      @map("pdf_filename")
+
   // Relations
-  uploader Profile? @relation(fields: [uploadedBy], references: [id])
+  uploader     Profile?      @relation(fields: [uploadedBy], references: [id])
+  corpusScores CorpusScore[]
 
   @@index([productionStatus])
   @@index([isPublic])
+  @@index([datasetCategory])
   @@map("script_corpus")
+}
+
+model CorpusScore {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corpusScriptId  String   @map("corpus_script_id") @db.Uuid
+  modelVersion    String   @map("model_version")
+  overallScore    Decimal  @map("overall_score") @db.Decimal(4, 2)
+  conceptScore    Decimal  @map("concept_score") @db.Decimal(4, 2)
+  structureScore  Decimal  @map("structure_score") @db.Decimal(4, 2)
+  characterScore  Decimal  @map("character_score") @db.Decimal(4, 2)
+  craftScore      Decimal  @map("craft_score") @db.Decimal(4, 2)
+  dimensions      Json     // Full 12-dimension scores + reasoning
+  strengths       String[]
+  weaknesses      String[]
+  confidence      Decimal  @map("confidence") @db.Decimal(4, 2)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  corpusScript ScriptCorpus @relation(fields: [corpusScriptId], references: [id], onDelete: Cascade)
+
+  @@index([corpusScriptId])
+  @@index([modelVersion])
+  @@map("corpus_score")
 }
 
 // =============================================================================
