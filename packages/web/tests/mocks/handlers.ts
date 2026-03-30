@@ -2,71 +2,71 @@ import { http, HttpResponse } from 'msw';
 
 const BASE_URL = 'http://localhost:22000';
 
-// Test data factories
+// Test data factories — fields match Prisma camelCase output
 export const createMockUser = (overrides = {}) => ({
   id: 'user-123',
   email: 'test@example.com',
-  created_at: new Date().toISOString(),
+  createdAt: new Date().toISOString(),
   ...overrides,
 });
 
 export const createMockProfile = (overrides = {}) => ({
   id: 'user-123',
-  full_name: 'Test User',
-  user_type: 'writer',
-  writer_code: 'ABC123',
-  reader_code: 'XYZ789',
-  created_at: new Date().toISOString(),
+  fullName: 'Test User',
+  userType: 'writer',
+  writerCode: 'ABC123',
+  readerCode: 'XYZ789',
+  createdAt: new Date().toISOString(),
   ...overrides,
 });
 
 export const createMockSubscription = (overrides = {}) => ({
   id: 'sub-123',
-  user_id: 'user-123',
+  userId: 'user-123',
   plan: 'pro',
   status: 'active',
-  generations_limit: 10,
-  generations_used: 2,
-  downloads_limit: 5,
-  downloads_used: 1,
-  current_period_start: new Date().toISOString(),
-  current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  generationsLimit: 10,
+  generationsUsed: 2,
+  downloadsLimit: 5,
+  downloadsUsed: 1,
+  currentPeriodStart: new Date().toISOString(),
+  currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
   ...overrides,
 });
 
 export const createMockProject = (overrides = {}) => ({
   id: 'project-123',
-  user_id: 'user-123',
+  userId: 'user-123',
   name: 'Test Script',
   status: 'completed',
-  page_count: 90,
-  created_at: new Date().toISOString(),
+  pageCount: 90,
+  createdAt: new Date().toISOString(),
   ...overrides,
 });
 
 export const createMockShare = (overrides = {}) => ({
   id: 'share-123',
-  project_id: 'project-123',
-  shared_by: 'user-123',
-  share_code: 'abc123xyz',
-  access_level: 'stream',
-  view_count: 5,
-  play_count: 3,
-  is_active: true,
-  created_at: new Date().toISOString(),
+  projectId: 'project-123',
+  sharedBy: 'user-123',
+  shareCode: 'abc123xyz',
+  accessLevel: 'stream',
+  viewCount: 5,
+  playCount: 3,
+  isActive: true,
+  createdAt: new Date().toISOString(),
   ...overrides,
 });
 
 export const createMockLibraryEntry = (overrides = {}) => ({
   id: 'entry-123',
-  reader_id: 'user-123',
-  project_id: 'project-123',
+  readerId: 'user-123',
+  projectId: 'project-123',
   source: 'received',
   status: 'active',
-  is_favorited: false,
-  play_position_seconds: 0,
+  isFavorited: false,
+  playPositionSeconds: 0,
   completed: false,
-  created_at: new Date().toISOString(),
+  createdAt: new Date().toISOString(),
   ...overrides,
 });
 
@@ -125,12 +125,12 @@ export const handlers = [
       entries: [
         {
           ...createMockLibraryEntry(),
-          script_name: 'Test Script',
-          page_count: 90,
-          writer_name: 'Test Writer',
-          writer_code: 'ABC123',
-          writer_subscribed: true,
-          duration_seconds: 3600,
+          scriptName: 'Test Script',
+          pageCount: 90,
+          writerName: 'Test Writer',
+          writerCode: 'ABC123',
+          writerSubscribed: true,
+          durationSeconds: 3600,
         },
       ],
     });
@@ -140,8 +140,8 @@ export const handlers = [
     return HttpResponse.json({
       entry: createMockLibraryEntry({ id: params.entryId as string }),
       audio: {
-        file_url: 'https://storage.test.com/audio.m4a',
-        duration_seconds: 3600,
+        fileUrl: 'https://storage.test.com/audio.m4a',
+        durationSeconds: 3600,
       },
     });
   }),
@@ -158,17 +158,17 @@ export const handlers = [
   }),
 
   http.post(`${BASE_URL}/api/reader/library/:entryId/favorite`, async ({ params, request }) => {
-    const body = await request.json() as { is_favorited?: boolean };
+    const body = await request.json() as { isFavorited?: boolean };
     return HttpResponse.json({
       entry: createMockLibraryEntry({ id: params.entryId as string }),
-      is_favorited: body.is_favorited ?? true,
+      isFavorited: body.isFavorited ?? true,
     });
   }),
 
   http.post(`${BASE_URL}/api/reader/library/:entryId/position`, async ({ request }) => {
     const body = await request.json() as { position: number };
     return HttpResponse.json({
-      entry: createMockLibraryEntry({ play_position_seconds: body.position }),
+      entry: createMockLibraryEntry({ playPositionSeconds: body.position }),
       position: body.position,
       completed: false,
     });

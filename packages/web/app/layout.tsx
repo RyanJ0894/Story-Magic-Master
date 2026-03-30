@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { ClerkProvider } from '@clerk/nextjs';
+import { headers } from 'next/headers';
 import './globals.css';
 import { Toaster } from 'sonner';
 import { ThemeProvider } from '@/components/theme-provider';
@@ -12,13 +13,17 @@ export const metadata: Metadata = {
   description: 'AI-powered audio production platform for screenplays',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const headersList = await headers();
+  const nonce = headersList.get('x-nonce') ?? '';
+
   return (
     <ClerkProvider
+      nonce={nonce}
       signInUrl="/login"
       signUpUrl="/signup"
       signInFallbackRedirectUrl="/dashboard"

@@ -388,7 +388,7 @@ export async function cancelJob(jobId: string, userId: string): Promise<boolean>
     where: {
       id: jobId,
       userId,
-      status: 'queued',
+      status: { in: ['queued', 'processing'] },
     },
     data: {
       status: 'failed',

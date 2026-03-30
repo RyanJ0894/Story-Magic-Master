@@ -32,10 +32,10 @@ export const POST = withAuth(async (_request, { userId, prisma, params }) => {
     );
   }
 
-  if (job.status !== 'queued') {
+  if (job.status !== 'queued' && job.status !== 'processing') {
     return NextResponse.json(
       {
-        error: 'Only queued jobs can be cancelled',
+        error: 'Only queued or processing jobs can be cancelled',
         code: 'INVALID_STATUS',
         currentStatus: job.status,
       },

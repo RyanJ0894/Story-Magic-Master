@@ -143,6 +143,16 @@ export async function processGenerationJob(
 
     await updateJobProgress('parsing_complete', 25, `Parsed ${sceneCount} scenes, ${lineCount} lines`);
 
+    // Check for cancellation before starting the long orchestration phase
+    const jobAfterParsing = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: { status: true },
+    });
+    if (jobAfterParsing?.status === 'failed') {
+      logProgress(jobId, 'cancelled', 'Job cancelled by user after parsing');
+      return;
+    }
+
     // Save director JSON to project
     await prisma.project.update({
       where: { id: projectId },

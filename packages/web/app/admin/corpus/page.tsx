@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { CorpusPopulateButton } from '@/components/admin/CorpusPopulateButton';
 import {
   Table,
   TableBody,
@@ -116,13 +117,16 @@ export default async function AdminCorpusPage() {
             Training dataset for few-shot calibration. Run <code className="text-xs bg-zinc-800 px-1 py-0.5 rounded">pnpm ingest:training</code> then <code className="text-xs bg-zinc-800 px-1 py-0.5 rounded">pnpm score:corpus</code> to populate.
           </p>
         </div>
-        <a
-          href="/api/admin/corpus/export"
-          download
-          className="flex-shrink-0 px-4 py-2 text-sm font-medium rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition-colors"
-        >
-          Export CSV
-        </a>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <CorpusPopulateButton />
+          <a
+            href="/api/admin/corpus/export"
+            download
+            className="px-4 py-2 text-sm font-medium rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition-colors"
+          >
+            Export CSV
+          </a>
+        </div>
       </div>
 
       {/* Stats Row */}
