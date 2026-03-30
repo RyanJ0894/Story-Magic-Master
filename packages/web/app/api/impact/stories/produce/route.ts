@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
 
 export const maxDuration = 60;
@@ -10,6 +11,9 @@ export const maxDuration = 60;
  * Uses the existing orchestrator pipeline with a simplified direct-voice script.
  */
 export async function POST(req: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const body = await req.json();
   const { storyId, storyText, voiceId, voiceName, title } = body;
 

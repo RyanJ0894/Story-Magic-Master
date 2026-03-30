@@ -39,10 +39,10 @@ export default function ImpactLandingPage() {
           </p>
           <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
             <Link
-              href="/impact/build"
+              href="/sign-up?redirect_url=/impact/build"
               className="px-8 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-semibold text-sm transition-colors"
             >
-              Share my story — it&apos;s free
+              Create a free account to share your story
             </Link>
             <Link
               href="/impact/stories"
@@ -98,7 +98,7 @@ export default function ImpactLandingPage() {
             {IMPACT_CATEGORIES.map(cat => (
               <Link
                 key={cat.id}
-                href={`/impact/build?category=${cat.id}`}
+                href={`/sign-up?redirect_url=/impact/build`}
                 className="flex flex-col items-center gap-2 p-4 bg-zinc-900 border border-zinc-700 rounded-xl hover:border-violet-500 hover:bg-zinc-800 transition-all text-center"
               >
                 <span className="text-2xl">{cat.emoji}</span>

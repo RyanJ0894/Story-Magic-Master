@@ -12,6 +12,7 @@ const isProtectedRoute = createRouteMatcher([
   '/billing(.*)',
   '/writer(.*)',
   '/reader(.*)',
+  '/impact/build(.*)',
 ]);
 
 // =============================================================================

@@ -39,8 +39,6 @@ export const STEP_LABELS: Record<WizardStep, string> = {
 export interface WizardState {
   storyId: string | null;
   step: WizardStep;
-  /** Client-generated session ID stored in localStorage for anonymous continuity + rate limiting */
-  sessionId: string;
   category: string | null;
   title: string;
   storyText: string;
@@ -57,8 +55,7 @@ export interface WizardState {
 
 export const INITIAL_WIZARD_STATE: WizardState = {
   storyId: null,
-  step: 'attest',          // always start at attestation
-  sessionId: '',           // filled by StoryBuilderWizard on mount
+  step: 'attest',
   category: null,
   title: '',
   storyText: '',

@@ -94,7 +94,7 @@ export default async function GalleryPage({ searchParams }: PageProps) {
           <div className="text-center py-20">
             <div className="text-4xl mb-4">🌱</div>
             <p className="text-zinc-400">No stories here yet. Be the first to share yours.</p>
-            <Link href="/impact/build" className="mt-4 inline-block px-6 py-2 text-sm font-medium rounded-lg bg-violet-600 hover:bg-violet-500 text-white transition-colors">
+            <Link href="/sign-up?redirect_url=/impact/build" className="mt-4 inline-block px-6 py-2 text-sm font-medium rounded-lg bg-violet-600 hover:bg-violet-500 text-white transition-colors">
               Share my story
             </Link>
           </div>
@@ -151,10 +151,10 @@ export default async function GalleryPage({ searchParams }: PageProps) {
 
         <div className="mt-12 text-center">
           <Link
-            href="/impact/build"
+            href="/sign-up?redirect_url=/impact/build"
             className="px-8 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-semibold text-sm transition-colors"
           >
-            Share your story — it&apos;s free
+            Create a free account to share your story
           </Link>
         </div>
       </div>

@@ -5,6 +5,7 @@ import { getCategoryById } from '@/lib/impact/categories';
 import { STORY_WORD_LIMIT, STORY_WORD_WARNING, STORY_WORD_MIN, countWords } from '@/lib/impact/limits';
 import type { WizardState } from '../wizard-state';
 
+
 interface Props {
   state: WizardState;
   update: (patch: Partial<WizardState>) => void;
@@ -37,15 +38,11 @@ export function StepWrite({ state, update, goNext, goBack }: Props) {
     try {
       const res = await fetch('/api/impact/stories', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-session-id': state.sessionId,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: state.title || 'My Story',
           category: state.category,
           storyText: state.storyText,
-          sessionId: state.sessionId,
           isPublic: false,
         }),
       });

@@ -38,15 +38,12 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const story = await prisma.impactStory.findUnique({ where: { id } });
   if (!story) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const isOwner = userId && story.userId === userId;
-  const isSessionOwner = !story.userId && story.sessionId &&
-    req.headers.get('x-session-id') === story.sessionId;
-
-  if (!isOwner && !isSessionOwner) {
+  if (story.userId !== userId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

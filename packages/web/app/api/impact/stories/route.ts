@@ -4,12 +4,7 @@ import { prisma } from '@/lib/db';
 import { generateText } from 'ai';
 import { resolveModel, MODELS } from '@/lib/ai/providers';
 import { getCategoryById } from '@/lib/impact/categories';
-import {
-  STORY_WORD_LIMIT,
-  STORY_WORD_MIN,
-  STORY_RATE_LIMIT_HOURS,
-  countWords,
-} from '@/lib/impact/limits';
+import { STORY_WORD_LIMIT, STORY_WORD_MIN, STORY_RATE_LIMIT_HOURS, countWords } from '@/lib/impact/limits';
 
 // GET /api/impact/stories — public gallery (approved + public only)
 export async function GET(req: NextRequest) {
@@ -48,14 +43,18 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ stories, total, page, pages: Math.ceil(total / limit) });
 }
 
-// POST /api/impact/stories — create a new story (draft)
+// POST /api/impact/stories — create a new story (authenticated users only)
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
-  const sessionId = req.headers.get('x-session-id') ?? null;
-  const body = await req.json();
+  if (!userId) {
+    return NextResponse.json(
+      { error: 'You must be signed in to create an Impact story.' },
+      { status: 401 }
+    );
+  }
 
-  const { title, category, storyText, isPublic, prizeEligible,
-          authorName, authorCity } = body;
+  const body = await req.json();
+  const { title, category, storyText, isPublic, prizeEligible, authorName, authorCity } = body;
 
   // ── 1. Input validation ───────────────────────────────────────────────────
   if (!title || !category || !storyText) {
@@ -83,44 +82,28 @@ export async function POST(req: NextRequest) {
   if (wordCount > STORY_WORD_LIMIT) {
     return NextResponse.json(
       {
-        error: `Story exceeds the ${STORY_WORD_LIMIT}-word limit (${wordCount} words submitted). ` +
-               `Please shorten your story before submitting.`,
+        error:
+          `Story exceeds the ${STORY_WORD_LIMIT}-word limit (${wordCount} words submitted). ` +
+          `Please shorten your story before submitting.`,
       },
       { status: 400 }
     );
   }
 
-  // ── 3. Rate limiting (1 story per STORY_RATE_LIMIT_HOURS per user/session) ─
+  // ── 3. Rate limiting (1 story per STORY_RATE_LIMIT_HOURS per authenticated user) ─
   const windowStart = new Date(Date.now() - STORY_RATE_LIMIT_HOURS * 60 * 60 * 1000);
-
-  if (userId) {
-    const recentCount = await prisma.impactStory.count({
-      where: { userId, createdAt: { gte: windowStart } },
-    });
-    if (recentCount >= 1) {
-      return NextResponse.json(
-        {
-          error:
-            `You have already submitted a story in the last ${STORY_RATE_LIMIT_HOURS} hours. ` +
-            `Please come back tomorrow — we look forward to hearing more from you.`,
-        },
-        { status: 429 }
-      );
-    }
-  } else if (sessionId) {
-    const recentCount = await prisma.impactStory.count({
-      where: { sessionId, createdAt: { gte: windowStart } },
-    });
-    if (recentCount >= 1) {
-      return NextResponse.json(
-        {
-          error:
-            `You have already submitted a story in the last ${STORY_RATE_LIMIT_HOURS} hours. ` +
-            `Please come back tomorrow — we look forward to hearing more from you.`,
-        },
-        { status: 429 }
-      );
-    }
+  const recentCount = await prisma.impactStory.count({
+    where: { userId, createdAt: { gte: windowStart } },
+  });
+  if (recentCount >= 1) {
+    return NextResponse.json(
+      {
+        error:
+          `You have already submitted a story in the last ${STORY_RATE_LIMIT_HOURS} hours. ` +
+          `Please come back tomorrow — we look forward to hearing more from you.`,
+      },
+      { status: 429 }
+    );
   }
 
   // ── 4. AI expansion ───────────────────────────────────────────────────────
@@ -152,8 +135,7 @@ export async function POST(req: NextRequest) {
   // ── 5. Persist ─────────────────────────────────────────────────────────────
   const story = await prisma.impactStory.create({
     data: {
-      userId: userId ?? null,
-      sessionId: (body.sessionId as string | undefined) ?? sessionId ?? null,
+      userId,
       title,
       category,
       storyText,
@@ -162,7 +144,7 @@ export async function POST(req: NextRequest) {
       authorCity: authorCity ?? null,
       isPublic: Boolean(isPublic),
       prizeEligible: prizeEligible !== false,
-      attestedAt: new Date(), // user passed the attestation gate to reach this endpoint
+      attestedAt: new Date(),
       status: 'draft',
     },
   });
