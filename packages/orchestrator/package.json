@@ -14,7 +14,7 @@
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
     "test:legacy": "node tests/test-orchestrator.js",
-    "lint": "eslint .",
+    "lint": "eslint . --ext .ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
