@@ -58,7 +58,8 @@ function getGoogle() {
  * Resolve a model string to a Vercel AI SDK model instance.
  * Supports: claude-*, gemini-* model IDs.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// LanguageModelV1 vs LanguageModelV3 SDK mismatch — intentional any return
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK version mismatch: ai@4 expects LanguageModelV1, @ai-sdk/anthropic@3 returns LanguageModelV3
 export function resolveModel(modelId: string): any {
   if (modelId.startsWith('claude-')) {
     return getAnthropic()(modelId);
