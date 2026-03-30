@@ -109,11 +109,20 @@ export default async function AdminCorpusPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">StoryScore Calibration Corpus</h1>
-        <p className="text-zinc-400 mt-1">
-          Training dataset for few-shot calibration. Run <code className="text-xs bg-zinc-800 px-1 py-0.5 rounded">pnpm ingest:training</code> then <code className="text-xs bg-zinc-800 px-1 py-0.5 rounded">pnpm score:corpus</code> to populate.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white">StoryScore Calibration Corpus</h1>
+          <p className="text-zinc-400 mt-1">
+            Training dataset for few-shot calibration. Run <code className="text-xs bg-zinc-800 px-1 py-0.5 rounded">pnpm ingest:training</code> then <code className="text-xs bg-zinc-800 px-1 py-0.5 rounded">pnpm score:corpus</code> to populate.
+          </p>
+        </div>
+        <a
+          href="/api/admin/corpus/export"
+          download
+          className="flex-shrink-0 px-4 py-2 text-sm font-medium rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition-colors"
+        >
+          Export CSV
+        </a>
       </div>
 
       {/* Stats Row */}
