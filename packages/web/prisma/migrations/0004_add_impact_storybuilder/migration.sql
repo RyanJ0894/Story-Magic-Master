@@ -17,6 +17,7 @@ CREATE TABLE "impact_stories" (
     "author_city" TEXT,
     "status" TEXT NOT NULL DEFAULT 'draft',
     "job_id" UUID,
+    "attested_at" TIMESTAMP(3),
     "view_count" INTEGER NOT NULL DEFAULT 0,
     "play_count" INTEGER NOT NULL DEFAULT 0,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

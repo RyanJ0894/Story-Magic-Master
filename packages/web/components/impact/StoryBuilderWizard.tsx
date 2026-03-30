@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { INITIAL_WIZARD_STATE, WIZARD_STEPS, STEP_LABELS, stepIndex, nextStep, prevStep, type WizardState, type WizardStep } from './wizard-state';
+import { StepAttestation } from './steps/StepAttestation';
 import { StepCategory } from './steps/StepCategory';
 import { StepWrite } from './steps/StepWrite';
 import { StepVoice } from './steps/StepVoice';
@@ -9,8 +10,26 @@ import { StepPreview } from './steps/StepPreview';
 import { StepShare } from './steps/StepShare';
 import { StepProduce } from './steps/StepProduce';
 
+/** Generate or retrieve an anonymous session ID stored in localStorage */
+function getOrCreateSessionId(): string {
+  try {
+    const key = 'impact_session_id';
+    const existing = localStorage.getItem(key);
+    if (existing) return existing;
+    const id = crypto.randomUUID();
+    localStorage.setItem(key, id);
+    return id;
+  } catch {
+    // SSR or private browsing — generate ephemeral ID
+    return crypto.randomUUID();
+  }
+}
+
 function ProgressBar({ step }: { step: WizardStep }) {
+  // Only render for numbered steps (attest returns -1 from stepIndex)
   const current = stepIndex(step);
+  if (current < 0) return null;
+
   const total = WIZARD_STEPS.length;
   return (
     <div className="w-full mb-8">
@@ -43,6 +62,12 @@ function ProgressBar({ step }: { step: WizardStep }) {
 export function StoryBuilderWizard() {
   const [state, setState] = useState<WizardState>(INITIAL_WIZARD_STATE);
 
+  // Initialize sessionId from localStorage on mount (client only)
+  useEffect(() => {
+    const sessionId = getOrCreateSessionId();
+    setState(prev => ({ ...prev, sessionId }));
+  }, []);
+
   const update = useCallback((patch: Partial<WizardState>) => {
     setState(prev => ({ ...prev, ...patch }));
   }, []);
@@ -63,12 +88,13 @@ export function StoryBuilderWizard() {
     <div className="max-w-2xl mx-auto px-4 py-8">
       <ProgressBar step={state.step} />
 
-      {state.step === 'category' && <StepCategory {...stepProps} />}
-      {state.step === 'write'    && <StepWrite    {...stepProps} />}
-      {state.step === 'voice'    && <StepVoice    {...stepProps} />}
-      {state.step === 'preview'  && <StepPreview  {...stepProps} />}
-      {state.step === 'share'    && <StepShare    {...stepProps} />}
-      {state.step === 'produce'  && <StepProduce  {...stepProps} />}
+      {state.step === 'attest'   && <StepAttestation {...stepProps} />}
+      {state.step === 'category' && <StepCategory    {...stepProps} />}
+      {state.step === 'write'    && <StepWrite        {...stepProps} />}
+      {state.step === 'voice'    && <StepVoice        {...stepProps} />}
+      {state.step === 'preview'  && <StepPreview      {...stepProps} />}
+      {state.step === 'share'    && <StepShare        {...stepProps} />}
+      {state.step === 'produce'  && <StepProduce      {...stepProps} />}
     </div>
   );
 }

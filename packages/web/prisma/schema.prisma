@@ -753,6 +753,7 @@ model ImpactStory {
   authorCity   String?   @map("author_city")
   status       String    @default("draft") // draft | processing | complete
   jobId        String?   @map("job_id") @db.Uuid
+  attestedAt   DateTime? @map("attested_at") // timestamp user accepted Impact program terms
   viewCount    Int       @default(0) @map("view_count")
   playCount    Int       @default(0) @map("play_count")
   createdAt    DateTime  @default(now()) @map("created_at")

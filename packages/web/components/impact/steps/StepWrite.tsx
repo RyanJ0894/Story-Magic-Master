@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { getCategoryById } from '@/lib/impact/categories';
+import { STORY_WORD_LIMIT, STORY_WORD_WARNING, STORY_WORD_MIN, countWords } from '@/lib/impact/limits';
 import type { WizardState } from '../wizard-state';
 
 interface Props {
@@ -11,15 +12,23 @@ interface Props {
   goBack: () => void;
 }
 
+function wordCountColor(count: number): string {
+  if (count > STORY_WORD_LIMIT)    return 'text-red-400 font-semibold';
+  if (count >= STORY_WORD_WARNING) return 'text-yellow-400';
+  if (count >= STORY_WORD_MIN)     return 'text-green-400';
+  return 'text-zinc-500';
+}
+
 export function StepWrite({ state, update, goNext, goBack }: Props) {
   const cat = getCategoryById(state.category ?? '');
   const [expanding, setExpanding] = useState(false);
   const [expandError, setExpandError] = useState('');
   const [activePrompt, setActivePrompt] = useState<number | null>(null);
 
-  const wordCount = state.storyText.trim().split(/\s+/).filter(Boolean).length;
-  const canExpand = wordCount >= 30 && !state.expandedText;
-  const canContinue = wordCount >= 30 && state.title.trim().length >= 3;
+  const wordCount = countWords(state.storyText);
+  const overLimit = wordCount > STORY_WORD_LIMIT;
+  const canExpand = wordCount >= STORY_WORD_MIN && !state.expandedText && !overLimit;
+  const canContinue = wordCount >= STORY_WORD_MIN && !overLimit && state.title.trim().length >= 3;
 
   async function handleExpand() {
     if (!canExpand) return;
@@ -28,16 +37,25 @@ export function StepWrite({ state, update, goNext, goBack }: Props) {
     try {
       const res = await fetch('/api/impact/stories', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session-id': state.sessionId,
+        },
         body: JSON.stringify({
           title: state.title || 'My Story',
           category: state.category,
           storyText: state.storyText,
+          sessionId: state.sessionId,
           isPublic: false,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Failed');
+      if (!res.ok) {
+        if (res.status === 429) {
+          throw new Error(data.error ?? 'You have already submitted a story today. Please try again tomorrow.');
+        }
+        throw new Error(data.error ?? 'Failed');
+      }
       update({
         storyId: data.id,
         expandedText: data.expandedText ?? null,
@@ -96,24 +114,48 @@ export function StepWrite({ state, update, goNext, goBack }: Props) {
 
       {/* Story textarea */}
       <div>
-        <label className="block text-sm font-medium text-zinc-300 mb-1">
-          Your story{' '}
-          <span className={`text-xs font-normal ${wordCount < 30 ? 'text-zinc-500' : 'text-green-400'}`}>
-            ({wordCount} words{wordCount < 30 ? ' — keep going' : ''})
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-sm font-medium text-zinc-300">Your story</label>
+          <span className={`text-xs ${wordCountColor(wordCount)}`}>
+            {wordCount} / {STORY_WORD_LIMIT.toLocaleString()} words
+            {wordCount < STORY_WORD_MIN ? ' — keep going' : ''}
           </span>
-        </label>
+        </div>
         <textarea
           value={state.storyText}
           onChange={e => update({ storyText: e.target.value, expandedText: null })}
           placeholder="Write in your own words. There's no wrong way to tell your story."
           rows={10}
-          className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-violet-500 text-sm resize-none"
+          className={`w-full px-3 py-2 bg-zinc-900 border rounded-lg text-white placeholder-zinc-500 focus:outline-none text-sm resize-none transition-colors ${
+            overLimit
+              ? 'border-red-500 focus:border-red-400'
+              : wordCount >= STORY_WORD_WARNING
+              ? 'border-yellow-600 focus:border-yellow-500'
+              : 'border-zinc-700 focus:border-violet-500'
+          }`}
         />
+
+        {/* Word limit feedback */}
+        {overLimit && (
+          <div className="mt-2 flex items-start gap-2 p-2 bg-red-900/20 border border-red-700/50 rounded-lg">
+            <span className="text-red-400 flex-shrink-0">⚠</span>
+            <p className="text-xs text-red-300">
+              Your story is {wordCount - STORY_WORD_LIMIT} words over the {STORY_WORD_LIMIT}-word limit.
+              Please trim it before continuing. The word limit keeps the program fair for everyone
+              and ensures audio production stays within a reasonable length.
+            </p>
+          </div>
+        )}
+        {!overLimit && wordCount >= STORY_WORD_WARNING && (
+          <p className="mt-1 text-xs text-yellow-400">
+            {STORY_WORD_LIMIT - wordCount} words remaining.
+          </p>
+        )}
       </div>
 
       {/* AI expansion */}
       {!state.expandedText ? (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={handleExpand}
             disabled={!canExpand || expanding}
@@ -122,7 +164,9 @@ export function StepWrite({ state, update, goNext, goBack }: Props) {
             {expanding ? 'Expanding…' : 'Let AI help expand my story'}
           </button>
           <span className="text-xs text-zinc-500">Adds detail while keeping your voice</span>
-          {expandError && <span className="text-xs text-red-400">{expandError}</span>}
+          {expandError && (
+            <p className="w-full text-xs text-red-400 mt-1">{expandError}</p>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
