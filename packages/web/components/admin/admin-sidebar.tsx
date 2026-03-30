@@ -20,6 +20,7 @@ import {
   Shield,
   Menu,
   BookOpen,
+  Heart,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -31,6 +32,7 @@ const iconMap: Record<string, LucideIcon> = {
   FileText,
   Settings,
   BookOpen,
+  Heart,
 };
 
 export interface AdminNavItem {

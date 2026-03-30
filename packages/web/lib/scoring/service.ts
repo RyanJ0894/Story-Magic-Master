@@ -109,7 +109,7 @@ export async function callScoringLLM(
     model,
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.3,
-    maxTokens: 4096,
+    maxOutputTokens: 4096,
   });
 
   // Strip markdown code fences if present

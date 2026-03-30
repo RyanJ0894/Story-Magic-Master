@@ -98,9 +98,37 @@ export const FEATURES: Record<string, FeatureDefinition> = {
     defaultEnabled: true,
     phase: 2,
   },
+
+  // Impact StoryBuilder - guided wizard for personal story audio production
+  IMPACT_STORYBUILDER: {
+    key: 'IMPACT_STORYBUILDER',
+    name: 'Impact StoryBuilder',
+    description: 'Guided wizard helping trauma survivors tell their story through AI-voiced audio',
+    defaultEnabled: true,
+    phase: 4,
+  },
+
+  // Impact Gallery - public gallery of shared impact stories
+  IMPACT_GALLERY: {
+    key: 'IMPACT_GALLERY',
+    name: 'Impact Gallery',
+    description: 'Public gallery of community impact stories',
+    defaultEnabled: true,
+    dependsOn: ['IMPACT_STORYBUILDER'],
+    phase: 4,
+  },
+
+  // Impact Partners - corporate partner program pages
+  IMPACT_PARTNERS: {
+    key: 'IMPACT_PARTNERS',
+    name: 'Impact Partners',
+    description: 'Corporate partner program with tiered sponsorship',
+    defaultEnabled: true,
+    phase: 4,
+  },
 };
 
-export type FeatureKey = 'STORY_SCORE' | 'STORY_ADVISER' | 'REVISION_TRACKING' | 'SCRIPT_EDITOR' | 'COMPARABLE_SCRIPTS' | 'EXPORT_REPORTS' | 'STORY_EXPLORER';
+export type FeatureKey = 'STORY_SCORE' | 'STORY_ADVISER' | 'REVISION_TRACKING' | 'SCRIPT_EDITOR' | 'COMPARABLE_SCRIPTS' | 'EXPORT_REPORTS' | 'STORY_EXPLORER' | 'IMPACT_STORYBUILDER' | 'IMPACT_GALLERY' | 'IMPACT_PARTNERS';
 
 // =============================================================================
 // Feature Flag Checking
