@@ -40,8 +40,9 @@ module.exports = withSentryConfig(nextConfig, {
   // Standard client bundle upload (not widened — saves build memory)
   widenClientFileUpload: false,
 
-  // Hide source maps from clients
+  // Hide source maps from clients and skip upload to save build memory
   hideSourceMaps: true,
+  disableSourceMapUpload: true,
 
   // Disable tunneling (use direct Sentry connection)
   tunnelRoute: undefined,
