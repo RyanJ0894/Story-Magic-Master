@@ -10,18 +10,10 @@ const nextConfig = {
       },
     ],
   },
-  // Required for Sentry instrumentation
+  // Reduce build memory usage on constrained environments
+  productionBrowserSourceMaps: false,
   experimental: {
     instrumentationHook: true,
-    // Limit server actions payload size
-    serverActionsBodySizeLimit: '4mb',
-  },
-  // API route body size limit (default is 1mb, we allow 10mb for script uploads)
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
-    responseLimit: '50mb', // For audio file responses
   },
   // Security headers (CSP is handled in middleware.ts to avoid duplicate headers)
   async headers() {
@@ -45,8 +37,8 @@ module.exports = withSentryConfig(nextConfig, {
   // Suppress source map upload logs
   silent: !process.env.CI,
 
-  // Upload source maps for better stack traces
-  widenClientFileUpload: true,
+  // Standard client bundle upload (not widened — saves build memory)
+  widenClientFileUpload: false,
 
   // Hide source maps from clients
   hideSourceMaps: true,
@@ -54,9 +46,8 @@ module.exports = withSentryConfig(nextConfig, {
   // Disable tunneling (use direct Sentry connection)
   tunnelRoute: undefined,
 
-  // Automatically tree-shake Sentry logger statements
-  disableLogger: true,
-
-  // Enable automatic instrumentation
-  automaticVercelMonitors: true,
+  // Tree-shake Sentry logger statements
+  webpack: {
+    removeDebugLogging: true,
+  },
 });
