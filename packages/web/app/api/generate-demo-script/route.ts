@@ -4,18 +4,21 @@ import OpenAI from 'openai';
 import { z } from 'zod';
 import { log } from '@/lib/logger';
 
-// Trim the API key to remove any accidental whitespace/newlines
-const apiKey = process.env.OPENAI_API_KEY?.trim();
-
-const openai = new OpenAI({
-  apiKey,
-});
+// Force dynamic so Next.js doesn't try to statically analyse this route at build time
+export const dynamic = 'force-dynamic';
 
 const DemoScriptRequestSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required').max(500),
 });
 
 export const POST = withAuth(async (request) => {
+  // Instantiate inside handler so missing OPENAI_API_KEY at build time doesn't crash
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    return errorResponse('OpenAI API key not configured', 500, { code: 'CONFIG_ERROR' });
+  }
+  const openai = new OpenAI({ apiKey });
+
   try {
     const parsed = await parseBody(request, DemoScriptRequestSchema);
     if ('error' in parsed) return parsed.error;
@@ -25,10 +28,6 @@ export const POST = withAuth(async (request) => {
       .trim()
       // eslint-disable-next-line no-control-regex
       .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
-
-    if (!apiKey) {
-      return errorResponse('OpenAI API key not configured', 500, { code: 'CONFIG_ERROR' });
-    }
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
