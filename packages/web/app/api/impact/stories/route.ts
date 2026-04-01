@@ -5,6 +5,7 @@ import { generateText } from 'ai';
 import { resolveModel, MODELS } from '@/lib/ai/providers';
 import { getCategoryById } from '@/lib/impact/categories';
 import { STORY_WORD_LIMIT, STORY_WORD_MIN, STORY_RATE_LIMIT_HOURS, countWords } from '@/lib/impact/limits';
+import { sendStorySubmittedAlert } from '@/lib/email/impact';
 
 // GET /api/impact/stories — public gallery (approved + public only)
 export async function GET(req: NextRequest) {
@@ -148,6 +149,16 @@ export async function POST(req: NextRequest) {
       status: 'draft',
     },
   });
+
+  // Fire-and-forget: alert admin when story is submitted for gallery
+  if (story.isPublic) {
+    sendStorySubmittedAlert({
+      storyTitle: story.title,
+      category: story.category,
+      authorName: story.authorName,
+      storyId: story.id,
+    }).catch(() => {});
+  }
 
   return NextResponse.json(story, { status: 201 });
 }

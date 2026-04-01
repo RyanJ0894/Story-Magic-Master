@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { sendPartnerInquiryAlert } from '@/lib/email/impact';
 
 // GET /api/impact/partners — active partners for public display
 export async function GET() {
@@ -46,6 +47,15 @@ export async function POST(req: NextRequest) {
       notes: message ?? null,
     },
   });
+
+  // Fire-and-forget: alert admin of new partner inquiry
+  sendPartnerInquiryAlert({
+    companyName,
+    contactName: contactName ?? null,
+    contactEmail: contactEmail ?? null,
+    tier,
+    notes: message ?? null,
+  }).catch(() => {});
 
   return NextResponse.json({ success: true }, { status: 201 });
 }

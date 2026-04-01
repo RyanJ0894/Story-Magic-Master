@@ -134,6 +134,65 @@ services:
       - key: NEXT_PUBLIC_FF_STORY_EXPLORER
         value: "true"
 
+      # Feature Flags (Impact StoryBuilder)
+      - key: NEXT_PUBLIC_FF_IMPACT_STORYBUILDER
+        value: "true"
+      - key: NEXT_PUBLIC_FF_IMPACT_GALLERY
+        value: "true"
+      - key: NEXT_PUBLIC_FF_IMPACT_PARTNERS
+        value: "true"
+
+      # Email (Resend — set in Render dashboard)
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_TESTING_MODE
+        value: "true"
+      - key: ADMIN_EMAIL
+        value: "info@servicevision.net"
+
+      # Cron secret (set in Render dashboard)
+      - key: CRON_SECRET
+        sync: false
+
+      # Cloudflare R2 (Impact audio storage — set in Render dashboard)
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_PUBLIC_URL
+        sync: false
+
+  # =============================================================================
+  # CRON JOB — Monthly Impact Prize Draw
+  # Runs on the last day of each month at 23:00 UTC.
+  # Calls POST /api/cron/prize-draw on the web service.
+  # =============================================================================
+  - type: cron
+    name: impact-prize-draw
+    runtime: node
+    region: oregon
+    plan: starter
+    schedule: "0 23 28-31 * *"
+    buildCommand: echo "no build needed"
+    startCommand: >
+      node -e "
+        const url = process.env.WEB_URL + '/api/cron/prize-draw';
+        const secret = process.env.CRON_SECRET;
+        fetch(url, { method: 'POST', headers: { 'x-cron-secret': secret } })
+          .then(r => r.json()).then(console.log).catch(console.error);
+      "
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: WEB_URL
+        value: "https://story-magic-web.onrender.com"
+      - key: CRON_SECRET
+        sync: false
+
   # =============================================================================
   # BACKGROUND WORKER (Queue Processor) — currently disabled to save costs.
   # The web service runs an embedded queue worker instead.
@@ -230,6 +289,10 @@ services:
 
       # Inter-service auth
       - key: SERVICE_SECRET_KEY
+        sync: false
+
+      # Public URL for this orchestrator (used to build audio download links)
+      - key: ORCHESTRATOR_PUBLIC_URL
         sync: false
 
       # Auth bypass (must be false in production)

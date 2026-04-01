@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
+import { uploadImpactAudio, isR2Configured } from '@/lib/storage/r2';
 
 export const maxDuration = 60;
 
 /**
  * POST /api/impact/stories/preview
  *
- * Generates a short audio preview (first 150 words) for the wizard preview step.
- * Returns an audio URL that can be played directly in the browser.
+ * Generates a short audio preview (first 150 words).
+ * Calls orchestrator for TTS → receives binary M4A → uploads to R2 → returns URL.
  */
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
@@ -22,11 +23,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Truncate to ~150 words for preview
-  const previewText = storyText
-    .trim()
-    .split(/\s+/)
-    .slice(0, 150)
-    .join(' ');
+  const previewText = storyText.trim().split(/\s+/).slice(0, 150).join(' ');
 
   const orchestratorUrl = process.env.ORCHESTRATOR_URL ?? 'http://localhost:22002';
 
@@ -35,7 +32,7 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-internal-key': process.env.ORCHESTRATOR_INTERNAL_KEY ?? '',
+        'x-service-key': process.env.SERVICE_SECRET_KEY ?? '',
       },
       body: JSON.stringify({ storyText: previewText, voiceId, voiceName }),
     });
@@ -44,9 +41,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Audio preview unavailable' }, { status: 503 });
     }
 
-    const data = await orchRes.json();
-    const audioUrl: string = data.audioUrl;
+    const audioBuf = Buffer.from(await orchRes.arrayBuffer());
+    let audioUrl: string;
 
+    if (isR2Configured()) {
+      // Use a timestamp key so each preview gets a fresh URL (no caching stale preview)
+      const previewKey = `impact/preview-${Date.now()}.m4a`;
+      audioUrl = await uploadImpactAudio(audioBuf, previewKey);
+    } else {
+      return NextResponse.json({ error: 'Storage not configured' }, { status: 503 });
+    }
+
+    // Optionally save preview URL to story record
     if (storyId && audioUrl) {
       await prisma.impactStory.update({
         where: { id: storyId },

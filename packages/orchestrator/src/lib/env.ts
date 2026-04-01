@@ -71,6 +71,9 @@ const envSchema = z.object({
 
   // Internal Services
   SERVICE_SECRET_KEY: optionalString,
+  // Public base URL for this orchestrator (used to construct audio download URLs)
+  // e.g. https://story-magic-orchestrator.onrender.com
+  ORCHESTRATOR_PUBLIC_URL: optionalUrl,
 });
 
 // =============================================================================

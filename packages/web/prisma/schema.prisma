@@ -806,3 +806,19 @@ model ImpactPrizeDraw {
   @@index([storyId])
   @@map("impact_prize_draws")
 }
+
+model ImpactDonation {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  stripeSessionId  String    @unique @map("stripe_session_id")
+  amountCents      Int       @map("amount_cents")
+  currency         String    @default("usd")
+  donorEmail       String?   @map("donor_email")
+  donorName        String?   @map("donor_name")
+  message          String?   @db.Text
+  status           String    @default("completed") // completed | refunded
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@index([createdAt(sort: Desc)])
+  @@index([stripeSessionId])
+  @@map("impact_donations")
+}

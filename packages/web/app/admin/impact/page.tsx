@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { IMPACT_CATEGORIES } from '@/lib/impact/categories';
+import { ApproveStoryButton } from '@/components/admin/ApproveStoryButton';
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
@@ -27,6 +28,7 @@ export default async function AdminImpactPage() {
     partnerCount,
     recentStories,
     pendingPartners,
+    catCountRows,
   ] = await Promise.all([
     prisma.impactStory.count(),
     prisma.impactStory.count({ where: { isPublic: true, isApproved: false } }),
@@ -54,7 +56,13 @@ export default async function AdminImpactPage() {
       orderBy: { createdAt: 'desc' },
       take: 10,
     }),
+    prisma.impactStory.groupBy({
+      by: ['category'],
+      _count: { id: true },
+    }),
   ]);
+
+  const catCountMap = Object.fromEntries(catCountRows.map(r => [r.category, r._count.id]));
 
   return (
     <div className="space-y-6 p-6">
@@ -88,16 +96,13 @@ export default async function AdminImpactPage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-            {IMPACT_CATEGORIES.map(async cat => {
-              const count = await prisma.impactStory.count({ where: { category: cat.id } });
-              return (
-                <div key={cat.id} className="text-center">
-                  <div className="text-xl mb-1">{cat.emoji}</div>
-                  <div className="text-lg font-bold text-white">{count}</div>
-                  <div className="text-xs text-zinc-500">{cat.label.split(' ')[0]}</div>
-                </div>
-              );
-            })}
+            {IMPACT_CATEGORIES.map(cat => (
+              <div key={cat.id} className="text-center">
+                <div className="text-xl mb-1">{cat.emoji}</div>
+                <div className="text-lg font-bold text-white">{catCountMap[cat.id] ?? 0}</div>
+                <div className="text-xs text-zinc-500">{cat.label.split(' ')[0]}</div>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -126,14 +131,7 @@ export default async function AdminImpactPage() {
                     {story.audioUrl && (
                       <audio controls src={story.audioUrl} className="h-8 w-32" preload="none" />
                     )}
-                    <form action={`/api/admin/impact/stories/${story.id}/approve`} method="POST">
-                      <button
-                        type="submit"
-                        className="px-3 py-1 text-xs font-medium rounded bg-green-700 hover:bg-green-600 text-white"
-                      >
-                        Approve
-                      </button>
-                    </form>
+                    <ApproveStoryButton storyId={story.id} />
                   </div>
                 </div>
               ))}

@@ -137,6 +137,65 @@ export default function PartnersPage() {
           </div>
         </div>
 
+        {/* Grant programs section */}
+        <div className="space-y-4">
+          <div className="text-center">
+            <h3 className="text-xl font-bold text-white">Technology Grant Programs</h3>
+            <p className="text-zinc-400 text-sm mt-2 max-w-2xl mx-auto">
+              Story Magic is actively applying to social impact grant programs from the platforms that power
+              our work. Corporate partners amplify this funding — every dollar of partner revenue extends
+              our ability to serve more storytellers.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {[
+              {
+                name: 'ElevenLabs Startup Grants',
+                badge: 'Applied',
+                badgeColor: 'bg-green-900/30 text-green-300 border-green-700/40',
+                desc: '33 million characters of free audio generation — enough to voice 680+ hours of impact stories.',
+                value: '33M chars / year',
+              },
+              {
+                name: 'Google for Startups Cloud AI',
+                badge: 'In progress',
+                badgeColor: 'bg-yellow-900/30 text-yellow-300 border-yellow-700/40',
+                desc: 'Up to $350,000 in Google Cloud credits over 2 years, directly offsetting AI processing costs.',
+                value: 'Up to $350K credits',
+              },
+              {
+                name: 'Anthropic Claude Startup Program',
+                badge: 'In progress',
+                badgeColor: 'bg-yellow-900/30 text-yellow-300 border-yellow-700/40',
+                desc: 'API credits and priority rate limits for Claude — the model that powers story expansion and narrative scoring.',
+                value: 'API credits',
+              },
+              {
+                name: 'ElevenLabs Impact Partner Program',
+                badge: 'Pursuing',
+                badgeColor: 'bg-violet-900/30 text-violet-300 border-violet-700/40',
+                desc: 'Free ElevenLabs licenses for our nonprofit distribution partners — giving qualified orgs full platform access.',
+                value: 'Free licenses',
+              },
+            ].map(prog => (
+              <div key={prog.name} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-semibold text-white">{prog.name}</span>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${prog.badgeColor}`}>
+                    {prog.badge}
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400 leading-relaxed">{prog.desc}</p>
+                <p className="text-xs font-medium text-violet-300">Potential value: {prog.value}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-xs text-zinc-500">
+            Grant funding reduces our infrastructure costs and allows us to offer the Impact program free indefinitely.
+            Corporate partners make the program sustainable even before grants are awarded.
+          </p>
+        </div>
+
         {/* Contact form */}
         <div id="partner-form" className="max-w-xl mx-auto">
           <h3 className="text-xl font-bold text-white text-center mb-6">Start the conversation</h3>

@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { log } from '@/lib/logger';
 import { errorResponse } from '@/lib/api/error-response';
+import { sendDonationReceivedAlert } from '@/lib/email/impact';
 
 // Map Stripe price IDs to subscription tiers
 function getTierFromPriceId(priceId: string): string {
@@ -53,6 +54,33 @@ export async function POST(request: Request) {
         const customerId = session.customer as string;
         const subscriptionId = session.subscription as string;
 
+        // --- Impact donation (one-time payment) ---
+        if (session.metadata?.type === 'impact_donation') {
+          const amountCents = session.amount_total ?? 0;
+          const donorEmail = session.customer_details?.email ?? null;
+          const donorName = session.customer_details?.name ?? null;
+
+          await prisma.impactDonation.create({
+            data: {
+              stripeSessionId: session.id,
+              amountCents,
+              currency: session.currency ?? 'usd',
+              donorEmail,
+              donorName,
+              status: 'completed',
+            },
+          });
+
+          sendDonationReceivedAlert({
+            amountCents,
+            donorEmail,
+            stripeSessionId: session.id,
+          }).catch(() => {});
+
+          break;
+        }
+
+        // --- Subscription checkout ---
         if (userId && customerId && subscriptionId) {
           // Update both Profile and Subscription in parallel
           await Promise.all([
