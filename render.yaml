@@ -187,7 +187,7 @@ services:
       "
     envVars:
       - key: NODE_VERSION
-        value: "20"
+        value: "20.11.0"
       - key: WEB_URL
         value: "https://story-magic-web.onrender.com"
       - key: CRON_SECRET
