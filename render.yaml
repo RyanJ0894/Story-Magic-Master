@@ -31,8 +31,7 @@ services:
 
     # Node/pnpm versions
     buildCommand: |
-      corepack enable &&
-      corepack prepare pnpm@9.1.0 --activate &&
+      npm install -g pnpm@9.1.0 &&
       pnpm install --frozen-lockfile &&
       cd packages/web && npx prisma generate && npx prisma migrate deploy && cd ../.. &&
       pnpm --filter @story-magic/web build
@@ -44,7 +43,7 @@ services:
     # Environment variables
     envVars:
       - key: NODE_VERSION
-        value: "20"
+        value: "20.11.0"
       - key: NODE_ENV
         value: production
 
@@ -158,8 +157,7 @@ services:
 
     # Node/pnpm versions
     buildCommand: |
-      corepack enable &&
-      corepack prepare pnpm@9.1.0 --activate &&
+      npm install -g pnpm@9.1.0 &&
       pnpm install --frozen-lockfile &&
       pnpm --filter @story-magic/orchestrator build
     startCommand: pnpm --filter @story-magic/orchestrator start
@@ -176,7 +174,7 @@ services:
     # Environment variables
     envVars:
       - key: NODE_VERSION
-        value: "20"
+        value: "20.11.0"
       - key: NODE_ENV
         value: production
       - key: PORT
