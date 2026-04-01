@@ -24,7 +24,7 @@ services:
     name: story-magic-web
     runtime: node
     region: oregon
-    plan: starter
+    plan: standard
     branch: main
     autoDeploy: true
     numInstances: 1
