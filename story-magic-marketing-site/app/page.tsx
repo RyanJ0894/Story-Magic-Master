@@ -305,6 +305,82 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Impact StoryBuilder */}
+      <section className="py-24 px-4 sm:px-6 border-t border-[var(--color-border)]">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-500 text-xs font-semibold mb-5 uppercase tracking-widest">
+                💜 Impact Program
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-bold mb-4 leading-tight">
+                Every voice deserves{' '}
+                <span className="text-violet-500">an audience.</span>
+              </h2>
+              <p className="text-[var(--color-muted-foreground)] mb-6 leading-relaxed">
+                Impact StoryBuilder is our free program for trauma survivors, recovery advocates,
+                and community voices. We use AI to help them write, narrate, and share their
+                personal stories — at no cost, ever.
+              </p>
+              <div className="flex flex-col gap-3 mb-6">
+                {[
+                  '100% free for all participants',
+                  'AI voice narration in their own style',
+                  'Optional public gallery + monthly $100 prize drawing',
+                  'Privacy controls — anonymous, pseudonymous, or named',
+                ].map(item => (
+                  <div key={item} className="flex items-center gap-2 text-sm text-[var(--color-muted-foreground)]">
+                    <span className="text-violet-500 font-bold">♦</span>
+                    {item}
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Link
+                  href="/impact"
+                  className="px-6 py-3 rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-semibold text-sm transition-colors text-center"
+                >
+                  Learn about Impact →
+                </Link>
+                <a
+                  href={`${APP_URL}/impact/donate`}
+                  className="px-6 py-3 rounded-lg border border-[var(--color-border)] hover:border-violet-500 font-semibold text-sm transition-all text-center"
+                >
+                  Support a storyteller
+                </a>
+              </div>
+            </div>
+            <div
+              className="rounded-2xl p-8 border border-violet-500/20 flex flex-col gap-6"
+              style={{ background: 'linear-gradient(135deg, rgba(76,29,149,0.2) 0%, rgba(10,10,15,0.6) 100%)' }}
+            >
+              <blockquote className="text-xl font-light text-[var(--color-foreground)] leading-relaxed italic">
+                &ldquo;The most powerful thing you can do for someone who has been silenced
+                is hand them a microphone.&rdquo;
+              </blockquote>
+              <div className="border-t border-violet-500/20 pt-6 grid grid-cols-3 gap-4 text-center">
+                {[
+                  { value: '100%', label: 'Free' },
+                  { value: '$100', label: 'Monthly prize' },
+                  { value: '6', label: 'Categories' },
+                ].map(s => (
+                  <div key={s.label}>
+                    <div className="text-2xl font-black text-violet-500">{s.value}</div>
+                    <div className="text-xs text-[var(--color-muted-foreground)] mt-1">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+              <a
+                href={`${APP_URL}/impact/stories`}
+                className="text-center text-sm text-violet-400 hover:text-violet-300 transition-colors"
+              >
+                Listen to the community story gallery →
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Banner */}
       <section className="py-20 px-4 sm:px-6 relative overflow-hidden">
         <div

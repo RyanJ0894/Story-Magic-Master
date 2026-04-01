@@ -27,6 +27,9 @@ export function Nav() {
           <Link href="/pricing" className="text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors">
             Pricing
           </Link>
+          <Link href="/impact" className="text-sm font-medium text-violet-500 hover:text-violet-400 transition-colors">
+            💜 Impact
+          </Link>
           <a href={`${APP_URL}/voice-marketplace`} className="text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] transition-colors">
             Voice Marketplace
           </a>
@@ -57,6 +60,7 @@ export function Nav() {
         <div className="md:hidden border-t border-[var(--color-border)] bg-[var(--color-background)] px-4 py-4 flex flex-col gap-4">
           <Link href="/features" className="text-sm text-[var(--color-muted-foreground)]" onClick={() => setOpen(false)}>Features</Link>
           <Link href="/pricing" className="text-sm text-[var(--color-muted-foreground)]" onClick={() => setOpen(false)}>Pricing</Link>
+          <Link href="/impact" className="text-sm font-medium text-violet-500" onClick={() => setOpen(false)}>💜 Impact</Link>
           <a href={`${APP_URL}/voice-marketplace`} className="text-sm text-[var(--color-muted-foreground)]" onClick={() => setOpen(false)}>Voice Marketplace</a>
           <a href={`${APP_URL}/login`} className="text-sm text-[var(--color-muted-foreground)]">Sign In</a>
           <a href={`${APP_URL}/signup`} className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg text-center hover:bg-brand-700 transition-colors">
