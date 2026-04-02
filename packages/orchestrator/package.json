@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "build": "npx prisma generate && tsc",
+    "build": "npx prisma generate && tsc && cp -r src/generated dist/",
     "prisma:generate": "npx prisma generate",
     "start": "node dist/index.js",
     "dev": "PORT=22002 tsx watch src/index.ts",
