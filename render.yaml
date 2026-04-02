@@ -43,7 +43,7 @@ services:
     # Environment variables
     envVars:
       - key: NODE_VERSION
-        value: "20.11.0"
+        value: "22.12.0"
       - key: NODE_ENV
         value: production
 
@@ -187,7 +187,7 @@ services:
       "
     envVars:
       - key: NODE_VERSION
-        value: "20.11.0"
+        value: "22.12.0"
       - key: WEB_URL
         value: "https://story-magic-web.onrender.com"
       - key: CRON_SECRET
@@ -233,7 +233,7 @@ services:
     # Environment variables
     envVars:
       - key: NODE_VERSION
-        value: "20.11.0"
+        value: "22.12.0"
       - key: NODE_ENV
         value: production
       - key: PORT
