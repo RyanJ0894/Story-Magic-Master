@@ -12,9 +12,6 @@ const nextConfig = {
   },
   // Reduce build memory usage on constrained environments
   productionBrowserSourceMaps: false,
-  experimental: {
-    instrumentationHook: true,
-  },
   // Security headers (CSP is handled in middleware.ts to avoid duplicate headers)
   async headers() {
     return [

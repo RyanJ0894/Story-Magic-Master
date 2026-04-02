@@ -1,4 +1,7 @@
+import * as Sentry from '@sentry/nextjs';
 import { log } from '@/lib/logger';
+
+export const onRequestError = Sentry.captureRequestError;
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
