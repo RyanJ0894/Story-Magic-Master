@@ -32,7 +32,7 @@ services:
     # Node/pnpm versions
     buildCommand: |
       npm install -g pnpm@9.1.0 &&
-      pnpm install --frozen-lockfile &&
+      pnpm install &&
       cd packages/web && npx prisma generate && cd ../.. &&
       pnpm --filter @story-magic/web build
     startCommand: cd packages/web && npx prisma migrate deploy && cd ../.. && pnpm --filter @story-magic/web start
