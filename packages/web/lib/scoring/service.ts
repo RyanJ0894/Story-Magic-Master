@@ -9,6 +9,7 @@
 import { generateText } from 'ai';
 import { resolveModel, MODELS } from '@/lib/ai/providers';
 import { prisma } from '@/lib/db';
+import { log } from '@/lib/logger';
 import {
   StoryScore,
   DimensionScores,
@@ -23,6 +24,7 @@ import {
   Rating,
 } from './types';
 import { buildScoringPrompt, buildCalibrationExamples, validateLLMResponse } from './prompts';
+import { chunkScriptForScoring } from './chunk-script';
 
 // =============================================================================
 // Prisma-to-Row Adapter
@@ -97,8 +99,17 @@ export async function callScoringLLM(
     ? await buildCalibrationExamples()
     : '';
 
+  // Chunk long scripts to stay within practical prompt budgets
+  const { text: textForScoring, wasChunked } = chunkScriptForScoring(scriptText);
+  if (wasChunked) {
+    log.info('[StoryScore] Long script chunked for scoring', {
+      originalChars: scriptText.length,
+      chunkedChars: textForScoring.length,
+    });
+  }
+
   const prompt = buildScoringPrompt(
-    scriptText,
+    textForScoring,
     options?.title,
     options?.genre,
     options?.logline,
