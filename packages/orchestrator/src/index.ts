@@ -38,6 +38,7 @@ import orchestrateRouter from './routes/orchestrate.js';
 import analyzeRouter from './routes/analyze.js';
 import previewRouter from './routes/preview.js';
 import impactRouter from './routes/impact.js';
+import stemsRouter from './routes/stems.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -102,6 +103,9 @@ app.use('/', previewRouter);
 
 // Impact StoryBuilder — service-to-service auth (x-service-key header)
 app.use('/impact', serviceAuthMiddleware, impactRouter);
+
+// Stem export — service-to-service auth (x-service-key header)
+app.use('/', serviceAuthMiddleware, stemsRouter);
 
 // Download endpoint - requires auth + ownership check
 app.get('/download/:project_id/:filename', authMiddleware, async (req: Request, res: Response) => {
