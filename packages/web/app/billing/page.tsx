@@ -13,11 +13,12 @@ import { getTierByName, getPageLimit, type SubscriptionTier } from '@/lib/stripe
 import { ArrowLeft, Sparkles, CreditCard, Calendar, CheckCircle, AlertCircle } from 'lucide-react';
 import ManageSubscriptionButton from './manage-subscription-button';
 
-export default async function BillingPage({
-  searchParams,
-}: {
-  searchParams: { success?: string };
-}) {
+export default async function BillingPage(
+  props: {
+    searchParams: Promise<{ success?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const { userId } = await auth();
   if (!userId) {
     redirect('/login?redirect=/billing');

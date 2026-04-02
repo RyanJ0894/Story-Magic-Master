@@ -20,11 +20,12 @@ import {
 } from '@/components/ui/collapsible';
 import { ArrowLeft, FileText, CheckCircle, AlertCircle, Clock, Loader2, Trash2, ChevronDown } from 'lucide-react';
 
-export default async function ProjectPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function ProjectPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
   const { userId } = await auth();
   if (!userId) {
     redirect('/login');

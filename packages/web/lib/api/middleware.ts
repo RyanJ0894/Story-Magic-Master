@@ -41,7 +41,7 @@ export interface WithAuthOptions {
   rateLimit?: RateLimitTier | false;
 }
 
-type RouteParams = { params: Promise<Record<string, string>> };
+type RouteParams = { params: Promise<Record<string, string | string[]>> };
 
 type AuthHandler = (
   request: Request,
@@ -61,7 +61,7 @@ export function withAuth(
   handler: AuthHandler,
   options: WithAuthOptions = {},
 ) {
-  return async (request: Request, route?: RouteParams) => {
+  return async (request: Request, route: RouteParams) => {
     // CSRF: default to checking on mutation methods
     const method = request.method.toUpperCase();
     const shouldCheckCsrf = options.csrf ?? ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
@@ -87,7 +87,7 @@ export function withAuth(
       return errorResponse('Unauthorized', 401, { code: 'AUTH_REQUIRED' });
     }
 
-    const params = route?.params ? await route.params : {};
+    const params = (route?.params ? await route.params : {}) as Record<string, string>;
     return handler(request, { userId, prisma, params });
   };
 }
@@ -125,7 +125,7 @@ export function withProjectAuth(
       return errorResponse('Unauthorized', 401, { code: 'AUTH_REQUIRED' });
     }
 
-    const params = await route.params;
+    const params = (await route.params) as Record<string, string>;
     const projectId = params.id;
 
     if (!projectId) {
