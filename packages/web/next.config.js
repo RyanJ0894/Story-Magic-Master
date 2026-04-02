@@ -26,7 +26,9 @@ const nextConfig = {
   },
 };
 
-module.exports = withSentryConfig(nextConfig, {
+// Sentry disabled during build debugging — re-enable once Render build is stable
+// module.exports = withSentryConfig(nextConfig, {
+const _sentryConfig = {
   // Sentry webpack plugin options
   org: 'servicevision',
   project: 'story-magic-web',
@@ -48,4 +50,5 @@ module.exports = withSentryConfig(nextConfig, {
   webpack: {
     removeDebugLogging: true,
   },
-});
+};
+module.exports = nextConfig;
