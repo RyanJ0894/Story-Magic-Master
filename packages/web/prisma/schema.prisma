@@ -56,6 +56,7 @@ model Profile {
   revisions         Revision[]
   scriptCorpus      ScriptCorpus[]
   auditLogs         AuditLog[]
+  impactStories     ImpactStory[]
 
   @@index([stripeCustomerId])
   @@index([stripeSubscriptionId])
@@ -532,12 +533,48 @@ model ScriptCorpus {
   createdAt         DateTime                     @default(now()) @map("created_at")
   updatedAt         DateTime                     @default(now()) @updatedAt @map("updated_at")
 
+  // Training dataset fields
+  scriptText        String?                      @map("script_text")
+  datasetCategory   String?                      @map("dataset_category") // Oscar Winner, Black List, Produced Benchmark, Weak Film, TV Benchmark
+  act1BreakPage     Int?                         @map("act1_break_page")
+  act2BreakPage     Int?                         @map("act2_break_page")
+  dialoguePct       Decimal?                     @map("dialogue_pct") @db.Decimal(5, 2)
+  sceneCount        Int?                         @map("scene_count")
+  conflictDensity   Decimal?                     @map("conflict_density") @db.Decimal(5, 3)
+  emotionalArcScore Decimal?                     @map("emotional_arc_score") @db.Decimal(4, 2)
+  pageCount         Int?                         @map("page_count")
+  pdfFilename       String?                      @map("pdf_filename")
+
   // Relations
-  uploader Profile? @relation(fields: [uploadedBy], references: [id])
+  uploader     Profile?      @relation(fields: [uploadedBy], references: [id])
+  corpusScores CorpusScore[]
 
   @@index([productionStatus])
   @@index([isPublic])
+  @@index([datasetCategory])
   @@map("script_corpus")
+}
+
+model CorpusScore {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corpusScriptId  String   @map("corpus_script_id") @db.Uuid
+  modelVersion    String   @map("model_version")
+  overallScore    Decimal  @map("overall_score") @db.Decimal(4, 2)
+  conceptScore    Decimal  @map("concept_score") @db.Decimal(4, 2)
+  structureScore  Decimal  @map("structure_score") @db.Decimal(4, 2)
+  characterScore  Decimal  @map("character_score") @db.Decimal(4, 2)
+  craftScore      Decimal  @map("craft_score") @db.Decimal(4, 2)
+  dimensions      Json     // Full 12-dimension scores + reasoning
+  strengths       String[]
+  weaknesses      String[]
+  confidence      Decimal  @map("confidence") @db.Decimal(4, 2)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  corpusScript ScriptCorpus @relation(fields: [corpusScriptId], references: [id], onDelete: Cascade)
+
+  @@index([corpusScriptId])
+  @@index([modelVersion])
+  @@map("corpus_score")
 }
 
 // =============================================================================
@@ -692,4 +729,96 @@ model PlatformSetting {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("platform_settings")
+}
+
+// =============================================================================
+// IMPACT / STORYBUILDER
+// =============================================================================
+
+model ImpactStory {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String?   @map("user_id")
+  sessionId    String?   @map("session_id")
+  title        String
+  category     String    // justice | system | trauma | homelessness | recovery | other
+  storyText    String    @map("story_text") @db.Text
+  expandedText String?   @map("expanded_text") @db.Text
+  voiceId      String?   @map("voice_id")
+  voiceName    String?   @map("voice_name")
+  audioUrl     String?   @map("audio_url")
+  isPublic     Boolean   @default(false) @map("is_public")
+  isApproved   Boolean   @default(false) @map("is_approved")
+  prizeEligible Boolean  @default(true) @map("prize_eligible")
+  authorName   String?   @map("author_name")
+  authorCity   String?   @map("author_city")
+  status       String    @default("draft") // draft | processing | complete
+  jobId        String?   @map("job_id") @db.Uuid
+  attestedAt   DateTime? @map("attested_at") // timestamp user accepted Impact program terms
+  viewCount    Int       @default(0) @map("view_count")
+  playCount    Int       @default(0) @map("play_count")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  user         Profile?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  prizeEntries ImpactPrizeDraw[]
+
+  @@index([userId])
+  @@index([category])
+  @@index([isPublic, isApproved])
+  @@index([createdAt(sort: Desc)])
+  @@map("impact_stories")
+}
+
+model ImpactPartner {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyName   String    @map("company_name")
+  tier          String    // community | impact | sustaining
+  logoUrl       String?   @map("logo_url")
+  websiteUrl    String?   @map("website_url")
+  contactName   String?   @map("contact_name")
+  contactEmail  String?   @map("contact_email")
+  annualAmount  Decimal   @map("annual_amount") @db.Decimal(10, 2)
+  creditsGranted Int      @default(0) @map("credits_granted")
+  activeFrom    DateTime  @map("active_from")
+  activeTo      DateTime? @map("active_to")
+  isActive      Boolean   @default(true) @map("is_active")
+  notes         String?   @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@index([tier])
+  @@index([isActive])
+  @@map("impact_partners")
+}
+
+model ImpactPrizeDraw {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storyId    String    @map("story_id") @db.Uuid
+  drawMonth  String    @map("draw_month") // YYYY-MM
+  isWinner   Boolean   @default(false) @map("is_winner")
+  notifiedAt DateTime? @map("notified_at")
+  paidAt     DateTime? @map("paid_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  story ImpactStory @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@index([drawMonth])
+  @@index([storyId])
+  @@map("impact_prize_draws")
+}
+
+model ImpactDonation {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  stripeSessionId  String    @unique @map("stripe_session_id")
+  amountCents      Int       @map("amount_cents")
+  currency         String    @default("usd")
+  donorEmail       String?   @map("donor_email")
+  donorName        String?   @map("donor_name")
+  message          String?   @db.Text
+  status           String    @default("completed") // completed | refunded
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@index([createdAt(sort: Desc)])
+  @@index([stripeSessionId])
+  @@map("impact_donations")
 }

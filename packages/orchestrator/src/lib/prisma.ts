@@ -6,7 +6,7 @@
  * use prisma.$queryRaw / prisma.$executeRaw.
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma/index.js';
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 

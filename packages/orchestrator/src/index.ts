@@ -28,7 +28,7 @@ import { startMonitoring, stopMonitoring } from './lib/monitoring.js';
 import { startCleanupSchedule, stopCleanupSchedule } from './lib/cleanup.js';
 
 // Middleware
-import { authMiddleware, optionalAuthMiddleware } from './middleware/auth.js';
+import { authMiddleware, optionalAuthMiddleware, serviceAuthMiddleware } from './middleware/auth.js';
 import { rateLimitMiddleware, strictRateLimitMiddleware } from './middleware/rate-limit.js';
 
 // Routes
@@ -37,6 +37,7 @@ import generateScenesRouter from './routes/generate-scenes.js';
 import orchestrateRouter from './routes/orchestrate.js';
 import analyzeRouter from './routes/analyze.js';
 import previewRouter from './routes/preview.js';
+import impactRouter from './routes/impact.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,6 +80,12 @@ app.use(httpLogger);
 // Static audio preview - serves catalog files for frontend preview player
 app.use('/audio-preview', express.static(path.join(__dirname, '../catalog')));
 
+// Impact story audio - serves generated impact story audio files
+app.use('/impact-audio', express.static(path.join(getOutputDir(), 'impact'), {
+  maxAge: '7d',
+  setHeaders: (res) => { res.set('Access-Control-Allow-Origin', '*'); },
+}));
+
 // Routes
 // Health check - no auth required
 app.use('/', healthRouter);
@@ -92,6 +99,9 @@ app.use('/', generateScenesRouter);
 app.use('/', orchestrateRouter);
 app.use('/', analyzeRouter);
 app.use('/', previewRouter);
+
+// Impact StoryBuilder — service-to-service auth (x-service-key header)
+app.use('/impact', serviceAuthMiddleware, impactRouter);
 
 // Download endpoint - requires auth + ownership check
 app.get('/download/:project_id/:filename', authMiddleware, async (req: Request, res: Response) => {

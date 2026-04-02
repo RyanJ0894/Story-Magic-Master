@@ -535,6 +535,23 @@ export function VoiceChooser({
     });
   };
 
+  // Compute scored voices per character — must be before early returns (Rules of Hooks)
+  const scoredVoicesByCharacter = useMemo(() => {
+    if (voices.length === 0 || characters.length === 0) return new Map<string, ScoredVoice[]>();
+
+    const map = new Map<string, ScoredVoice[]>();
+    for (const character of characters) {
+      // Exclude voices assigned to OTHER characters (not this one)
+      const otherAssignedIds = assignments
+        .filter(a => a.character_name !== character.name)
+        .map(a => a.voice_id);
+
+      const scored = getScoredVoices(voices, character, otherAssignedIds);
+      map.set(character.name, scored);
+    }
+    return map;
+  }, [voices, characters, assignments]);
+
   if (isLoading) {
     return (
       <Card>
@@ -557,23 +574,6 @@ export function VoiceChooser({
       </Card>
     );
   }
-
-  // Compute scored voices per character (memoized to avoid re-scoring on every render)
-  const scoredVoicesByCharacter = useMemo(() => {
-    if (voices.length === 0 || characters.length === 0) return new Map<string, ScoredVoice[]>();
-
-    const map = new Map<string, ScoredVoice[]>();
-    for (const character of characters) {
-      // Exclude voices assigned to OTHER characters (not this one)
-      const otherAssignedIds = assignments
-        .filter(a => a.character_name !== character.name)
-        .map(a => a.voice_id);
-
-      const scored = getScoredVoices(voices, character, otherAssignedIds);
-      map.set(character.name, scored);
-    }
-    return map;
-  }, [voices, characters, assignments]);
 
   if (characters.length === 0) {
     return (

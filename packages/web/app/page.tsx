@@ -44,7 +44,7 @@ export default function Home() {
       </nav>
 
       {/* Hero Section */}
-      <section className="flex-1 flex flex-col items-center justify-center px-4 py-24 pt-32">
+      <section className="flex-1 flex flex-col items-center justify-center px-4 py-24 pt-24 md:pt-32">
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-6">
             Transform Scripts into{' '}
@@ -73,7 +73,7 @@ export default function Home() {
 
       {/* Features Section */}
       <section className="py-24 bg-muted">
-        <div className="max-w-6xl mx-auto px-4">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-bold text-center mb-12">How It Works</h2>
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center p-6">
@@ -110,7 +110,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="py-12 border-t border-border">
         <div className="max-w-6xl mx-auto px-4">
-          <div className="grid md:grid-cols-5 gap-8 mb-8">
+          <div className="grid md:grid-cols-5 gap-8 gap-y-8 mb-8">
             <div>
               <Link href="/" className="flex items-center gap-2 mb-4">
                 <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">

@@ -1,11 +1,13 @@
 /**
  * StoryScore Service
  *
- * Handles LLM-based screenplay evaluation using OpenAI GPT-4.
- * Provides scoring, caching, and database persistence.
+ * LLM-based screenplay evaluation using Vercel AI SDK.
+ * Production model: Claude Sonnet 4.6 (200K context, best literary analysis)
+ * Batch model: Gemini 2.0 Flash (cheap corpus scoring)
  */
 
-import { getOpenAI } from '@/lib/ai/openai';
+import { generateText } from 'ai';
+import { resolveModel, MODELS } from '@/lib/ai/providers';
 import { prisma } from '@/lib/db';
 import {
   StoryScore,
@@ -20,13 +22,12 @@ import {
   StoryScoreRow,
   Rating,
 } from './types';
-import { buildScoringPrompt, validateLLMResponse } from './prompts';
+import { buildScoringPrompt, buildCalibrationExamples, validateLLMResponse } from './prompts';
 
 // =============================================================================
-// Prisma-to-Row Adapter (type-safe camelCase → snake_case mapping)
+// Prisma-to-Row Adapter
 // =============================================================================
 
-/** Map Prisma storyScore result to StoryScoreRow */
 function toStoryScoreRow(data: Record<string, unknown>): StoryScoreRow {
   return {
     id: data.id as string,
@@ -70,11 +71,68 @@ function toStoryScoreRow(data: Record<string, unknown>): StoryScoreRow {
   };
 }
 
-// OpenAI client imported from shared singleton (@/lib/ai/openai)
+// =============================================================================
+// LLM Call (shared between project scoring and corpus scoring)
+// =============================================================================
 
-/**
- * Generate a new score for a project's script
- */
+export async function callScoringLLM(
+  scriptText: string,
+  options?: {
+    title?: string;
+    genre?: string;
+    logline?: string;
+    model?: string;
+    useCalibration?: boolean;
+  }
+): Promise<{
+  dimensions: Record<string, { score: number; reasoning: string }>;
+  strengths: string[];
+  weaknesses: string[];
+  confidence: number;
+}> {
+  const modelId = options?.model || MODELS.PRODUCTION;
+  const model = resolveModel(modelId);
+
+  const calibrationExamples = options?.useCalibration !== false
+    ? await buildCalibrationExamples()
+    : '';
+
+  const prompt = buildScoringPrompt(
+    scriptText,
+    options?.title,
+    options?.genre,
+    options?.logline,
+    calibrationExamples
+  );
+
+  const { text } = await generateText({
+    model,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.3,
+    maxOutputTokens: 4096,
+  });
+
+  // Strip markdown code fences if present
+  const jsonStr = text.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch {
+    throw new Error(`Failed to parse LLM response as JSON. Raw: ${text.slice(0, 200)}`);
+  }
+
+  if (!validateLLMResponse(parsed)) {
+    throw new Error('LLM response does not match expected schema');
+  }
+
+  return parsed;
+}
+
+// =============================================================================
+// generateScore — project scoring (writes to storyScore table)
+// =============================================================================
+
 export async function generateScore(
   projectId: string,
   scriptText: string,
@@ -85,81 +143,38 @@ export async function generateScore(
     model?: string;
   }
 ): Promise<StoryScore> {
-  const model = options?.model || 'gpt-4o';
+  const modelId = options?.model || MODELS.PRODUCTION;
 
-  // Build the scoring prompt
-  const prompt = buildScoringPrompt(
-    scriptText,
-    options?.title,
-    options?.genre,
-    options?.logline
-  );
-
-  // Call OpenAI
-  const response = await getOpenAI().chat.completions.create({
-    model,
-    messages: [
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-    temperature: 0.3, // Lower temperature for more consistent scoring
-    max_tokens: 4096,
-    response_format: { type: 'json_object' },
+  const parsed = await callScoringLLM(scriptText, {
+    ...options,
+    model: modelId,
+    useCalibration: true,
   });
-
-  // Extract and parse the response
-  const content = response.choices[0]?.message?.content;
-  if (!content) {
-    throw new Error('No response from LLM');
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error('Failed to parse LLM response as JSON');
-  }
-
-  // Validate response structure
-  if (!validateLLMResponse(parsed)) {
-    throw new Error('LLM response does not match expected schema');
-  }
 
   // Build dimension scores
   const dimensions: DimensionScores = {} as DimensionScores;
   for (const key of Object.keys(DIMENSIONS) as DimensionKey[]) {
     const dim = parsed.dimensions[key];
-    if (!dim) {
-      throw new Error(`Missing dimension: ${key}`);
-    }
-    dimensions[key] = {
-      score: dim.score,
-      reasoning: dim.reasoning,
-    };
+    if (!dim) throw new Error(`Missing dimension: ${key}`);
+    dimensions[key] = { score: dim.score, reasoning: dim.reasoning };
   }
 
-  // Calculate derived scores
   const categoryScores = {
     concept: calculateCategoryScore(dimensions, 'concept'),
     structure: calculateCategoryScore(dimensions, 'structure'),
     character: calculateCategoryScore(dimensions, 'character'),
     craft: calculateCategoryScore(dimensions, 'craft'),
   };
-
   const overallScore = calculateOverallScore(dimensions);
   const rating = calculateRating(overallScore);
 
-  // Get next version number
   const versionResult = await prisma.$queryRaw<[{ get_next_score_version: number }]>`
     SELECT get_next_score_version(${projectId}::uuid)
   `;
   const version = versionResult?.[0]?.get_next_score_version || 1;
 
-  // Build the score object
   const storyScore: StoryScore = {
-    id: '', // Will be set by database
+    id: '',
     projectId,
     version,
     dimensions,
@@ -169,14 +184,12 @@ export async function generateScore(
     strengths: parsed.strengths,
     weaknesses: parsed.weaknesses,
     confidence: parsed.confidence,
-    modelVersion: model,
+    modelVersion: modelId,
     createdAt: new Date().toISOString(),
   };
 
-  // Convert to database row format
   const row = storyScoreToRow(storyScore);
 
-  // Insert into database
   try {
     const insertedRow = await prisma.storyScore.create({
       data: {
@@ -219,57 +232,41 @@ export async function generateScore(
       },
     });
 
-    // Return with database-generated ID
     return rowToStoryScore(toStoryScoreRow(insertedRow));
   } catch (error) {
     throw new Error(`Failed to save score: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
-/**
- * Get the latest score for a project
- */
+// =============================================================================
+// getLatestScore / getScoreHistory / deleteScore / compareScores
+// =============================================================================
+
 export async function getLatestScore(projectId: string): Promise<StoryScore | null> {
   const data = await prisma.storyScore.findFirst({
     where: { projectId },
     orderBy: { version: 'desc' },
   });
-
-  if (!data) {
-    return null;
-  }
-
+  if (!data) return null;
   return rowToStoryScore(toStoryScoreRow(data));
 }
 
-/**
- * Get all scores for a project (version history)
- */
 export async function getScoreHistory(projectId: string): Promise<StoryScore[]> {
   const data = await prisma.storyScore.findMany({
     where: { projectId },
     orderBy: { version: 'desc' },
   });
-
   return data.map((d: Record<string, unknown>) => rowToStoryScore(toStoryScoreRow(d)));
 }
 
-/**
- * Delete a specific score version
- */
 export async function deleteScore(scoreId: string): Promise<void> {
   try {
-    await prisma.storyScore.delete({
-      where: { id: scoreId },
-    });
+    await prisma.storyScore.delete({ where: { id: scoreId } });
   } catch (error) {
     throw new Error(`Failed to delete score: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
-/**
- * Compare two scores (for revision tracking)
- */
 export function compareScores(
   oldScore: StoryScore,
   newScore: StoryScore
@@ -286,14 +283,9 @@ export function compareScores(
   for (const key of Object.keys(DIMENSIONS) as DimensionKey[]) {
     const oldVal = oldScore.dimensions[key].score;
     const newVal = newScore.dimensions[key].score;
-
-    if (newVal > oldVal) {
-      improved.push(key);
-    } else if (newVal < oldVal) {
-      declined.push(key);
-    } else {
-      unchanged.push(key);
-    }
+    if (newVal > oldVal) improved.push(key);
+    else if (newVal < oldVal) declined.push(key);
+    else unchanged.push(key);
   }
 
   return {

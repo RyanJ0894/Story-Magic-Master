@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/node';
+import { log } from './logger.js';
 
 const SENTRY_DSN = process.env.SENTRY_DSN;
 
@@ -29,7 +30,7 @@ export function initSentry() {
     },
   });
 
-  console.log(`📊 Sentry initialized (enabled: ${Sentry.isInitialized()})`);
+  log.info(`Sentry initialized (enabled: ${Sentry.isInitialized()})`);
 }
 
 export function captureError(error: Error, context?: Record<string, unknown>) {

@@ -199,6 +199,30 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         )}
+        {/* Impact StoryBuilder support nudge */}
+        <div className="mt-10 rounded-xl border border-violet-800/40 bg-violet-950/20 px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white">💜 Support Impact Storytellers</p>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Our free Impact program gives trauma survivors and recovery advocates free AI audio production.
+              A small gift from you keeps it free for them.
+            </p>
+          </div>
+          <div className="flex gap-2 flex-shrink-0">
+            <Link
+              href="/impact/stories"
+              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors"
+            >
+              Listen
+            </Link>
+            <Link
+              href="/impact/donate"
+              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-violet-600 hover:bg-violet-500 text-white transition-colors"
+            >
+              Give a gift →
+            </Link>
+          </div>
+        </div>
       </main>
     </div>
   );

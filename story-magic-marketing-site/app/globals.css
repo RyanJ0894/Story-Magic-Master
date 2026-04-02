@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+/* Class-based dark mode for next-themes */
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Brand colors */
+  --color-brand-50: #f5f3ff;
+  --color-brand-100: #ede9fe;
+  --color-brand-200: #ddd6fe;
+  --color-brand-300: #c4b5fd;
+  --color-brand-400: #a78bfa;
+  --color-brand-500: #8b5cf6;
+  --color-brand-600: #7c3aed;
+  --color-brand-700: #6d28d9;
+  --color-brand-800: #5b21b6;
+  --color-brand-900: #4c1d95;
+  --color-brand-950: #2e1065;
+
+  /* Cinema gold */
+  --color-gold-400: #F5C842;
+  --color-gold-500: #D4AF37;
+  --color-gold-600: #B8941F;
+
+  /* Semantic colors (light) */
+  --color-background: #ffffff;
+  --color-foreground: #0a0a0a;
+  --color-muted: #f5f5f5;
+  --color-muted-foreground: #737373;
+  --color-border: #e5e5e5;
+  --color-card: #ffffff;
+  --color-card-foreground: #0a0a0a;
+
+  /* Font */
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+}
+
+/* Dark mode overrides */
+.dark {
+  --color-background: #0a0a0f;
+  --color-foreground: #f5f5f5;
+  --color-muted: #1a1a2e;
+  --color-muted-foreground: #a3a3a3;
+  --color-border: #262630;
+  --color-card: #111118;
+  --color-card-foreground: #f5f5f5;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  min-height: 100vh;
+}

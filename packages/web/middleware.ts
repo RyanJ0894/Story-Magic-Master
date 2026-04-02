@@ -12,17 +12,28 @@ const isProtectedRoute = createRouteMatcher([
   '/billing(.*)',
   '/writer(.*)',
   '/reader(.*)',
+  '/impact/build(.*)',
 ]);
 
 // =============================================================================
 // Security Headers
 // =============================================================================
-function addSecurityHeaders(response: NextResponse): void {
+
+/**
+ * Add security headers including a nonce-based CSP.
+ *
+ * Nonce strategy: a per-request base64 nonce is set both here (response CSP)
+ * and in the x-nonce request header so layout.tsx can forward it to
+ * ClerkProvider and next/script tags. CSP Level 2+ browsers ignore
+ * 'unsafe-inline' when a nonce is present; older browsers fall back to it.
+ */
+function addSecurityHeaders(response: NextResponse, nonce: string): void {
   const csp = [
     "default-src 'self'",
     // unsafe-eval removed — Stripe redirect-only checkout and Clerk prebuilt components don't need it.
     // If Stripe Elements or Clerk custom flows break, add 'unsafe-eval' back and track upstream fix.
-    "script-src 'self' 'unsafe-inline' https://js.stripe.com https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com",
+    // 'nonce-...' is the primary guard; 'unsafe-inline' is the CSP2 fallback (ignored when nonce present).
+    `script-src 'self' 'unsafe-inline' 'nonce-${nonce}' https://js.stripe.com https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com`,
     "style-src 'self' 'unsafe-inline'", // Tailwind requires unsafe-inline
     "img-src 'self' data: blob: https://img.clerk.com https://api.dicebear.com",
     "font-src 'self' data:",
@@ -51,8 +62,16 @@ export default clerkMiddleware(async (auth, request) => {
     await auth.protect();
   }
 
-  const response = NextResponse.next();
-  addSecurityHeaders(response);
+  // Generate a per-request nonce and forward it in the request headers so
+  // layout.tsx can pass it to ClerkProvider / Script tags.
+  const nonce = btoa(crypto.randomUUID());
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+
+  const response = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+  addSecurityHeaders(response, nonce);
   return response;
 });
 

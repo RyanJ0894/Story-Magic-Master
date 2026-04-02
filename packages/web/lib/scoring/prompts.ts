@@ -252,10 +252,72 @@ TECHNICAL CHECKLIST:
 };
 
 // =============================================================================
+// Calibration Examples (few-shot anchors loaded from DB)
+// =============================================================================
+
+/**
+ * Build few-shot calibration examples from the corpus.
+ * Loads one Oscar Winner, one Produced Benchmark, and one Weak Film
+ * that have been scored, so the model knows what scores like 9, 6, and 3 look like.
+ */
+export async function buildCalibrationExamples(): Promise<string> {
+  try {
+    // Dynamic import to avoid circular deps in non-Node environments
+    const { prisma } = await import('@/lib/db');
+
+    const [highAnchor, midAnchor, lowAnchor] = await Promise.all([
+      prisma.corpusScore.findFirst({
+        where: { corpusScript: { datasetCategory: 'Oscar Winner' } },
+        orderBy: { overallScore: 'desc' },
+        include: { corpusScript: { select: { title: true, datasetCategory: true } } },
+      }),
+      prisma.corpusScore.findFirst({
+        where: { corpusScript: { datasetCategory: 'Produced Benchmark' } },
+        orderBy: { overallScore: 'asc' },
+        include: { corpusScript: { select: { title: true, datasetCategory: true } } },
+      }),
+      prisma.corpusScore.findFirst({
+        where: { corpusScript: { datasetCategory: 'Weak Film' } },
+        orderBy: { overallScore: 'asc' },
+        include: { corpusScript: { select: { title: true, datasetCategory: true } } },
+      }),
+    ]);
+
+    if (!highAnchor && !midAnchor && !lowAnchor) return '';
+
+    const lines: string[] = ['## CALIBRATION EXAMPLES', '', 'Use these scored examples to calibrate your scoring range:', ''];
+
+    const formatAnchor = (label: string, anchor: NonNullable<typeof highAnchor>): string => {
+      const dims = anchor.dimensions as Record<string, { score: number; reasoning: string }>;
+      const sampleDims = ['premiseOriginality', 'threeActIntegrity', 'dialogueQuality']
+        .filter(k => dims[k])
+        .map(k => `  - ${k}: ${dims[k].score}/10`)
+        .join('\n');
+      return `### ${label}: "${anchor.corpusScript.title}" (Overall: ${Number(anchor.overallScore).toFixed(1)}/10)\n${sampleDims}`;
+    };
+
+    if (highAnchor) lines.push(formatAnchor('HIGH ANCHOR (Oscar Winner)', highAnchor), '');
+    if (midAnchor) lines.push(formatAnchor('MID ANCHOR (Produced Benchmark)', midAnchor), '');
+    if (lowAnchor) lines.push(formatAnchor('LOW ANCHOR (Weak Film)', lowAnchor), '');
+
+    return lines.join('\n');
+  } catch {
+    // If DB unavailable (e.g. build time), return empty — graceful degradation
+    return '';
+  }
+}
+
+// =============================================================================
 // Main Scoring Prompt
 // =============================================================================
 
-export function buildScoringPrompt(scriptText: string, title?: string, genre?: string, logline?: string): string {
+export function buildScoringPrompt(
+  scriptText: string,
+  title?: string,
+  genre?: string,
+  logline?: string,
+  calibrationExamples?: string
+): string {
   const dimensionList = Object.entries(DIMENSIONS)
     .map(([key, dim]) => `${dim.label} (${dim.category}, ${dim.weight}% weight)`)
     .join('\n');
@@ -284,6 +346,8 @@ ${Object.entries(SCORING_CRITERIA).map(([key, criteria]) => {
   const dim = DIMENSIONS[key as DimensionKey];
   return `### ${dim.label}\n${criteria}`;
 }).join('\n\n')}
+
+${calibrationExamples ? calibrationExamples + '\n' : ''}
 
 ## SCREENPLAY TEXT
 
