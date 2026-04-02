@@ -12,6 +12,8 @@ const nextConfig = {
   },
   // Reduce build memory usage on constrained environments
   productionBrowserSourceMaps: false,
+  // ESLint runs in CI — skip during next build (avoids devDep missing in production)
+  eslint: { ignoreDuringBuilds: true },
   // Security headers (CSP is handled in middleware.ts to avoid duplicate headers)
   async headers() {
     return [
@@ -26,9 +28,7 @@ const nextConfig = {
   },
 };
 
-// Sentry disabled during build debugging — re-enable once Render build is stable
-// module.exports = withSentryConfig(nextConfig, {
-const _sentryConfig = {
+module.exports = withSentryConfig(nextConfig, {
   // Sentry webpack plugin options
   org: 'servicevision',
   project: 'story-magic-web',
@@ -50,5 +50,4 @@ const _sentryConfig = {
   webpack: {
     removeDebugLogging: true,
   },
-};
-module.exports = nextConfig;
+});
