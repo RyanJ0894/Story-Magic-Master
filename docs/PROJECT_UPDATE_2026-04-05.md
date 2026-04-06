@@ -70,6 +70,11 @@ The Stripe webhook secret currently set is a placeholder. To enable real donatio
    - `customer.subscription.created`
    - `customer.subscription.updated`
    - `customer.subscription.deleted`
+   - `customer.subscription.paused`
+   - `customer.subscription.resumed`
+   - `customer.subscription.trial_will_end`
+   - `customer.subscription.pending_update_applied`
+   - `customer.subscription.pending_update_expired`
    - `invoice.payment_succeeded`
    - `invoice.payment_failed`
 4. Copy the **Signing secret** that Stripe generates
