@@ -1,3 +1,6 @@
+# Contracts (private, never commit)
+contracts/
+
 # Dependencies
 node_modules/
 .pnpm-store/
