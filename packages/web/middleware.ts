@@ -33,17 +33,17 @@ function addSecurityHeaders(response: NextResponse, nonce: string): void {
     // unsafe-eval removed — Stripe redirect-only checkout and Clerk prebuilt components don't need it.
     // If Stripe Elements or Clerk custom flows break, add 'unsafe-eval' back and track upstream fix.
     // 'nonce-...' is the primary guard; 'unsafe-inline' is the CSP2 fallback (ignored when nonce present).
-    `script-src 'self' 'unsafe-inline' 'nonce-${nonce}' https://js.stripe.com https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com`,
+    `script-src 'self' 'unsafe-inline' 'nonce-${nonce}' https://js.stripe.com https://clerk.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com`,
     "style-src 'self' 'unsafe-inline'", // Tailwind requires unsafe-inline
     "img-src 'self' data: blob: https://img.clerk.com https://api.dicebear.com",
     "font-src 'self' data:",
-    "connect-src 'self' https://api.stripe.com https://api.elevenlabs.io https://api.openai.com https://*.sentry.io https://*.accounts.dev https://*.clerk.com https://*.clerk.dev https://clerk-telemetry.com",
-    "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com",
+    "connect-src 'self' https://api.stripe.com https://api.elevenlabs.io https://api.openai.com https://*.sentry.io https://clerk.storymagicapp.net https://accounts.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://*.clerk.dev https://clerk-telemetry.com",
+    "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://accounts.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com",
     "media-src 'self' blob:",
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self' https://*.accounts.dev",
+    "form-action 'self' https://accounts.storymagicapp.net https://*.accounts.dev",
     "frame-ancestors 'self'",
     "upgrade-insecure-requests",
   ].join('; ');
