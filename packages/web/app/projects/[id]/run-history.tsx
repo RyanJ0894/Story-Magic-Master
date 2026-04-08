@@ -61,14 +61,14 @@ interface RunHistoryProps {
 
 const statusConfig = {
   queued: { icon: Clock, label: 'Queued', color: 'bg-muted text-muted-foreground' },
-  processing: { icon: Loader2, label: 'Processing', color: 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400' },
+  processing: { icon: Loader2, label: 'Processing', color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' },
   completed: { icon: CheckCircle, label: 'Completed', color: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' },
   failed: { icon: XCircle, label: 'Failed', color: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' },
 };
 
 const modeConfig = {
   automatic: { icon: Zap, label: 'Automatic', color: 'text-amber-500' },
-  fine_tuned: { icon: Sliders, label: 'Fine-Tuned', color: 'text-violet-500' },
+  fine_tuned: { icon: Sliders, label: 'Fine-Tuned', color: 'text-blue-500' },
 };
 
 function MiniAudioPlayer({ src, duration }: { src: string; duration?: number }) {
@@ -229,9 +229,9 @@ export function RunHistory({
                     onClick={() => !compareMode && onSelectRun(run.runNumber)}
                     className={cn(
                       'flex items-center gap-4 p-3 rounded-lg border transition-all',
-                      !compareMode && 'cursor-pointer hover:border-violet-300 dark:hover:border-violet-700',
-                      isActive && !compareMode && 'border-violet-300 dark:border-violet-700 bg-violet-50/50 dark:bg-violet-900/10',
-                      isSelected && 'border-violet-500 bg-violet-50 dark:bg-violet-900/20',
+                      !compareMode && 'cursor-pointer hover:border-blue-300 dark:hover:border-blue-700',
+                      isActive && !compareMode && 'border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10',
+                      isSelected && 'border-blue-500 bg-blue-50 dark:bg-blue-900/20',
                     )}
                   >
                     {/* Compare Checkbox */}
@@ -240,7 +240,7 @@ export function RunHistory({
                         checked={isSelected}
                         disabled={!canSelect}
                         onCheckedChange={() => canSelect && handleCompareToggle(run.runNumber)}
-                        className="data-[state=checked]:bg-violet-500"
+                        className="data-[state=checked]:bg-blue-500"
                       />
                     )}
 
@@ -267,7 +267,7 @@ export function RunHistory({
                           {statusConfig[run.status].label}
                         </Badge>
                         {isActive && !compareMode && (
-                          <Badge className="bg-violet-500 text-xs">Current</Badge>
+                          <Badge className="bg-blue-500 text-xs">Current</Badge>
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">

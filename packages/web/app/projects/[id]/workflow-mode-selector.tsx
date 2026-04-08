@@ -66,7 +66,7 @@ const modeOptions: ModeOption[] = [
     subtitle: 'Full Control',
     description: 'Customize every detail for a polished final production.',
     icon: Sliders,
-    iconColor: 'text-violet-500',
+    iconColor: 'text-blue-500',
     features: [
       'StoryScore analysis',
       'Hand-pick character voices',
@@ -145,14 +145,14 @@ export function WorkflowModeSelector({
               className={cn(
                 'relative cursor-pointer transition-all hover:shadow-md',
                 isSelected
-                  ? 'ring-2 ring-violet-500 border-violet-300 dark:border-violet-700'
+                  ? 'ring-2 ring-blue-500 border-blue-300 dark:border-blue-700'
                   : 'hover:border-border',
               )}
               onClick={() => setSelectedMode(option.id)}
             >
               {option.recommended && (
                 <div className="absolute -top-2 left-1/2 -translate-x-1/2">
-                  <Badge className="bg-violet-600 text-white text-xs">
+                  <Badge className="bg-blue-600 text-white text-xs">
                     Recommended
                   </Badge>
                 </div>
@@ -163,7 +163,7 @@ export function WorkflowModeSelector({
                   <div className={cn(
                     'w-12 h-12 rounded-xl flex items-center justify-center',
                     isSelected
-                      ? 'bg-violet-100 dark:bg-violet-900/30'
+                      ? 'bg-blue-100 dark:bg-blue-900/30'
                       : 'bg-muted',
                   )}>
                     <Icon className={cn('w-6 h-6', option.iconColor)} />
@@ -171,7 +171,7 @@ export function WorkflowModeSelector({
                   <div className={cn(
                     'w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all',
                     isSelected
-                      ? 'border-violet-500 bg-violet-500'
+                      ? 'border-blue-500 bg-blue-500'
                       : 'border-border',
                   )}>
                     {isSelected && <CheckCircle className="w-4 h-4 text-white" />}
@@ -197,7 +197,7 @@ export function WorkflowModeSelector({
                     <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
                       <CheckCircle className={cn(
                         'w-4 h-4 flex-shrink-0',
-                        isSelected ? 'text-violet-500' : 'text-muted-foreground',
+                        isSelected ? 'text-blue-500' : 'text-muted-foreground',
                       )} />
                       {feature}
                     </li>
@@ -235,7 +235,7 @@ export function WorkflowModeSelector({
       {currentRunNumber > 0 && (
         <p className="text-center text-sm text-muted-foreground">
           You have {currentRunNumber} previous run{currentRunNumber !== 1 ? 's' : ''} for this project.
-          <button className="ml-1 text-violet-600 hover:underline">
+          <button className="ml-1 text-blue-600 hover:underline">
             View history
           </button>
         </p>

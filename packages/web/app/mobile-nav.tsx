@@ -29,6 +29,20 @@ export function MobileNav() {
               User Guide
             </Link>
             <Link
+              href="/pricing"
+              onClick={() => setOpen(false)}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
+            >
+              Pricing
+            </Link>
+            <Link
+              href="/voice-marketplace"
+              onClick={() => setOpen(false)}
+              className="text-sm text-amber-600 dark:text-amber-400 font-medium hover:text-amber-700 dark:hover:text-amber-300 transition-colors py-2"
+            >
+              Voice Marketplace
+            </Link>
+            <Link
               href="/login"
               onClick={() => setOpen(false)}
               className="text-sm text-muted-foreground hover:text-foreground transition-colors py-2"

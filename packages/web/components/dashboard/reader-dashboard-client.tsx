@@ -449,8 +449,8 @@ export function ReaderDashboardClient({
                         className="flex items-center gap-2 p-2 rounded hover:bg-accent cursor-pointer"
                         onClick={() => handlePlay(entry)}
                       >
-                        <div className="w-8 h-8 rounded bg-violet-100 dark:bg-violet-900 flex items-center justify-center">
-                          <Headphones className="w-4 h-4 text-violet-600" />
+                        <div className="w-8 h-8 rounded bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                          <Headphones className="w-4 h-4 text-blue-600" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{entry.script_name}</p>

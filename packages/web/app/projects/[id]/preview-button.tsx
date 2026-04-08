@@ -213,7 +213,7 @@ export function PreviewButton({
             <Pause className="w-3.5 h-3.5" />
             <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
               <div
-                className="h-full bg-violet-500 rounded-full transition-all duration-100"
+                className="h-full bg-blue-500 rounded-full transition-all duration-100"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -225,7 +225,7 @@ export function PreviewButton({
             <Play className="w-3.5 h-3.5" />
             <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
               <div
-                className="h-full bg-violet-500 rounded-full"
+                className="h-full bg-blue-500 rounded-full"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -281,7 +281,7 @@ export function PreviewButton({
       disabled={isDisabled}
       className={cn(
         'h-7 gap-1.5',
-        state === 'playing' && 'text-violet-600 dark:text-violet-400',
+        state === 'playing' && 'text-blue-600 dark:text-blue-400',
         state === 'error' && 'text-red-600 dark:text-red-400',
       )}
     >

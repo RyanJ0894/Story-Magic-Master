@@ -193,7 +193,7 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
           <button
             onClick={togglePlayPause}
             aria-label={isPlaying ? 'Pause' : 'Play'}
-            className="w-12 h-12 flex items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600 text-white rounded-full hover:from-violet-600 hover:to-purple-700 transition-all shadow-lg shadow-violet-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+            className="w-12 h-12 flex items-center justify-center bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full hover:from-blue-600 hover:to-blue-700 transition-all shadow-lg shadow-blue-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             data-testid="audio-play-pause-button"
           >
             {isPlaying ? (
@@ -216,7 +216,7 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
               aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
               onMouseDown={handleProgressMouseDown}
               onKeyDown={handleProgressKeyDown}
-              className="h-2 bg-muted rounded-full cursor-pointer overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+              className="h-2 bg-muted rounded-full cursor-pointer overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             >
               <div
                 className="h-full brand-gradient-bar rounded-full transition-all duration-100 pointer-events-none"
@@ -241,7 +241,7 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
             <button
               onClick={() => setIsMuted(!isMuted)}
               aria-label={isMuted || volume === 0 ? 'Unmute' : 'Mute'}
-              className="p-2 rounded-full hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+              className="p-2 rounded-full hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             >
               {isMuted || volume === 0 ? (
                 <VolumeX className="w-4 h-4" />
@@ -260,7 +260,7 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
                 setIsMuted(false);
               }}
               aria-label="Volume"
-              className="w-16 h-1 accent-violet-500"
+              className="w-16 h-1 accent-blue-500"
             />
           </div>
         </div>
@@ -296,15 +296,15 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
                   setProgress(0);
                   setCurrentTime(0);
                 }}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 ${
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
                   index === currentTrack
-                    ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300'
+                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
                     : 'hover:bg-accent text-foreground'
                 }`}
               >
                 <div className={`w-8 h-8 flex items-center justify-center rounded-full ${
                   index === currentTrack
-                    ? 'bg-violet-500 text-white'
+                    ? 'bg-blue-500 text-white'
                     : 'bg-muted'
                 }`} aria-hidden="true">
                   {index === currentTrack && isPlaying ? (

@@ -87,15 +87,15 @@ export function ReaderScriptCard({
                 isArchived
                   ? 'bg-muted'
                   : isPlaying
-                  ? 'bg-violet-100 dark:bg-violet-900'
-                  : 'bg-muted hover:bg-violet-50 dark:hover:bg-violet-900/50'
+                  ? 'bg-blue-100 dark:bg-blue-900'
+                  : 'bg-muted hover:bg-blue-50 dark:hover:bg-blue-900/50'
               }`}
               onClick={isArchived ? onUnlock : isPlaying ? onPause : onPlay}
             >
               {isArchived ? (
                 <Lock className="w-6 h-6 text-muted-foreground" />
               ) : isPlaying ? (
-                <Pause className="w-6 h-6 text-violet-600" />
+                <Pause className="w-6 h-6 text-blue-600" />
               ) : (
                 <Play className="w-6 h-6 text-muted-foreground" />
               )}
@@ -256,13 +256,13 @@ export function ReaderScriptCardCompact({
         className={`w-10 h-10 rounded flex items-center justify-center flex-shrink-0 ${
           isArchived
             ? 'bg-muted'
-            : 'bg-violet-100 dark:bg-violet-900'
+            : 'bg-blue-100 dark:bg-blue-900'
         }`}
       >
         {isArchived ? (
           <Lock className="w-4 h-4 text-muted-foreground" />
         ) : (
-          <Play className="w-4 h-4 text-violet-600" />
+          <Play className="w-4 h-4 text-blue-600" />
         )}
       </div>
       <div className="flex-1 min-w-0">

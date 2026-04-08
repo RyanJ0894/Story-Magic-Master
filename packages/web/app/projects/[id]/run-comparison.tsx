@@ -60,7 +60,7 @@ interface RunComparisonProps {
 
 const modeConfig = {
   automatic: { icon: Zap, label: 'Automatic', color: 'text-amber-500 bg-amber-100 dark:bg-amber-900/30' },
-  fine_tuned: { icon: Sliders, label: 'Fine-Tuned', color: 'text-violet-500 bg-violet-100 dark:bg-violet-900/30' },
+  fine_tuned: { icon: Sliders, label: 'Fine-Tuned', color: 'text-blue-500 bg-blue-100 dark:bg-blue-900/30' },
 };
 
 function AudioPlayerPanel({

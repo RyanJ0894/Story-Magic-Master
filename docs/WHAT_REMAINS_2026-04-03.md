@@ -8,11 +8,11 @@ The app is built and deployed. What remains is almost entirely configuration, ve
 
 ---
 
-## Part 1: Ryan's Manual Tasks (~1–2 hours total)
+## Part 1:  Manual Tasks (~1–2 hours total)
 
 These cannot be done via API or code. Each requires logging into a dashboard.
 
-### 1a. Render Dashboard — Environment Variables
+### 1a. Chris - Render Dashboard — Environment Variables
 
 Go to: **Render → story-magic-web → Environment**
 
@@ -32,7 +32,7 @@ Add the following (these are the only missing ones — all others are already se
 After DNS is live, also update:
 - `NEXT_PUBLIC_APP_URL` → `https://app.storymagicapp.net`
 
-### 1b. Render Dashboard — Orchestrator Environment Variables
+### 1b. Chris - Render Dashboard — Orchestrator Environment Variables
 
 Go to: **Render → story-magic-orchestrator → Environment**
 
@@ -43,7 +43,7 @@ Go to: **Render → story-magic-orchestrator → Environment**
 | `SERVICE_SECRET_KEY` | Same value as web service |
 | `WEB_URL` | `https://app.storymagicapp.net` (or `https://story-magic-web.onrender.com` until DNS) |
 
-### 1c. Clerk Dashboard — Switch to Production Keys
+### 1c. Chris - Clerk Dashboard — Switch to Production Keys
 
 Go to: **Clerk → Production instance → API Keys**
 
@@ -56,7 +56,7 @@ Current keys are test keys (`pk_test_*`, `sk_test_*`). Before launch:
 
 > **Note:** Test keys block real user signups in some regions. Production keys are required before any public beta.
 
-### 1d. Stripe — Wire Up Webhooks
+### 1d. Chris - Stripe — Wire Up Webhooks
 
 Go to: **Stripe → Developers → Webhooks → Add endpoint**
 
@@ -73,7 +73,7 @@ Copy the signing secret into `STRIPE_WEBHOOK_SECRET` on Render.
 
 Also confirm you're using **live mode keys** (not test mode) for production.
 
-### 1e. DNS — GoDaddy (storymagicapp.net)
+### 1e. Ryan - DNS — GoDaddy (storymagicapp.net)
 
 Go to: **GoDaddy → DNS → storymagicapp.net**
 
@@ -94,7 +94,7 @@ Result after propagation (~24–48 hours):
 - `https://www.storymagicapp.net` → marketing site
 - `https://app.storymagicapp.net` → SaaS app
 
-### 1f. Turn Off Email Testing Mode
+### 1f. Chris - Turn Off Email Testing Mode
 
 Currently all transactional emails (Impact submissions, audio ready notifications, donation receipts) route to `info@servicevision.net` regardless of recipient. This is controlled by `EMAIL_TESTING_MODE=true` on Render.
 
@@ -170,7 +170,7 @@ Small items remaining before the codebase is fully clean.
 
 ---
 
-## Part 4: Grant Applications
+## Part 4: Ryan & Chris - Grant Applications
 
 Three active grant programs to apply for:
 
@@ -186,25 +186,25 @@ Three active grant programs to apply for:
 
 After v1.0.0 ships, the natural next phases:
 
-### Phase A — Intelligence UX (2–4 weeks)
+### Phase A — Chris w/Ryan - Intelligence UX (2–4 weeks)
 - Story Explorer polish: richer timeline visualization, character arc charts
 - Comparable Scripts UX: poster grid, filter by genre/era, similarity explanation
 - Corpus growth: add unproduced specs and TV pilots for better coverage of non-feature formats
 - StoryScore calibration: compare AI scores against human expert scores from the corpus
 
-### Phase B — Marketplace + Monetization (3–4 weeks)
+### Phase B — Ryan - Marketplace + Monetization (3–4 weeks)
 - Reader upload program: let script readers/coverage services upload and earn
 - Payout system: Stripe Connect for reader payouts
 - Marketplace discovery: searchable, filterable script listing
 
-### Phase C — Enterprise Readiness (12–20 weeks)
+### Phase C — Chris - Enterprise Readiness (12–20 weeks)
 - SSO (SAML/OIDC) for studio clients
 - Multi-tenancy: isolated data per organization
 - SOC 2 Type II audit preparation
 - TPN/MPAA compliance for content protection
 - Audit logging with 7-year retention
 
-### Phase D — Scale + Platform (Ongoing)
+### Phase D — Chris - Scale + Platform (Ongoing)
 - Auto-scaling beyond single Render instance
 - Multi-region deployment
 - CDN for audio delivery

@@ -16,7 +16,7 @@ interface SubscriptionCardProps {
 
 const PLAN_DETAILS: Record<SubscriptionPlan, { name: string; color: string; icon: typeof Crown }> = {
   writer_basic: { name: 'Basic', color: 'bg-slate-500', icon: Zap },
-  writer_pro: { name: 'Pro', color: 'bg-violet-500', icon: Crown },
+  writer_pro: { name: 'Pro', color: 'bg-blue-500', icon: Crown },
   enterprise: { name: 'Enterprise', color: 'bg-amber-500', icon: Crown },
 };
 
@@ -62,8 +62,8 @@ export function SubscriptionCard({ subscription, limits, onUpgrade, onManage }: 
                   <li>Unlimited shares</li>
                 </ul>
               </div>
-              <div className="p-4 rounded-lg border-2 border-violet-500 bg-violet-50 dark:bg-violet-950">
-                <div className="font-semibold text-violet-600 dark:text-violet-400">Pro</div>
+              <div className="p-4 rounded-lg border-2 border-blue-500 bg-blue-50 dark:bg-blue-950">
+                <div className="font-semibold text-blue-600 dark:text-blue-400">Pro</div>
                 <div className="text-2xl font-bold">$20<span className="text-sm font-normal text-muted-foreground">/mo</span></div>
                 <ul className="mt-2 text-sm text-muted-foreground space-y-1">
                   <li>15 audio generations</li>

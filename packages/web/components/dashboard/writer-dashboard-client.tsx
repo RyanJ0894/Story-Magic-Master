@@ -127,8 +127,8 @@ export function WriterDashboardClient({
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-violet-100 dark:bg-violet-900">
-                <Share2 className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+              <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900">
+                <Share2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.totalShares}</p>
@@ -169,7 +169,7 @@ export function WriterDashboardClient({
         {/* Main Column - Scripts */}
         <div className="lg:col-span-2 space-y-6">
           {/* Writer Code Card */}
-          <Card className="bg-gradient-to-r from-violet-500 to-purple-600 text-white">
+          <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
                 <div>
@@ -265,7 +265,7 @@ export function WriterDashboardClient({
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-violet-100 dark:bg-violet-900 flex items-center justify-center flex-shrink-0 text-xs font-bold text-violet-600">
+                <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center flex-shrink-0 text-xs font-bold text-blue-600">
                   1
                 </div>
                 <div className="text-sm">
@@ -274,7 +274,7 @@ export function WriterDashboardClient({
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-violet-100 dark:bg-violet-900 flex items-center justify-center flex-shrink-0 text-xs font-bold text-violet-600">
+                <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center flex-shrink-0 text-xs font-bold text-blue-600">
                   2
                 </div>
                 <div className="text-sm">
@@ -283,7 +283,7 @@ export function WriterDashboardClient({
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-violet-100 dark:bg-violet-900 flex items-center justify-center flex-shrink-0 text-xs font-bold text-violet-600">
+                <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center flex-shrink-0 text-xs font-bold text-blue-600">
                   3
                 </div>
                 <div className="text-sm">

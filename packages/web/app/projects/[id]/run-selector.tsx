@@ -54,14 +54,14 @@ interface RunSelectorProps {
 
 const statusConfig = {
   queued: { icon: Clock, label: 'Queued', className: 'text-muted-foreground' },
-  processing: { icon: Loader2, label: 'Processing', className: 'text-violet-500' },
+  processing: { icon: Loader2, label: 'Processing', className: 'text-blue-500' },
   completed: { icon: CheckCircle, label: 'Completed', className: 'text-green-500' },
   failed: { icon: XCircle, label: 'Failed', className: 'text-red-500' },
 };
 
 const modeConfig = {
   automatic: { icon: Zap, label: 'Auto', className: 'text-amber-500' },
-  fine_tuned: { icon: Sliders, label: 'Fine-Tuned', className: 'text-violet-500' },
+  fine_tuned: { icon: Sliders, label: 'Fine-Tuned', className: 'text-blue-500' },
 };
 
 export function RunSelector({
@@ -118,8 +118,8 @@ export function RunSelector({
           }}
           className="gap-3 py-3"
         >
-          <div className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-            <Plus className="w-4 h-4 text-violet-500" />
+          <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+            <Plus className="w-4 h-4 text-blue-500" />
           </div>
           <div className="flex-1">
             <p className="font-medium">Start New Run</p>
@@ -144,14 +144,14 @@ export function RunSelector({
               }}
               className={cn(
                 'gap-3 py-3',
-                isActive && 'bg-violet-50 dark:bg-violet-900/20'
+                isActive && 'bg-blue-50 dark:bg-blue-900/20'
               )}
             >
               <div className={cn(
                 'w-8 h-8 rounded-full flex items-center justify-center',
                 run.status === 'completed' && 'bg-green-100 dark:bg-green-900/30',
                 run.status === 'failed' && 'bg-red-100 dark:bg-red-900/30',
-                run.status === 'processing' && 'bg-violet-100 dark:bg-violet-900/30',
+                run.status === 'processing' && 'bg-blue-100 dark:bg-blue-900/30',
                 run.status === 'queued' && 'bg-muted',
               )}>
                 <StatusIcon className={cn(

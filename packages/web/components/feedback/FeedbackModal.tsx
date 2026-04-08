@@ -175,7 +175,7 @@ export function FeedbackModal({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-violet-500" />
+            <MessageSquare className="w-5 h-5 text-blue-500" />
             {title}
           </DialogTitle>
           <DialogDescription>{description}</DialogDescription>
@@ -212,13 +212,13 @@ export function FeedbackModal({
                           flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-all
                           ${
                             isSelected
-                              ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                               : 'border-border hover:border-border'
                           }
                         `}
                       >
                         <Icon
-                          className={`w-5 h-5 ${isSelected ? 'text-violet-600' : option.color}`}
+                          className={`w-5 h-5 ${isSelected ? 'text-blue-600' : option.color}`}
                         />
                         <span className="text-xs font-medium">{option.label}</span>
                       </button>
@@ -246,7 +246,7 @@ export function FeedbackModal({
                         flex items-start space-x-3 p-3 rounded-lg border transition-colors cursor-pointer
                         ${
                           rejectionReason === key
-                            ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                             : 'border-border hover:border-border'
                         }
                       `}

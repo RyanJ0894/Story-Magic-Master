@@ -12,7 +12,7 @@ export default function Home() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-b border-border">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Story Magic" width={36} height={36} className="rounded-lg" />
+            <Image src="/logo.png" alt="Story Magic" width={72} height={72} className="rounded-lg" />
             <span className="font-bold text-lg">Story Magic</span>
           </Link>
           {/* Desktop nav */}
@@ -198,7 +198,7 @@ export default function Home() {
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { name: 'STACY', role: 'Lead', description: 'Determined entrepreneur', range: 'Female 20s–30s', color: 'from-pink-500/20 to-purple-500/20', border: 'border-pink-500/30' },
+              { name: 'STACY', role: 'Lead', description: 'Determined entrepreneur', range: 'Female 20s–30s', color: 'from-pink-500/20 to-blue-500/20', border: 'border-pink-500/30' },
               { name: 'LUCKY', role: 'Supporting', description: 'Tech-savvy assistant', range: 'Female 20s–30s', color: 'from-blue-500/20 to-cyan-500/20', border: 'border-blue-500/30' },
               { name: 'CODY', role: 'Supporting', description: 'Deep, calm presence', range: 'Male 28–38', color: 'from-amber-500/20 to-orange-500/20', border: 'border-amber-500/30' },
               { name: 'NARRATOR', role: 'Narrator', description: 'Deep, authoritative', range: 'Male 40–45', color: 'from-emerald-500/20 to-teal-500/20', border: 'border-emerald-500/30' },

@@ -169,7 +169,7 @@ export function AlertsDropdown() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-auto py-1 px-2 text-xs text-violet-600 hover:text-violet-700"
+              className="h-auto py-1 px-2 text-xs text-blue-600 hover:text-blue-700"
               onClick={(e) => {
                 e.preventDefault();
                 markAllAsRead();
@@ -203,7 +203,7 @@ export function AlertsDropdown() {
                   asChild
                   className={cn(
                     'cursor-pointer p-3 focus:bg-accent',
-                    !alert.is_read && 'bg-violet-50/50 dark:bg-violet-900/10'
+                    !alert.is_read && 'bg-blue-50/50 dark:bg-blue-900/10'
                   )}
                 >
                   <Link
@@ -220,7 +220,7 @@ export function AlertsDropdown() {
                         className={cn(
                           'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0',
                           !alert.is_read
-                            ? 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400'
+                            ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
                             : 'bg-muted text-muted-foreground'
                         )}
                       >
@@ -244,7 +244,7 @@ export function AlertsDropdown() {
                         </p>
                       </div>
                       {!alert.is_read && (
-                        <div className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0 mt-2" />
+                        <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-2" />
                       )}
                     </div>
                   </Link>
@@ -255,7 +255,7 @@ export function AlertsDropdown() {
         )}
 
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild className="justify-center text-violet-600 cursor-pointer">
+        <DropdownMenuItem asChild className="justify-center text-blue-600 cursor-pointer">
           <Link href="/alerts" onClick={() => setOpen(false)}>
             View all notifications
           </Link>

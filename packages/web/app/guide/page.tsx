@@ -51,8 +51,8 @@ export default function GuidePage() {
         {/* Page Header */}
         <div className="mb-12">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-              <BookOpen className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+            <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+              <BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
               <h1 className="text-3xl font-bold tracking-tight text-foreground">
@@ -83,9 +83,9 @@ export default function GuidePage() {
                 <a
                   key={item.href}
                   href={item.href}
-                  className="flex items-center gap-3 px-4 py-3 rounded-lg border border-border hover:border-violet-300 dark:hover:border-violet-700 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg border border-border hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                 >
-                  <item.icon className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+                  <item.icon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   <span className="font-medium text-foreground">{item.label}</span>
                   <ChevronRight className="w-4 h-4 ml-auto text-muted-foreground" />
                 </a>
@@ -97,8 +97,8 @@ export default function GuidePage() {
         {/* Getting Started */}
         <section id="getting-started" className="mb-12 scroll-mt-20">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+            <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+              <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
             <h2 className="text-2xl font-bold text-foreground">Getting Started</h2>
           </div>
@@ -143,8 +143,8 @@ export default function GuidePage() {
                 </li>
               </ul>
 
-              <div className="bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-lg p-4 mt-4">
-                <p className="text-sm text-violet-800 dark:text-violet-200 m-0">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-4">
+                <p className="text-sm text-blue-800 dark:text-blue-200 m-0">
                   <strong>Tip:</strong> For best results, use properly formatted screenplays with
                   clear character names, dialogue, and scene headings.
                 </p>
@@ -361,8 +361,8 @@ export default function GuidePage() {
         {/* Audio Generation */}
         <section id="audio-generation" className="mb-12 scroll-mt-20">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-              <Volume2 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+              <Volume2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
             <h2 className="text-2xl font-bold text-foreground">Audio Generation</h2>
           </div>
@@ -480,7 +480,7 @@ export default function GuidePage() {
                   >
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-semibold text-foreground">{plan.name}</h4>
-                      <span className="text-sm text-violet-600 dark:text-violet-400 font-medium">
+                      <span className="text-sm text-blue-600 dark:text-blue-400 font-medium">
                         {plan.pages}
                       </span>
                     </div>
@@ -577,7 +577,7 @@ export default function GuidePage() {
           <p className="mb-2">
             <a
               href="https://www.storymagicapp.net"
-              className="text-violet-600 hover:text-violet-700 font-medium"
+              className="text-blue-600 hover:text-blue-700 font-medium"
             >
               www.StoryMagicApp.net
             </a>

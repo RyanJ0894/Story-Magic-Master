@@ -155,8 +155,8 @@ export function UploadScreenplay({
           border-2 border-dashed rounded-lg cursor-pointer transition-colors
           ${
             isDragging
-              ? 'border-violet-500 bg-violet-50 dark:bg-violet-950/20'
-              : 'border-muted-foreground/25 hover:border-violet-400 hover:bg-muted/50'
+              ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
+              : 'border-muted-foreground/25 hover:border-blue-400 hover:bg-muted/50'
           }
         `}
       >
@@ -186,7 +186,7 @@ export function UploadScreenplay({
           data-testid="file-info"
           className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border"
         >
-          <FileText className="w-5 h-5 text-violet-500 shrink-0" />
+          <FileText className="w-5 h-5 text-blue-500 shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground truncate">
               {file.name}

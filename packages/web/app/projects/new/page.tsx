@@ -160,7 +160,7 @@ export default function NewProjectPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowAiDialog(true)}
-                  className="text-violet-600 border-violet-300 hover:bg-violet-50"
+                  className="text-blue-600 border-blue-300 hover:bg-blue-50"
                 >
                   <Wand2 className="w-4 h-4 mr-2" />
                   Generate Demo Script
@@ -222,7 +222,7 @@ export default function NewProjectPage() {
                         <span className="text-muted-foreground">
                           {wordCount.toLocaleString()} words
                         </span>
-                        <span className="px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium" data-testid="page-count-display">
+                        <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium" data-testid="page-count-display">
                           ~{pageCount} page{pageCount !== 1 ? 's' : ''}
                         </span>
                       </div>
@@ -297,7 +297,7 @@ The door CHIMES. MARCUS (40s, distinguished) enters...`}
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Wand2 className="w-5 h-5 text-violet-500" />
+              <Wand2 className="w-5 h-5 text-blue-500" />
               Generate Demo Script
             </DialogTitle>
             <DialogDescription>

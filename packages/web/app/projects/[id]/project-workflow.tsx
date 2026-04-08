@@ -182,7 +182,7 @@ function WorkflowProgress({ steps }: { steps: WorkflowStep[] }) {
             <div className={cn(
               'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all',
               step.status === 'complete' && 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
-              step.status === 'in-progress' && 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400 ring-2 ring-violet-500',
+              step.status === 'in-progress' && 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 ring-2 ring-blue-500',
               step.status === 'available' && 'bg-muted text-muted-foreground',
               step.status === 'skipped' && 'bg-muted text-muted-foreground opacity-60',
             )}>
@@ -197,7 +197,7 @@ function WorkflowProgress({ steps }: { steps: WorkflowStep[] }) {
             <span className={cn(
               'text-[10px] mt-1 text-center max-w-[60px]',
               step.status === 'complete' && 'text-green-600 dark:text-green-400',
-              step.status === 'in-progress' && 'text-violet-600 dark:text-violet-400 font-medium',
+              step.status === 'in-progress' && 'text-blue-600 dark:text-blue-400 font-medium',
               step.status === 'available' && 'text-muted-foreground',
               step.status === 'skipped' && 'text-muted-foreground opacity-60 line-through',
             )}>
@@ -216,17 +216,17 @@ function WorkflowProgress({ steps }: { steps: WorkflowStep[] }) {
 
 function CurrentActionCard({ step, children }: { step: WorkflowStep; children: React.ReactNode }) {
   return (
-    <Card className="border-2 border-violet-300 dark:border-violet-700 bg-gradient-to-br from-violet-50/50 to-purple-50/50 dark:from-violet-950/20 dark:to-purple-950/20 mb-6">
+    <Card className="border-2 border-blue-300 dark:border-blue-700 bg-gradient-to-br from-blue-50/50 to-blue-50/50 dark:from-blue-950/20 dark:to-blue-950/20 mb-6">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Badge className="bg-violet-600">Current Step</Badge>
+            <Badge className="bg-blue-600">Current Step</Badge>
             <span className="text-sm text-muted-foreground">What to do next</span>
           </div>
-          <ChevronRight className="w-5 h-5 text-violet-500" />
+          <ChevronRight className="w-5 h-5 text-blue-500" />
         </div>
         <CardTitle className="flex items-center gap-3 mt-2">
-          <div className="w-10 h-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
             {step.icon}
           </div>
           {step.title}
@@ -403,7 +403,7 @@ export function ProjectWorkflow({
       id: 'analyze',
       title: 'Analyze & Improve',
       description: 'Get your StoryScore and AI suggestions to polish your script',
-      icon: <Wand2 className="w-5 h-5 text-violet-500" />,
+      icon: <Wand2 className="w-5 h-5 text-blue-500" />,
       status: getStatus('analyze', hasScore ? 'complete' : 'available'),
       priority: hasScore || skippedSteps.has('analyze') ? 4 : 1,
       canSkip: !hasScore,
@@ -643,7 +643,7 @@ export function ProjectWorkflow({
             <div>
               {hasScore ? (
                 <div className="flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-violet-500" />
+                  <BarChart3 className="w-5 h-5 text-blue-500" />
                   <span className="font-medium">Score: {storyScore?.overallScore}</span>
                   <span className="text-sm text-muted-foreground">- Open the step below to improve</span>
                 </div>
@@ -684,7 +684,7 @@ export function ProjectWorkflow({
                 Review and customize the AI-selected music, ambience, and sound effects for each scene.
               </p>
               {hasAudioOverrides && (
-                <Badge variant="outline" className="text-xs border-violet-300 text-violet-600">
+                <Badge variant="outline" className="text-xs border-blue-300 text-blue-600">
                   {audioOverrides?.scenesWithOverrides} scene{(audioOverrides?.scenesWithOverrides ?? 0) !== 1 ? 's' : ''} customized
                 </Badge>
               )}
@@ -695,7 +695,7 @@ export function ProjectWorkflow({
               <div>
                 {isProcessing ? (
                   <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-violet-500" />
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
                     <span>Generating... {latestJob?.progress?.percent || 0}%</span>
                   </div>
                 ) : hasFailed ? (
@@ -743,7 +743,7 @@ export function ProjectWorkflow({
             className={cn(
               'border rounded-lg px-4',
               step.status === 'skipped' && 'opacity-60',
-              step.id === currentStep.id && step.status !== 'complete' && step.status !== 'skipped' && 'border-violet-300 dark:border-violet-700',
+              step.id === currentStep.id && step.status !== 'complete' && step.status !== 'skipped' && 'border-blue-300 dark:border-blue-700',
             )}
           >
             <AccordionTrigger className="hover:no-underline">
@@ -751,7 +751,7 @@ export function ProjectWorkflow({
                 <div className={cn(
                   'w-10 h-10 rounded-lg flex items-center justify-center',
                   step.status === 'complete' && 'bg-green-100 dark:bg-green-900/30',
-                  step.status === 'in-progress' && 'bg-violet-100 dark:bg-violet-900/30',
+                  step.status === 'in-progress' && 'bg-blue-100 dark:bg-blue-900/30',
                   step.status === 'available' && 'bg-muted',
                   step.status === 'skipped' && 'bg-muted',
                 )}>
@@ -800,7 +800,7 @@ export function ProjectWorkflow({
                   {hasScore ? (
                     <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
                       <div className="flex items-center gap-3">
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
                           <span className="text-2xl font-bold text-white">{storyScore?.overallScore}</span>
                         </div>
                         <div>
@@ -816,7 +816,7 @@ export function ProjectWorkflow({
                     </div>
                   ) : (
                     <div className="text-center py-6">
-                      <Wand2 className="w-12 h-12 mx-auto mb-4 text-violet-500 opacity-50" />
+                      <Wand2 className="w-12 h-12 mx-auto mb-4 text-blue-500 opacity-50" />
                       <h4 className="font-medium mb-2">Ready to Improve Your Script?</h4>
                       <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
                         The Improvement Wizard analyzes your script across 12 professional dimensions
@@ -871,7 +871,7 @@ export function ProjectWorkflow({
                   ) : isProcessing ? (
                     <div className="space-y-4">
                       <div className="flex items-center gap-3">
-                        <Loader2 className="w-5 h-5 text-violet-500 animate-spin" />
+                        <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
                         <span>Generating audio... This may take a few minutes.</span>
                       </div>
                       {latestJob?.progress && (

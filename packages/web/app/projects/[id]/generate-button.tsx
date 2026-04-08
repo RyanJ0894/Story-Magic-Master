@@ -123,7 +123,12 @@ export default function GenerateButton({
         if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
         if (queuePollRef.current) clearInterval(queuePollRef.current);
-        toast.error(`Generation failed: ${data.error || 'Unknown error'}`);
+        // data.error may be a JSON string like {"status":"error","message":"..."} — extract the message
+        let errorMsg = data.error || 'Unknown error';
+        if (typeof errorMsg === 'string' && errorMsg.startsWith('{')) {
+          try { errorMsg = JSON.parse(errorMsg).message || errorMsg; } catch { /* keep as-is */ }
+        }
+        toast.error(`Generation failed: ${errorMsg}`);
         setLoading(false);
         setCurrentJobId(null);
         setQueuePosition(null);
@@ -294,7 +299,7 @@ export default function GenerateButton({
         {/* Progress Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin text-violet-500" />
+            <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
             <span className="font-medium text-foreground">
               {getStepLabel(jobStatus?.progress?.step || 'initializing')}
             </span>
@@ -317,7 +322,7 @@ export default function GenerateButton({
             className="h-3 bg-muted"
           />
           <div
-            className="absolute top-0 left-0 h-3 bg-violet-500/20 rounded-full transition-all duration-100"
+            className="absolute top-0 left-0 h-3 bg-blue-500/20 rounded-full transition-all duration-100"
             style={{ width: `${timerProgress}%` }}
           />
         </div>
@@ -334,7 +339,7 @@ export default function GenerateButton({
 
         {/* Dev Log Panel */}
         <div className="mt-4 p-3 bg-slate-900 rounded-lg text-xs font-mono text-slate-300 max-h-32 overflow-y-auto">
-          <div className="text-violet-400 mb-1">// Generation Log (dev mode)</div>
+          <div className="text-blue-400 mb-1">// Generation Log (dev mode)</div>
           <div className="text-slate-500">Job ID: {currentJobId.slice(0, 8)}...</div>
           <div className="text-slate-500">Status: {jobStatus?.status || 'starting'}</div>
           <div className="text-slate-500">Step: {jobStatus?.progress?.step || 'queued'}</div>

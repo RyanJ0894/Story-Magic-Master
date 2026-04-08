@@ -824,12 +824,13 @@ model ImpactDonation {
 }
 
 model VoiceMarketplaceInterest {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email     String
-  name      String?
-  role      String   // "actor" | "producer" | "both"
-  notes     String?  @db.Text
-  createdAt DateTime @default(now()) @map("created_at")
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String
+  name          String?
+  role          String   // "actor" | "producer" | "both"
+  notes         String?  @db.Text
+  demoAudioUrl  String?  @map("demo_audio_url")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   @@unique([email])
   @@index([createdAt(sort: Desc)])

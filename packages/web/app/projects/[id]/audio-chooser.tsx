@@ -102,7 +102,7 @@ const CATEGORY_CONFIG: Record<AudioCategory, {
   color: string;
   bgColor: string;
 }> = {
-  music: { label: 'Music', icon: Music, color: 'text-purple-600', bgColor: 'bg-purple-100 dark:bg-purple-900/30' },
+  music: { label: 'Music', icon: Music, color: 'text-blue-600', bgColor: 'bg-blue-100 dark:bg-blue-900/30' },
   ambience: { label: 'Ambience', icon: TreePine, color: 'text-green-600', bgColor: 'bg-green-100 dark:bg-green-900/30' },
   sfx: { label: 'SFX', icon: Zap, color: 'text-orange-600', bgColor: 'bg-orange-100 dark:bg-orange-900/30' },
 };
@@ -222,7 +222,7 @@ function AudioTrackCard({
   return (
     <div className={cn(
       'flex items-center gap-3 p-3 rounded-lg border',
-      isUserSelected ? 'border-violet-300 dark:border-violet-700 bg-violet-50/50 dark:bg-violet-950/20' : 'border-border',
+      isUserSelected ? 'border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20' : 'border-border',
     )}>
       <button
         type="button"
@@ -243,7 +243,7 @@ function AudioTrackCard({
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium truncate">{title}</span>
           {isUserSelected && (
-            <Badge variant="outline" className="text-xs border-violet-300 text-violet-600 dark:text-violet-400">
+            <Badge variant="outline" className="text-xs border-blue-300 text-blue-600 dark:text-blue-400">
               Custom
             </Badge>
           )}
@@ -449,7 +449,7 @@ function SceneAudioCard({
             <Badge variant="secondary" className="text-xs">{scene.mood}</Badge>
           )}
           {overrideCount > 0 && (
-            <Badge variant="outline" className="text-xs border-violet-300 text-violet-600">
+            <Badge variant="outline" className="text-xs border-blue-300 text-blue-600">
               {overrideCount} override{overrideCount !== 1 ? 's' : ''}
             </Badge>
           )}
@@ -910,7 +910,7 @@ export function AudioChooser({ projectId, directorJson, disabled, remainingPrevi
           <Volume2 className="w-4 h-4 text-indigo-500" />
           <span className="text-sm font-medium">Audio Selections</span>
           {totalOverrides > 0 && (
-            <Badge variant="outline" className="text-xs border-violet-300 text-violet-600">
+            <Badge variant="outline" className="text-xs border-blue-300 text-blue-600">
               {totalOverrides} custom
             </Badge>
           )}

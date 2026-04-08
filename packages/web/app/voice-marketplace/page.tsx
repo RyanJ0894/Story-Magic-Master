@@ -1,28 +1,57 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { MobileNav } from '../mobile-nav';
+import { Upload, X, Music } from 'lucide-react';
+
+const MAX_AUDIO_MB = 500;
+const MAX_AUDIO_BYTES = MAX_AUDIO_MB * 1024 * 1024;
+const ACCEPTED_AUDIO = '.mp3,.wav,.ogg,audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/x-wav,audio/wave';
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function VoiceMarketplacePage() {
   const [form, setForm] = useState({ name: '', email: '', role: 'actor' as 'actor' | 'producer' | 'both', notes: '' });
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [audioDragging, setAudioDragging] = useState(false);
+  const audioInputRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  const handleAudioFile = useCallback((file: File) => {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (!['mp3', 'wav', 'ogg'].includes(ext ?? '')) {
+      toast.error('Please upload an MP3, WAV, or OGG file.');
+      return;
+    }
+    if (file.size > MAX_AUDIO_BYTES) {
+      toast.error(`File too large. Maximum size is ${MAX_AUDIO_MB} MB.`);
+      return;
+    }
+    setAudioFile(file);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
+      const fd = new FormData();
+      fd.append('email', form.email);
+      if (form.name) fd.append('name', form.name);
+      fd.append('role', form.role);
+      if (form.notes) fd.append('notes', form.notes);
+      if (audioFile) fd.append('demoAudio', audioFile);
+
+      const res = await fetch('/api/waitlist', { method: 'POST', body: fd });
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         toast.error(data.error || 'Something went wrong. Please try again.');
         return;
       }
@@ -41,7 +70,7 @@ export default function VoiceMarketplacePage() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-b border-border">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Story Magic" width={36} height={36} className="rounded-lg" />
+            <Image src="/logo.png" alt="Story Magic" width={72} height={72} className="rounded-lg" />
             <span className="font-bold text-lg">Story Magic</span>
           </Link>
           <div className="hidden md:flex items-center gap-4">
@@ -298,6 +327,58 @@ export default function VoiceMarketplacePage() {
                   className="w-full px-4 py-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
                 />
               </div>
+
+              {/* Audio Demo Upload — voice actors only */}
+              {(form.role === 'actor' || form.role === 'both') && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Voice Demo <span className="text-muted-foreground font-normal">(optional — MP3, WAV, or OGG, max 500 MB)</span>
+                  </label>
+                  {audioFile ? (
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border">
+                      <Music className="w-5 h-5 text-amber-500 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{audioFile.name}</p>
+                        <p className="text-xs text-muted-foreground">{formatBytes(audioFile.size)}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setAudioFile(null); if (audioInputRef.current) audioInputRef.current.value = ''; }}
+                        className="p-1 rounded hover:bg-muted transition-colors"
+                        aria-label="Remove file"
+                      >
+                        <X className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onDragOver={(e) => { e.preventDefault(); setAudioDragging(true); }}
+                      onDragLeave={() => setAudioDragging(false)}
+                      onDrop={(e) => { e.preventDefault(); setAudioDragging(false); const f = e.dataTransfer.files[0]; if (f) handleAudioFile(f); }}
+                      onClick={() => audioInputRef.current?.click()}
+                      className={`flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
+                        audioDragging
+                          ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20'
+                          : 'border-muted-foreground/25 hover:border-amber-400 hover:bg-muted/50'
+                      }`}
+                    >
+                      <Upload className="w-6 h-6 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground text-center">
+                        Drop your demo here or <span className="text-amber-600 dark:text-amber-400 font-medium">browse</span>
+                      </p>
+                      <input
+                        ref={audioInputRef}
+                        type="file"
+                        accept={ACCEPTED_AUDIO}
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAudioFile(f); }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hidden"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={submitting || !form.email}

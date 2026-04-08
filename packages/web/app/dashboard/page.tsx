@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Plus, FileText, Sparkles, Folder, HelpCircle } from 'lucide-react';
+import Image from 'next/image';
+import { Plus, FileText, Folder, HelpCircle } from 'lucide-react';
 import { SignOutButton } from '@/components/auth/sign-out-button';
 import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
 
@@ -76,9 +77,7 @@ export default async function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <Link href="/dashboard" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg brand-gradient-br flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-white" />
-              </div>
+              <Image src="/logo.png" alt="Story Magic" width={72} height={72} className="rounded-lg" />
               <span className="font-bold text-lg text-foreground">Story Magic</span>
             </Link>
 
@@ -152,7 +151,7 @@ export default async function DashboardPage() {
               const status = statusConfig[project.status] || statusConfig.draft;
               return (
                 <Link key={project.id} href={`/projects/${project.id}`}>
-                  <Card className="h-full transition-all hover:shadow-md hover:border-violet-300 dark:hover:border-violet-700 cursor-pointer" data-testid="project-card">
+                  <Card className="h-full transition-all hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700 cursor-pointer" data-testid="project-card">
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
                         <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
@@ -200,9 +199,9 @@ export default async function DashboardPage() {
           </Card>
         )}
         {/* Impact StoryBuilder support nudge */}
-        <div className="mt-10 rounded-xl border border-violet-800/40 bg-violet-950/20 px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="mt-10 rounded-xl border border-blue-800/40 bg-blue-950/20 px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white">💜 Support Impact Storytellers</p>
+            <p className="text-sm font-semibold text-white">💙 Support Impact Storytellers</p>
             <p className="text-xs text-zinc-400 mt-0.5">
               Our free Impact program gives trauma survivors and recovery advocates free AI audio production.
               A small gift from you keeps it free for them.
@@ -217,7 +216,7 @@ export default async function DashboardPage() {
             </Link>
             <Link
               href="/impact/donate"
-              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-violet-600 hover:bg-violet-500 text-white transition-colors"
+              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors"
             >
               Give a gift →
             </Link>
