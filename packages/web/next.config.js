@@ -2,6 +2,13 @@ const { withSentryConfig } = require('@sentry/nextjs');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    // Allow file uploads up to 10MB via /api/projects/upload
+    serverActions: { bodySizeLimit: '10mb' },
+  },
+  // pdf-parse uses Node.js fs internals and must not be bundled by webpack —
+  // when bundled it tries to open its test fixture file at runtime and crashes.
+  serverExternalPackages: ['pdf-parse'],
   images: {
     remotePatterns: [
       {

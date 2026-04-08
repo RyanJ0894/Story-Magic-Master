@@ -140,6 +140,22 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
 
         if (!res.ok) {
           const errorText = await res.text();
+          if (res.status === 402) {
+            // Payment Required — ElevenLabs account is past due or over quota.
+            // Do not retry; surface a human-readable message.
+            throw new RetryableError(
+              'ElevenLabs account billing issue (402 Payment Required). Audio generation is temporarily paused — please check the ElevenLabs account billing status.',
+              res.status,
+              false
+            );
+          }
+          if (res.status === 401) {
+            throw new RetryableError(
+              'ElevenLabs API key is invalid or missing (401 Unauthorized). Please check the ELEVENLABS_API_KEY environment variable.',
+              res.status,
+              false
+            );
+          }
           if (res.status === 429 || res.status >= 500) {
             throw new RetryableError(
               `ElevenLabs TTS failed ${res.status}: ${errorText}`,

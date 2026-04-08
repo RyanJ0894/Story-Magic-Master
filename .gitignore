@@ -76,8 +76,9 @@ packages/web/supabase/.temp/
 # StoryScore training corpus — large PDFs managed outside git
 docs/StoryScore Scripts/
 
-# Working files — HAR captures, scratch notes
+# Working files — HAR captures, scratch notes, screenshots
 docs/working/
+working/
 
 # Generated PDF exports
 docs/*.pdf

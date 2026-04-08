@@ -110,8 +110,23 @@ export function UploadScreenplay({
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        toast.error(data.error || 'Failed to upload file');
+        let errorMessage = 'Failed to upload file';
+        try {
+          const data = await response.json();
+          errorMessage = data.error || errorMessage;
+        } catch {
+          // Non-JSON response (e.g. 413 from reverse proxy before handler runs)
+          if (response.status === 413) {
+            errorMessage = 'File too large. Please use a file under 10MB.';
+          } else if (response.status === 403) {
+            errorMessage = 'Request blocked — please refresh the page and try again.';
+          } else if (response.status === 429) {
+            errorMessage = 'Too many uploads. Please wait a moment and try again.';
+          } else {
+            errorMessage = `Upload failed (${response.status}). Please try again.`;
+          }
+        }
+        toast.error(errorMessage);
         setUploading(false);
         return;
       }
@@ -119,8 +134,9 @@ export function UploadScreenplay({
       const data = await response.json();
       toast.success('Project created!');
       router.push(`/projects/${data.id}`);
-    } catch {
-      toast.error('Failed to upload file');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to upload file';
+      toast.error(message);
       setUploading(false);
     }
   };

@@ -23,6 +23,9 @@ export default function Home() {
             <Link href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Pricing
             </Link>
+            <Link href="/voice-marketplace" className="text-sm text-amber-600 dark:text-amber-400 font-medium hover:text-amber-700 dark:hover:text-amber-300 transition-colors">
+              Voice Marketplace
+            </Link>
             <Link href="/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Sign In
             </Link>
@@ -279,18 +282,50 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Voice Actor CTA */}
-      <section className="py-20 bg-muted">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <div className="text-4xl mb-6">🎤</div>
-          <h2 className="text-3xl font-bold mb-4">Are You a Voice Actor?</h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto mb-8">
-            Join the Story Magic Voice Marketplace and earn passive income every time your voice
-            brings a screenplay to life. Stop competing with AI — join the revolution while
-            maintaining your artistic integrity.
-          </p>
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-full text-sm font-medium">
-            Celebrity Voice Marketplace — Coming Soon
+      {/* Voice Marketplace CTA */}
+      <section className="py-24 bg-gradient-to-br from-amber-950/80 to-slate-900 text-white">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-medium mb-6">
+                Voice Marketplace — Now Open
+              </div>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                AI That <span className="text-amber-400">Pays</span> Voice Actors<br />
+                Instead of Replacing Them
+              </h2>
+              <p className="text-slate-300 text-lg mb-6 leading-relaxed">
+                Story Magic is the first AI audio platform built to pay voice actors, not replace them.
+                Submit your voice, get cloned with your consent, and earn a royalty every time
+                a screenplay uses your voice.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Link
+                  href="/voice-marketplace"
+                  className="inline-block px-8 py-3 bg-amber-500 text-slate-950 font-bold rounded-lg hover:bg-amber-400 transition-colors"
+                >
+                  Join the Marketplace
+                </Link>
+                <div className="flex items-center gap-2 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-sm text-slate-300">
+                  <span>💵</span>
+                  <span>$2.50 avg per use · 15% revenue share</span>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { icon: '🎤', title: 'Submit Demo', desc: 'A short reel is all we need' },
+                { icon: '🤖', title: 'AI Voice Clone', desc: 'Created with your full consent' },
+                { icon: '📝', title: 'Productions Use You', desc: 'Automatic casting in scripts' },
+                { icon: '💰', title: 'Earn Royalties', desc: 'Every use pays you passively' },
+              ].map((card) => (
+                <div key={card.title} className="bg-white/10 border border-white/20 rounded-xl p-5">
+                  <div className="text-2xl mb-2">{card.icon}</div>
+                  <p className="font-semibold text-sm mb-1">{card.title}</p>
+                  <p className="text-xs text-slate-400">{card.desc}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -338,6 +373,7 @@ export default function Home() {
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><Link href="/guide" className="hover:text-brand-600 transition-colors">User Guide</Link></li>
                 <li><Link href="/guide#help" className="hover:text-brand-600 transition-colors">FAQ</Link></li>
+                <li><Link href="/voice-marketplace" className="hover:text-amber-600 text-amber-600 dark:text-amber-400 font-medium transition-colors">Voice Marketplace</Link></li>
                 <li><a href="mailto:support@storymagicapp.net" className="hover:text-brand-600 transition-colors">Contact Support</a></li>
               </ul>
             </div>

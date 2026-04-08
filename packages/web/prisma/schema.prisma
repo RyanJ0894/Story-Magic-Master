@@ -822,3 +822,17 @@ model ImpactDonation {
   @@index([stripeSessionId])
   @@map("impact_donations")
 }
+
+model VoiceMarketplaceInterest {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email     String
+  name      String?
+  role      String   // "actor" | "producer" | "both"
+  notes     String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([email])
+  @@index([createdAt(sort: Desc)])
+  @@index([role])
+  @@map("voice_marketplace_interest")
+}
