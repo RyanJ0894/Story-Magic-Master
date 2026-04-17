@@ -126,11 +126,11 @@ export const PRICING_TIERS: PricingTier[] = [
     description: 'Unlimited creative freedom for serious filmmakers.',
     monthlyPrice: 100,
     yearlyPrice: 80,
-    scriptsPerMonth: null,
+    scriptsPerMonth: 25,
     maxPagesPerScript: 150,
     trialDays: 7,
     features: [
-      'Unlimited scripts per month',
+      '25 scripts per month',
       'Up to 150 pages per script',
       '150+ premium AI voice library',
       'Custom voice cloning (10 voices)',

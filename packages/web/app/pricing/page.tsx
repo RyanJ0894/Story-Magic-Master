@@ -10,7 +10,67 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PRICING_TIERS, type SubscriptionTier } from '@/lib/stripe/config';
-import { Check, X, Loader2, Building2 } from 'lucide-react';
+import { Check, X, Loader2, Building2, Lock } from 'lucide-react';
+
+const REFERRAL_CODE = 'REFCO0894';
+const STORAGE_KEY = 'pricing_access';
+
+function ReferralGate({ onUnlock }: { onUnlock: () => void }) {
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (code.trim().toUpperCase() === REFERRAL_CODE) {
+      sessionStorage.setItem(STORAGE_KEY, '1');
+      onUnlock();
+    } else {
+      setError('Invalid referral code. Please try again.');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-muted flex items-center justify-center px-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-violet-100 dark:bg-violet-900/30 mb-4">
+            <Lock className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">Access Required</h1>
+          <p className="text-muted-foreground mt-2">
+            Enter your referral code to view pricing.
+          </p>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <input
+                  type="text"
+                  value={code}
+                  onChange={(e) => { setCode(e.target.value); setError(''); }}
+                  placeholder="Enter referral code"
+                  className="w-full px-4 py-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-violet-500 text-center text-lg tracking-widest uppercase"
+                  autoFocus
+                />
+                {error && <p className="text-sm text-red-500 mt-2 text-center">{error}</p>}
+              </div>
+              <Button type="submit" className="w-full brand-gradient brand-gradient-hover">
+                Access Pricing
+              </Button>
+            </form>
+            <p className="text-xs text-muted-foreground text-center mt-4">
+              Don&apos;t have a code?{' '}
+              <a href="mailto:info@storymagicapp.net" className="text-violet-600 hover:underline">
+                Contact us
+              </a>
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
 
 function PricingContent() {
   const [interval, setInterval] = useState<'monthly' | 'yearly'>('monthly');
@@ -212,7 +272,7 @@ function PricingContent() {
         <Building2 className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
         <h2 className="text-xl font-bold text-foreground mb-2">Enterprise Packages</h2>
         <p className="text-muted-foreground max-w-xl mx-auto mb-6">
-          Team plans from $2,400/yr for 10 users — up to 200+ users with custom infrastructure,
+          Team plans from $6,000/yr for 25 users — up to 200+ users with custom infrastructure,
           SSO, SOC 2 compliance, and dedicated support.
         </p>
         <Link href="/enterprise">
@@ -261,6 +321,18 @@ function PricingContentFallback() {
 }
 
 export default function PricingPage() {
+  const [unlocked, setUnlocked] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && sessionStorage.getItem(STORAGE_KEY)) {
+      setUnlocked(true);
+    }
+  }, []);
+
+  if (!unlocked) {
+    return <ReferralGate onUnlock={() => setUnlocked(true)} />;
+  }
+
   return (
     <div className="min-h-screen bg-muted">
       {/* Header */}
