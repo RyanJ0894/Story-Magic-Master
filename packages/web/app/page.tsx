@@ -22,7 +22,7 @@ export default function Home() {
             <Link href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Pricing
             </Link>
-            <Link href="/voice-marketplace" className="text-sm text-amber-600 dark:text-amber-400 font-medium hover:text-amber-700 dark:hover:text-amber-300 transition-colors">
+            <Link href="/voice-marketplace" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Voice Marketplace
             </Link>
             <Link href="/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -350,9 +350,8 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-4">
           <div className="grid md:grid-cols-5 gap-8 mb-8">
             <div>
-              <Link href="/" className="flex items-center gap-2 mb-4">
-                <Image src="/logo.png" alt="Story Magic" width={64} height={64} className="rounded-lg" />
-                <span className="font-bold text-lg">Story Magic</span>
+              <Link href="/" className="inline-block mb-4">
+                <Image src="/logo.png" alt="Story Magic" width={112} height={112} className="rounded-lg" />
               </Link>
               <p className="text-sm text-muted-foreground">
                 Transform scripts into immersive audio experiences with AI.
@@ -372,7 +371,7 @@ export default function Home() {
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><Link href="/guide" className="hover:text-brand-600 transition-colors">User Guide</Link></li>
                 <li><Link href="/guide#help" className="hover:text-brand-600 transition-colors">FAQ</Link></li>
-                <li><Link href="/voice-marketplace" className="hover:text-amber-600 text-amber-600 dark:text-amber-400 font-medium transition-colors">Voice Marketplace</Link></li>
+                <li><Link href="/voice-marketplace" className="hover:text-brand-600 transition-colors">Voice Marketplace</Link></li>
                 <li><a href="mailto:support@storymagicapp.net" className="hover:text-brand-600 transition-colors">Contact Support</a></li>
               </ul>
             </div>
