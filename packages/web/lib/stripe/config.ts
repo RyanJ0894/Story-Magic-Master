@@ -18,84 +18,132 @@ export const STRIPE_CONFIG = {
   },
 };
 
+// Stripe tier IDs are kept stable (free/creator/pro/studio) for backward compatibility.
+// Display names and features reflect the updated product lineup.
 export type SubscriptionTier = 'free' | 'creator' | 'pro' | 'studio';
 
 export interface PricingTier {
   name: string;
+  tagline: string;
   tier: SubscriptionTier;
   description: string;
   monthlyPrice: number;
   yearlyPrice: number;
-  pages: number;
+  scriptsPerMonth: number | null; // null = unlimited
+  maxPagesPerScript: number;
   features: string[];
+  limitations: string[];
   highlighted?: boolean;
+  trialDays?: number;
 }
 
 export const PRICING_TIERS: PricingTier[] = [
   {
     name: 'Free',
+    tagline: 'Discovery',
     tier: 'free',
-    description: 'Try Story Magic with limited pages',
+    description: 'Experience cinematic audio — once. No credit card required.',
     monthlyPrice: 0,
     yearlyPrice: 0,
-    pages: 3,
+    scriptsPerMonth: 1,
+    maxPagesPerScript: 150,
     features: [
-      '3 pages per month',
-      'Basic audio quality',
-      'Email support',
+      '1 script upload per month',
+      'Up to 150 pages per script',
+      '50+ AI voice library',
+      'Complete music library (100+ tracks)',
+      'Full ambience & SFX library',
+      'Unlimited voice recasting',
+      'No watermark on exports',
+      'M4A download',
+      '7-day project storage',
+    ],
+    limitations: [
+      'No voice cloning',
+      'No commercial use rights',
+      'No collaboration',
+      'No priority processing',
     ],
   },
   {
-    name: 'Creator',
+    name: 'Starter',
+    tagline: 'Individual',
     tier: 'creator',
-    description: 'For indie filmmakers and content creators',
-    monthlyPrice: 29,
-    yearlyPrice: 290,
-    pages: 50,
+    description: 'For writers and actors who need reliable access.',
+    monthlyPrice: 30,
+    yearlyPrice: 24,
+    scriptsPerMonth: 5,
+    maxPagesPerScript: 150,
+    trialDays: 7,
     features: [
-      '50 pages per month',
-      'HD audio quality',
-      'Priority processing',
-      'Download in multiple formats',
-      'Email support',
+      '5 scripts per month',
+      'Up to 150 pages per script',
+      '50+ AI voice library',
+      'Complete music library',
+      'Full ambience & SFX library',
+      'Unlimited voice recasting',
+      'No watermark on exports',
+      'M4A + MP3 download',
+      '30-day project storage',
+    ],
+    limitations: [
+      'No voice cloning',
+      'No commercial licensing',
+      'No collaboration',
+      'No priority processing',
     ],
   },
   {
     name: 'Pro',
+    tagline: 'Professional',
     tier: 'pro',
-    description: 'For professional screenwriters and studios',
-    monthlyPrice: 79,
-    yearlyPrice: 790,
-    pages: 200,
+    description: 'For working professionals bringing scripts to life.',
+    monthlyPrice: 60,
+    yearlyPrice: 48,
+    scriptsPerMonth: 15,
+    maxPagesPerScript: 150,
     highlighted: true,
+    trialDays: 7,
     features: [
-      '200 pages per month',
-      'Studio-quality audio',
-      'Priority processing',
-      'Custom voice selection',
-      'Download in multiple formats',
-      'Priority email support',
-      'API access',
+      '15 scripts per month',
+      'Up to 150 pages per script',
+      '100+ premium AI voice library',
+      'Custom voice cloning (3 voices)',
+      'Premium music library (300+ tracks)',
+      'Advanced SFX library (500+ effects)',
+      'Commercial use rights',
+      'Collaboration (up to 3 people)',
+      'Priority processing (2× faster)',
+      'M4A + MP3 + WAV download',
+      '90-day project storage',
     ],
+    limitations: [],
   },
   {
-    name: 'Studio',
+    name: 'Creator',
+    tagline: 'Elite',
     tier: 'studio',
-    description: 'For production studios and enterprises',
-    monthlyPrice: 199,
-    yearlyPrice: 1990,
-    pages: 1000,
+    description: 'Unlimited creative freedom for serious filmmakers.',
+    monthlyPrice: 100,
+    yearlyPrice: 80,
+    scriptsPerMonth: null,
+    maxPagesPerScript: 150,
+    trialDays: 7,
     features: [
-      '1,000 pages per month',
-      'Studio-quality audio',
-      'Instant processing',
-      'Custom voice selection',
-      'Custom music library',
-      'Download in all formats',
-      'Dedicated support',
-      'API access',
-      'Team collaboration',
+      'Unlimited scripts per month',
+      'Up to 150 pages per script',
+      '150+ premium AI voice library',
+      'Custom voice cloning (10 voices)',
+      'Exclusive voice marketplace access',
+      'Genre sound packs (Horror, Sci-Fi, Romance, etc.)',
+      'Real-time script collaboration rooms',
+      'Casting simulation mode',
+      'White-label audio (your branding)',
+      'Multi-format exports (M4A, WAV, MP3)',
+      'Unlimited project storage',
+      'StoryScore + Story Adviser',
     ],
+    limitations: [],
   },
 ];
 
@@ -103,7 +151,11 @@ export function getTierByName(tier: SubscriptionTier): PricingTier | undefined {
   return PRICING_TIERS.find((t) => t.tier === tier);
 }
 
+export function getScriptLimit(tier: SubscriptionTier): number | null {
+  return getTierByName(tier)?.scriptsPerMonth ?? 1;
+}
+
+/** @deprecated Use getScriptLimit. Pages-based limits are replaced by per-script limits. */
 export function getPageLimit(tier: SubscriptionTier): number {
-  const tierConfig = getTierByName(tier);
-  return tierConfig?.pages || 3;
+  return getTierByName(tier)?.maxPagesPerScript ?? 150;
 }
