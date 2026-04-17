@@ -7,86 +7,112 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Check, Building2, Shield, Users, Headphones, Zap } from 'lucide-react';
+import { Check, Building2, Shield, Users, Headphones, Zap, GraduationCap } from 'lucide-react';
 
 const ENTERPRISE_PLANS = [
   {
-    name: 'Studio Team',
-    seats: '10 users',
-    price: '$2,400/yr',
-    priceNote: '$200/mo billed annually',
-    description: 'Perfect for small production studios and creative teams.',
+    name: 'Starter Enterprise',
+    seats: '30 user accounts',
+    price: '$6,000/year',
+    priceNote: 'Upfront annual commitment',
+    description: 'Ideal for mid-size talent agencies, production companies, and established film programs.',
     features: [
-      '10 user seats',
-      'Unlimited scripts per month',
-      'Up to 150 pages per script',
-      '150+ premium AI voice library',
-      'Custom voice cloning (20 voices)',
-      'Team collaboration workspace',
-      'Centralized billing & admin panel',
-      'Priority processing',
-      'Commercial use rights',
-      'All export formats (M4A, WAV, MP3)',
-      'Dedicated onboarding',
-      '99.9% uptime SLA',
+      '30 user accounts (equivalent to $900/month individually)',
+      'Premium voice library — 50+ character voices',
+      'Custom voice cloning for up to 5 voices',
+      'Advanced collaboration suite (comments, version control, approvals)',
+      'Priority audio processing',
+      'Custom ambient sound library — 100+ background environments',
+      'Advanced analytics dashboard',
+      'Phone + email support (24-hour response)',
+      'Additional users: $20/month | Bulk 31–75 users: $15/month each',
     ],
     highlighted: false,
   },
   {
-    name: 'Production House',
-    seats: '25 users',
-    price: '$4,800/yr',
-    priceNote: '$400/mo billed annually',
-    description: 'For mid-size production companies with active development slates.',
+    name: 'Professional Enterprise',
+    seats: '50 user accounts',
+    price: '$10,000/year',
+    priceNote: 'Upfront annual commitment',
+    description: 'Ideal for growing agencies and production companies managing multiple projects simultaneously.',
     features: [
-      '25 user seats',
-      'Unlimited scripts per month',
-      'Up to 150 pages per script',
-      '150+ premium AI voice library',
-      'Custom voice cloning (50 voices)',
-      'Team collaboration workspace',
-      'Role-based access control',
-      'Advanced analytics & usage reports',
-      'Centralized billing & admin panel',
-      'Priority processing (3× faster)',
-      'Commercial use rights',
-      'All export formats (M4A, WAV, MP3)',
-      'White-label audio',
-      'SSO (SAML 2.0)',
-      'Dedicated account manager',
-      '99.9% uptime SLA',
+      '50 user accounts (equivalent to $1,500/month individually)',
+      'Everything in Starter Enterprise, plus:',
+      'Premium voice library — 75+ character voices',
+      'Custom voice cloning for up to 15 voices',
+      'Multi-project workspace management',
+      'Advanced permissions — reviewer, manager, admin roles',
+      'Role-based access control (RBAC) + audit logs',
+      'Script version comparison (A/B revisions)',
+      'Shared notes + timestamped audio feedback',
+      '300+ ambient environments + genre-based sound packs',
+      'Additional users: $20/month | Bulk 31–75 users: $15/month each',
     ],
     highlighted: true,
   },
   {
-    name: 'Enterprise',
-    seats: '50–200+ users',
-    price: 'Custom pricing',
-    priceNote: 'Contact sales for a quote',
-    description: 'Tailored infrastructure for major studios and enterprise entertainment clients.',
+    name: 'Studio Enterprise',
+    seats: '75 user accounts',
+    price: '$15,000/year',
+    priceNote: 'Upfront annual commitment',
+    description: 'Designed for major talent agencies, film studios, and large production companies.',
     features: [
-      '50–200+ user seats (custom)',
-      'Unlimited scripts per month',
-      'Extended page limits (custom)',
-      'Unlimited voice cloning',
-      'Custom AI voice training',
-      'Dedicated cloud infrastructure',
-      'Custom integrations & API access',
-      'SOC 2 Type II compliance',
-      'TPN/MPAA content protection',
-      'Multi-tenancy with data isolation',
-      'Audit logging (7-year retention)',
-      'SSO / SAML / SCIM provisioning',
-      'Custom SLA (up to 99.99%)',
-      'On-site training & onboarding',
-      'Dedicated engineering support',
+      '75 user accounts (equivalent to $2,250/month individually)',
+      'Everything in Professional Enterprise, plus:',
+      'Unlimited custom voice cloning',
+      'Dedicated account manager',
+      '24/7 priority support — phone, email, chat',
+      'Enterprise-grade security (SSO, advanced permissions)',
+      'Custom ambient soundscapes for specific projects',
+      'Advanced workflow automation',
+      'Detailed reporting suite with exportable analytics',
+      'Personalized onboarding and training',
+      'Additional users: $20/month | Bulk 76–200 users: $15/month each',
+    ],
+    highlighted: false,
+  },
+  {
+    name: 'Enterprise Unlimited',
+    seats: '200+ user accounts',
+    price: 'Custom pricing',
+    priceNote: 'Base from $25,000/year · Contact sales',
+    description: 'For major studios, large university systems, and enterprise-wide implementations.',
+    features: [
+      '200+ user accounts (custom)',
+      'Everything in Studio Enterprise, plus:',
+      'Dedicated infrastructure — private cloud deployment',
+      'Custom feature development',
+      'SOC 2 Type II + GDPR compliance',
+      'Multiple admin hierarchies (department-level)',
+      'Advanced usage controls and budget management',
+      'Custom voice library development',
+      'Exclusive early access to new features and betas',
+      'Quarterly business reviews with product team',
+      'Volume discounts for multi-year commitments',
     ],
     highlighted: false,
   },
 ];
 
+const UNIVERSITY_PLANS = [
+  {
+    name: 'Academic Starter',
+    price: '$1,200/year',
+    priceNote: '50% off Starter Enterprise',
+    seats: '10 student/faculty accounts',
+    extra: 'Additional students: $7.50/month · Academic year licensing (Sep–May)',
+  },
+  {
+    name: 'Academic Professional',
+    price: '$3,000/year',
+    priceNote: '50% off Professional Enterprise',
+    seats: '30 student/faculty accounts',
+    extra: 'Additional students: $15/month · Summer session access included',
+  },
+];
+
 const ENTERPRISE_FEATURES = [
-  { icon: Shield, title: 'SOC 2 & TPN Compliance', description: 'Enterprise-grade security with content protection standards for the entertainment industry.' },
+  { icon: Shield, title: 'SOC 2 & Compliance', description: 'Enterprise-grade security with content protection standards for the entertainment industry.' },
   { icon: Users, title: 'Team Management', description: 'Role-based access, centralized billing, and usage analytics across your entire organization.' },
   { icon: Zap, title: 'Priority Infrastructure', description: 'Dedicated processing queues, custom integrations, and SLA-backed uptime guarantees.' },
   { icon: Headphones, title: 'Dedicated Support', description: 'Named account managers, on-site training, and direct engineering access.' },
@@ -96,7 +122,6 @@ export default function EnterprisePlansPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Verify password gate was passed
     if (typeof window !== 'undefined' && !sessionStorage.getItem('enterprise_access')) {
       router.replace('/enterprise');
     }
@@ -107,9 +132,9 @@ export default function EnterprisePlansPage() {
       {/* Header */}
       <header className="border-b border-border bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
+          <div className="flex h-20 items-center justify-between">
             <Link href="/">
-              <Image src="/logo.png" alt="Story Magic" width={56} height={56} className="rounded-lg" />
+              <Image src="/logo.png" alt="Story Magic" width={112} height={112} className="rounded-lg" />
             </Link>
             <div className="flex items-center gap-4">
               <Link href="/pricing">
@@ -134,8 +159,8 @@ export default function EnterprisePlansPage() {
             Built for teams and studios
           </h1>
           <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
-            Scale Story Magic across your entire organization with enterprise-grade security,
-            compliance, and dedicated support.
+            All enterprise packages include annual commitments with upfront payment, advanced admin controls,
+            priority support, and bulk user management.
           </p>
         </div>
 
@@ -151,7 +176,7 @@ export default function EnterprisePlansPage() {
         </div>
 
         {/* Plan Cards */}
-        <div className="grid gap-6 lg:grid-cols-3 mb-16">
+        <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4 mb-16">
           {ENTERPRISE_PLANS.map((plan) => (
             <Card
               key={plan.name}
@@ -201,12 +226,75 @@ export default function EnterprisePlansPage() {
                     className={`w-full ${plan.highlighted ? 'brand-gradient brand-gradient-hover' : ''}`}
                     variant={plan.highlighted ? 'default' : 'outline'}
                   >
-                    Contact Sales
+                    {plan.name === 'Enterprise Unlimited' ? 'Contact Sales' : 'Get Started'}
                   </Button>
                 </a>
               </CardContent>
             </Card>
           ))}
+        </div>
+
+        {/* University Program */}
+        <div className="mb-16">
+          <div className="flex items-center gap-3 mb-3">
+            <GraduationCap className="w-6 h-6 text-violet-500" />
+            <h2 className="text-2xl font-bold text-foreground">University Program</h2>
+            <Badge variant="outline" className="text-violet-600 border-violet-500">Academic Pricing</Badge>
+          </div>
+          <p className="text-muted-foreground mb-6">
+            Exclusive pricing for accredited film schools and university programs.
+            Requires academic accreditation verification. Limited to educational use only.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-6">
+            {UNIVERSITY_PLANS.map((plan) => (
+              <Card key={plan.name} className="border-purple-700/50 bg-purple-950/10">
+                <CardContent className="pt-6">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 className="font-bold text-foreground text-lg">{plan.name}</h3>
+                      <p className="text-sm text-muted-foreground">{plan.seats}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xl font-bold text-foreground">{plan.price}</p>
+                      <p className="text-xs text-green-500 font-medium">{plan.priceNote}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-4">{plan.extra}</p>
+                  <a href={`mailto:enterprise@storymagicapp.net?subject=${encodeURIComponent(`University Program — ${plan.name}`)}`}>
+                    <Button variant="outline" size="sm" className="w-full border-purple-700/50">
+                      Apply for Academic Pricing
+                    </Button>
+                  </a>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* Add-On Services */}
+        <div className="rounded-xl border border-border bg-background p-6 mb-12">
+          <div className="flex items-center gap-2 mb-4">
+            <h3 className="font-bold text-foreground">Add-On Services</h3>
+            <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-6 text-sm text-muted-foreground">
+            <div>
+              <p className="font-medium text-foreground mb-2">Voice</p>
+              <p>Professional voice cloning — $500/voice</p>
+              <p className="mt-1">Voice coaching consultation — $200/hr</p>
+              <p className="mt-1">Celebrity/talent voice licensing — custom</p>
+            </div>
+            <div>
+              <p className="font-medium text-foreground mb-2">Audio</p>
+              <p>Expanded music library — $200/month</p>
+              <p className="mt-1">Custom soundscape development — $1,000/environment</p>
+              <p className="mt-1">Premium SFX library — $100/month</p>
+            </div>
+            <div>
+              <p className="font-medium text-foreground mb-2">Professional Services</p>
+              <p>Dedicated onboarding — $2,500 one-time</p>
+            </div>
+          </div>
         </div>
 
         {/* Footer CTA */}

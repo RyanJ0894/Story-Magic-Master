@@ -31,7 +31,7 @@ export default function GuidePage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <Link href="/">
-              <Image src="/logo.png" alt="Story Magic" width={56} height={56} className="rounded-lg" />
+              <Image src="/logo.png" alt="Story Magic" width={112} height={112} className="rounded-lg" />
             </Link>
 
             <Link href="/dashboard">

@@ -33,7 +33,7 @@ export default function EnterprisePage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <Link href="/" className="inline-block mb-6">
-            <Image src="/logo.png" alt="Story Magic" width={72} height={72} className="rounded-xl mx-auto" />
+            <Image src="/logo.png" alt="Story Magic" width={144} height={144} className="rounded-xl mx-auto" />
           </Link>
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-violet-100 dark:bg-violet-900/30 mb-4">
             <Lock className="w-5 h-5 text-violet-600 dark:text-violet-400" />

@@ -12,7 +12,7 @@ export default function Home() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-b border-border">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/">
-            <Image src="/logo.png" alt="Story Magic" width={72} height={72} className="rounded-lg" />
+            <Image src="/logo.png" alt="Story Magic" width={144} height={144} className="rounded-lg" />
           </Link>
           {/* Desktop nav */}
           <div className="hidden md:flex items-center gap-4">
@@ -351,7 +351,7 @@ export default function Home() {
           <div className="grid md:grid-cols-5 gap-8 mb-8">
             <div>
               <Link href="/" className="flex items-center gap-2 mb-4">
-                <Image src="/logo.png" alt="Story Magic" width={32} height={32} className="rounded-lg" />
+                <Image src="/logo.png" alt="Story Magic" width={64} height={64} className="rounded-lg" />
                 <span className="font-bold text-lg">Story Magic</span>
               </Link>
               <p className="text-sm text-muted-foreground">
