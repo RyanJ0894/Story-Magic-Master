@@ -250,12 +250,22 @@ services:
         sync: false
 
       # AI Services
+      - key: ANTHROPIC_API_KEY
+        sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: GROQ_API_KEY
         sync: false
       - key: ELEVENLABS_API_KEY
         sync: false
+      - key: MISTRAL_API_KEY
+        sync: false
+
+      # Director/Audio-Director LLM (defaults to claude-sonnet-4-6)
+      - key: DIRECTOR_MODEL
+        value: anthropic/claude-sonnet-4-6
+      - key: AUDIO_DIRECTOR_MODEL
+        value: anthropic/claude-sonnet-4-6
 
       # Sentry (set in Render dashboard)
       - key: SENTRY_DSN
