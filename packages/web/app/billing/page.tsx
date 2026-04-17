@@ -118,10 +118,10 @@ export default async function BillingPage(
               </div>
 
               <div className="p-4 rounded-lg bg-muted">
-                <p className="text-sm text-muted-foreground mb-1">Page Allowance</p>
+                <p className="text-sm text-muted-foreground mb-1">Scripts / Month</p>
                 <p className="text-2xl font-bold text-violet-600 dark:text-violet-400">
-                  {tierConfig?.pages.toLocaleString() || 3}
-                  <span className="text-sm font-normal text-muted-foreground"> pages/month</span>
+                  {tierConfig?.scriptsPerMonth === null ? 'Unlimited' : (tierConfig?.scriptsPerMonth ?? 1).toLocaleString()}
+                  <span className="text-sm font-normal text-muted-foreground"> scripts</span>
                 </p>
               </div>
             </div>

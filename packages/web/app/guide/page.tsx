@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import {
   ArrowLeft,
   FileText,
+  Sparkles,
   BarChart3,
   Lightbulb,
   GitBranch,
