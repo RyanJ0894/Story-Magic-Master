@@ -16,6 +16,8 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report",
+    "test:e2e:prod": "playwright test --config=playwright.production.config.ts",
+    "test:e2e:prod:report": "playwright show-report playwright-report-prod",
     "test:component": "vitest run --config vitest.config.component.mts",
     "test:all": "pnpm test && pnpm test:component && pnpm test:e2e",
     "worker": "tsx worker.ts",
