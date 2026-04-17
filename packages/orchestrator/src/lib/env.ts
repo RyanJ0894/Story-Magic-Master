@@ -42,8 +42,8 @@ const envSchema = z.object({
   // LLM APIs
   OPENAI_API_KEY: optionalString,
   GROQ_API_KEY: optionalString,
-  DIRECTOR_MODEL: z.string().default('openai/gpt-4.1'),
-  AUDIO_DIRECTOR_MODEL: z.string().default('openai/gpt-4.1'),
+  DIRECTOR_MODEL: z.string().default('anthropic/claude-sonnet-4-6'),
+  AUDIO_DIRECTOR_MODEL: z.string().default('anthropic/claude-sonnet-4-6'),
 
   // TTS
   ELEVENLABS_API_KEY: optionalString,
