@@ -81,6 +81,12 @@ app.use(httpLogger);
 // Static audio preview - serves catalog files for frontend preview player
 app.use('/audio-preview', express.static(path.join(__dirname, '../catalog')));
 
+// Generated project audio - serves output from persistent disk (AUDIO_OUTPUT_DIR)
+app.use('/audio', express.static(getOutputDir(), {
+  maxAge: '1d',
+  setHeaders: (res) => { res.set('Access-Control-Allow-Origin', '*'); },
+}));
+
 // Impact story audio - serves generated impact story audio files
 app.use('/impact-audio', express.static(path.join(getOutputDir(), 'impact'), {
   maxAge: '7d',

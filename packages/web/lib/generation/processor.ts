@@ -215,8 +215,16 @@ export async function processGenerationJob(
     for (const audioUrl of audioUrls) {
       if (!audioUrl) continue;
       const fileName = audioUrl.split('/').pop() || 'output.mp3';
-      const pathMatch = audioUrl.match(/\/storage\/v1\/object\/public\/(.+)$/);
-      const filePath = pathMatch ? pathMatch[1] : `audio/${projectId}/${fileName}`;
+      // Extract relative path from known URL patterns:
+      //   Supabase: .../storage/v1/object/public/{path}
+      //   Orchestrator local: /audio/{projectId}/{filename}  → strip leading /audio/
+      const supabaseMatch = audioUrl.match(/\/storage\/v1\/object\/public\/(.+)$/);
+      const localMatch = audioUrl.match(/^\/audio\/(.+)$/);
+      const filePath = supabaseMatch
+        ? supabaseMatch[1]
+        : localMatch
+          ? localMatch[1]
+          : `${projectId}/${fileName}`;
       await prisma.audioOutput.create({
         data: {
           projectId,
