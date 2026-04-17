@@ -11,9 +11,8 @@ export default function Home() {
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-b border-border">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3">
+          <Link href="/">
             <Image src="/logo.png" alt="Story Magic" width={72} height={72} className="rounded-lg" />
-            <span className="font-bold text-lg">Story Magic</span>
           </Link>
           {/* Desktop nav */}
           <div className="hidden md:flex items-center gap-4">
