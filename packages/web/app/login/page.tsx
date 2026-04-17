@@ -1,18 +1,16 @@
 export const dynamic = 'force-dynamic';
 
+import Image from 'next/image';
+import Link from 'next/link';
 import { SignIn } from '@clerk/nextjs';
-import { Sparkles } from 'lucide-react';
 
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background to-muted dark:from-background dark:to-muted px-4">
       <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl brand-gradient-br mb-4">
-          <Sparkles className="w-6 h-6 text-white" />
-        </div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Story Magic
-        </h1>
+        <Link href="/" className="inline-block mb-4">
+          <Image src="/logo.png" alt="Story Magic" width={80} height={80} className="rounded-xl mx-auto" />
+        </Link>
       </div>
       <SignIn
         appearance={{

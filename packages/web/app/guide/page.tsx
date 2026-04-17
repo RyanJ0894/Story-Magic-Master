@@ -1,12 +1,12 @@
 export const dynamic = 'force-dynamic';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   ArrowLeft,
   FileText,
-  Sparkles,
   BarChart3,
   Lightbulb,
   GitBranch,
@@ -29,11 +29,8 @@ export default function GuidePage() {
       <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
-            <Link href="/dashboard" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg brand-gradient-br flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-bold text-lg text-foreground">Story Magic</span>
+            <Link href="/">
+              <Image src="/logo.png" alt="Story Magic" width={56} height={56} className="rounded-lg" />
             </Link>
 
             <Link href="/dashboard">
