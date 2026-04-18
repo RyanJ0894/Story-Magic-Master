@@ -82,6 +82,14 @@ export default async function DashboardPage() {
                 </div>
               </div>
 
+              {['enterprise', 'studio', 'pro', 'creator'].includes(tier) && (
+                <Link href="/enterprise/dashboard">
+                  <Button variant="outline" size="sm" className="hidden sm:flex items-center gap-1.5">
+                    Enterprise
+                  </Button>
+                </Link>
+              )}
+
               <Link href="/guide">
                 <Button variant="ghost" size="sm" data-testid="guide-button">
                   <HelpCircle className="w-4 h-4 mr-2" />

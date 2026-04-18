@@ -50,6 +50,8 @@ model Profile {
   teamMemberships   TeamMember[]       @relation("MemberUser")
   teamInvitesSent   TeamMember[]       @relation("InvitedBy")
   teamSharesBy      TeamShare[]
+  activityLogs      ActivityLog[]
+  projectNotes      ProjectNote[]
   alerts            Alert[]            @relation("AlertUser")
   alertsRelated     Alert[]            @relation("RelatedUser")
   alertPreferences  AlertPreference?
@@ -97,6 +99,8 @@ model Project {
   revisions         Revision[]
   teamShares        TeamShare[]
   alerts            Alert[]
+  activityLogs      ActivityLog[]
+  projectNotes      ProjectNote[]
 
   @@index([userId])
   @@index([status])
@@ -592,13 +596,66 @@ model Team {
   updatedAt            DateTime @default(now()) @updatedAt @map("updated_at")
 
   // Relations
-  owner      Profile      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  members    TeamMember[]
-  teamShares TeamShare[]
-  alerts     Alert[]
+  owner        Profile       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members      TeamMember[]
+  teamShares   TeamShare[]
+  alerts       Alert[]
+  activityLogs ActivityLog[]
 
   @@index([ownerId])
   @@map("teams")
+}
+
+// =============================================================================
+// ENTERPRISE: ACTIVITY LOG
+// Tracks all meaningful sub-user actions within a team for the master dashboard.
+// =============================================================================
+
+model ActivityLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId    String   @map("team_id") @db.Uuid
+  userId    String   @map("user_id")
+  projectId String   @map("project_id") @db.Uuid
+  // eventType: listen_complete | note_added | liked | passed | undecided | listen_start | listen_progress
+  eventType String   @map("event_type")
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  team    Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user    Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, createdAt(sort: Desc)])
+  @@index([teamId, userId])
+  @@index([teamId, projectId])
+  @@index([userId, projectId])
+  @@map("activity_logs")
+}
+
+// =============================================================================
+// ENTERPRISE: PROJECT NOTES
+// Per-user, per-line notes on a project. Used by screenplay-style audio player.
+// =============================================================================
+
+model ProjectNote {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId   String   @map("project_id") @db.Uuid
+  authorId    String   @map("author_id")
+  lineId      String?  @map("line_id")          // director_json line reference
+  timestamp   Int?                               // seconds offset in audio
+  noteText    String   @map("note_text") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author  Profile @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([authorId])
+  @@index([projectId, authorId])
+  @@map("project_notes")
 }
 
 model TeamMember {
