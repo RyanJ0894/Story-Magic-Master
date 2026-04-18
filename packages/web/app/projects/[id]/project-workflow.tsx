@@ -291,6 +291,10 @@ export function ProjectWorkflow({
   // Run history modal state
   const [showHistory, setShowHistory] = useState(false);
 
+  // Track when a retry has been kicked off so we can collapse the old error
+  const [retryStarted, setRetryStarted] = useState(false);
+  const [errorExpanded, setErrorExpanded] = useState(false);
+
   // Comparison state
   const [comparisonRuns, setComparisonRuns] = useState<{ runA: number; runB: number } | null>(null);
 
@@ -592,17 +596,38 @@ export function ProjectWorkflow({
               </div>
             ) : hasFailed ? (
               <div className="space-y-4">
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-                    <div>
-                      <p className="font-medium text-red-800 dark:text-red-200">Generation failed</p>
-                      {latestJob?.error && (
-                        <p className="text-sm text-red-600 dark:text-red-400 mt-1">{latestJob.error}</p>
-                      )}
+                {retryStarted ? (
+                  /* Minimized previous-error pill */
+                  <button
+                    onClick={() => setErrorExpanded(v => !v)}
+                    className="w-full text-left"
+                  >
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10 text-xs text-red-600 dark:text-red-400">
+                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="font-medium">Previous run failed</span>
+                      <span className="text-muted-foreground ml-auto">{errorExpanded ? '▲ hide' : '▼ details'}</span>
+                    </div>
+                    {errorExpanded && latestJob?.error && (
+                      <div className="mt-1 max-h-32 overflow-y-auto overflow-x-hidden rounded border border-red-200 dark:border-red-800 bg-red-950/20 p-2 text-xs font-mono text-red-400 break-all">
+                        {latestJob.error}
+                      </div>
+                    )}
+                  </button>
+                ) : (
+                  <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-red-800 dark:text-red-200">Generation failed</p>
+                        {latestJob?.error && (
+                          <div className="mt-2 max-h-32 overflow-y-auto overflow-x-hidden rounded bg-red-950/20 dark:bg-red-950/40 p-2 text-xs font-mono text-red-600 dark:text-red-400 break-all">
+                            {latestJob.error}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
                 <GenerateButton
                   projectId={project.id}
                   pageCount={project.pageCount}
@@ -610,6 +635,7 @@ export function ProjectWorkflow({
                   hasScript={!!project.scriptText}
                   label="Retry"
                   workflowMode="automatic"
+                  onJobStarted={() => { setRetryStarted(true); setErrorExpanded(false); }}
                 />
               </div>
             ) : (
@@ -699,9 +725,16 @@ export function ProjectWorkflow({
                     <span>Generating... {latestJob?.progress?.percent || 0}%</span>
                   </div>
                 ) : hasFailed ? (
-                  <div className="flex items-center gap-2 text-red-600">
-                    <AlertCircle className="w-4 h-4" />
-                    <span>Generation failed. {latestJob?.error}</span>
+                  <div className="flex items-start gap-2 text-red-600">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <span className="font-medium">Generation failed.</span>
+                      {latestJob?.error && (
+                        <div className="mt-1 max-h-20 overflow-y-auto overflow-x-hidden text-xs font-mono text-red-500 break-all">
+                          {latestJob.error}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
@@ -888,23 +921,44 @@ export function ProjectWorkflow({
                     </div>
                   ) : hasFailed ? (
                     <div className="space-y-4">
-                      <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                        <div className="flex items-start gap-3">
-                          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-                          <div>
-                            <p className="font-medium text-red-800 dark:text-red-200">Generation failed</p>
-                            {latestJob?.error && (
-                              <p className="text-sm text-red-600 dark:text-red-400 mt-1">{latestJob.error}</p>
-                            )}
+                      {retryStarted ? (
+                        <button
+                          onClick={() => setErrorExpanded(v => !v)}
+                          className="w-full text-left"
+                        >
+                          <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10 text-xs text-red-600 dark:text-red-400">
+                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span className="font-medium">Previous run failed</span>
+                            <span className="text-muted-foreground ml-auto">{errorExpanded ? '▲ hide' : '▼ details'}</span>
+                          </div>
+                          {errorExpanded && latestJob?.error && (
+                            <div className="mt-1 max-h-32 overflow-y-auto overflow-x-hidden rounded border border-red-200 dark:border-red-800 bg-red-950/20 p-2 text-xs font-mono text-red-400 break-all">
+                              {latestJob.error}
+                            </div>
+                          )}
+                        </button>
+                      ) : (
+                        <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                          <div className="flex items-start gap-3">
+                            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-red-800 dark:text-red-200">Generation failed</p>
+                              {latestJob?.error && (
+                                <div className="mt-2 max-h-32 overflow-y-auto overflow-x-hidden rounded bg-red-950/20 dark:bg-red-950/40 p-2 text-xs font-mono text-red-600 dark:text-red-400 break-all">
+                                  {latestJob.error}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      )}
                       <GenerateButton
                         projectId={project.id}
                         pageCount={project.pageCount}
                         status={project.status}
                         hasScript={!!project.scriptText}
                         label="Retry Generation"
+                        onJobStarted={() => { setRetryStarted(true); setErrorExpanded(false); }}
                       />
                     </div>
                   ) : (

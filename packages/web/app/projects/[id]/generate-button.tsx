@@ -40,6 +40,7 @@ interface GenerateButtonProps {
   label?: string;
   workflowMode?: 'automatic' | 'fine_tuned';
   hasScript?: boolean;
+  onJobStarted?: () => void;
 }
 
 const ESTIMATED_DURATION_MS = 120000; // 2 minutes estimated
@@ -51,6 +52,7 @@ export default function GenerateButton({
   label = 'Generate Audio',
   workflowMode = 'fine_tuned',
   hasScript = true,
+  onJobStarted,
 }: GenerateButtonProps) {
   const { userId, isSignedIn } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -209,6 +211,8 @@ export default function GenerateButton({
       const jobId = data.jobId;
 
       toast.success('Generation started! You can leave this page - processing will continue.');
+
+      onJobStarted?.();
 
       // Start tracking progress
       startTracking(jobId);
