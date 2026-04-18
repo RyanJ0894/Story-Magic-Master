@@ -206,7 +206,7 @@ export function DashboardTabs({
                     <CardContent className="pt-0">
                       <div className="flex items-center justify-between text-sm text-muted-foreground">
                         <span>{project.pageCount || 0} pages</span>
-                        <span>{new Date(project.updatedAt).toLocaleDateString()}</span>
+                        <span suppressHydrationWarning>{new Date(project.updatedAt).toLocaleDateString()}</span>
                       </div>
                     </CardContent>
                   </Card>
@@ -242,7 +242,7 @@ export function DashboardTabs({
           <CreditCard className="w-4 h-4" /> Billing &amp; Plans
           <ChevronRight className="w-3 h-3" />
         </Link>
-        <Link href="/analytics" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+        <Link href="/admin/analytics" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <BarChart2 className="w-4 h-4" /> Analytics
           <ChevronRight className="w-3 h-3" />
         </Link>
