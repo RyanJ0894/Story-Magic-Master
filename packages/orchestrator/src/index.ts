@@ -98,10 +98,11 @@ app.use('/impact-audio', express.static(path.join(getOutputDir(), 'impact'), {
 app.use('/', healthRouter);
 
 // Protected routes - require authentication and rate limiting
-app.use('/generate-scenes', authMiddleware, strictRateLimitMiddleware);
-app.use('/orchestrate', authMiddleware, strictRateLimitMiddleware);
-app.use('/analyze', authMiddleware, rateLimitMiddleware);
-app.use('/preview', authMiddleware, strictRateLimitMiddleware);
+// Generation routes accept either service-to-service key (X-Service-Key) or Clerk JWT
+app.use('/generate-scenes', serviceAuthMiddleware, strictRateLimitMiddleware);
+app.use('/orchestrate', serviceAuthMiddleware, strictRateLimitMiddleware);
+app.use('/analyze', serviceAuthMiddleware, rateLimitMiddleware);
+app.use('/preview', serviceAuthMiddleware, strictRateLimitMiddleware);
 app.use('/', generateScenesRouter);
 app.use('/', orchestrateRouter);
 app.use('/', analyzeRouter);
