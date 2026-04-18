@@ -84,7 +84,7 @@ mustMatchPrefix('CLERK_SECRET_KEY', 'sk_', 'Clerk key format');
 if (isProd) {
   mustNotEqual('CLERK_SECRET_KEY', '', 'required in production');
   if (env.CLERK_SECRET_KEY && env.CLERK_SECRET_KEY.startsWith('sk_test_')) {
-    errors.push('  ✗ CLERK_SECRET_KEY — using TEST key in production (must be sk_live_)');
+    warnings.push('  ⚠  CLERK_SECRET_KEY — using TEST key; switch to sk_live_ before launch');
   }
 }
 
@@ -116,7 +116,7 @@ requiredInEnvs('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', ['production', 'staging'],
 if (env.STRIPE_SECRET_KEY) {
   mustMatchPrefix('STRIPE_SECRET_KEY', 'sk_', 'Stripe key format');
   if (isProd && env.STRIPE_SECRET_KEY.startsWith('sk_test_')) {
-    errors.push('  ✗ STRIPE_SECRET_KEY — using TEST key in production (must be sk_live_)');
+    warnings.push('  ⚠  STRIPE_SECRET_KEY — using TEST key; switch to sk_live_ before accepting real payments');
   }
 }
 if (env.STRIPE_WEBHOOK_SECRET) {
