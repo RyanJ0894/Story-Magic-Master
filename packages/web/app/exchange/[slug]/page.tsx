@@ -29,9 +29,12 @@ const VERDICT_LABELS: Record<string, { label: string; color: string }> = {
 
 async function getExchangeData(slug: string) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:22000';
-  const res = await fetch(`${baseUrl}/api/exchange/${slug}`, {
-    next: { revalidate: 30 },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}/api/exchange/${encodeURIComponent(slug)}`, { cache: 'no-store' });
+  } catch {
+    return null;
+  }
   if (res.status === 404) return null;
   if (!res.ok) return null;
   return res.json();

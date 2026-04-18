@@ -18,9 +18,12 @@ interface PageProps {
 
 async function getWriterData(writerId: string) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:22000';
-  const res = await fetch(`${baseUrl}/api/writers/${writerId}`, {
-    next: { revalidate: 60 },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}/api/writers/${encodeURIComponent(writerId)}`, { cache: 'no-store' });
+  } catch {
+    return null;
+  }
   if (res.status === 404) return null;
   if (!res.ok) return null;
   return res.json();

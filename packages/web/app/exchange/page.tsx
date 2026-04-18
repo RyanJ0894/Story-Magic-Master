@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 interface PageProps {
   searchParams: Promise<{ genre?: string; page?: string }>;
 }
@@ -14,9 +16,12 @@ async function ExchangeGrid({ genre, page }: { genre?: string; page: number }) {
   if (genre) params.set('genre', genre);
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:22000';
-  const res = await fetch(`${baseUrl}/api/exchange?${params}`, {
-    next: { revalidate: 60 },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}/api/exchange?${params}`, { cache: 'no-store' });
+  } catch {
+    return <p className="text-muted-foreground">Failed to load scripts.</p>;
+  }
 
   if (!res.ok) {
     return <p className="text-muted-foreground">Failed to load scripts.</p>;
