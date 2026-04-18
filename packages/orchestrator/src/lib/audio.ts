@@ -94,10 +94,35 @@ const DEFAULT_VOICES = {
 };
 
 /**
- * Generate TTS audio using ElevenLabs API
- * If a voice is not found (404), automatically falls back to a default voice
+ * Generate a short silent MP3 buffer for mock/test mode.
+ * Uses FFmpeg to produce a real MP3 so downstream muxing still works.
+ */
+async function generateSilentMp3(durationSec = 1): Promise<Buffer> {
+  const { stdout } = await execa(ffmpeg, [
+    '-f', 'lavfi', '-i', `anullsrc=r=44100:cl=mono`,
+    '-t', String(durationSec),
+    '-c:a', 'libmp3lame', '-b:a', '128k',
+    '-f', 'mp3', 'pipe:1',
+  ], { encoding: 'buffer' });
+  return stdout as unknown as Buffer;
+}
+
+/**
+ * Generate TTS audio using ElevenLabs API.
+ *
+ * Set ELEVENLABS_MOCK=true to skip real API calls and return silent audio
+ * instead. Useful during development and testing to avoid ElevenLabs charges.
+ * If a voice is not found (404), automatically falls back to a default voice.
  */
 export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
+  // ── Mock mode ─────────────────────────────────────────────────────────────
+  if (process.env.ELEVENLABS_MOCK === 'true') {
+    const words = opts.text.trim().split(/\s+/).length;
+    const estimatedSec = Math.max(0.5, words * 0.35); // ~0.35s per word
+    log.info('TTS mock: returning silent audio', { words, estimatedSec, voiceId: opts.voice.voice_id });
+    return generateSilentMp3(estimatedSec);
+  }
+
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) throw new Error('ELEVENLABS_API_KEY missing');
 
