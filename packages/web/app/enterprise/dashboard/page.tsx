@@ -106,8 +106,8 @@ export default async function EnterpriseDashboardPage() {
     const reads = share.project.readerLibrary;
     return {
       project: share.project,
-      liked: reads.filter(r => r.readStatus === 'liked').length,
-      passed: reads.filter(r => r.readStatus === 'passed').length,
+      liked: reads.filter(r => r.readStatus === 'like').length,
+      passed: reads.filter(r => r.readStatus === 'pass').length,
       undecided: reads.filter(r => r.readStatus === 'undecided').length,
       notes: reads.filter(r => r.notes).length,
       completed: reads.filter(r => r.completed).length,
@@ -300,8 +300,8 @@ export default async function EnterpriseDashboardPage() {
                           {completed}
                         </span>
                       </div>
-                      <Link href={`/projects/${project.id}`}>
-                        <Button variant="outline" size="sm" className="w-full text-xs">View Project</Button>
+                      <Link href={`/projects/${project.id}/listen`}>
+                        <Button size="sm" className="w-full text-xs brand-gradient brand-gradient-hover">Listen</Button>
                       </Link>
                     </CardContent>
                   </Card>

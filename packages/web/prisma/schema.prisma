@@ -37,28 +37,31 @@ model Profile {
   updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at")
 
   // Relations
-  projects          Project[]
-  jobs              Job[]
-  usage             Usage[]
-  subscriptions     Subscription[]
-  scriptSharesBy    ScriptShare[]      @relation("SharedBy")
-  scriptSharesWith  ScriptShare[]      @relation("SharedWith")
-  readerLibrary     ReaderLibrary[]
-  purchases         Purchase[]
-  contentAccessLogs ContentAccessLog[]
-  teamsOwned        Team[]
-  teamMemberships   TeamMember[]       @relation("MemberUser")
-  teamInvitesSent   TeamMember[]       @relation("InvitedBy")
-  teamSharesBy      TeamShare[]
-  activityLogs      ActivityLog[]
-  projectNotes      ProjectNote[]
-  alerts            Alert[]            @relation("AlertUser")
-  alertsRelated     Alert[]            @relation("RelatedUser")
-  alertPreferences  AlertPreference?
-  revisions         Revision[]
-  scriptCorpus      ScriptCorpus[]
-  auditLogs         AuditLog[]
-  impactStories     ImpactStory[]
+  projects              Project[]
+  jobs                  Job[]
+  usage                 Usage[]
+  subscriptions         Subscription[]
+  scriptSharesBy        ScriptShare[]         @relation("SharedBy")
+  scriptSharesWith      ScriptShare[]         @relation("SharedWith")
+  readerLibrary         ReaderLibrary[]
+  purchases             Purchase[]
+  contentAccessLogs     ContentAccessLog[]
+  teamsOwned            Team[]
+  teamMemberships       TeamMember[]          @relation("MemberUser")
+  teamInvitesSent       TeamMember[]          @relation("InvitedBy")
+  teamSharesBy          TeamShare[]
+  activityLogs          ActivityLog[]
+  projectNotes          ProjectNote[]
+  alerts                Alert[]               @relation("AlertUser")
+  alertsRelated         Alert[]               @relation("RelatedUser")
+  alertPreferences      AlertPreference?
+  revisions             Revision[]
+  scriptCorpus          ScriptCorpus[]
+  auditLogs             AuditLog[]
+  impactStories         ImpactStory[]
+  scriptReviews         ScriptReview[]        @relation("Reviewer")
+  writerSubscriptions   WriterSubscription[]  @relation("WriterSubs")
+  readerSubscriptions   WriterSubscription[]  @relation("SubscriberSubs")
 
   @@index([stripeCustomerId])
   @@index([stripeSubscriptionId])
@@ -82,6 +85,13 @@ model Project {
   currentRunNumber      Int      @default(0) @map("current_run_number")
   voiceAssignments      Json     @default("[]") @map("voice_assignments")
   audioOverrides        Json     @default("[]") @map("audio_overrides")
+  // Exchange listing fields
+  exchangeIsPublic      Boolean  @default(false) @map("exchange_is_public")
+  exchangeListedAt      DateTime? @map("exchange_listed_at")
+  exchangeSlug          String?  @unique @map("exchange_slug")
+  exchangeTagline       String?  @map("exchange_tagline")
+  exchangeGenre         String?  @map("exchange_genre")
+  page1PreviewUrl       String?  @map("page1_preview_url")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @default(now()) @updatedAt @map("updated_at")
 
@@ -101,10 +111,12 @@ model Project {
   alerts            Alert[]
   activityLogs      ActivityLog[]
   projectNotes      ProjectNote[]
+  scriptReviews     ScriptReview[]
 
   @@index([userId])
   @@index([status])
   @@index([userId, createdAt(sort: Desc)])
+  @@index([exchangeIsPublic, exchangeListedAt(sort: Desc)])
   @@map("projects")
 }
 
@@ -893,4 +905,45 @@ model VoiceMarketplaceInterest {
   @@index([createdAt(sort: Desc)])
   @@index([role])
   @@map("voice_marketplace_interest")
+}
+
+// =============================================================================
+// STORY EXCHANGE
+// =============================================================================
+
+model ScriptReview {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId     String   @map("project_id") @db.Uuid
+  reviewerId    String   @map("reviewer_id")
+  reviewerName  String?  @map("reviewer_name")
+  verdict       String   @default("consider")
+  numericRating Int?     @map("numeric_rating")
+  comment       String?  @db.Text
+  isAnonymous   Boolean  @default(false) @map("is_anonymous")
+  isPublic      Boolean  @default(true) @map("is_public")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reviewer Profile @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, reviewerId])
+  @@index([projectId])
+  @@index([reviewerId])
+  @@map("script_reviews")
+}
+
+model WriterSubscription {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subscriberId String   @map("subscriber_id")
+  writerId     String   @map("writer_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  subscriber Profile @relation("SubscriberSubs", fields: [subscriberId], references: [id], onDelete: Cascade)
+  writer     Profile @relation("WriterSubs", fields: [writerId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriberId, writerId])
+  @@index([writerId])
+  @@index([subscriberId])
+  @@map("writer_subscriptions")
 }
