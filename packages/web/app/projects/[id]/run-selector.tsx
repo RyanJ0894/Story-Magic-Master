@@ -82,22 +82,32 @@ export function RunSelector({
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="gap-2">
-          <Sparkles className="w-4 h-4" />
-          {currentRun ? (
-            <>
-              <span>Run #{currentRun.runNumber}</span>
-              <Badge
-                variant="secondary"
-                className={cn('text-xs px-1.5', modeConfig[currentRun.workflowMode].className)}
-              >
-                {modeConfig[currentRun.workflowMode].label}
-              </Badge>
-            </>
-          ) : (
-            <span>New Run #{nextRunNumber}</span>
+        <Button variant="outline" className="gap-2 h-auto py-1.5 flex-col items-start text-left min-w-[140px]">
+          <div className="flex items-center gap-2 w-full">
+            <Sparkles className="w-4 h-4 flex-shrink-0" />
+            {currentRun ? (
+              <>
+                <span className="font-medium">Run #{currentRun.runNumber}</span>
+                <Badge
+                  variant="secondary"
+                  className={cn('text-xs px-1.5 ml-auto', modeConfig[currentRun.workflowMode].className)}
+                >
+                  {modeConfig[currentRun.workflowMode].label}
+                </Badge>
+              </>
+            ) : (
+              <span className="font-medium">New Run #{nextRunNumber}</span>
+            )}
+            <ChevronDown className="w-4 h-4 flex-shrink-0" />
+          </div>
+          {currentRun && (
+            <p className="text-[10px] text-muted-foreground pl-6 w-full" suppressHydrationWarning>
+              {new Date(currentRun.createdAt).toLocaleString(undefined, {
+                month: 'short', day: 'numeric',
+                hour: 'numeric', minute: '2-digit',
+              })}
+            </p>
           )}
-          <ChevronDown className="w-4 h-4 ml-1" />
         </Button>
       </DropdownMenuTrigger>
 
@@ -170,9 +180,14 @@ export function RunSelector({
                     </Badge>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-xs text-muted-foreground truncate" suppressHydrationWarning>
+                  {new Date(run.createdAt).toLocaleString(undefined, {
+                    month: 'short', day: 'numeric',
+                    hour: 'numeric', minute: '2-digit',
+                  })}
+                  {' · '}
                   {formatDistanceToNow(new Date(run.createdAt), { addSuffix: true })}
-                  {run.status === 'completed' && run.hasAudio && ' • Has audio'}
+                  {run.status === 'completed' && run.hasAudio && ' · Has audio'}
                 </p>
               </div>
               {run.status === 'completed' && run.hasAudio && (

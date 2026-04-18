@@ -7,9 +7,10 @@ export const DialogueLineSchema = z.object({
   text: z.string().min(1),
   voice_key: z.string(),
   // Metadata fields (only present on first line per character)
-  character_age: z.number().optional(),
-  character_gender: z.enum(['Male', 'Female']).optional(),
-  character_ethnicity: z.string().optional(),
+  // LLM may return null for unknown values — nullish() accepts both null and undefined
+  character_age: z.number().nullish(),
+  character_gender: z.enum(['Male', 'Female']).nullish(),
+  character_ethnicity: z.string().nullish(),
 });
 
 export type DialogueLine = z.infer<typeof DialogueLineSchema>;

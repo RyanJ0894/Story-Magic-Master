@@ -190,7 +190,7 @@ export class DirectorJSONValidator {
           }
 
           // Extract metadata from this line if present
-          if (line.character_age !== undefined) {
+          if (line.character_age != null) {
             characters[charName].age = line.character_age;
             log.debug('Found age metadata', { character: charName, age: line.character_age });
           }
