@@ -20,20 +20,18 @@ const isProtectedRoute = createRouteMatcher([
 // =============================================================================
 
 /**
- * Add security headers including a nonce-based CSP.
+ * Add security headers including a CSP.
  *
- * Nonce strategy: a per-request base64 nonce is set both here (response CSP)
- * and in the x-nonce request header so layout.tsx can forward it to
- * ClerkProvider and next/script tags. CSP Level 2+ browsers ignore
- * 'unsafe-inline' when a nonce is present; older browsers fall back to it.
+ * Note: nonce-based CSP would be stronger, but Next.js App Router inline
+ * hydration scripts don't receive the nonce automatically, so CSP3 browsers
+ * block them. We use 'unsafe-inline' + strict domain allowlist instead.
+ * A future improvement is to fully wire the nonce through generateMetadata.
  */
 function addSecurityHeaders(response: NextResponse, nonce: string): void {
   const csp = [
     "default-src 'self'",
     // unsafe-eval removed — Stripe redirect-only checkout and Clerk prebuilt components don't need it.
-    // If Stripe Elements or Clerk custom flows break, add 'unsafe-eval' back and track upstream fix.
-    // 'nonce-...' is the primary guard; 'unsafe-inline' is the CSP2 fallback (ignored when nonce present).
-    `script-src 'self' 'unsafe-inline' 'nonce-${nonce}' https://js.stripe.com https://clerk.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com`,
+    `script-src 'self' 'unsafe-inline' https://js.stripe.com https://clerk.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com`,
     "style-src 'self' 'unsafe-inline'", // Tailwind requires unsafe-inline
     "img-src 'self' data: blob: https://img.clerk.com https://api.dicebear.com",
     "font-src 'self' data:",
