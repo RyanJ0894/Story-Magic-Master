@@ -92,7 +92,7 @@ Scoring model (all voices scored, best rises to top):
 - Style/Ethnicity + Narrative query: equally weighted soft scores
 - Tone: light preference weight`,
 
-  parameters: z.object({
+  inputSchema: z.object({
     query: z.string().describe('Natural language description of the desired voice'),
     gender: z.enum(['Male', 'Female']).optional().describe('Gender filter'),
     label: z.string().optional().describe('Age/category filter (e.g., "Teen", "Older Male", "Narrator")'),
@@ -169,7 +169,7 @@ Scoring model (all voices scored, best rises to top):
 export const getVoiceByIdTool = tool({
   description: 'Get a specific voice profile by its ID. Use this to verify a voice selection.',
 
-  parameters: z.object({
+  inputSchema: z.object({
     voice_id: z.string().describe('The ElevenLabs voice ID'),
   }),
 
@@ -212,7 +212,7 @@ export const getVoiceByIdTool = tool({
 export const listVoiceLabelsTool = tool({
   description: 'List all available voice labels/categories. Use this to understand what voice types are available.',
 
-  parameters: z.object({}),
+  inputSchema: z.object({}),
 
   execute: async () => {
     // Get all voices using hybrid search

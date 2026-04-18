@@ -52,7 +52,7 @@ IMPORTANT RULES:
 Groups available: EPIC, UPLIFTING, CINEMATIC, THRILLER, DRAMA, EMOTIONAL, etc.
 Use group filter to narrow results.`,
 
-  parameters: z.object({
+  inputSchema: z.object({
     query: z.string().describe('Natural language description of the desired music'),
     group: z.string().optional().describe('Music category filter (e.g., "EPIC", "UPLIFTING", "THRILLER")'),
     style: z.string().optional().describe('Music style filter (e.g., "orchestral", "electronic")'),
@@ -126,7 +126,7 @@ CRITICAL RULES:
 
 Groups available: "People in the City", "Suburbs & Countryside", "Interior Spaces", etc.`,
 
-  parameters: z.object({
+  inputSchema: z.object({
     query: z.string().describe('Natural language description of the scene location'),
     group: z.string().optional().describe('Ambience category filter'),
     style: z.string().optional().describe('Style filter'),
@@ -199,7 +199,7 @@ CRITICAL RULES:
 
 Groups available: "Fighting", "Explosions", "Doors & Impacts", "Vehicles", etc.`,
 
-  parameters: z.object({
+  inputSchema: z.object({
     query: z.string().describe('Natural language description of the sound effect needed'),
     group: z.string().optional().describe('SFX category filter (e.g., "Fighting", "Explosions")'),
     style: z.string().optional().describe('Style filter'),
@@ -259,7 +259,7 @@ Groups available: "Fighting", "Explosions", "Doors & Impacts", "Vehicles", etc.`
 export const listAudioGroupsTool = tool({
   description: 'List all available audio groups/categories for music, ambience, or SFX.',
 
-  parameters: z.object({
+  inputSchema: z.object({
     audio_type: z.enum(['music', 'ambience', 'sfx']).describe('Type of audio to list groups for'),
   }),
 
@@ -298,7 +298,7 @@ export const listAudioGroupsTool = tool({
 export const getAudioByIdTool = tool({
   description: 'Get a specific audio file by its ID. Use this to verify an audio selection.',
 
-  parameters: z.object({
+  inputSchema: z.object({
     audio_type: z.enum(['music', 'ambience', 'sfx']).describe('Type of audio'),
     id: z.string().describe('The audio file ID'),
   }),

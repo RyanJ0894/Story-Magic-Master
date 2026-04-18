@@ -1,23 +1,22 @@
 /**
- * LLM Client - Vercel AI SDK wrapper (Multi-Provider Support)
+ * LLM Client - Vercel AI SDK v6 wrapper (Multi-Provider Support)
  *
  * Provides a unified interface for LLM inference supporting:
  * - OpenAI (GPT-4, GPT-4.1, GPT-4o)
- * - Anthropic (Claude 3.5, Claude 3 Opus/Sonnet)
+ * - Anthropic (Claude 3.5, Claude Sonnet 4.6)
  * - Google (Gemini 1.5 Pro, Gemini 2.0 Flash)
  * - Groq (Llama 3.3 70B)
- *
- * This is the TypeScript replacement for Python's LiteLLM.
  *
  * Model string format: "provider/model-name"
  * Examples:
  *   - "openai/gpt-4.1"
+ *   - "anthropic/claude-sonnet-4-6"
  *   - "anthropic/claude-3-5-sonnet-20241022"
  *   - "google/gemini-1.5-pro"
  *   - "groq/llama-3.3-70b-versatile"
  */
 
-import { generateText, generateObject, tool, CoreMessage, CoreTool, LanguageModelV1 } from 'ai';
+import { generateText, generateObject, tool, type ModelMessage, type Tool, type ToolResultPart } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { createGroq } from '@ai-sdk/groq';
 import { anthropic } from '@ai-sdk/anthropic';
@@ -36,7 +35,7 @@ export interface ToolDefinition {
 export interface AgentOptions {
   model: string;
   systemPrompt: string;
-  tools?: Record<string, CoreTool>;
+  tools?: Record<string, Tool>;
   maxTokens?: number;
   temperature?: number;
   maxIterations?: number;
@@ -48,56 +47,45 @@ export interface AgentOptions {
 function parseModelString(modelString: string): { provider: LLMProvider; modelName: string } {
   const parts = modelString.split('/');
   if (parts.length !== 2) {
-    // Default to OpenAI if no provider specified
     return { provider: 'openai', modelName: modelString };
   }
-
-  const provider = parts[0].toLowerCase() as LLMProvider;
-  const modelName = parts[1];
-
-  return { provider, modelName };
+  return { provider: parts[0].toLowerCase() as LLMProvider, modelName: parts[1] };
 }
 
 /**
- * Get the appropriate model instance for Vercel AI SDK
+ * Get the appropriate model instance for Vercel AI SDK v6.
  *
  * Supported providers and environment variables:
- * - openai: OPENAI_API_KEY (auto-detected by @ai-sdk/openai)
- * - anthropic: ANTHROPIC_API_KEY (auto-detected by @ai-sdk/anthropic)
- * - google: GOOGLE_GENERATIVE_AI_API_KEY (auto-detected by @ai-sdk/google)
+ * - openai: OPENAI_API_KEY
+ * - anthropic: ANTHROPIC_API_KEY (supports claude-sonnet-4-6 with AI SDK v6)
+ * - google: GOOGLE_GENERATIVE_AI_API_KEY
  * - groq: GROQ_API_KEY
  */
-function getModel(modelString: string): LanguageModelV1 {
+function getModel(modelString: string) {
   const { provider, modelName } = parseModelString(modelString);
 
   switch (provider) {
     case 'anthropic':
-      // Claude models: claude-3-5-sonnet-20241022, claude-3-opus-20240229, etc.
-      return anthropic(modelName) as unknown as LanguageModelV1;
+      return anthropic(modelName);
 
     case 'google':
-      // Gemini models: gemini-1.5-pro, gemini-2.0-flash-exp, etc.
-      return google(modelName) as unknown as LanguageModelV1;
+      return google(modelName);
 
     case 'groq': {
-      // Groq models: llama-3.3-70b-versatile, mixtral-8x7b-32768, etc.
-      const groq = createGroq({
-        apiKey: process.env.GROQ_API_KEY,
-      });
-      return groq(modelName) as LanguageModelV1;
+      const groqClient = createGroq({ apiKey: process.env.GROQ_API_KEY });
+      return groqClient(modelName);
     }
 
     case 'openai':
     default:
-      // OpenAI models: gpt-4.1, gpt-4o, gpt-4-turbo, etc.
-      return openai(modelName) as LanguageModelV1;
+      return openai(modelName);
   }
 }
 
 /**
- * Run an agent loop with tool calling support
+ * Run an agent loop with tool calling support.
  *
- * This implements the same pattern as Python's LiteLLMAgent:
+ * Implements the same pattern as the original agent loop:
  * 1. Send message to LLM
  * 2. If LLM returns tool calls, execute them
  * 3. Send tool results back to LLM
@@ -116,7 +104,7 @@ export async function runAgentLoop(
     maxIterations = 20,
   } = options;
 
-  const messages: CoreMessage[] = [{ role: 'user', content: userInput }];
+  const messages: ModelMessage[] = [{ role: 'user', content: userInput }];
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     log.debug('LLM iteration', { iteration: iteration + 1, maxIterations });
@@ -127,11 +115,10 @@ export async function runAgentLoop(
         system: systemPrompt,
         messages,
         tools,
-        maxTokens,
+        maxOutputTokens: maxTokens,
         temperature,
       });
 
-      // If no tool calls, return the text response
       if (!result.toolCalls || result.toolCalls.length === 0) {
         log.debug('LLM completed - no more tool calls');
         return result.text;
@@ -139,47 +126,40 @@ export async function runAgentLoop(
 
       log.debug('LLM processing tool calls', { count: result.toolCalls.length });
 
-      // Add assistant message with tool calls
+      // Add assistant message with tool calls (v6: input field instead of args)
       messages.push({
         role: 'assistant',
         content: result.toolCalls.map((tc) => ({
           type: 'tool-call' as const,
           toolCallId: tc.toolCallId,
           toolName: tc.toolName,
-          args: tc.args,
+          input: tc.input,
         })),
       });
 
       // Execute each tool call and collect results
-      const toolResults: Array<{
-        type: 'tool-result';
-        toolCallId: string;
-        toolName: string;
-        result: unknown;
-      }> = [];
+      const toolResults: ToolResultPart[] = [];
 
       for (const toolCall of result.toolCalls) {
         const toolName = toolCall.toolName;
-        const toolArgs = toolCall.args as Record<string, unknown>;
+        const toolInput = toolCall.input as Record<string, unknown>;
 
-        log.debug('LLM calling tool', { toolName, args: toolArgs });
+        log.debug('LLM calling tool', { toolName, args: toolInput });
 
-        // Get the tool and execute it
-        const toolDef = tools[toolName];
+        const toolDef = tools[toolName] as Tool | undefined;
         if (!toolDef) {
           log.error('LLM unknown tool', undefined, { toolName });
           toolResults.push({
             type: 'tool-result',
             toolCallId: toolCall.toolCallId,
             toolName,
-            result: { error: `Unknown tool: ${toolName}` },
+            output: { type: 'json', value: { error: `Unknown tool: ${toolName}` } },
           });
           continue;
         }
 
         try {
-          // Execute the tool
-          const toolResult = await (toolDef as CoreTool).execute!(toolArgs, {
+          const toolResult = await toolDef.execute!(toolInput, {
             toolCallId: toolCall.toolCallId,
             messages: [],
             abortSignal: undefined as unknown as AbortSignal,
@@ -190,7 +170,7 @@ export async function runAgentLoop(
             type: 'tool-result',
             toolCallId: toolCall.toolCallId,
             toolName,
-            result: toolResult,
+            output: { type: 'json' as const, value: toolResult as Parameters<typeof JSON.parse>[0] },
           });
         } catch (err) {
           log.error('LLM tool execution error', err instanceof Error ? err : undefined, { toolName });
@@ -198,12 +178,12 @@ export async function runAgentLoop(
             type: 'tool-result',
             toolCallId: toolCall.toolCallId,
             toolName,
-            result: { error: err instanceof Error ? err.message : 'Unknown error' },
+            output: { type: 'json', value: { error: err instanceof Error ? err.message : 'Unknown error' } },
           });
         }
       }
 
-      // Add tool results to messages
+      // Add tool results (v6: output field instead of result)
       messages.push({
         role: 'tool',
         content: toolResults,
@@ -216,7 +196,6 @@ export async function runAgentLoop(
 
   log.warn('LLM max iterations reached', { maxIterations });
 
-  // Return whatever we have
   const lastMessage = messages[messages.length - 1];
   if (typeof lastMessage.content === 'string') {
     return lastMessage.content;
@@ -241,7 +220,7 @@ export async function generateSimpleText(
     model: getModel(options.model),
     system: options.systemPrompt,
     prompt,
-    maxTokens: options.maxTokens || 4096,
+    maxOutputTokens: options.maxTokens || 4096,
     temperature: options.temperature || 0.7,
   });
 
@@ -249,11 +228,10 @@ export async function generateSimpleText(
 }
 
 /**
- * Generate a structured object using Zod schema enforcement
+ * Generate a structured object using Zod schema enforcement.
  *
- * This uses the AI SDK's native structured output feature which guarantees
- * valid JSON output matching the provided schema. Use this when you need
- * guaranteed structured output without parsing issues.
+ * Uses the AI SDK's native structured output feature which guarantees
+ * valid JSON output matching the provided schema.
  */
 export async function generateStructuredOutput<T>(
   prompt: string,
@@ -270,7 +248,7 @@ export async function generateStructuredOutput<T>(
     schema: options.schema,
     system: options.systemPrompt,
     prompt,
-    maxTokens: options.maxTokens || 8192,
+    maxOutputTokens: options.maxTokens || 8192,
     temperature: options.temperature || 0.7,
   });
 
@@ -278,10 +256,7 @@ export async function generateStructuredOutput<T>(
 }
 
 /**
- * Convert raw LLM text output to structured JSON using a second pass
- *
- * Use this when you have text that should be JSON but may have formatting issues.
- * It uses a small model to clean/structure the output according to a schema.
+ * Convert raw LLM text output to structured JSON using a second pass.
  */
 export async function structureTextAsJSON<T>(
   rawText: string,
@@ -304,8 +279,8 @@ ${rawText}`;
     model: getModel(model),
     schema: options.schema,
     prompt,
-    maxTokens: 16384,
-    temperature: 0, // Deterministic for conversion
+    maxOutputTokens: 16384,
+    temperature: 0,
   });
 
   return result.object;

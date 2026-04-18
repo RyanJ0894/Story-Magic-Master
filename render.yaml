@@ -33,6 +33,7 @@ services:
     buildCommand: |
       npm install -g pnpm@9.1.0 &&
       pnpm install --frozen-lockfile &&
+      node scripts/check-env-web.js &&
       cd packages/web && npx prisma generate && npx prisma migrate deploy && cd ../.. &&
       pnpm --filter @story-magic/web build
     startCommand: pnpm --filter @story-magic/web start
@@ -218,6 +219,7 @@ services:
     buildCommand: |
       npm install -g pnpm@9.1.0 &&
       pnpm install --frozen-lockfile &&
+      node scripts/check-env-orchestrator.js &&
       pnpm --filter @story-magic/orchestrator build
     startCommand: pnpm --filter @story-magic/orchestrator start
 
@@ -262,10 +264,12 @@ services:
         sync: false
 
       # Director/Audio-Director LLM (defaults to claude-sonnet-4-6)
+      # NOTE: claude-sonnet-4-6 requires AI SDK v5 (currently on v4).
+      # Use claude-3-5-sonnet-20241022 until AI SDK is upgraded.
       - key: DIRECTOR_MODEL
-        value: anthropic/claude-sonnet-4-6
+        value: anthropic/claude-3-5-sonnet-20241022
       - key: AUDIO_DIRECTOR_MODEL
-        value: anthropic/claude-sonnet-4-6
+        value: anthropic/claude-3-5-sonnet-20241022
 
       # Sentry (set in Render dashboard)
       - key: SENTRY_DSN
