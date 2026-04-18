@@ -113,35 +113,61 @@ export async function processGenerationJob(
 
     await updateJobProgress('initializing', 5, 'Starting generation pipeline...');
 
-    // Step 2: Call Director Agent to parse script
-    await updateJobProgress('parsing', 10, 'Parsing script and assigning voices...');
+    // Step 2: Parse script via Director Agent (skip if a prior run already produced directorJson)
+    const existingProject = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { directorJson: true },
+    });
 
-    logProgress(jobId, 'parsing', `Calling orchestrator /generate-scenes`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const existingDirectorJson = existingProject?.directorJson as any;
+    const hasExistingParse = Array.isArray(existingDirectorJson?.scenes) && existingDirectorJson.scenes.length > 0;
 
-    const generateScenesBody: Record<string, unknown> = {
-      project_id: projectId,
-      script_text: scriptText,
-    };
-    if (Object.keys(voiceOverrides).length > 0) {
-      generateScenesBody.voice_overrides = voiceOverrides;
-      logProgress(jobId, 'parsing', `Voice overrides for ${Object.keys(voiceOverrides).length} character(s)`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let directorJson: any;
+
+    if (hasExistingParse) {
+      directorJson = existingDirectorJson;
+      const sceneCount = directorJson.scenes?.length || 0;
+      const lineCount = directorJson.scenes?.reduce((acc: number, s: { dialogue?: unknown[] }) => acc + (s.dialogue?.length || 0), 0) || 0;
+      logProgress(jobId, 'parsing', `Reusing existing director parse: ${sceneCount} scenes, ${lineCount} lines`);
+      await updateJobProgress('parsing_complete', 25, `Using cached parse: ${sceneCount} scenes, ${lineCount} lines`);
+    } else {
+      await updateJobProgress('parsing', 10, 'Parsing script and assigning voices...');
+
+      logProgress(jobId, 'parsing', `Calling orchestrator /generate-scenes`);
+
+      const generateScenesBody: Record<string, unknown> = {
+        project_id: projectId,
+        script_text: scriptText,
+      };
+      if (Object.keys(voiceOverrides).length > 0) {
+        generateScenesBody.voice_overrides = voiceOverrides;
+        logProgress(jobId, 'parsing', `Voice overrides for ${Object.keys(voiceOverrides).length} character(s)`);
+      }
+
+      const directorResponse = await orchestratorGenerate('/generate-scenes', generateScenesBody);
+
+      if (!directorResponse.ok) {
+        const errorBody = await directorResponse.text();
+        logProgress(jobId, 'parsing', `Director Agent error: ${errorBody}`);
+        throw new Error(`Director Agent failed: ${errorBody}`);
+      }
+
+      const directorResponse_json = await directorResponse.json();
+      directorJson = directorResponse_json.director_json || directorResponse_json;
+
+      const sceneCount = directorJson.scenes?.length || 0;
+      const lineCount = directorJson.scenes?.reduce((acc: number, s: { dialogue?: unknown[] }) => acc + (s.dialogue?.length || 0), 0) || 0;
+
+      await updateJobProgress('parsing_complete', 25, `Parsed ${sceneCount} scenes, ${lineCount} lines`);
+
+      // Save director JSON to project for future retry reuse
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { directorJson },
+      });
     }
-
-    const directorResponse = await orchestratorGenerate('/generate-scenes', generateScenesBody);
-
-    if (!directorResponse.ok) {
-      const errorBody = await directorResponse.text();
-      logProgress(jobId, 'parsing', `Director Agent error: ${errorBody}`);
-      throw new Error(`Director Agent failed: ${errorBody}`);
-    }
-
-    const directorResponse_json = await directorResponse.json();
-    const directorJson = directorResponse_json.director_json || directorResponse_json;
-
-    const sceneCount = directorJson.scenes?.length || 0;
-    const lineCount = directorJson.scenes?.reduce((acc: number, s: { dialogue?: unknown[] }) => acc + (s.dialogue?.length || 0), 0) || 0;
-
-    await updateJobProgress('parsing_complete', 25, `Parsed ${sceneCount} scenes, ${lineCount} lines`);
 
     // Check for cancellation before starting the long orchestration phase
     const jobAfterParsing = await prisma.job.findUnique({
@@ -153,11 +179,7 @@ export async function processGenerationJob(
       return;
     }
 
-    // Save director JSON to project
-    await prisma.project.update({
-      where: { id: projectId },
-      data: { directorJson },
-    });
+    // (directorJson already saved above when freshly parsed; no-op on retry)
 
     // Apply audio overrides from project settings
     const projectData = await prisma.project.findUnique({
@@ -189,8 +211,9 @@ export async function processGenerationJob(
     }
 
     // Step 3: Call Orchestrator to generate audio
+    const totalScenes = directorJson.scenes?.length || 0;
     await updateJobProgress('generating_audio', 30, 'Generating TTS audio for all dialogue...');
-    logProgress(jobId, 'generating_audio', `Calling orchestrator /orchestrate with ${sceneCount} scenes`);
+    logProgress(jobId, 'generating_audio', `Calling orchestrator /orchestrate with ${totalScenes} scenes`);
 
     const orchestratorResponse = await orchestratorGenerate('/orchestrate', {
       project_id: projectId,
