@@ -84,7 +84,10 @@ app.use('/audio-preview', express.static(path.join(__dirname, '../catalog')));
 // Generated project audio - serves output from persistent disk (AUDIO_OUTPUT_DIR)
 app.use('/audio', express.static(getOutputDir(), {
   maxAge: '1d',
-  setHeaders: (res) => { res.set('Access-Control-Allow-Origin', '*'); },
+  setHeaders: (res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+  },
 }));
 
 // Impact story audio - serves generated impact story audio files

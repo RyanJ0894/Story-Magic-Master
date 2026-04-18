@@ -265,8 +265,16 @@ export async function processGenerationJob(
 
     await prisma.$executeRaw`SELECT increment_usage(${userId}, ${pageCount}::integer)`;
 
-    // Step 6: Mark job as completed
+    // Step 6: Mark project completed first, then job — the client polls job status
+    // and calls router.refresh() the moment it sees 'completed'. By updating project
+    // first we guarantee project.status === 'completed' is visible to that refresh.
     const completionTime = new Date();
+
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { status: 'completed' },
+    });
+
     await prisma.job.update({
       where: { id: jobId },
       data: {
@@ -275,11 +283,6 @@ export async function processGenerationJob(
         progress: { step: 'done', percent: 100, details: 'Generation complete!', updated_at: completionTime.toISOString() },
         result: orchestratorResult,
       },
-    });
-
-    await prisma.project.update({
-      where: { id: projectId },
-      data: { status: 'completed' },
     });
 
     logProgress(jobId, 'done', 'Generation completed successfully!');

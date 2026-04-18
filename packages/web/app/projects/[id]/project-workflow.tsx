@@ -393,9 +393,12 @@ export function ProjectWorkflow({
   const allVoicesAssigned = voiceAssignments.total > 0 && voiceAssignments.assigned === voiceAssignments.total;
   const hasDirectorJson = !!project.directorJson?.scenes;
   const hasAudioOverrides = (audioOverrides?.scenesWithOverrides ?? 0) > 0;
-  const isProcessing = project.status === 'processing';
-  const isCompleted = project.status === 'completed' && audioOutputs && audioOutputs.length > 0;
-  const hasFailed = project.status === 'failed';
+  const isProcessing = project.status === 'processing' && !allJobs.some(j => j.status === 'completed');
+  // Also check enriched jobs in case project.status hasn't propagated yet when router.refresh() fires
+  const hasAnyCompletedRunWithAudio = allJobs.some(j => j.status === 'completed' && j.hasAudio);
+  const isCompleted = (project.status === 'completed' || hasAnyCompletedRunWithAudio)
+    && ((audioOutputs?.length ?? 0) > 0 || hasAnyCompletedRunWithAudio);
+  const hasFailed = project.status === 'failed' && !isCompleted;
   const isAutomatic = selectedMode === 'automatic';
 
   // Helper to determine status considering skips
