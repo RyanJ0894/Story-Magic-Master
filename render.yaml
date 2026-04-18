@@ -264,12 +264,11 @@ services:
         sync: false
 
       # Director/Audio-Director LLM (defaults to claude-sonnet-4-6)
-      # NOTE: claude-sonnet-4-6 requires AI SDK v5 (currently on v4).
-      # Use claude-3-5-sonnet-20241022 until AI SDK is upgraded.
+      # AI SDK v6 + @ai-sdk/anthropic v3 — claude-sonnet-4-6 fully supported
       - key: DIRECTOR_MODEL
-        value: anthropic/claude-3-5-sonnet-20241022
+        value: anthropic/claude-sonnet-4-6
       - key: AUDIO_DIRECTOR_MODEL
-        value: anthropic/claude-3-5-sonnet-20241022
+        value: anthropic/claude-sonnet-4-6
 
       # Sentry (set in Render dashboard)
       - key: SENTRY_DSN

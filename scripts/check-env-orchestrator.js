@@ -115,10 +115,7 @@ if (directorModel.startsWith('groq/') && !hasGroq) {
   errors.push(`  ✗ DIRECTOR_MODEL='${directorModel}' requires GROQ_API_KEY — set key or switch model`);
 }
 
-// Warn about AI SDK v5 beta incompatibility — if model is claude-sonnet-4-6 while on ai v4
-if (directorModel.includes('claude-sonnet-4-6') || directorModel.includes('claude-4')) {
-  warnings.push(`  ⚠  DIRECTOR_MODEL='${directorModel}' — Claude 4.x models require AI SDK v5 (currently v4). Use anthropic/claude-3-5-sonnet-20241022 until AI SDK is upgraded.`);
-}
+// Note: claude-sonnet-4-6 is fully supported on AI SDK v6
 
 // ── TTS / Audio ───────────────────────────────────────────────────────────────
 
