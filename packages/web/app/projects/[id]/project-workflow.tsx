@@ -365,11 +365,15 @@ export function ProjectWorkflow({
   const currentViewedRun = viewingRunNumber
     ? allJobs.find(j => j.runNumber === viewingRunNumber)
     : latestJob
-      ? allJobs.find(j => j.id === latestJob.runNumber?.toString()) || allJobs[0]
-      : null;
+      ? allJobs.find(j => j.runNumber === latestJob.runNumber) || allJobs[0]
+      : allJobs[0] ?? null;
 
-  // Get audio for the current viewed run
-  const currentRunAudio = currentViewedRun?.audioOutputs || audioOutputs;
+  // Get audio for the current viewed run.
+  // Note: empty array is truthy so we can't use || — check length explicitly.
+  const currentRunAudio =
+    (currentViewedRun?.audioOutputs?.length ?? 0) > 0
+      ? currentViewedRun!.audioOutputs
+      : audioOutputs;
 
   const handleSkip = (stepId: string) => {
     setSkippedSteps(prev => new Set(Array.from(prev).concat(stepId)));

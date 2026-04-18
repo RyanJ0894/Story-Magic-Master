@@ -221,8 +221,8 @@ export async function getLatestRevision(projectId: string): Promise<Revision | n
  * Get revision timeline for a project
  */
 export async function getRevisionTimeline(projectId: string): Promise<RevisionTimeline> {
-  // Get timeline entries
-  const timelineData = await prisma.$queryRaw<Array<{
+  // Get timeline entries — uses a stored procedure that may not exist in all envs
+  let timelineData: Array<{
     id: string;
     version_number: number;
     label: string | null;
@@ -231,9 +231,16 @@ export async function getRevisionTimeline(projectId: string): Promise<RevisionTi
     overall_score: number | null;
     changes_summary: RevisionChanges | null;
     created_at: string;
-  }>>`
-    SELECT * FROM get_revision_timeline(${projectId}::uuid)
-  `;
+  }> = [];
+  try {
+    timelineData = await prisma.$queryRaw`
+      SELECT * FROM get_revision_timeline(${projectId}::uuid)
+    `;
+  } catch {
+    // Stored procedure not yet deployed — return empty timeline gracefully
+    const now = new Date().toISOString();
+    return { projectId, revisions: [], totalRevisions: 0, firstRevision: now, latestRevision: now };
+  }
 
   const entries: RevisionTimelineEntry[] = (timelineData || []).map((row: typeof timelineData[number]) => ({
     id: row.id,

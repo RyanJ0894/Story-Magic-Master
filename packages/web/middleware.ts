@@ -37,7 +37,7 @@ function addSecurityHeaders(response: NextResponse, nonce: string): void {
     "font-src 'self' data:",
     "connect-src 'self' https://api.stripe.com https://api.elevenlabs.io https://api.openai.com https://*.sentry.io https://clerk.storymagicapp.net https://accounts.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://*.clerk.dev https://clerk-telemetry.com",
     "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://accounts.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com",
-    "media-src 'self' blob:",
+    "media-src 'self' blob: https://story-magic-orchestrator.onrender.com",
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",

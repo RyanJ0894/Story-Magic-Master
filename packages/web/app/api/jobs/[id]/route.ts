@@ -1,6 +1,7 @@
 import { withAuth, errorResponse } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 
+// Polling every 2s = 30 req/min — needs 'loose' (60/min), not default 'normal' (20/min)
 export const GET = withAuth(async (_request, { userId, prisma, params }) => {
   const jobId = params.id;
 
@@ -41,4 +42,4 @@ export const GET = withAuth(async (_request, { userId, prisma, params }) => {
     project_id: job.projectId,
     project_status: job.project.status,
   });
-});
+}, { rateLimit: 'loose' });
