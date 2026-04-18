@@ -108,8 +108,8 @@ export default async function DashboardPage() {
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-8">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
-            <p className="mt-1 text-muted-foreground text-sm">Manage your audio productions and account</p>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Your Projects</h1>
+            <p className="mt-1 text-muted-foreground text-sm">Pick up where you left off, or start something new.</p>
           </div>
         </div>
 
