@@ -38,6 +38,7 @@
     "node_modules",
     "e2e",
     "playwright.config.ts",
+    "playwright.production.config.ts",
     "scripts",
     "tests",
     "vitest.config.ts"
