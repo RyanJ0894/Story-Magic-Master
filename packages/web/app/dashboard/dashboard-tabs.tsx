@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import {
   Plus, FileText, Folder, Mic, BarChart2, Users, Clock,
-  CheckCircle, Loader2, XCircle, ChevronRight, Music, Zap,
+  CheckCircle, Loader2, XCircle, ChevronRight, ChevronDown, Music, Zap,
 } from 'lucide-react';
 
 type TabId = 'overview' | 'projects' | 'voices' | 'analytics';
@@ -40,12 +40,10 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; cl
 };
 
 const TIER_CARDS = [
-  { id: 'free', label: 'Individual', sublabel: 'Free Trial', pages: 3, color: 'border-slate-600 bg-slate-800/40' },
-  { id: 'creator', label: 'Starter Enterprise', sublabel: 'Creator', pages: 50, color: 'border-blue-700 bg-blue-900/30' },
-  { id: 'pro', label: 'Professional Simulation', sublabel: 'Pro', pages: 200, color: 'border-cyan-700 bg-cyan-900/30' },
-  { id: 'studio', label: 'Studio Enterprise', sublabel: 'Studio', pages: 1000, color: 'border-amber-700 bg-amber-900/30' },
-  { id: 'enterprise', label: 'Enterprise Unlimited', sublabel: 'Enterprise', pages: null, color: 'border-emerald-700 bg-emerald-900/30' },
-  { id: 'university', label: 'University Program', sublabel: 'Academic', pages: 500, color: 'border-purple-700 bg-purple-900/30' },
+  { ids: ['free'], label: 'Individual', sublabel: 'Free Trial', pages: '3', color: 'border-slate-600 bg-slate-800/40', contactSales: false },
+  { ids: ['creator'], label: 'Starter Enterprise', sublabel: 'Creator', pages: '50', color: 'border-blue-700 bg-blue-900/30', contactSales: false },
+  { ids: ['pro', 'studio'], label: 'Professional', sublabel: 'Pro · Studio', pages: '200–1,000', color: 'border-cyan-700 bg-cyan-900/30', contactSales: false },
+  { ids: ['enterprise', 'university'], label: 'Enterprise', sublabel: 'Unlimited · Academic', pages: null, color: 'border-emerald-700 bg-emerald-900/30', contactSales: true },
 ];
 
 const SAMPLE_VOICES = [
@@ -70,29 +68,157 @@ export function DashboardTabs({
   projects, tier, tierDisplayName, tierLimit, usedPages, remaining, usagePercent,
 }: DashboardTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [expandedStat, setExpandedStat] = useState<string | null>(null);
 
   const recentProjects = projects.slice(0, 3);
+
+  const statusCounts = ['draft', 'processing', 'completed', 'failed'].map((s) => ({
+    status: s,
+    count: projects.filter((p) => p.status === s).length,
+  }));
+
+  const toggleStat = (label: string) =>
+    setExpandedStat((prev) => (prev === label ? null : label));
 
   return (
     <div>
       {/* Stats Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {[
-          { label: 'Total Projects', value: projects.length, icon: Folder, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-          { label: 'Pages Used', value: usedPages, icon: FileText, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-          { label: 'Voice Library', value: '50+', icon: Mic, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-          { label: 'Active Users', value: 1, icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-        ].map((stat) => (
-          <div key={stat.label} className="bg-card border border-border rounded-xl p-4">
+        {/* Total Projects */}
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <button
+            onClick={() => toggleStat('projects')}
+            className="w-full p-4 text-left hover:bg-muted/40 transition-colors"
+          >
             <div className="flex items-start justify-between mb-3">
-              <p className="text-sm text-muted-foreground">{stat.label}</p>
-              <div className={`w-8 h-8 rounded-lg ${stat.bg} flex items-center justify-center`}>
-                <stat.icon className={`w-4 h-4 ${stat.color}`} />
+              <p className="text-sm text-muted-foreground">Total Projects</p>
+              <div className="flex items-center gap-1">
+                <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                  <Folder className="w-4 h-4 text-blue-400" />
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${expandedStat === 'projects' ? 'rotate-180' : ''}`} />
               </div>
             </div>
-            <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-          </div>
-        ))}
+            <p className="text-2xl font-bold text-foreground">{projects.length}</p>
+          </button>
+          {expandedStat === 'projects' && (
+            <div className="px-4 pb-4 border-t border-border pt-3 space-y-2">
+              {statusCounts.map(({ status, count }) => {
+                const s = STATUS_CONFIG[status];
+                const Icon = s.icon;
+                return (
+                  <div key={status} className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <Icon className={`w-3 h-3 ${s.className}`} />
+                      {s.label}
+                    </span>
+                    <span className="font-medium">{count}</span>
+                  </div>
+                );
+              })}
+              <button onClick={() => { setActiveTab('projects'); setExpandedStat(null); }} className="mt-1 text-xs text-blue-400 hover:text-blue-300 font-medium">
+                View all →
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Pages Used */}
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <button
+            onClick={() => toggleStat('pages')}
+            className="w-full p-4 text-left hover:bg-muted/40 transition-colors"
+          >
+            <div className="flex items-start justify-between mb-3">
+              <p className="text-sm text-muted-foreground">Pages Used</p>
+              <div className="flex items-center gap-1">
+                <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+                  <FileText className="w-4 h-4 text-cyan-400" />
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${expandedStat === 'pages' ? 'rotate-180' : ''}`} />
+              </div>
+            </div>
+            <p className="text-2xl font-bold text-foreground">{usedPages}</p>
+          </button>
+          {expandedStat === 'pages' && (
+            <div className="px-4 pb-4 border-t border-border pt-3 space-y-2">
+              <Progress value={usagePercent} className="h-1.5" />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{usedPages} used</span>
+                <span>{remaining} left</span>
+              </div>
+              <p className="text-xs text-muted-foreground">Limit: {tierLimit} pages/mo</p>
+              <p className="text-xs font-medium">{tierDisplayName}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Voice Library */}
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <button
+            onClick={() => toggleStat('voices')}
+            className="w-full p-4 text-left hover:bg-muted/40 transition-colors"
+          >
+            <div className="flex items-start justify-between mb-3">
+              <p className="text-sm text-muted-foreground">Voice Library</p>
+              <div className="flex items-center gap-1">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                  <Mic className="w-4 h-4 text-amber-400" />
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${expandedStat === 'voices' ? 'rotate-180' : ''}`} />
+              </div>
+            </div>
+            <p className="text-2xl font-bold text-foreground">50+</p>
+          </button>
+          {expandedStat === 'voices' && (
+            <div className="px-4 pb-4 border-t border-border pt-3 space-y-1.5">
+              {SAMPLE_VOICES.slice(0, 4).map((v) => (
+                <div key={v.name} className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">{v.name}</span>
+                  <span className="text-muted-foreground/60">{v.type}</span>
+                </div>
+              ))}
+              <button onClick={() => { setActiveTab('voices'); setExpandedStat(null); }} className="mt-1 text-xs text-blue-400 hover:text-blue-300 font-medium">
+                Browse all →
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Active Users */}
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <button
+            onClick={() => toggleStat('users')}
+            className="w-full p-4 text-left hover:bg-muted/40 transition-colors"
+          >
+            <div className="flex items-start justify-between mb-3">
+              <p className="text-sm text-muted-foreground">Active Users</p>
+              <div className="flex items-center gap-1">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                  <Users className="w-4 h-4 text-emerald-400" />
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${expandedStat === 'users' ? 'rotate-180' : ''}`} />
+              </div>
+            </div>
+            <p className="text-2xl font-bold text-foreground">1</p>
+          </button>
+          {expandedStat === 'users' && (
+            <div className="px-4 pb-4 border-t border-border pt-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                  <Users className="w-3 h-3 text-emerald-400" />
+                </div>
+                <span className="text-xs font-medium">You</span>
+                <span className="text-xs text-muted-foreground ml-auto">{tierDisplayName}</span>
+              </div>
+              {['enterprise', 'studio', 'pro', 'creator'].includes(tier) && (
+                <button onClick={() => setActiveTab('overview')} className="text-xs text-blue-400 hover:text-blue-300 font-medium">
+                  Manage team →
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tab Navigation */}
@@ -124,31 +250,37 @@ export function DashboardTabs({
           {/* Subscription Plan */}
           <div>
             <h2 className="text-lg font-semibold mb-4">Subscription Plans</h2>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {TIER_CARDS.map((t) => (
-                <div
-                  key={t.id}
-                  className={`relative border rounded-xl p-4 transition-all ${t.color} ${
-                    tier === t.id ? 'ring-2 ring-blue-500' : ''
-                  }`}
-                >
-                  {tier === t.id && (
-                    <span className="absolute -top-2 left-4 px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full">
-                      Current Plan
-                    </span>
-                  )}
-                  <p className="font-semibold text-sm text-foreground">{t.label}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{t.sublabel}</p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {t.pages ? `${t.pages} pages/month` : 'Unlimited pages'}
-                  </p>
-                  {tier !== t.id && (
-                    <Link href="/pricing" className="block mt-3 text-xs text-blue-400 hover:text-blue-300 font-medium">
-                      Upgrade →
-                    </Link>
-                  )}
-                </div>
-              ))}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {TIER_CARDS.map((t) => {
+                const isCurrent = t.ids.includes(tier);
+                return (
+                  <div
+                    key={t.ids[0]}
+                    className={`relative border rounded-xl p-4 flex flex-col transition-all ${t.color} ${
+                      isCurrent ? 'ring-2 ring-blue-500' : ''
+                    }`}
+                  >
+                    {isCurrent && (
+                      <span className="absolute -top-2 left-4 px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full">
+                        Current Plan
+                      </span>
+                    )}
+                    <p className="font-semibold text-sm text-foreground">{t.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t.sublabel}</p>
+                    <p className="text-xs text-muted-foreground mt-2 flex-1">
+                      {t.pages ? `${t.pages} pages/month` : 'Unlimited pages'}
+                    </p>
+                    {t.contactSales && (
+                      <a
+                        href="mailto:sales@storymagicapp.net"
+                        className="block mt-3 text-xs text-emerald-400 hover:text-emerald-300 font-medium"
+                      >
+                        Contact Sales →
+                      </a>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
