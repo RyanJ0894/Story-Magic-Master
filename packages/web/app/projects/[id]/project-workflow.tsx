@@ -569,7 +569,7 @@ export function ProjectWorkflow({
               <>
                 <AudioPlayer outputs={currentRunAudio!} />
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => router.push(`/projects/${project.id}/share`)}>
+                  <Button variant="outline" onClick={() => router.push(`/projects/${project.id}/listen`)}>
                     <Share2 className="w-4 h-4 mr-2" />
                     Share
                   </Button>
@@ -764,7 +764,7 @@ export function ProjectWorkflow({
             <div className="space-y-4">
               <AudioPlayer outputs={currentRunAudio!} />
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => router.push(`/projects/${project.id}/share`)}>
+                <Button variant="outline" onClick={() => router.push(`/projects/${project.id}/listen`)}>
                   <Share2 className="w-4 h-4 mr-2" />
                   Share
                 </Button>
