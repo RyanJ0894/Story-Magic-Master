@@ -99,6 +99,7 @@ interface ProjectWorkflowProps {
     status: string;
     pageCount: number;
     scriptText: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma JsonValue; downstream VoiceChooser/AudioChooser each narrow the shape
     directorJson?: any;
     preferredWorkflowMode?: WorkflowMode;
     currentRunNumber: number;

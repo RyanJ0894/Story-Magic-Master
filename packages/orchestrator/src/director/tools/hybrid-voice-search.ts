@@ -266,11 +266,25 @@ async function fetchElevenLabsVoices(params: {
     const data = await response.json();
     const voices = data.voices || [];
 
+    interface ElevenLabsVoice {
+      voice_id: string;
+      name: string;
+      labels?: {
+        gender?: string;
+        age?: string;
+        use_case?: string;
+        accent?: string;
+        descriptive?: Record<string, string>;
+      };
+      description?: string;
+      preview_url?: string;
+    }
+
     // Transform to our format
-    return voices.map((v: any) => ({
+    return (voices as ElevenLabsVoice[]).map((v) => ({
       voice_id: v.voice_id,
       name: v.name,
-      gender: v.labels?.gender || 'Male',
+      gender: (v.labels?.gender === 'Female' ? 'Female' : 'Male') as 'Male' | 'Female',
       label: v.labels?.age || v.labels?.use_case || 'General',
       style: v.labels?.accent || 'American',
       tone: v.labels?.descriptive ? Object.values(v.labels.descriptive) : [],

@@ -12,10 +12,10 @@ import { Wand2 } from 'lucide-react';
 import { ScriptImprovementWizard } from '@/components/wizard/ScriptImprovementWizard';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-
 interface ImprovementWizardButtonProps {
   projectId: string;
   scriptText: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- wizard accepts a partial score shape; full StoryScore type would require cascading changes
   existingScore?: any;
 }
 
