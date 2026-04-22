@@ -21,8 +21,8 @@ export default function EnterprisePage() {
     if (password === ENTERPRISE_PASSWORD) {
       // Store access in sessionStorage so the plans page can verify
       sessionStorage.setItem('enterprise_access', '1');
-      // Go to dashboard if already logged in, otherwise plans page
-      router.push('/enterprise/dashboard');
+      // Go to the plans page so user can browse/select an enterprise plan
+      router.push('/enterprise-plans');
     } else {
       setError('Incorrect password. Please try again.');
       setPassword('');

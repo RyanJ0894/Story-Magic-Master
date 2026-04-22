@@ -1,13 +1,20 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Check, Building2, Shield, Users, Headphones, Zap, GraduationCap } from 'lucide-react';
+import { Check, Building2, Shield, Users, Headphones, Zap, GraduationCap, CheckCircle, Loader2 } from 'lucide-react';
+
+const PLAN_TIERS: Record<string, string> = {
+  'Starter Enterprise': 'creator',
+  'Professional Enterprise': 'pro',
+  'Studio Enterprise': 'studio',
+  'Enterprise Unlimited': 'enterprise',
+};
 
 const ENTERPRISE_PLANS = [
   {
@@ -120,12 +127,34 @@ const ENTERPRISE_FEATURES = [
 
 export default function EnterprisePlansPage() {
   const router = useRouter();
+  const [activating, setActivating] = useState<string | null>(null);
+  const [activated, setActivated] = useState<string | null>(null);
+  const directUpgradeEnabled = process.env.NEXT_PUBLIC_ALLOW_DIRECT_UPGRADE === 'true';
 
   useEffect(() => {
     if (typeof window !== 'undefined' && !sessionStorage.getItem('enterprise_access')) {
       router.replace('/enterprise');
     }
   }, [router]);
+
+  const handleActivate = async (planName: string) => {
+    const tier = PLAN_TIERS[planName];
+    if (!tier) return;
+    setActivating(planName);
+    try {
+      const res = await fetch('/api/upgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier }),
+      });
+      if (res.ok) {
+        setActivated(planName);
+        setTimeout(() => router.push('/dashboard'), 1500);
+      }
+    } finally {
+      setActivating(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-muted">
@@ -218,17 +247,34 @@ export default function EnterprisePlansPage() {
                 </ul>
 
                 {/* CTA */}
-                <a
-                  href={`mailto:enterprise@storymagicapp.net?subject=${encodeURIComponent(`Enterprise Inquiry — ${plan.name}`)}`}
-                  className="mt-auto"
-                >
+                {directUpgradeEnabled && plan.name !== 'Enterprise Unlimited' ? (
                   <Button
-                    className={`w-full ${plan.highlighted ? 'brand-gradient brand-gradient-hover' : ''}`}
+                    onClick={() => handleActivate(plan.name)}
+                    disabled={!!activating || !!activated}
+                    className={`w-full mt-auto ${plan.highlighted ? 'brand-gradient brand-gradient-hover' : ''}`}
                     variant={plan.highlighted ? 'default' : 'outline'}
                   >
-                    {plan.name === 'Enterprise Unlimited' ? 'Contact Sales' : 'Get Started'}
+                    {activated === plan.name ? (
+                      <><CheckCircle className="w-4 h-4 mr-2 text-green-500" /> Activated!</>
+                    ) : activating === plan.name ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Activating…</>
+                    ) : (
+                      'Activate Plan'
+                    )}
                   </Button>
-                </a>
+                ) : (
+                  <a
+                    href={`mailto:enterprise@storymagicapp.net?subject=${encodeURIComponent(`Enterprise Inquiry — ${plan.name}`)}`}
+                    className="mt-auto"
+                  >
+                    <Button
+                      className={`w-full ${plan.highlighted ? 'brand-gradient brand-gradient-hover' : ''}`}
+                      variant={plan.highlighted ? 'default' : 'outline'}
+                    >
+                      {plan.name === 'Enterprise Unlimited' ? 'Contact Sales' : 'Get Started'}
+                    </Button>
+                  </a>
+                )}
               </CardContent>
             </Card>
           ))}

@@ -232,6 +232,48 @@ export function DashboardTabs({
         )}
       </div>
 
+      {/* Subscription Plans */}
+      <div className="pt-2 border-t border-border">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Subscription Plans</h2>
+          <Link href="/enterprise" className="text-sm text-blue-400 hover:text-blue-300 font-medium">
+            View Enterprise Packages →
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { key: 'free',    label: 'Individual',   pages: '3 pages/mo',    price: 'Free' },
+            { key: 'creator', label: 'Starter',      pages: '50 pages/mo',   price: '$29/mo' },
+            { key: 'pro',     label: 'Professional', pages: '200 pages/mo',  price: '$79/mo' },
+            { key: 'studio',  label: 'Studio',       pages: '1,000 pages/mo',price: '$199/mo' },
+          ].map((plan) => (
+            <div
+              key={plan.key}
+              className={`rounded-xl border p-4 flex flex-col gap-3 ${
+                tier === plan.key
+                  ? 'border-violet-500 bg-violet-500/5'
+                  : 'border-border bg-card'
+              }`}
+            >
+              <div>
+                <p className="font-semibold text-sm text-foreground">{plan.label}</p>
+                <p className="text-xs text-muted-foreground">{plan.pages}</p>
+              </div>
+              <p className="text-sm font-bold text-foreground">{plan.price}</p>
+              {tier === plan.key ? (
+                <span className="text-xs font-medium text-violet-500">Current Plan</span>
+              ) : (
+                <Link href={`/referral?plan=${plan.key}`}>
+                  <Button size="sm" variant="outline" className="w-full text-xs h-7">
+                    Upgrade
+                  </Button>
+                </Link>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Secondary links */}
       <div className="flex flex-wrap gap-3 pt-2 border-t border-border">
         <Link href="/voice-marketplace" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
