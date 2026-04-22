@@ -189,19 +189,11 @@ export async function makePlaybackManifest(
     log.info('Episode available at local path', { projectId: project_id, publicUrl });
   }
 
-  // Also generate MP3 version
-  let mp3Url: string | null = null;
-  if (fs.existsSync(episodePath)) {
-    try {
-      const mp3Path = episodePath.replace('.m4a', '.mp3');
-      await convertToMp3(episodePath, mp3Path);
-      mp3Url = `/audio/${project_id}/episode.mp3`;
-      log.info('MP3 version generated', { mp3Url });
-    } catch (err) {
-      log.error('MP3 conversion failed', err instanceof Error ? err : undefined);
-      // Non-fatal: M4A is primary format
-    }
-  }
+  // MP3 conversion intentionally skipped in the main pipeline path.
+  // For long scripts (60-100+ min), synchronous FFmpeg MP3 conversion blocks
+  // the response for 5-10 minutes and causes the web service fetch to timeout.
+  // M4A (AAC 192kbps) plays natively in all modern browsers and devices.
+  const mp3Url: string | null = null;
 
   return {
     project_id,

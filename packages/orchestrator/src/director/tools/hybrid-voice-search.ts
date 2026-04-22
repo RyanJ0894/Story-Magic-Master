@@ -25,14 +25,16 @@ import { log } from '../../lib/logger.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Path to local voice catalog
+// Primary catalog: Ryan's full curated 80-voice library (proper age labels including teens/children)
+const FULL_CATALOG_PATH = join(__dirname, '../../../knowledge_bases/eleven_labs_voices_current.json');
+// Supplementary: rich metadata with descriptive names (18 voices, subset of full catalog)
 const VOICE_CATALOG_PATH = join(__dirname, '../../../knowledge_bases/voice_embeddings_store/voices_metadata.json');
 
-// Default fallback voices (always available)
+// Default fallback voices — all from Ryan's curated catalog (George/Will/Jessica)
 const DEFAULT_VOICES = {
-  narrator: { voice_id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam', gender: 'Male' as const, label: 'Narrator', style: 'American' },
-  male: { voice_id: '29vD33N1CtxCmqQRPOHJ', name: 'Drew', gender: 'Male' as const, label: 'Male 20s to 30s', style: 'American' },
-  female: { voice_id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', gender: 'Female' as const, label: 'Female 20s to 30s', style: 'American' },
+  narrator: { voice_id: 'JBFqnCBsd6RMkjVDRZzb', name: 'George - Warm, Captivating Storyteller', gender: 'Male' as const, label: 'Narrator', style: 'British' },
+  male: { voice_id: 'bIHbv24MWmeRgasZH58o', name: 'Will - Relaxed Optimist', gender: 'Male' as const, label: 'Male 20s to 30s', style: 'American' },
+  female: { voice_id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica - Playful, Bright, Warm', gender: 'Female' as const, label: 'Female - 20s to 30s', style: 'American' },
 };
 
 // ElevenLabs API config
@@ -206,27 +208,90 @@ export function scoreVoiceMatch(
 }
 
 /**
- * Load local voice catalog
+ * Load local voice catalog.
+ *
+ * Merges two sources:
+ * 1. eleven_labs_voices_current.json — Ryan's full 80-voice curated library (primary)
+ * 2. voices_metadata.json — 18 voices with rich descriptive names (supplement)
+ *
+ * Voices that appear in both files use the richer metadata from voices_metadata.json.
  */
 let cachedVoiceCatalog: VoiceMetadata[] | null = null;
+
+interface FullCatalogEntry {
+  voice_id: string;
+  label: string;
+  gender: string;
+  tone: string;
+  style: string;
+}
 
 function loadLocalVoiceCatalog(): VoiceMetadata[] {
   if (cachedVoiceCatalog) {
     return cachedVoiceCatalog;
   }
 
+  // Step 1: Load rich metadata (18 voices with descriptive names)
+  const metadataById = new Map<string, VoiceMetadata>();
   try {
     if (existsSync(VOICE_CATALOG_PATH)) {
-      const data = readFileSync(VOICE_CATALOG_PATH, 'utf-8');
-      cachedVoiceCatalog = JSON.parse(data);
-      log.info('HybridVoiceSearch loaded voices from local catalog', { count: cachedVoiceCatalog!.length });
-      return cachedVoiceCatalog!;
+      const raw = JSON.parse(readFileSync(VOICE_CATALOG_PATH, 'utf-8')) as VoiceMetadata[];
+      for (const v of raw) {
+        metadataById.set(v.voice_id, v);
+      }
     }
   } catch (err) {
-    log.warn('HybridVoiceSearch failed to load local catalog', { error: err instanceof Error ? err.message : String(err) });
+    log.warn('HybridVoiceSearch failed to load metadata catalog', { error: err instanceof Error ? err.message : String(err) });
   }
 
-  // Return default voices as fallback
+  // Step 2: Load full 80-voice catalog and merge
+  try {
+    if (existsSync(FULL_CATALOG_PATH)) {
+      const raw = JSON.parse(readFileSync(FULL_CATALOG_PATH, 'utf-8'));
+      const entries: FullCatalogEntry[] = Array.isArray(raw) ? raw : (raw.data || []);
+
+      const merged: VoiceMetadata[] = entries.map((v) => {
+        const rich = metadataById.get(v.voice_id);
+        if (rich) {
+          metadataById.delete(v.voice_id); // don't add twice
+          return rich;
+        }
+        // Generate a usable name from available fields
+        return {
+          voice_id: v.voice_id,
+          name: `${v.label} — ${v.tone} ${v.style}`.trim(),
+          gender: (v.gender === 'Female' ? 'Female' : 'Male') as 'Male' | 'Female',
+          label: v.label,
+          style: v.style,
+          tone: v.tone,
+          description: `${v.label} ${v.tone} voice (${v.style})`,
+        };
+      });
+
+      // Append any metadata voices not in the full catalog
+      for (const v of metadataById.values()) {
+        merged.push(v);
+      }
+
+      cachedVoiceCatalog = merged;
+      log.info('HybridVoiceSearch loaded merged voice catalog', {
+        total: merged.length,
+        fromFullCatalog: entries.length,
+        fromMetadataOnly: metadataById.size,
+      });
+      return cachedVoiceCatalog;
+    }
+  } catch (err) {
+    log.warn('HybridVoiceSearch failed to load full catalog', { error: err instanceof Error ? err.message : String(err) });
+  }
+
+  // Fallback: metadata-only or hardcoded defaults
+  if (metadataById.size > 0) {
+    cachedVoiceCatalog = Array.from(metadataById.values());
+    log.info('HybridVoiceSearch loaded metadata-only catalog', { count: cachedVoiceCatalog.length });
+    return cachedVoiceCatalog;
+  }
+
   cachedVoiceCatalog = Object.values(DEFAULT_VOICES);
   return cachedVoiceCatalog;
 }

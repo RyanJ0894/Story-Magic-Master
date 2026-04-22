@@ -201,7 +201,8 @@ export async function orchestratorHealthCheck(
 }
 
 /**
- * POST to orchestrator for long-running generation tasks (5 min timeout, 1 retry).
+ * POST to orchestrator for long-running generation tasks (20 min timeout, 1 retry).
+ * 20 minutes accommodates 100-page scripts: TTS + assembly + concatenation.
  */
 export async function orchestratorGenerate(
   path: string,
@@ -210,7 +211,7 @@ export async function orchestratorGenerate(
   const { response } = await orchestratorFetch(path, {
     method: 'POST',
     body,
-    timeoutMs: 300_000, // 5 minutes for generation
+    timeoutMs: 1_200_000, // 20 minutes for generation
     retries: 1,
     retryBaseDelayMs: 2_000,
   });
