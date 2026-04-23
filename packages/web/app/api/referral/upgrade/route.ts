@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid referral code' }, { status: 400 });
   }
 
-  await prisma.user.update({
+  await prisma.profile.update({
     where: { id: userId },
     data: {
       subscriptionTier: targetTier,
