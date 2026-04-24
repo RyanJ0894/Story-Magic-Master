@@ -49,6 +49,17 @@ export default async function DashboardPage() {
   const tierLimit = TIER_LIMITS[tier] ?? 3;
   const tierDisplayName = TIER_NAMES[tier] ?? 'Individual';
 
+  // Enterprise-tier users go straight to the enterprise dashboard.
+  // If they have no team yet, send them to the team-creation page first.
+  const ENTERPRISE_TIERS = ['creator', 'pro', 'studio', 'enterprise'];
+  if (ENTERPRISE_TIERS.includes(tier)) {
+    const team = await prisma.team.findFirst({
+      where: { ownerId: userId },
+      select: { id: true },
+    });
+    redirect(team ? '/enterprise/dashboard' : '/enterprise/team');
+  }
+
   const remainingResult = await prisma.$queryRaw<[{ remaining: number }]>`
     SELECT COALESCE(
       (SELECT p.pages_limit - p.pages_used FROM usage p WHERE p.user_id = ${userId} AND p.period = to_char(now(), 'YYYY-MM') LIMIT 1),
@@ -106,8 +117,8 @@ export default async function DashboardPage() {
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-8">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Your Projects</h1>
-            <p className="mt-1 text-muted-foreground text-sm">Pick up where you left off, or start something new.</p>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
+            <p className="mt-1 text-muted-foreground text-sm">Manage your audio productions and account.</p>
           </div>
         </div>
 

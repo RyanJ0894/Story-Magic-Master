@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, FolderOpen, Activity, ThumbsUp, ThumbsDown, MessageSquare, Play, Clock } from 'lucide-react';
+import { Users, FolderOpen, Activity, ThumbsUp, ThumbsDown, MessageSquare, Play, Clock, Headphones, Plus, Crown } from 'lucide-react';
 import { SignOutButton } from '@/components/auth/sign-out-button';
 import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
 
@@ -33,6 +33,13 @@ function timeAgo(date: Date): string {
   const days = Math.floor(hrs / 24);
   return `${days}d ago`;
 }
+
+const TIER_SEAT_LIMITS: Record<string, number> = {
+  creator: 30,
+  pro: 50,
+  studio: 75,
+  enterprise: 200,
+};
 
 export default async function EnterpriseDashboardPage() {
   const { userId } = await auth();
@@ -74,27 +81,9 @@ export default async function EnterpriseDashboardPage() {
     },
   });
 
-  // If no team exists yet, show setup prompt
+  // No team yet — send straight to team setup
   if (!team) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <div className="max-w-md w-full text-center">
-          <Image src="/logo.png" alt="Story Magic" width={72} height={72} className="rounded-xl mx-auto mb-6" />
-          <h1 className="text-2xl font-bold mb-2">Enterprise Dashboard</h1>
-          <p className="text-muted-foreground mb-6">
-            You don&apos;t have a team yet. Create one to start inviting team members and tracking engagement.
-          </p>
-          <Link href="/enterprise/team">
-            <Button className="brand-gradient brand-gradient-hover">
-              Create Your Team
-            </Button>
-          </Link>
-          <p className="mt-4 text-sm">
-            <Link href="/dashboard" className="text-muted-foreground hover:text-foreground">← Back to Dashboard</Link>
-          </p>
-        </div>
-      </div>
-    );
+    redirect('/enterprise/team');
   }
 
   const memberCount = team.members.length;
@@ -114,7 +103,11 @@ export default async function EnterpriseDashboardPage() {
     };
   });
 
-  const profile = await prisma.profile.findUnique({ where: { id: userId }, select: { fullName: true, email: true } });
+  const profile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { fullName: true, email: true, subscriptionTier: true },
+  });
+  const seatLimit = TIER_SEAT_LIMITS[profile?.subscriptionTier ?? 'creator'] ?? 30;
 
   return (
     <div className="min-h-screen bg-background">
@@ -122,19 +115,18 @@ export default async function EnterpriseDashboardPage() {
       <header className="border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Link href="/dashboard">
+            <Link href="/enterprise/dashboard">
               <Image src="/logo.png" alt="Story Magic" width={32} height={32} className="rounded-lg" />
             </Link>
-            <span className="font-semibold text-sm hidden sm:block">Enterprise</span>
-            <Badge variant="secondary" className="text-xs">{team.name}</Badge>
+            <span className="font-semibold text-sm hidden sm:block">Story Magic</span>
+            <Badge variant="secondary" className="text-xs hidden sm:flex items-center gap-1">
+              <Crown className="w-3 h-3" /> Master Account
+            </Badge>
           </div>
           <div className="flex items-center gap-2">
             <AlertsDropdown />
             <Link href="/enterprise/team">
               <Button variant="outline" size="sm">Manage Team</Button>
-            </Link>
-            <Link href="/dashboard">
-              <Button variant="ghost" size="sm">Dashboard</Button>
             </Link>
             <SignOutButton />
           </div>
@@ -142,28 +134,23 @@ export default async function EnterpriseDashboardPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-foreground">Master Account</h1>
-          <p className="text-muted-foreground mt-1">
-            Welcome back, {profile?.fullName ?? profile?.email ?? 'Admin'}. Here&apos;s your team&apos;s activity.
-          </p>
+        {/* Page header */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Master Dashboard</h1>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Team collaboration and project management for up to {seatLimit} users
+            </p>
+          </div>
+          <Link href="/projects/new">
+            <Button className="brand-gradient brand-gradient-hover flex-shrink-0">
+              <Plus className="w-4 h-4 mr-2" /> Create New Project
+            </Button>
+          </Link>
         </div>
 
         {/* Stats Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                  <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{memberCount}</p>
-                  <p className="text-xs text-muted-foreground">Team Members</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -172,7 +159,7 @@ export default async function EnterpriseDashboardPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{projectCount}</p>
-                  <p className="text-xs text-muted-foreground">Shared Projects</p>
+                  <p className="text-xs text-muted-foreground">Team Projects</p>
                 </div>
               </div>
             </CardContent>
@@ -180,12 +167,13 @@ export default async function EnterpriseDashboardPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
-                  <Activity className="w-4 h-4 text-green-600 dark:text-green-400" />
+                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                  <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{activityCount}</p>
-                  <p className="text-xs text-muted-foreground">Activities</p>
+                  <p className="text-2xl font-bold">{memberCount}</p>
+                  <p className="text-xs text-muted-foreground">Active Users</p>
+                  <p className="text-xs text-muted-foreground">of {seatLimit} max</p>
                 </div>
               </div>
             </CardContent>
@@ -194,11 +182,26 @@ export default async function EnterpriseDashboardPage() {
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30">
-                  <ThumbsUp className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <Activity className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{projectDecisions.reduce((s, p) => s + p.liked, 0)}</p>
-                  <p className="text-xs text-muted-foreground">Total Likes</p>
+                  <p className="text-2xl font-bold">50+</p>
+                  <p className="text-xs text-muted-foreground">Voice Library</p>
+                  <p className="text-xs text-muted-foreground">Standard voices</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
+                  <Headphones className="w-4 h-4 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Support</p>
+                  <p className="text-xs text-muted-foreground">Email</p>
+                  <p className="text-xs text-muted-foreground">48h response</p>
                 </div>
               </div>
             </CardContent>
@@ -206,15 +209,16 @@ export default async function EnterpriseDashboardPage() {
         </div>
 
         {/* Main Tabs */}
-        <Tabs defaultValue="activity">
+        <Tabs defaultValue="overview">
           <TabsList className="mb-6">
-            <TabsTrigger value="activity">Activity Feed</TabsTrigger>
-            <TabsTrigger value="projects">Projects</TabsTrigger>
+            <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="team">Team</TabsTrigger>
+            <TabsTrigger value="projects">Projects</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
 
-          {/* Activity Feed */}
-          <TabsContent value="activity">
+          {/* Overview — Activity Feed */}
+          <TabsContent value="overview">
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Recent Team Activity</CardTitle>
@@ -250,6 +254,42 @@ export default async function EnterpriseDashboardPage() {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Team Tab */}
+          <TabsContent value="team">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-base">Team Members</CardTitle>
+                <Link href="/enterprise/team">
+                  <Button size="sm" className="brand-gradient brand-gradient-hover">Invite Member</Button>
+                </Link>
+              </CardHeader>
+              <CardContent>
+                {team.members.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    No team members yet. Invite your first member to get started.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {team.members.map((member) => (
+                      <div key={member.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50">
+                        <div className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center text-sm font-medium text-violet-600 dark:text-violet-400">
+                          {(member.user?.fullName ?? member.invitedEmail ?? '?')[0].toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {member.user?.fullName ?? member.invitedEmail}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{member.user?.email ?? 'Sub Account'}</p>
+                        </div>
+                        <Badge variant="secondary" className="text-xs capitalize">{member.role}</Badge>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
@@ -310,38 +350,15 @@ export default async function EnterpriseDashboardPage() {
             )}
           </TabsContent>
 
-          {/* Team Tab */}
-          <TabsContent value="team">
+          {/* Analytics Tab */}
+          <TabsContent value="analytics">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-base">Team Members</CardTitle>
-                <Link href="/enterprise/team">
-                  <Button size="sm" className="brand-gradient brand-gradient-hover">Invite Member</Button>
-                </Link>
-              </CardHeader>
-              <CardContent>
-                {team.members.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    No team members yet. Invite your first member to get started.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {team.members.map((member) => (
-                      <div key={member.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50">
-                        <div className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center text-sm font-medium text-violet-600 dark:text-violet-400">
-                          {(member.user?.fullName ?? member.invitedEmail ?? '?')[0].toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {member.user?.fullName ?? member.invitedEmail}
-                          </p>
-                          <p className="text-xs text-muted-foreground">{member.user?.email}</p>
-                        </div>
-                        <Badge variant="secondary" className="text-xs capitalize">{member.role}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <CardContent className="py-12 text-center">
+                <Activity className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm font-semibold mb-1">Team Analytics</p>
+                <p className="text-sm text-muted-foreground">
+                  Detailed engagement metrics, listen rates, and decision summaries coming soon.
+                </p>
               </CardContent>
             </Card>
           </TabsContent>
