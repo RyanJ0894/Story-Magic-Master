@@ -84,6 +84,9 @@ export async function processGenerationJob(
   pageCount: number,
   voiceOverrides: Record<string, string> = {}
 ) {
+  const jobStart = Date.now();
+  const elapsed = () => Math.round((Date.now() - jobStart) / 1000);
+
   const updateJobProgress = async (step: string, percent: number, details?: string, metadata: Record<string, unknown> = {}) => {
     const progressData = {
       step,
@@ -91,9 +94,14 @@ export async function processGenerationJob(
       details: details || '',
       updated_at: new Date().toISOString(),
     };
-    logProgress(jobId, step, `${percent}% - ${details || 'Processing...'}`);
+    const msg = `[${elapsed()}s] ${percent}% — ${details || 'Processing...'}`;
+    logProgress(jobId, step, msg);
 
-    await logJobEvent(jobId, projectId, 'info', step, details || 'Processing...', { percent, ...metadata });
+    await logJobEvent(jobId, projectId, 'info', step, details || 'Processing...', {
+      percent,
+      elapsedSec: elapsed(),
+      ...metadata,
+    });
 
     await prisma.job.update({
       where: { id: jobId },
@@ -111,6 +119,7 @@ export async function processGenerationJob(
       },
     });
 
+    log.info('[PIPELINE] start', { jobId: jobId.slice(0, 8), projectId, pageCount, scriptLength: scriptText.length });
     await updateJobProgress('initializing', 5, 'Starting generation pipeline...');
 
     // Step 2: Parse script via Director Agent (skip if a prior run already produced directorJson)
@@ -135,7 +144,8 @@ export async function processGenerationJob(
     } else {
       await updateJobProgress('parsing', 10, 'Parsing script and assigning voices...');
 
-      logProgress(jobId, 'parsing', `Calling orchestrator /generate-scenes`);
+      const directorStart = Date.now();
+      log.info('[PIPELINE] director start', { jobId: jobId.slice(0, 8), elapsedSec: elapsed() });
 
       const generateScenesBody: Record<string, unknown> = {
         project_id: projectId,
@@ -143,14 +153,17 @@ export async function processGenerationJob(
       };
       if (Object.keys(voiceOverrides).length > 0) {
         generateScenesBody.voice_overrides = voiceOverrides;
-        logProgress(jobId, 'parsing', `Voice overrides for ${Object.keys(voiceOverrides).length} character(s)`);
+        log.info('[PIPELINE] voice overrides', { count: Object.keys(voiceOverrides).length });
       }
 
       const directorResponse = await orchestratorGenerate('/generate-scenes', generateScenesBody);
 
+      const directorSec = Math.round((Date.now() - directorStart) / 1000);
+
       if (!directorResponse.ok) {
         const errorBody = await directorResponse.text();
-        logProgress(jobId, 'parsing', `Director Agent error: ${errorBody}`);
+        log.error('[PIPELINE] director failed', undefined, { jobId: jobId.slice(0, 8), directorSec, errorBody: errorBody.slice(0, 500) });
+        await logJobEvent(jobId, projectId, 'error', 'parsing', `Director Agent failed after ${directorSec}s`, { directorSec }, errorBody.slice(0, 500));
         throw new Error(`Director Agent failed: ${errorBody}`);
       }
 
@@ -159,8 +172,25 @@ export async function processGenerationJob(
 
       const sceneCount = directorJson.scenes?.length || 0;
       const lineCount = directorJson.scenes?.reduce((acc: number, s: { dialogue?: unknown[] }) => acc + (s.dialogue?.length || 0), 0) || 0;
+      const characterSet = new Set<string>();
+      for (const scene of directorJson.scenes || []) {
+        for (const line of scene.dialogue || []) {
+          if ((line as { character?: string }).character) characterSet.add((line as { character: string }).character);
+        }
+      }
 
-      await updateJobProgress('parsing_complete', 25, `Parsed ${sceneCount} scenes, ${lineCount} lines`);
+      log.info('[PIPELINE] director complete', {
+        jobId: jobId.slice(0, 8),
+        directorSec,
+        sceneCount,
+        lineCount,
+        characterCount: characterSet.size,
+        elapsedSec: elapsed(),
+      });
+
+      await updateJobProgress('parsing_complete', 25, `Parsed ${sceneCount} scenes, ${lineCount} lines, ${characterSet.size} characters`, {
+        directorSec, sceneCount, lineCount, characterCount: characterSet.size,
+      });
 
       // Save director JSON to project for future retry reuse
       await prisma.project.update({
@@ -212,22 +242,28 @@ export async function processGenerationJob(
 
     // Step 3: Call Orchestrator to generate audio
     const totalScenes = directorJson.scenes?.length || 0;
-    await updateJobProgress('generating_audio', 30, 'Generating TTS audio for all dialogue...');
-    logProgress(jobId, 'generating_audio', `Calling orchestrator /orchestrate with ${totalScenes} scenes`);
+    await updateJobProgress('generating_audio', 30, `Generating TTS audio for ${totalScenes} scenes...`);
+
+    const orchestratorStart = Date.now();
+    log.info('[PIPELINE] orchestrator start', { jobId: jobId.slice(0, 8), totalScenes, elapsedSec: elapsed() });
 
     const orchestratorResponse = await orchestratorGenerate('/orchestrate', {
       project_id: projectId,
       scenes: directorJson.scenes || [],
     });
 
+    const orchestratorSec = Math.round((Date.now() - orchestratorStart) / 1000);
+
     if (!orchestratorResponse.ok) {
       const errorBody = await orchestratorResponse.text();
-      logProgress(jobId, 'generating_audio', `Orchestrator error: ${errorBody}`);
+      log.error('[PIPELINE] orchestrator failed', undefined, { jobId: jobId.slice(0, 8), orchestratorSec, errorBody: errorBody.slice(0, 500) });
+      await logJobEvent(jobId, projectId, 'error', 'generating_audio', `Orchestrator failed after ${orchestratorSec}s`, { orchestratorSec }, errorBody.slice(0, 500));
       throw new Error(`Orchestrator failed: ${errorBody}`);
     }
 
     const orchestratorResult = await orchestratorResponse.json();
-    await updateJobProgress('mixing', 75, 'Mixing audio tracks...');
+    log.info('[PIPELINE] orchestrator complete', { jobId: jobId.slice(0, 8), orchestratorSec, elapsedSec: elapsed() });
+    await updateJobProgress('mixing', 75, 'Mixing audio tracks...', { orchestratorSec });
 
     // Step 4: Store audio output records
     await updateJobProgress('uploading', 85, 'Uploading final audio...');
@@ -285,20 +321,27 @@ export async function processGenerationJob(
       },
     });
 
-    logProgress(jobId, 'done', 'Generation completed successfully!');
+    log.info('[PIPELINE] complete', { jobId: jobId.slice(0, 8), totalSec: elapsed(), pageCount });
+    logProgress(jobId, 'done', `Generation completed in ${elapsed()}s`);
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const errorStack = error instanceof Error ? error.stack : undefined;
-    logProgress(jobId, 'error', `Generation failed: ${errorMessage}`);
+    const totalSec = elapsed();
+    log.error('[PIPELINE] failed', error instanceof Error ? error : undefined, {
+      jobId: jobId.slice(0, 8),
+      totalSec,
+      errorMessage,
+    });
+    logProgress(jobId, 'error', `[${totalSec}s] Generation failed: ${errorMessage}`);
 
     await logJobEvent(
       jobId,
       projectId,
       'error',
       'failed',
-      `Generation failed: ${errorMessage}`,
-      { userId, pageCount },
+      `Generation failed after ${totalSec}s: ${errorMessage}`,
+      { userId, pageCount, totalSec },
       errorMessage,
       errorStack
     );

@@ -40,7 +40,7 @@ export class DirectorAgent {
 
   constructor(options: DirectorAgentOptions = {}) {
     this.model = options.model || DEFAULT_MODEL;
-    this.maxIterations = options.maxIterations || 20;
+    this.maxIterations = options.maxIterations || 30;
   }
 
   /**
@@ -63,6 +63,7 @@ export class DirectorAgent {
       list_voice_labels: listVoiceLabelsTool,
     };
 
+    const agentStart = Date.now();
     try {
       const result = await runAgentLoop(userInput, {
         model: this.model,
@@ -73,10 +74,16 @@ export class DirectorAgent {
         temperature: 1,
       });
 
-      log.info('DirectorAgent completed successfully');
+      const elapsedSec = Math.round((Date.now() - agentStart) / 1000);
+      log.info('[DirectorAgent] completed', {
+        elapsedSec,
+        resultLength: result.length,
+        hasJSON: result.includes('{'),
+      });
       return result;
     } catch (err) {
-      log.error('DirectorAgent error', err instanceof Error ? err : undefined);
+      const elapsedSec = Math.round((Date.now() - agentStart) / 1000);
+      log.error('[DirectorAgent] error', err instanceof Error ? err : undefined, { elapsedSec });
       throw err;
     }
   }
@@ -91,8 +98,12 @@ export class DirectorAgent {
   async process(input: DirectorAgentInput): Promise<DirectorJSON> {
     const result = await this.run(input);
 
-    // Log the raw response for debugging (first 500 chars)
-    log.debug('DirectorAgent raw response preview', { preview: result.slice(0, 500) });
+    // Log the raw response for debugging
+    log.info('[DirectorAgent] raw response', {
+      responseLength: result.length,
+      hasJSON: result.includes('{'),
+      preview: result.slice(0, 300),
+    });
 
     // Use robust JSON extraction and repair
     const parseResult = parseJSONSafely<unknown>(result);
@@ -100,8 +111,12 @@ export class DirectorAgent {
     let parsed: unknown;
 
     if (!parseResult.success) {
-      // Log the failure
-      log.warn('DirectorAgent initial JSON parse failed', { error: parseResult.error, responseLength: result.length });
+      // Log full response on failure for diagnosis
+      log.warn('[DirectorAgent] JSON parse failed', {
+        error: parseResult.error,
+        responseLength: result.length,
+        fullResponse: result.length <= 4000 ? result : result.slice(0, 2000) + '\n...[truncated]...\n' + result.slice(-500),
+      });
 
       // Fallback: Use AI SDK structured output to convert the text
       log.info('DirectorAgent attempting structured output conversion');

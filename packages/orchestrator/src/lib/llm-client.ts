@@ -105,9 +105,25 @@ export async function runAgentLoop(
   } = options;
 
   const messages: ModelMessage[] = [{ role: 'user', content: userInput }];
+  const loopStart = Date.now();
+  let totalToolCalls = 0;
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
-    log.debug('LLM iteration', { iteration: iteration + 1, maxIterations });
+    const iterElapsed = Math.round((Date.now() - loopStart) / 1000);
+    log.info('[LLM] iteration', { iteration: iteration + 1, maxIterations, elapsedSec: iterElapsed, totalToolCalls });
+
+    // Two iterations before the limit: inject a force-completion message so the
+    // model stops calling tools and emits its final JSON output.
+    if (iteration === maxIterations - 2 && totalToolCalls > 0) {
+      log.warn('[LLM] approaching iteration limit — injecting force-completion prompt', { iteration: iteration + 1 });
+      messages.push({
+        role: 'user',
+        content:
+          'CRITICAL: You have nearly exhausted your available iterations. ' +
+          'You MUST immediately output your complete final JSON object. ' +
+          'Do NOT call any more tools. Output ONLY the raw JSON — no prose, no markdown.',
+      });
+    }
 
     try {
       const result = await generateText({
@@ -119,12 +135,27 @@ export async function runAgentLoop(
         temperature,
       });
 
+      const usage = result.usage;
+
       if (!result.toolCalls || result.toolCalls.length === 0) {
-        log.debug('LLM completed - no more tool calls');
+        log.info('[LLM] completed — final text received', {
+          iteration: iteration + 1,
+          textLength: result.text.length,
+          finishReason: result.finishReason,
+          totalTokens: usage?.totalTokens,
+          elapsedSec: Math.round((Date.now() - loopStart) / 1000),
+        });
         return result.text;
       }
 
-      log.debug('LLM processing tool calls', { count: result.toolCalls.length });
+      const toolNames = result.toolCalls.map((tc) => tc.toolName);
+      totalToolCalls += result.toolCalls.length;
+      log.info('[LLM] tool calls', {
+        iteration: iteration + 1,
+        count: result.toolCalls.length,
+        tools: toolNames,
+        totalTokens: usage?.totalTokens,
+      });
 
       // Add assistant message with tool calls (v6: input field instead of args)
       messages.push({
@@ -144,7 +175,7 @@ export async function runAgentLoop(
         const toolName = toolCall.toolName;
         const toolInput = toolCall.input as Record<string, unknown>;
 
-        log.debug('LLM calling tool', { toolName, args: toolInput });
+        log.info('[LLM] executing tool', { toolName, query: (toolInput.query as string | undefined)?.slice(0, 80) });
 
         const toolDef = tools[toolName] as Tool | undefined;
         if (!toolDef) {
@@ -164,7 +195,7 @@ export async function runAgentLoop(
             messages: [],
             abortSignal: undefined as unknown as AbortSignal,
           });
-          log.debug('LLM tool result', { toolName, resultPreview: JSON.stringify(toolResult).slice(0, 200) });
+          log.info('[LLM] tool result', { toolName, resultPreview: JSON.stringify(toolResult).slice(0, 150) });
 
           toolResults.push({
             type: 'tool-result',
@@ -194,14 +225,41 @@ export async function runAgentLoop(
     }
   }
 
-  log.warn('LLM max iterations reached', { maxIterations });
+  // Max iterations exhausted. The last message in the array is tool results (an array),
+  // not a string. Do one final generation pass with NO tools to force text output.
+  log.warn('[LLM] max iterations reached — forcing final generation without tools', {
+    maxIterations,
+    totalToolCalls,
+    elapsedSec: Math.round((Date.now() - loopStart) / 1000),
+  });
 
-  const lastMessage = messages[messages.length - 1];
-  if (typeof lastMessage.content === 'string') {
-    return lastMessage.content;
+  messages.push({
+    role: 'user',
+    content:
+      'FINAL INSTRUCTION: Output your complete JSON object now. No more tool calls. Raw JSON only.',
+  });
+
+  try {
+    const finalResult = await generateText({
+      model: getModel(model),
+      system: systemPrompt,
+      messages,
+      // No tools — forces pure text response
+      maxOutputTokens: maxTokens,
+      temperature: 0,
+    });
+
+    log.info('[LLM] forced final output', {
+      textLength: finalResult.text.length,
+      finishReason: finalResult.finishReason,
+      totalTokens: finalResult.usage?.totalTokens,
+    });
+
+    return finalResult.text;
+  } catch (err) {
+    log.error('[LLM] forced final generation failed', err instanceof Error ? err : undefined);
+    return '';
   }
-
-  return '';
 }
 
 /**
