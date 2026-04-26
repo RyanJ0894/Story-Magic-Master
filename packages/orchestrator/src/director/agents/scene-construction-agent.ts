@@ -25,8 +25,8 @@ import { z } from 'zod';
 
 const DEFAULT_MODEL = process.env.DIRECTOR_MODEL || 'openai/gpt-4.1';
 const DEFAULT_SCENES_PER_CHUNK = 15;
-// Generous token budget: a 15-scene chunk outputs ~8K tokens of JSON
-const SCENE_CONSTRUCTION_MAX_TOKENS = 32768;
+// 15-scene chunk outputs ~8-10K tokens of JSON; 16K provides ample headroom
+const SCENE_CONSTRUCTION_MAX_TOKENS = 16384;
 
 // Output schema for one chunk: an object wrapping the scenes array.
 // Using z.object (not z.array) at the top level works better with generateObject.

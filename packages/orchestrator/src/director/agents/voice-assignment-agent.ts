@@ -80,7 +80,7 @@ export class VoiceAssignmentAgent {
         tools,
         maxIterations: this.maxIterations,
         maxTokens: 8192,
-        temperature: 0.5,
+        temperature: 0.3,
       });
     } catch (err) {
       log.error('[VoiceAssignment] agent loop failed', err instanceof Error ? err : undefined);
@@ -112,6 +112,7 @@ export class VoiceAssignmentAgent {
       });
       try {
         parsed = await structureTextAsJSON(rawText, {
+          model: this.model,
           schema: VoiceMapSchema,
           context: `Convert to a valid VoiceMap. project_id: "${projectId}".`,
         });
@@ -133,6 +134,7 @@ export class VoiceAssignmentAgent {
       });
       try {
         const fixed = await structureTextAsJSON(JSON.stringify(parsed), {
+          model: this.model,
           schema: VoiceMapSchema,
           context: `Fix this JSON to match VoiceMap schema. project_id: "${projectId}".`,
         });
@@ -148,15 +150,33 @@ export class VoiceAssignmentAgent {
 
   /**
    * Ensure project_id and default voices are set even if the model omitted them.
+   * Also scans for duplicate voice_key assignments and logs warnings.
    */
   private addDefaults(voiceMap: VoiceMap, projectId: string): VoiceMap {
-    return {
+    const result: VoiceMap = {
       ...voiceMap,
       project_id: voiceMap.project_id || projectId,
       default_narrator_voice: voiceMap.default_narrator_voice || DEFAULT_NARRATOR_VOICE,
       default_male_voice: voiceMap.default_male_voice || DEFAULT_MALE_VOICE,
       default_female_voice: voiceMap.default_female_voice || DEFAULT_FEMALE_VOICE,
     };
+
+    // Detect duplicate voice_key assignments — same voice used for two different characters
+    const seenKeys = new Map<string, string>(); // voice_key → first character name
+    for (const [charName, assignment] of Object.entries(result.assignments)) {
+      const { voice_key } = assignment;
+      if (seenKeys.has(voice_key)) {
+        log.warn('[VoiceAssignment] duplicate voice_key detected', {
+          voice_key,
+          character1: seenKeys.get(voice_key),
+          character2: charName,
+        });
+      } else {
+        seenKeys.set(voice_key, charName);
+      }
+    }
+
+    return result;
   }
 
   /**

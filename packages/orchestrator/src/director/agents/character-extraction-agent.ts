@@ -82,6 +82,17 @@ export class CharacterExtractionAgent {
       hasNarrator: manifest.characters.some((c) => c.is_narrator),
     });
 
+    // Sanity check: very few characters relative to script length may indicate
+    // extraction failure or a non-standard script format
+    const expectedMin = Math.max(2, Math.floor(input.script_text.length / 10000) * 3);
+    if (manifest.characters.length < expectedMin) {
+      log.warn('[CharacterExtraction] character count below expected minimum — extraction may be incomplete', {
+        characterCount: manifest.characters.length,
+        expectedMin,
+        scriptLength: input.script_text.length,
+      });
+    }
+
     // Ensure NARRATOR is always present
     if (!manifest.characters.some((c) => c.is_narrator)) {
       log.warn('[CharacterExtraction] no NARRATOR found — injecting default');

@@ -140,6 +140,7 @@ export class DirectorAgent {
           issues: validation.error.issues,
         });
         const fixed = await structureTextAsJSON<DirectorJSON>(JSON.stringify(result), {
+          model: this.model,
           schema: DirectorJSONSchema,
           context: `Fix this DirectorJSON. project_id: "${input.project_id}".`,
         });
@@ -160,10 +161,11 @@ export class DirectorAgent {
     } catch (err) {
       const elapsedSec = Math.round((Date.now() - pipelineStart) / 1000);
       log.error(
-        '[DirectorAgent] multi-pass pipeline failed — falling back to single-pass',
+        '[DirectorAgent] multi-pass pipeline failed — falling back to single-pass (1 attempt)',
         err instanceof Error ? err : undefined,
         { elapsedSec }
       );
+      // Capped at exactly 1 legacy attempt — prevents runaway cost on systematically bad input
       return this.legacyProcess(input);
     }
   }
@@ -198,6 +200,7 @@ export class DirectorAgent {
       log.info('[DirectorAgent] attempting structured output conversion');
       try {
         const structured = await structureTextAsJSON<DirectorJSON>(result, {
+          model: this.model,
           schema: DirectorJSONSchema,
           context: `Convert to valid Director JSON. project_id: "${input.project_id}".`,
         });
@@ -233,6 +236,7 @@ export class DirectorAgent {
       });
       try {
         const fixed = await structureTextAsJSON<DirectorJSON>(JSON.stringify(parsed), {
+          model: this.model,
           schema: DirectorJSONSchema,
           context: `Fix this JSON to match DirectorJSON schema. project_id: "${input.project_id}".`,
         });

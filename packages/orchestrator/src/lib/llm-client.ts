@@ -332,7 +332,7 @@ export async function structureTextAsJSON<T>(
     context?: string;
   }
 ): Promise<T> {
-  const model = options.model || 'openai/gpt-4o-mini';
+  const model = options.model || process.env.DIRECTOR_MODEL || 'openai/gpt-4.1';
 
   const prompt = `Convert the following text into valid JSON matching the required schema.
 Extract all relevant information and format it correctly.
