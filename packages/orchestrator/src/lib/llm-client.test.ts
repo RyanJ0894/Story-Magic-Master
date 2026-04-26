@@ -178,4 +178,39 @@ describe('runAgentLoop', () => {
     // Should succeed with one call (no tool iteration needed)
     expect(mockGenerateText).toHaveBeenCalledTimes(1);
   });
+
+  it('respects maxOutputTokens override for output iterations', async () => {
+    // Tool call on iter 1, then maxIterations hit → forced final pass
+    mockGenerateText
+      .mockResolvedValueOnce(makeToolCallResult('echo', 'tc-1'))
+      .mockResolvedValueOnce(makeTextResult('{"result":true}'));
+
+    await runAgentLoop('parse', {
+      model: 'openai/gpt-4o',
+      systemPrompt: 'You are a director.',
+      tools: { echo: ECHO_TOOL },
+      maxIterations: 1,
+      maxOutputTokens: 8192,  // small cap for groq-style models
+    });
+
+    // The forced final pass should use our cap, not 32768
+    const forcedCall = mockGenerateText.mock.calls[1][0];
+    expect(forcedCall.maxOutputTokens).toBe(8192);
+  });
+
+  it('defaults MAX_OUTPUT_TOKENS to 32768 when maxOutputTokens is not specified', async () => {
+    mockGenerateText
+      .mockResolvedValueOnce(makeToolCallResult('echo', 'tc-1'))
+      .mockResolvedValueOnce(makeTextResult('{"result":true}'));
+
+    await runAgentLoop('parse', {
+      model: 'openai/gpt-4o',
+      systemPrompt: 'You are a director.',
+      tools: { echo: ECHO_TOOL },
+      maxIterations: 1,
+    });
+
+    const forcedCall = mockGenerateText.mock.calls[1][0];
+    expect(forcedCall.maxOutputTokens).toBe(32768);
+  });
 });

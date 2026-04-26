@@ -100,6 +100,10 @@ export class DirectorJSONValidator {
   validate(directorJson: DirectorJSON): { isValid: boolean; errors: ValidationError[] } {
     this.errors = [];
 
+    if (this.voiceCatalog.length === 0) {
+      log.warn('DirectorValidator: voice catalog is empty — teen/ethnicity voice checks are disabled. Check that voice_embeddings_store/voices_metadata.json is present.');
+    }
+
     log.info('Starting Director JSON validation', { voiceCatalogSize: this.voiceCatalog.length, sceneCount: directorJson.scenes?.length || 0 });
 
     // Extract character metadata from dialogue

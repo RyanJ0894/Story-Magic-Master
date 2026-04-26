@@ -28,5 +28,3 @@ export function ttsKey(
   return `${project_id}_${scene_id}_${line_id}_${vhash}_${thash}`;
 }
 
-// Alias for backwards compatibility
-export const ttskey = ttsKey;

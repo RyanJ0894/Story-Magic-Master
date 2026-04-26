@@ -37,6 +37,10 @@ export interface AgentOptions {
   systemPrompt: string;
   tools?: Record<string, Tool>;
   maxTokens?: number;
+  /** Override the token budget used for final-output and forced-completion passes.
+   *  Defaults to Math.max(32768, maxTokens).  Set lower for models with small
+   *  output windows (e.g. groq/llama → 8192). */
+  maxOutputTokens?: number;
   temperature?: number;
   maxIterations?: number;
 }
@@ -104,10 +108,11 @@ export async function runAgentLoop(
     maxIterations = 20,
   } = options;
 
-  // For JSON-output passes (force-completion and final), use the highest token
-  // budget the model supports. GPT-4.1 / GPT-4o cap at 32 768; Claude at 64K.
-  // A 15-page screenplay JSON is ~18 000 tokens; we need headroom above maxTokens.
-  const MAX_OUTPUT_TOKENS = Math.max(32768, maxTokens);
+  // For JSON-output passes (force-completion and final), use a larger token
+  // budget so large screenplay JSON is not truncated.
+  // Callers can pass maxOutputTokens to lower this for models with small output
+  // windows (e.g. groq/llama capped at 8192).
+  const MAX_OUTPUT_TOKENS = options.maxOutputTokens ?? Math.max(32768, maxTokens);
 
   const messages: ModelMessage[] = [{ role: 'user', content: userInput }];
   const loopStart = Date.now();

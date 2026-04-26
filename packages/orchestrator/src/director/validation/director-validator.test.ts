@@ -10,7 +10,7 @@
  * - autoCorrect behavior with empty scenes
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { DirectorJSON } from '../../schemas/director-json.js';
 import { DirectorValidationErrorTypes } from './validation-error.js';
 
@@ -30,6 +30,11 @@ vi.mock('../tools/hybrid-voice-search.js', () => ({
   }),
 }));
 
+// Intercept logger to test warning output
+vi.mock('../../lib/logger.js', () => ({
+  log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+
 // Suppress console output during tests
 vi.spyOn(console, 'log').mockImplementation(() => {});
 vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -37,6 +42,7 @@ vi.spyOn(console, 'error').mockImplementation(() => {});
 
 // Import after mocks are defined
 const { DirectorJSONValidator } = await import('./director-validator.js');
+const { log } = await import('../../lib/logger.js');
 
 // ---- Test Fixtures ----
 
@@ -313,6 +319,27 @@ describe('DirectorJSONValidator', () => {
 
       expect(result.isValid).toBe(true);
       expect(result.errors).toHaveLength(0);
+    });
+
+    it('should warn when voice catalog is empty so operators can detect misconfiguration', () => {
+      const emptyValidator = new DirectorJSONValidator([]);
+      vi.mocked(log.warn).mockClear();
+
+      emptyValidator.validate(makeValidDirectorJSON());
+
+      const warnCalls = vi.mocked(log.warn).mock.calls;
+      const catalogWarn = warnCalls.find(([msg]) => typeof msg === 'string' && msg.includes('voice catalog is empty'));
+      expect(catalogWarn).toBeDefined();
+    });
+
+    it('should not warn about catalog when catalog has voices', () => {
+      vi.mocked(log.warn).mockClear();
+
+      validator.validate(makeValidDirectorJSON());
+
+      const warnCalls = vi.mocked(log.warn).mock.calls;
+      const catalogWarn = warnCalls.find(([msg]) => typeof msg === 'string' && msg.includes('voice catalog is empty'));
+      expect(catalogWarn).toBeUndefined();
     });
 
     it('should handle scenes with empty dialogue array', () => {

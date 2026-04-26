@@ -6,7 +6,9 @@ const CHECKLY_PING_URL = process.env.CHECKLY_PING_URL;
 // Ping interval (5 minutes)
 const PING_INTERVAL_MS = 5 * 60 * 1000;
 
+// Use a reference object so the recursive setTimeout closure can check if monitoring is active
 let pingIntervalId: NodeJS.Timeout | null = null;
+let monitoringActive = false;
 
 /**
  * Ping Checkly to indicate the service is alive
@@ -52,19 +54,31 @@ export function startMonitoring(): void {
     pingUrl: CHECKLY_PING_URL.slice(0, 50) + '...',
   });
 
-  // Initial ping
-  pingCheckly();
+  monitoringActive = true;
 
-  // Periodic pings
-  pingIntervalId = setInterval(pingCheckly, PING_INTERVAL_MS);
+  // Initial ping (fire-and-forget — failure is non-fatal)
+  pingCheckly().catch(() => {});
+
+  // Reschedule-on-completion pattern: prevents concurrent pings if one
+  // ping takes longer than the interval (unlike setInterval which fires blindly).
+  function scheduleNextPing(): void {
+    pingIntervalId = setTimeout(async () => {
+      if (!monitoringActive) return;
+      await pingCheckly().catch(() => {});
+      scheduleNextPing();
+    }, PING_INTERVAL_MS);
+  }
+
+  scheduleNextPing();
 }
 
 /**
  * Stop periodic monitoring
  */
 export function stopMonitoring(): void {
+  monitoringActive = false;
   if (pingIntervalId) {
-    clearInterval(pingIntervalId);
+    clearTimeout(pingIntervalId);
     pingIntervalId = null;
     log.info('Stopped Checkly heartbeat monitoring');
   }

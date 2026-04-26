@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { hash, ttsKey, ttskey } from './idempotency.js';
+import { hash, ttsKey } from './idempotency.js';
 
 describe('hash', () => {
   it('should generate consistent SHA256 hash', () => {
@@ -108,15 +108,6 @@ describe('ttsKey', () => {
 
     const key = ttsKey('proj1', 'scene1', 'line1', 'voice1', params, 'Hello');
     expect(key).toBeTruthy();
-  });
-});
-
-describe('ttskey alias', () => {
-  it('should be an alias for ttsKey', () => {
-    const key1 = ttsKey('proj1', 'scene1', 'line1', 'voice1', {}, 'Hello');
-    const key2 = ttskey('proj1', 'scene1', 'line1', 'voice1', {}, 'Hello');
-
-    expect(key1).toBe(key2);
   });
 });
 
