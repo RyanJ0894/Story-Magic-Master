@@ -1,7 +1,7 @@
 /**
  * Tests for Admin API Routes (Auth & Authz)
  *
- * Covers all 8 admin routes:
+ * Covers all 11 admin routes:
  * - GET /api/admin/stats
  * - GET /api/admin/users
  * - PATCH /api/admin/users
@@ -15,6 +15,9 @@
  * - PUT /api/admin/settings
  * - GET /api/admin/audit-logs
  * - POST /api/admin/corpus/populate
+ * - GET /api/admin/corpus/export          ← BL-001
+ * - GET /api/admin/impact                 ← BL-001
+ * - POST/DELETE /api/admin/impact/stories/[id]/approve ← BL-001
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -58,6 +61,18 @@ const mockPrisma = {
     findMany: vi.fn(),
     count: vi.fn(),
     create: vi.fn(),
+  },
+  scriptCorpus: {
+    findMany: vi.fn(),
+  },
+  impactStory: {
+    count: vi.fn(),
+    groupBy: vi.fn(),
+    findUnique: vi.fn(),
+    update: vi.fn(),
+  },
+  impactPartner: {
+    count: vi.fn(),
   },
   $transaction: vi.fn(),
   $queryRaw: vi.fn(),
@@ -122,6 +137,12 @@ vi.mock('@/lib/comparable/service', () => ({
     mockPopulateMissingEmbeddings(...args),
 }));
 
+// Mock impact story approval email (fire-and-forget)
+const mockSendStoryApprovedEmail = vi.fn().mockResolvedValue(undefined);
+vi.mock('@/lib/email/impact', () => ({
+  sendStoryApprovedEmail: (...args: unknown[]) => mockSendStoryApprovedEmail(...args),
+}));
+
 // Mock mapDbStatsToAdminStats
 vi.mock('@/lib/api/mappers', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
@@ -156,6 +177,15 @@ const { GET: getAuditLogs } = await import(
 );
 const { POST: populateCorpus } = await import(
   '@/app/api/admin/corpus/populate/route'
+);
+const { GET: exportCorpus } = await import(
+  '@/app/api/admin/corpus/export/route'
+);
+const { GET: getImpactStats } = await import(
+  '@/app/api/admin/impact/route'
+);
+const { POST: approveStory, DELETE: revokeApproval } = await import(
+  '@/app/api/admin/impact/stories/[id]/approve/route'
 );
 
 // =============================================================================
@@ -1230,5 +1260,298 @@ describe('POST /api/admin/corpus/populate', () => {
     expect(res.status).toBe(500);
     expect(data.code).toBe('POPULATE_ERROR');
     expect(data.details).toContain('OpenAI rate limit');
+  });
+});
+
+// =============================================================================
+// GET /api/admin/corpus/export  (BL-001)
+// =============================================================================
+
+describe('GET /api/admin/corpus/export', () => {
+  it('returns 401 when unauthenticated', async () => {
+    setupUnauthenticated();
+    const req = createRequest('http://localhost:22000/api/admin/corpus/export');
+    const res = await exportCorpus(req);
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 when not admin', async () => {
+    setupRegularUser();
+    const req = createRequest('http://localhost:22000/api/admin/corpus/export');
+    const res = await exportCorpus(req);
+    expect(res.status).toBe(403);
+  });
+
+  it('returns CSV with correct headers when admin', async () => {
+    setupAdmin();
+    mockPrisma.scriptCorpus.findMany.mockResolvedValueOnce([
+      {
+        title: 'Inception',
+        datasetCategory: 'training',
+        genre: ['Thriller', 'Sci-Fi'],
+        pageCount: 120,
+        sceneCount: 85,
+        dialoguePct: 42.5,
+        conflictDensity: 0.78,
+        corpusScores: [
+          {
+            overallScore: 88.5,
+            conceptScore: 90,
+            structureScore: 87,
+            characterScore: 88,
+            craftScore: 89,
+            confidence: 0.95,
+            modelVersion: 'gemini-2.0-flash',
+            createdAt: new Date('2026-03-01'),
+          },
+        ],
+      },
+    ]);
+
+    const req = createRequest('http://localhost:22000/api/admin/corpus/export');
+    const res = await exportCorpus(req);
+    const csv = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toContain('text/csv');
+    expect(res.headers.get('Content-Disposition')).toContain('attachment');
+    expect(res.headers.get('Content-Disposition')).toContain('storyscore-corpus-');
+    // Header row
+    expect(csv).toContain('Title,Category,Genre');
+    // Data row
+    expect(csv).toContain('Inception');
+    expect(csv).toContain('training');
+    expect(csv).toContain('Thriller|Sci-Fi');
+    expect(csv).toContain('88.50');
+  });
+
+  it('escapes commas and quotes in CSV values', async () => {
+    setupAdmin();
+    mockPrisma.scriptCorpus.findMany.mockResolvedValueOnce([
+      {
+        title: 'Title, With Comma',
+        datasetCategory: 'test',
+        genre: [],
+        pageCount: null,
+        sceneCount: null,
+        dialoguePct: null,
+        conflictDensity: null,
+        corpusScores: [],
+      },
+    ]);
+
+    const req = createRequest('http://localhost:22000/api/admin/corpus/export');
+    const res = await exportCorpus(req);
+    const csv = await res.text();
+
+    expect(res.status).toBe(200);
+    // Comma in title should be wrapped in quotes
+    expect(csv).toContain('"Title, With Comma"');
+  });
+
+  it('returns 500 on DB error', async () => {
+    setupAdmin();
+    mockPrisma.scriptCorpus.findMany.mockRejectedValueOnce(new Error('DB down'));
+
+    const req = createRequest('http://localhost:22000/api/admin/corpus/export');
+    const res = await exportCorpus(req);
+
+    expect(res.status).toBe(500);
+  });
+});
+
+// =============================================================================
+// GET /api/admin/impact  (BL-001)
+// =============================================================================
+
+// NOTE: This route uses a local requireAdmin() (not withAdminAuth middleware).
+// Both unauthenticated and non-admin cases return 403.
+
+describe('GET /api/admin/impact', () => {
+  it('returns 403 when unauthenticated', async () => {
+    mockAuth.mockResolvedValue({ userId: null });
+
+    const req = createRequest('http://localhost:22000/api/admin/impact');
+    const res = await getImpactStats(req);
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 403 when authenticated but not admin', async () => {
+    mockAuth.mockResolvedValue({ userId: 'regular_user' });
+    mockPrisma.profile.findUnique.mockResolvedValueOnce({ userType: 'writer' });
+
+    const req = createRequest('http://localhost:22000/api/admin/impact');
+    const res = await getImpactStats(req);
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 200 with aggregated stats when admin', async () => {
+    mockAuth.mockResolvedValue({ userId: 'admin_user_123' });
+    mockPrisma.profile.findUnique.mockResolvedValueOnce({ userType: 'admin' });
+
+    // Promise.all: totalStories, pendingApproval, totalPartners, prizeEligible
+    mockPrisma.impactStory.count
+      .mockResolvedValueOnce(42)   // totalStories
+      .mockResolvedValueOnce(5)    // pendingApproval
+      .mockResolvedValueOnce(8);   // prizeEligible
+    mockPrisma.impactPartner.count.mockResolvedValueOnce(3);
+
+    mockPrisma.impactStory.groupBy
+      .mockResolvedValueOnce([
+        { category: 'community', _count: { id: 20 } },
+        { category: 'education', _count: { id: 22 } },
+      ])
+      .mockResolvedValueOnce([
+        { status: 'complete', _count: { id: 35 } },
+        { status: 'processing', _count: { id: 7 } },
+      ]);
+
+    const req = createRequest('http://localhost:22000/api/admin/impact');
+    const res = await getImpactStats(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.totalStories).toBe(42);
+    expect(data.pendingApproval).toBe(5);
+    expect(data.totalPartners).toBe(3);
+    expect(data.prizeEligible).toBe(8);
+    expect(data.byCategory.community).toBe(20);
+    expect(data.byStatus.complete).toBe(35);
+  });
+});
+
+// =============================================================================
+// POST + DELETE /api/admin/impact/stories/[id]/approve  (BL-001)
+// =============================================================================
+
+// NOTE: This route uses a local requireAdmin() — both unauthenticated and
+// non-admin return 403.
+
+// NOTE: approve/revoke routes use a local requireAdmin() — no describe-level
+// beforeEach here to avoid mockResolvedValueOnce queue conflicts.
+
+describe('POST /api/admin/impact/stories/[id]/approve', () => {
+  const STORY_ID = '550e8400-e29b-41d4-a716-446655440020';
+
+  it('returns 403 when not admin', async () => {
+    mockAuth.mockResolvedValue({ userId: 'regular_user' });
+    mockPrisma.profile.findUnique.mockResolvedValueOnce({ userType: 'writer' });
+
+    const req = createRequest(
+      `http://localhost:22000/api/admin/impact/stories/${STORY_ID}/approve`,
+      { method: 'POST' },
+    );
+    const res = await approveStory(req, routeParams({ id: STORY_ID }));
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 404 when story does not exist', async () => {
+    mockAuth.mockResolvedValue({ userId: 'admin_user_123' });
+    mockPrisma.profile.findUnique.mockResolvedValueOnce({ userType: 'admin' });
+    mockPrisma.impactStory.findUnique.mockResolvedValueOnce(null);
+
+    const req = createRequest(
+      `http://localhost:22000/api/admin/impact/stories/${STORY_ID}/approve`,
+      { method: 'POST' },
+    );
+    const res = await approveStory(req, routeParams({ id: STORY_ID }));
+    expect(res.status).toBe(404);
+  });
+
+  it('approves story and returns updated record', async () => {
+    mockAuth.mockResolvedValue({ userId: 'admin_user_123' });
+    mockPrisma.profile.findUnique.mockResolvedValueOnce({ userType: 'admin' });
+
+    const story = { id: STORY_ID, title: 'Community Impact', userId: 'user_author', isApproved: false };
+    mockPrisma.impactStory.findUnique.mockResolvedValueOnce(story);
+    mockPrisma.impactStory.update.mockResolvedValueOnce({ ...story, isApproved: true });
+    mockPrisma.profile.findUnique.mockResolvedValueOnce({ email: 'author@example.com' });
+
+    const req = createRequest(
+      `http://localhost:22000/api/admin/impact/stories/${STORY_ID}/approve`,
+      { method: 'POST' },
+    );
+    const res = await approveStory(req, routeParams({ id: STORY_ID }));
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.isApproved).toBe(true);
+    expect(mockPrisma.impactStory.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: STORY_ID }, data: { isApproved: true } })
+    );
+  });
+
+  it('fires approval email as fire-and-forget when user has email', async () => {
+    mockAuth.mockResolvedValue({ userId: 'admin_user_123' });
+    mockPrisma.profile.findUnique.mockResolvedValueOnce({ userType: 'admin' });
+
+    const story = { id: STORY_ID, title: 'My Story', userId: 'user_author', isApproved: false };
+    mockPrisma.impactStory.findUnique.mockResolvedValueOnce(story);
+    mockPrisma.impactStory.update.mockResolvedValueOnce({ ...story, isApproved: true });
+    mockPrisma.profile.findUnique.mockResolvedValueOnce({ email: 'author@example.com' });
+
+    const req = createRequest(
+      `http://localhost:22000/api/admin/impact/stories/${STORY_ID}/approve`,
+      { method: 'POST' },
+    );
+    await approveStory(req, routeParams({ id: STORY_ID }));
+
+    await Promise.resolve(); // flush fire-and-forget microtask
+    expect(mockSendStoryApprovedEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'author@example.com', storyTitle: 'My Story' })
+    );
+  });
+
+  it('does not throw when story has no userId (anonymous)', async () => {
+    mockAuth.mockResolvedValue({ userId: 'admin_user_123' });
+    mockPrisma.profile.findUnique.mockResolvedValueOnce({ userType: 'admin' });
+
+    const story = { id: STORY_ID, title: 'Anon Story', userId: null, isApproved: false };
+    mockPrisma.impactStory.findUnique.mockResolvedValueOnce(story);
+    mockPrisma.impactStory.update.mockResolvedValueOnce({ ...story, isApproved: true });
+
+    const req = createRequest(
+      `http://localhost:22000/api/admin/impact/stories/${STORY_ID}/approve`,
+      { method: 'POST' },
+    );
+    const res = await approveStory(req, routeParams({ id: STORY_ID }));
+
+    expect(res.status).toBe(200);
+    expect(mockSendStoryApprovedEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe('DELETE /api/admin/impact/stories/[id]/approve', () => {
+  const STORY_ID = '550e8400-e29b-41d4-a716-446655440020';
+
+  it('returns 403 when not admin', async () => {
+    mockAuth.mockResolvedValue({ userId: 'regular_user' });
+    mockPrisma.profile.findUnique.mockResolvedValueOnce({ userType: 'writer' });
+
+    const req = createRequest(
+      `http://localhost:22000/api/admin/impact/stories/${STORY_ID}/approve`,
+      { method: 'DELETE' },
+    );
+    const res = await revokeApproval(req, routeParams({ id: STORY_ID }));
+    expect(res.status).toBe(403);
+  });
+
+  it('revokes approval and returns updated record', async () => {
+    mockAuth.mockResolvedValue({ userId: 'admin_user_123' });
+    mockPrisma.profile.findUnique.mockResolvedValueOnce({ userType: 'admin' });
+    mockPrisma.impactStory.update.mockResolvedValueOnce({ id: STORY_ID, isApproved: false });
+
+    const req = createRequest(
+      `http://localhost:22000/api/admin/impact/stories/${STORY_ID}/approve`,
+      { method: 'DELETE' },
+    );
+    const res = await revokeApproval(req, routeParams({ id: STORY_ID }));
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.isApproved).toBe(false);
+    expect(mockPrisma.impactStory.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: STORY_ID }, data: { isApproved: false } })
+    );
   });
 });

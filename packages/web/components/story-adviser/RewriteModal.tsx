@@ -29,6 +29,7 @@ import {
   RefreshCw,
   AlertTriangle,
   ArrowRight,
+  Columns2,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api/fetch';
 import { Suggestion, Rewrite, SUGGESTION_CATEGORIES } from '@/lib/adviser/types';
@@ -87,6 +88,7 @@ export function RewriteModal({
   const [selectedRewrite, setSelectedRewrite] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<RewriteStyle>('moderate');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showDiff, setShowDiff] = useState(false);
 
   // Fetch existing rewrites when suggestion changes
   useEffect(() => {
@@ -224,6 +226,19 @@ export function RewriteModal({
 
         {/* Rewrites Section */}
         <div className="space-y-4">
+          {rewrites.length > 0 && !isGenerating && (
+            <div className="flex justify-end">
+              <Button
+                variant={showDiff ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setShowDiff((v) => !v)}
+                data-testid="toggle-diff"
+              >
+                <Columns2 className="w-3 h-3 mr-1" />
+                {showDiff ? 'Hide diff' : 'Side-by-side diff'}
+              </Button>
+            </div>
+          )}
           {rewrites.length === 0 && !isGenerating ? (
             /* Generate Options */
             <div className="space-y-4">
@@ -341,9 +356,27 @@ export function RewriteModal({
                           )}
                         </Button>
                       </div>
-                      <pre className="text-sm whitespace-pre-wrap font-mono bg-background p-2 rounded">
-                        {rewrite.rewrittenText}
-                      </pre>
+                      {showDiff ? (
+                        /* Side-by-side diff view */
+                        <div className="grid grid-cols-2 gap-2 mt-2" data-testid="diff-view">
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground mb-1">Original</p>
+                            <pre className="text-sm whitespace-pre-wrap font-mono bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 p-2 rounded min-h-[4rem]">
+                              {suggestion.location.excerpt}
+                            </pre>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground mb-1">Rewritten</p>
+                            <pre className="text-sm whitespace-pre-wrap font-mono bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 p-2 rounded min-h-[4rem]">
+                              {rewrite.rewrittenText}
+                            </pre>
+                          </div>
+                        </div>
+                      ) : (
+                        <pre className="text-sm whitespace-pre-wrap font-mono bg-background p-2 rounded">
+                          {rewrite.rewrittenText}
+                        </pre>
+                      )}
                       {rewrite.explanation && (
                         <p className="text-xs text-muted-foreground mt-2 italic">
                           {rewrite.explanation}
