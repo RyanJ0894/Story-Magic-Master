@@ -11,7 +11,12 @@
 import { generateStructuredOutput } from '../../lib/llm-client.js';
 import { log } from '../../lib/logger.js';
 import { CHARACTER_EXTRACTION_SYSTEM_PROMPT } from '../prompts/character-extraction-prompt.js';
-import { CharacterManifestSchema, type CharacterManifest } from '../../schemas/character-manifest.js';
+import { CharacterManifestSchema, type CharacterManifest, type CharacterEntry } from '../../schemas/character-manifest.js';
+import {
+  chunkScriptForExtraction,
+  mergeCharacterLists,
+  EXTRACTION_CHUNK_THRESHOLD,
+} from '../utils/script-chunker.js';
 
 const DEFAULT_MODEL = process.env.DIRECTOR_MODEL || 'openai/gpt-4.1';
 
@@ -33,35 +38,24 @@ export class CharacterExtractionAgent {
 
   /**
    * Extract all characters from the screenplay.
+   * For long scripts (> 30K chars), splits into chunks and extracts in parallel.
    * Returns a validated CharacterManifest.
    */
   async extract(input: CharacterExtractionInput): Promise<CharacterManifest> {
     const start = Date.now();
+    const isLong = input.script_text.length > EXTRACTION_CHUNK_THRESHOLD;
+
     log.info('[CharacterExtraction] starting', {
       model: this.model,
       scriptLength: input.script_text.length,
+      mode: isLong ? 'chunked-parallel' : 'single-pass',
     });
 
-    const prompt = `Extract every speaking character from the following screenplay.\n\nSCRIPT:\n${input.script_text}`;
+    const characters: CharacterEntry[] = isLong
+      ? await this.extractChunked(input)
+      : await this.extractSingle(input.script_text);
 
-    let raw: unknown;
-    try {
-      raw = await generateStructuredOutput(prompt, {
-        model: this.model,
-        schema: CharacterManifestSchema.extend({
-          project_id: CharacterManifestSchema.shape.project_id.default(input.project_id),
-        }),
-        systemPrompt: CHARACTER_EXTRACTION_SYSTEM_PROMPT,
-        maxTokens: 8192,
-        temperature: 0,
-      });
-    } catch (err) {
-      log.error('[CharacterExtraction] generateStructuredOutput failed', err instanceof Error ? err : undefined);
-      throw new Error(`CharacterExtractionAgent failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
-
-    // Inject project_id in case the model omitted it
-    const withId = { project_id: input.project_id, ...(raw as Record<string, unknown>) };
+    const withId = { project_id: input.project_id, characters };
 
     const validation = CharacterManifestSchema.safeParse(withId);
     if (!validation.success) {
@@ -106,5 +100,68 @@ export class CharacterExtractionAgent {
     }
 
     return manifest;
+  }
+
+  // ── Private helpers ────────────────────────────────────────────────────────
+
+  /** Extract characters from a single script text (used directly for short scripts). */
+  private async extractSingle(scriptText: string): Promise<CharacterEntry[]> {
+    const prompt = `Extract every speaking character from the following screenplay.\n\nSCRIPT:\n${scriptText}`;
+    let raw: unknown;
+    try {
+      raw = await generateStructuredOutput(prompt, {
+        model: this.model,
+        schema: CharacterManifestSchema,
+        systemPrompt: CHARACTER_EXTRACTION_SYSTEM_PROMPT,
+        maxTokens: 8192,
+        temperature: 0,
+      });
+    } catch (err) {
+      throw new Error(`CharacterExtractionAgent failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    const result = raw as { characters?: CharacterEntry[] };
+    return result.characters ?? [];
+  }
+
+  /**
+   * Extract characters from a long script by splitting it into chunks,
+   * running extraction in parallel, and merging + deduplicating results.
+   */
+  private async extractChunked(input: CharacterExtractionInput): Promise<CharacterEntry[]> {
+    const chunks = chunkScriptForExtraction(input.script_text);
+
+    log.info('[CharacterExtraction] chunked extraction', {
+      chunkCount: chunks.length,
+      scriptLength: input.script_text.length,
+    });
+
+    const results = await Promise.allSettled(
+      chunks.map((chunk) => this.extractSingle(chunk.text))
+    );
+
+    const successful: CharacterEntry[][] = [];
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r.status === 'fulfilled') {
+        successful.push(r.value);
+      } else {
+        log.warn('[CharacterExtraction] chunk extraction failed', {
+          chunk_index: i,
+          error: r.reason instanceof Error ? r.reason.message : String(r.reason),
+        });
+      }
+    }
+
+    if (successful.length === 0) {
+      throw new Error('CharacterExtractionAgent failed: all chunks failed');
+    }
+
+    const merged = mergeCharacterLists(successful);
+    log.info('[CharacterExtraction] chunked merge complete', {
+      chunksSucceeded: successful.length,
+      chunksTotal: chunks.length,
+      characterCount: merged.length,
+    });
+    return merged;
   }
 }

@@ -38,10 +38,11 @@ export type VoiceMap = z.infer<typeof VoiceMapSchema>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Default fallback voice IDs (ElevenLabs curated catalog)
+// Override via env: DEFAULT_NARRATOR_VOICE_ID, DEFAULT_MALE_VOICE_ID, DEFAULT_FEMALE_VOICE_ID
 // ─────────────────────────────────────────────────────────────────────────────
-export const DEFAULT_NARRATOR_VOICE = 'JBFqnCBsd6RMkjVDRZzb'; // George
-export const DEFAULT_MALE_VOICE     = 'bIHbv24MWmeRgasZH58o'; // Will
-export const DEFAULT_FEMALE_VOICE   = 'cgSgspJ2msm6clMCkdW9'; // Jessica
+export const DEFAULT_NARRATOR_VOICE = process.env.DEFAULT_NARRATOR_VOICE_ID || 'JBFqnCBsd6RMkjVDRZzb'; // George
+export const DEFAULT_MALE_VOICE     = process.env.DEFAULT_MALE_VOICE_ID     || 'bIHbv24MWmeRgasZH58o'; // Will
+export const DEFAULT_FEMALE_VOICE   = process.env.DEFAULT_FEMALE_VOICE_ID   || 'cgSgspJ2msm6clMCkdW9'; // Jessica
 
 /**
  * Look up a character's voice_key in the VoiceMap.

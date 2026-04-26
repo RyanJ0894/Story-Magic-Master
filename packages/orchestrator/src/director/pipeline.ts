@@ -10,6 +10,8 @@ import { AudioDirectorAgent } from './agents/audio-director-agent.js';
 import { DirectorJSONValidator } from './validation/director-validator.js';
 import { SceneAudioValidator } from './validation/audio-validator.js';
 import { log } from '../lib/logger.js';
+import { prisma } from '../lib/prisma.js';
+import { VoiceMapSchema, type VoiceMap } from '../schemas/voice-map.js';
 import type {
   DirectorJSON,
   SceneAudioJSON,
@@ -35,15 +37,69 @@ export interface PipelineInput {
 export type { PipelineResult, DirectorJSON, SceneAudioJSON };
 
 /**
+ * Load a previously saved VoiceMap for a project.
+ * Returns undefined if none exists or the stored data is not a valid VoiceMap.
+ */
+async function loadVoiceMap(projectId: string): Promise<VoiceMap | undefined> {
+  try {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { voiceAssignments: true },
+    });
+    if (!project) return undefined;
+    const parsed = VoiceMapSchema.safeParse(project.voiceAssignments);
+    if (parsed.success) {
+      log.info('[Pipeline] loaded cached VoiceMap', {
+        projectId,
+        assignmentCount: Object.keys(parsed.data.assignments).length,
+      });
+      return parsed.data;
+    }
+  } catch (err) {
+    log.warn('[Pipeline] failed to load cached VoiceMap', {
+      projectId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return undefined;
+}
+
+/**
+ * Persist a VoiceMap to the project's voiceAssignments field for future re-use.
+ * Non-fatal — a save failure does not abort the pipeline.
+ */
+async function saveVoiceMap(projectId: string, voiceMap: VoiceMap): Promise<void> {
+  try {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { voiceAssignments: JSON.parse(JSON.stringify(voiceMap)) },
+    });
+    log.info('[Pipeline] saved VoiceMap to project', {
+      projectId,
+      assignmentCount: Object.keys(voiceMap.assignments).length,
+    });
+  } catch (err) {
+    log.warn('[Pipeline] failed to save VoiceMap (non-fatal)', {
+      projectId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
  * Run the full director pipeline: DirectorAgent → AudioDirectorAgent → Validation
  */
 export async function processScript(
   input: PipelineInput,
   options: PipelineOptions = {}
 ): Promise<PipelineResult> {
+  // Load cached VoiceMap to skip Pass 2 on re-runs of the same project
+  const cachedVoiceMap = await loadVoiceMap(input.project_id);
+
   const directorAgent = new DirectorAgent({
     model: options.directorModel,
     maxIterations: options.maxIterations,
+    cachedVoiceMap,
   });
 
   const audioDirectorAgent = new AudioDirectorAgent({
@@ -60,6 +116,12 @@ export async function processScript(
   // Agent now returns validated DirectorJSON (Zod-validated at boundary)
   log.info('Pipeline Phase 1: Running DirectorAgent');
   let directorJson = await directorAgent.process(input);
+
+  // Persist the VoiceMap produced (or used) so subsequent runs skip Pass 2
+  const voiceMapToSave = directorAgent.lastVoiceMap ?? cachedVoiceMap;
+  if (voiceMapToSave) {
+    await saveVoiceMap(input.project_id, voiceMapToSave);
+  }
 
   // Phase 1b: Apply user voice overrides (if any)
   if (input.voice_overrides && Object.keys(input.voice_overrides).length > 0) {

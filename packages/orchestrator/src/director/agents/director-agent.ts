@@ -55,6 +55,13 @@ export interface DirectorAgentOptions {
   maxIterations?: number;
   /** Scenes per chunk for Pass 3. Default: 15. Lower = smaller chunks, more parallel calls. */
   scenesPerChunk?: number;
+  /**
+   * Pre-built VoiceMap from a previous run.
+   * When provided, Pass 2 (VoiceAssignmentAgent) is skipped entirely —
+   * the cached map is used directly. Enables voice consistency across re-runs
+   * without re-querying ElevenLabs.
+   */
+  cachedVoiceMap?: import('../../schemas/voice-map.js').VoiceMap;
 }
 
 export interface DirectorAgentInput {
@@ -72,11 +79,15 @@ export class DirectorAgent {
   private model: string;
   private maxIterations: number;
   private scenesPerChunk: number;
+  private cachedVoiceMap: import('../../schemas/voice-map.js').VoiceMap | undefined;
+  /** The VoiceMap produced by Pass 2 in the most recent process() call. */
+  lastVoiceMap: import('../../schemas/voice-map.js').VoiceMap | undefined;
 
   constructor(options: DirectorAgentOptions = {}) {
     this.model = options.model || DEFAULT_MODEL;
     this.maxIterations = options.maxIterations || 30;
     this.scenesPerChunk = options.scenesPerChunk || 15;
+    this.cachedVoiceMap = options.cachedVoiceMap;
   }
 
   // ─── Multi-pass pipeline ─────────────────────────────────────────────────
@@ -106,15 +117,24 @@ export class DirectorAgent {
         characterCount: manifest.characters.length,
       });
 
-      // ── Pass 2: Assign voices ───────────────────────────────────────────
-      const voiceAssigner = new VoiceAssignmentAgent({
-        model: this.model,
-        maxIterations: this.maxIterations,
-      });
-      const voiceMap = await voiceAssigner.assign({ manifest });
-      log.info('[DirectorAgent] Pass 2 complete', {
-        assignmentCount: Object.keys(voiceMap.assignments).length,
-      });
+      // ── Pass 2: Assign voices (skipped if cachedVoiceMap provided) ─────────
+      let voiceMap: import('../../schemas/voice-map.js').VoiceMap;
+      if (this.cachedVoiceMap) {
+        voiceMap = this.cachedVoiceMap;
+        log.info('[DirectorAgent] Pass 2 skipped — using cached VoiceMap', {
+          assignmentCount: Object.keys(voiceMap.assignments).length,
+        });
+      } else {
+        const voiceAssigner = new VoiceAssignmentAgent({
+          model: this.model,
+          maxIterations: this.maxIterations,
+        });
+        voiceMap = await voiceAssigner.assign({ manifest });
+        this.lastVoiceMap = voiceMap;
+        log.info('[DirectorAgent] Pass 2 complete', {
+          assignmentCount: Object.keys(voiceMap.assignments).length,
+        });
+      }
 
       // ── Pass 3: Construct scenes (chunked, parallel) ────────────────────
       const sceneConstructor = new SceneConstructionAgent({
