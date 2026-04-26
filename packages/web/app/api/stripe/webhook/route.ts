@@ -54,6 +54,33 @@ export async function POST(request: Request) {
         const customerId = session.customer as string;
         const subscriptionId = session.subscription as string;
 
+        // --- Advanced Analysis upgrade (one-time payment, per-project) ---
+        if (session.metadata?.type === 'advanced_analysis') {
+          const { userId: advUserId, projectId } = session.metadata;
+          if (advUserId && projectId) {
+            const paymentIntentId = session.payment_intent
+              ? typeof session.payment_intent === 'string'
+                ? session.payment_intent
+                : session.payment_intent.id
+              : null;
+
+            await prisma.purchase.create({
+              data: {
+                userId: advUserId,
+                projectId,
+                purchaseType: 'advanced_analysis',
+                amountCents: 999,
+                currency: session.currency ?? 'usd',
+                stripePaymentIntentId: paymentIntentId,
+                status: 'completed',
+              },
+            });
+
+            log.info('advanced_analysis purchase recorded', { userId: advUserId, projectId });
+          }
+          break;
+        }
+
         // --- Impact donation (one-time payment) ---
         if (session.metadata?.type === 'impact_donation') {
           const amountCents = session.amount_total ?? 0;

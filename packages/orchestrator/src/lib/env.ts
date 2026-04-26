@@ -43,6 +43,7 @@ const envSchema = z.object({
   OPENAI_API_KEY: optionalString,
   GROQ_API_KEY: optionalString,
   DIRECTOR_MODEL: z.string().default('anthropic/claude-sonnet-4-6'),
+  DIRECTOR_MODEL_ADVANCED: z.string().default('anthropic/claude-opus-4-6'),
   AUDIO_DIRECTOR_MODEL: z.string().default('anthropic/claude-sonnet-4-6'),
 
   // TTS
@@ -168,6 +169,7 @@ export function printEnvSummary(): void {
   console.log(`   OpenAI: ${isServiceConfigured('openai') ? '✅' : '❌'}`);
   console.log(`   Rate Limiting: ${isServiceConfigured('redis') ? '✅ (Redis)' : '⚠️ (In-memory)'}`);
   console.log(`   Director Model: ${env.DIRECTOR_MODEL}`);
+  console.log(`   Director Model (Advanced): ${env.DIRECTOR_MODEL_ADVANCED}`);
   console.log(`   Audio Director Model: ${env.AUDIO_DIRECTOR_MODEL}`);
   console.log('');
 }

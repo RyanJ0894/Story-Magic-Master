@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
+import { Suspense } from 'react';
 import DeleteProjectButton from './delete-button';
 import { ProjectWorkflow } from './project-workflow';
 import { StoryScoreSection } from '@/components/storyscore';
@@ -10,6 +11,8 @@ import { RevisionSection } from '@/components/revisions';
 import { ComparableSection } from '@/components/comparable';
 import { StoryExplorerSection } from '@/components/story-explorer';
 import { ScriptEditorWrapper } from '@/components/script-editor';
+import { AdvancedAnalysisUpgrade } from '@/components/project/AdvancedAnalysisUpgrade';
+import { AdvancedAnalysisSuccessBanner } from '@/components/project/AdvancedAnalysisSuccessBanner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -103,6 +106,17 @@ export default async function ProjectPage(
   });
   const remainingPreviews = Math.max(0, 10 - (usageRow?.previewsUsed ?? 0));
 
+  // Check if Advanced Analysis is purchased for this project
+  const advancedAnalysisPurchase = await prisma.purchase.findFirst({
+    where: {
+      projectId: params.id,
+      purchaseType: 'advanced_analysis',
+      status: 'completed',
+    },
+    select: { id: true },
+  });
+  const advancedAnalysisPurchased = !!advancedAnalysisPurchase;
+
   // Calculate voice assignments from directorJson
   let voiceAssignments = { total: 0, assigned: 0 };
   const directorJson = project.directorJson as Record<string, unknown> | null;
@@ -181,6 +195,11 @@ export default async function ProjectPage(
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        {/* Success banner after Stripe checkout redirect */}
+        <Suspense fallback={null}>
+          <AdvancedAnalysisSuccessBanner />
+        </Suspense>
+
         {/* Workflow */}
         <ProjectWorkflow
           project={{
@@ -211,6 +230,12 @@ export default async function ProjectPage(
           voiceAssignments={voiceAssignments}
           audioOverrides={audioOverrideStats}
           remainingPreviews={remainingPreviews ?? 0}
+        />
+
+        {/* Advanced Analysis upgrade (one-time per project) */}
+        <AdvancedAnalysisUpgrade
+          projectId={project.id}
+          purchased={advancedAnalysisPurchased}
         />
 
         {/* Story Explorer */}

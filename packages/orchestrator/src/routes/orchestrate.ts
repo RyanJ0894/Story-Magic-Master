@@ -3,6 +3,7 @@ import { OrchestrateRequestSchema, DirectorJSONSchema, OrchestrateResponse, type
 import { processScript } from '../director/pipeline.js';
 import { orchestrate, orchestrateParallel, type PipelineProgress } from '../orchestrator/pipeline.js';
 import { log } from '../lib/logger.js';
+import { getEnv } from '../lib/env.js';
 import { prisma } from '../lib/prisma.js';
 
 const router = Router();
@@ -72,6 +73,31 @@ router.post('/orchestrate', async (req: Request, res: Response): Promise<void> =
     }
   }
 
+  // Check if project has an Advanced Analysis purchase — model selection is
+  // ALWAYS server-side (DB lookup). The client NEVER influences model choice.
+  let useAdvancedModel = false;
+  try {
+    const advancedPurchase = await prisma.purchase.findFirst({
+      where: {
+        projectId: project_id,
+        purchaseType: 'advanced_analysis',
+        status: 'completed',
+      },
+      select: { id: true },
+    });
+    useAdvancedModel = !!advancedPurchase;
+  } catch {
+    // Non-fatal — default to standard model if DB check fails
+    log.warn('orchestrate: advanced analysis purchase check skipped (DB unavailable)', { projectId: project_id });
+  }
+
+  const { DIRECTOR_MODEL, DIRECTOR_MODEL_ADVANCED } = getEnv();
+  const directorModel = useAdvancedModel ? DIRECTOR_MODEL_ADVANCED : DIRECTOR_MODEL;
+
+  if (useAdvancedModel) {
+    log.info('orchestrate: Advanced Analysis active — using upgraded model', { projectId: project_id, model: directorModel });
+  }
+
   let directorJSON: DirectorJSON;
 
   try {
@@ -79,7 +105,7 @@ router.post('/orchestrate', async (req: Request, res: Response): Promise<void> =
     if (script_text && (!scenes || scenes.length === 0)) {
       log.info('Running Director pipeline for orchestration', { projectId: project_id });
 
-      const directorResult = await processScript({ project_id, script_text });
+      const directorResult = await processScript({ project_id, script_text }, { directorModel });
       directorJSON = directorResult.director_json;
 
       log.info('Director pipeline complete', { projectId: project_id, sceneCount: directorJSON.scenes.length });
