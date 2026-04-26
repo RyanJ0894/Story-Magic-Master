@@ -23,7 +23,7 @@ import {
 
 const InviteMemberSchema = z.object({
   email: z.string().email('Valid email is required'),
-  role: z.string().min(1).optional(),
+  role: z.enum(['admin', 'member', 'viewer']).optional(),
 });
 
 const RemoveMemberSchema = z.object({
