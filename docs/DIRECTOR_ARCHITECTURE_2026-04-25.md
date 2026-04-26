@@ -76,50 +76,46 @@ The redesign was guided by three constraints:
 
 ### The Three Passes
 
-```
-Screenplay Text
-      │
-      ▼
-┌─────────────────────────────────────────┐
-│  PASS 1 — CharacterExtractionAgent      │
-│  Input:  Full script text               │
-│  Method: generateStructuredOutput       │
-│  Output: CharacterManifest              │
-│          (all characters, aliases,      │
-│           gender, age, description)     │
-└──────────────────┬──────────────────────┘
-                   │
-                   ▼
-┌─────────────────────────────────────────┐
-│  PASS 2 — VoiceAssignmentAgent          │
-│  Input:  CharacterManifest              │
-│  Method: runAgentLoop + voice tools     │
-│  Output: VoiceMap                       │
-│          (canonical name → voice_key    │
-│           for every character + alias)  │
-└──────────────────┬──────────────────────┘
-                   │
-      ┌────────────┴────────────┐
-      │   Script chunked at     │
-      │   scene boundaries      │
-      │   (15 scenes/chunk)     │
-      └────────────┬────────────┘
-                   │
-      ┌────────────┴──────────────────────────────┐
-      │ Chunk 1 │ Chunk 2 │ Chunk 3 │ ... Chunk N │  (parallel)
-      └────────────┬──────────────────────────────┘
-                   │
-┌─────────────────────────────────────────┐
-│  PASS 3 — SceneConstructionAgent        │
-│  Input:  Script chunk + VoiceMap        │
-│  Method: generateStructuredOutput       │
-│          (VoiceMap embedded in prompt)  │
-│  Output: Scene[] per chunk              │
-└──────────────────┬──────────────────────┘
-                   │
-                   ▼
-          DirectorJSON assembled
-          from all successful chunks
+```mermaid
+flowchart TD
+    A([Screenplay Text]) --> P1
+
+    subgraph P1["Pass 1 — CharacterExtractionAgent"]
+        direction TB
+        P1a["Input: full script text"]
+        P1b["Method: generateStructuredOutput"]
+        P1c["Output: CharacterManifest\n(name · aliases · gender · age · description)"]
+        P1a --> P1b --> P1c
+    end
+
+    P1 --> P2
+
+    subgraph P2["Pass 2 — VoiceAssignmentAgent"]
+        direction TB
+        P2a["Input: CharacterManifest"]
+        P2b["Method: runAgentLoop + voice-search tools\n(search_voices · get_voice · list_voice_labels)"]
+        P2c["Output: VoiceMap\n(canonical name → voice_key for every character + alias)"]
+        P2a --> P2b --> P2c
+    end
+
+    P2 --> CHUNK
+
+    subgraph CHUNK["Script Chunker"]
+        direction TB
+        CH["Split at scene boundaries\n(15 scenes / chunk)"]
+    end
+
+    CHUNK --> PAR
+
+    subgraph PAR["Pass 3 — SceneConstructionAgent  ·  parallel chunks"]
+        direction LR
+        C1["Chunk 1\ngenerateStructuredOutput"]
+        C2["Chunk 2\ngenerateStructuredOutput"]
+        C3["Chunk 3\ngenerateStructuredOutput"]
+        CN["Chunk N\ngenerateStructuredOutput"]
+    end
+
+    PAR --> OUT([DirectorJSON\nassembled from all successful chunks])
 ```
 
 ---
@@ -177,16 +173,13 @@ Key decisions:
 
 ### Fallback Architecture
 
-```
-process() — multi-pass pipeline
-    │
-    ├── Success → return DirectorJSON
-    │
-    └── Any pass throws →
-            legacyProcess() — single-pass fallback
-                │
-                ├── Success → return DirectorJSON
-                └── Failure → throw
+```mermaid
+flowchart TD
+    START([process\(\)]) --> PIPELINE["3-pass pipeline\nPass 1 → Pass 2 → Pass 3"]
+    PIPELINE -->|success| OK([return DirectorJSON])
+    PIPELINE -->|any pass throws| LEGACY["legacyProcess\(\)\nsingle-pass fallback\n⚠ capped at 1 attempt"]
+    LEGACY -->|success| OK
+    LEGACY -->|failure| ERR([throw])
 ```
 
 **Fallback cap (added 2026-04-25):** The legacy fallback is limited to **1 attempt**. Previously, `legacyProcess()` could run a 30-iteration agent loop at 32,768 tokens/iteration — a worst-case cost of ~960,000 tokens (~$3–4) per failure. The cap eliminates runaway cost on systematically bad input.
