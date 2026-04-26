@@ -175,11 +175,17 @@ Key decisions:
 
 ```mermaid
 flowchart TD
-    START([process\(\)]) --> PIPELINE["3-pass pipeline\nPass 1 → Pass 2 → Pass 3"]
-    PIPELINE -->|success| OK([return DirectorJSON])
-    PIPELINE -->|any pass throws| LEGACY["legacyProcess\(\)\nsingle-pass fallback\n⚠ capped at 1 attempt"]
+    START(["process()"])
+    PIPELINE["3-pass pipeline<br/>Pass 1 → Pass 2 → Pass 3"]
+    OK(["return DirectorJSON"])
+    LEGACY["legacyProcess()<br/>single-pass fallback<br/>⚠ capped at 1 attempt"]
+    ERR(["throw"])
+
+    START --> PIPELINE
+    PIPELINE -->|success| OK
+    PIPELINE -->|"any pass throws"| LEGACY
     LEGACY -->|success| OK
-    LEGACY -->|failure| ERR([throw])
+    LEGACY -->|failure| ERR
 ```
 
 **Fallback cap (added 2026-04-25):** The legacy fallback is limited to **1 attempt**. Previously, `legacyProcess()` could run a 30-iteration agent loop at 32,768 tokens/iteration — a worst-case cost of ~960,000 tokens (~$3–4) per failure. The cap eliminates runaway cost on systematically bad input.
