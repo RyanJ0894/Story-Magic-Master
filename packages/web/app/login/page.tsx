@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { SignIn } from '@clerk/nextjs';
+import ClerkSignIn from './clerk-sign-in';
 
 export default function LoginPage() {
   return (
@@ -12,15 +12,7 @@ export default function LoginPage() {
           <Image src="/logo.png" alt="Story Magic" width={160} height={160} className="rounded-xl mx-auto" />
         </Link>
       </div>
-      <SignIn
-        appearance={{
-          elements: {
-            rootBox: 'mx-auto',
-            card: 'shadow-xl',
-          },
-        }}
-        fallbackRedirectUrl="/dashboard"
-      />
+      <ClerkSignIn fallbackRedirectUrl="/dashboard" />
     </div>
   );
 }

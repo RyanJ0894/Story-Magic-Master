@@ -70,7 +70,7 @@ export class DirectorAgent {
         systemPrompt: DIRECTOR_SYSTEM_PROMPT,
         tools,
         maxIterations: this.maxIterations,
-        maxTokens: 16384,
+        maxTokens: 32768,
         temperature: 1,
       });
 

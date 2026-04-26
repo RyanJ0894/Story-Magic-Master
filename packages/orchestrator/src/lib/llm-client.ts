@@ -104,6 +104,11 @@ export async function runAgentLoop(
     maxIterations = 20,
   } = options;
 
+  // For JSON-output passes (force-completion and final), use the highest token
+  // budget the model supports. GPT-4.1 / GPT-4o cap at 32 768; Claude at 64K.
+  // A 15-page screenplay JSON is ~18 000 tokens; we need headroom above maxTokens.
+  const MAX_OUTPUT_TOKENS = Math.max(32768, maxTokens);
+
   const messages: ModelMessage[] = [{ role: 'user', content: userInput }];
   const loopStart = Date.now();
   let totalToolCalls = 0;
@@ -114,6 +119,7 @@ export async function runAgentLoop(
 
     // Two iterations before the limit: inject a force-completion message so the
     // model stops calling tools and emits its final JSON output.
+    const isOutputIteration = iteration >= maxIterations - 2 && totalToolCalls > 0;
     if (iteration === maxIterations - 2 && totalToolCalls > 0) {
       log.warn('[LLM] approaching iteration limit — injecting force-completion prompt', { iteration: iteration + 1 });
       messages.push({
@@ -131,7 +137,8 @@ export async function runAgentLoop(
         system: systemPrompt,
         messages,
         tools,
-        maxOutputTokens: maxTokens,
+        // Use the expanded token budget for output iterations so large JSON is not truncated.
+        maxOutputTokens: isOutputIteration ? MAX_OUTPUT_TOKENS : maxTokens,
         temperature,
       });
 
@@ -244,8 +251,9 @@ export async function runAgentLoop(
       model: getModel(model),
       system: systemPrompt,
       messages,
-      // No tools — forces pure text response
-      maxOutputTokens: maxTokens,
+      // No tools — forces pure text response. Use full token budget so
+      // large script JSON is not truncated.
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
       temperature: 0,
     });
 
