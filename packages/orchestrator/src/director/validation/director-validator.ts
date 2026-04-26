@@ -11,11 +11,11 @@ import { log } from '../../lib/logger.js';
 import { ValidationError, DirectorValidationErrorTypes } from './validation-error.js';
 import type { DirectorJSON, Scene, DialogueLine } from '../../schemas/director-json.js';
 import { searchVoicesHybrid, getAgeRange, type AgeRange } from '../tools/hybrid-voice-search.js';
-
-// Default fallback voice IDs (from ElevenLabs)
-const DEFAULT_NARRATOR_VOICE = 'pNInz6obpgDQGcFmaJgB'; // Adam - professional narrator
-const DEFAULT_MALE_VOICE = '29vD33N1CtxCmqQRPOHJ'; // Drew - male
-const DEFAULT_FEMALE_VOICE = '21m00Tcm4TlvDq8ikWAM'; // Rachel - female
+import {
+  DEFAULT_NARRATOR_VOICE,
+  DEFAULT_MALE_VOICE,
+  DEFAULT_FEMALE_VOICE,
+} from '../../schemas/voice-map.js';
 
 // Pattern to detect placeholder voice IDs (not real ElevenLabs IDs)
 // Real IDs are 20-char alphanumeric strings

@@ -276,29 +276,6 @@ export async function runAgentLoop(
 }
 
 /**
- * Simple text generation without tools
- */
-export async function generateSimpleText(
-  prompt: string,
-  options: {
-    model: string;
-    systemPrompt?: string;
-    maxTokens?: number;
-    temperature?: number;
-  }
-): Promise<string> {
-  const result = await generateText({
-    model: getModel(options.model),
-    system: options.systemPrompt,
-    prompt,
-    maxOutputTokens: options.maxTokens || 4096,
-    temperature: options.temperature || 0.7,
-  });
-
-  return result.text;
-}
-
-/**
  * Generate a structured object using Zod schema enforcement.
  *
  * Uses the AI SDK's native structured output feature which guarantees
