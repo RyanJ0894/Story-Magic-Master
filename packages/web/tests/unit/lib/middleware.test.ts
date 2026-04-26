@@ -385,7 +385,40 @@ describe('withProjectAuth', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it('queries project with both projectId and userId for ownership check', async () => {
+  it('returns 404 when a different user requests a project they do not own (cross-tenant denial)', async () => {
+    // findFirst returns null because WHERE OR clause found no matching row
+    mockPrisma.project.findFirst.mockResolvedValue(null);
+    const handler = vi.fn();
+    const wrapped = withProjectAuth(handler);
+
+    const req = createRequest('/api/projects/' + PROJECT_ID, { method: 'GET' });
+    const res = await wrapped(req, routeParams({ id: PROJECT_ID }));
+    const body = await parseJson(res);
+
+    expect(res.status).toBe(404);
+    expect(body.code).toBe('PROJECT_NOT_FOUND');
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('grants access when project is team-shared (OR clause returns project)', async () => {
+    // Simulates Prisma finding the project via the teamShares branch of the OR
+    const sharedProject = { ...mockProject, userId: 'other-owner' };
+    mockPrisma.project.findFirst.mockResolvedValue(sharedProject);
+
+    const handler = vi.fn().mockResolvedValue(new Response('ok'));
+    const wrapped = withProjectAuth(handler);
+
+    const req = createRequest('/api/projects/' + PROJECT_ID, { method: 'GET' });
+    const res = await wrapped(req, routeParams({ id: PROJECT_ID }));
+
+    expect(res.status).toBe(200);
+    expect(handler).toHaveBeenCalledWith(
+      req,
+      expect.objectContaining({ projectId: PROJECT_ID, project: sharedProject }),
+    );
+  });
+
+  it('queries project with OR clause for ownership + team-share access (BL-014)', async () => {
     const handler = vi.fn().mockResolvedValue(new Response('ok'));
     const wrapped = withProjectAuth(handler);
 
@@ -393,7 +426,26 @@ describe('withProjectAuth', () => {
     await wrapped(req, routeParams({ id: PROJECT_ID }));
 
     expect(mockPrisma.project.findFirst).toHaveBeenCalledWith({
-      where: { id: PROJECT_ID, userId: USER_ID },
+      where: {
+        id: PROJECT_ID,
+        OR: [
+          { userId: USER_ID },
+          {
+            teamShares: {
+              some: {
+                team: {
+                  members: {
+                    some: {
+                      userId: USER_ID,
+                      acceptedAt: { not: null },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
     });
   });
 

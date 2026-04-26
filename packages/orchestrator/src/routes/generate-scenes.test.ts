@@ -1,7 +1,7 @@
 /**
- * Tests for generate-scenes route — Sprint 5 BL-008
+ * Tests for generate-scenes route — Sprint 5 BL-008 / Sprint 6 BL-013 / BL-016
  *
- * Validates pre-flight char/page limits and happy-path behaviour.
+ * Validates pre-flight char/page limits, ownership check, and happy-path behaviour.
  * Uses express + node http.request (no supertest dependency).
  */
 
@@ -11,9 +11,14 @@ import express from 'express';
 
 // ── hoisted mocks ────────────────────────────────────────────────────────────
 
-const { mockProcessScript, mockGetEnv } = vi.hoisted(() => ({
+const { mockProcessScript, mockGetEnv, mockPrisma } = vi.hoisted(() => ({
   mockProcessScript: vi.fn(),
   mockGetEnv: vi.fn(),
+  mockPrisma: {
+    project: {
+      findUnique: vi.fn(),
+    },
+  },
 }));
 
 vi.mock('../director/pipeline.js', () => ({
@@ -26,6 +31,10 @@ vi.mock('../lib/logger.js', () => ({
 
 vi.mock('../lib/env.js', () => ({
   getEnv: (...args: unknown[]) => mockGetEnv(...args),
+}));
+
+vi.mock('../lib/prisma.js', () => ({
+  prisma: mockPrisma,
 }));
 
 // ── imports after mocks ───────────────────────────────────────────────────────
@@ -47,11 +56,23 @@ const VALID_DIRECTOR_JSON = {
  * Creates a minimal http server with the generate-scenes router and sends one
  * POST request. Returns the response status and parsed JSON body.
  */
-async function post(body: unknown, env = DEFAULT_ENV): Promise<{ status: number; body: Record<string, unknown> }> {
+async function post(
+  body: unknown,
+  env = DEFAULT_ENV,
+  userId?: string,
+): Promise<{ status: number; body: Record<string, unknown> }> {
   mockGetEnv.mockReturnValue(env);
 
   const app = express();
   app.use(express.json());
+
+  if (userId) {
+    app.use((req, _res, next) => {
+      (req as express.Request & { user?: { id: string } }).user = { id: userId };
+      next();
+    });
+  }
+
   app.use('/', router);
 
   return new Promise((resolve, reject) => {
@@ -188,5 +209,89 @@ describe('generate-scenes happy path', () => {
     expect(status).toBe(500);
     expect(body.success).toBe(false);
     expect(body.message).toContain('LLM timeout');
+  });
+});
+
+// =============================================================================
+// Ownership check (BL-013 / BL-016)
+// =============================================================================
+
+describe('generate-scenes: ownership check (BL-013)', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('returns 404 when project does not exist', async () => {
+    mockPrisma.project.findUnique.mockResolvedValue(null);
+
+    const { status, body } = await post(
+      { project_id: 'ghost-proj', script_text: 'INT. ROOM - DAY' },
+      DEFAULT_ENV,
+      'user-abc',
+    );
+
+    expect(status).toBe(404);
+    expect(body.success).toBe(false);
+    expect(body.message).toMatch(/not found/i);
+    expect(mockProcessScript).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when authenticated user does not own the project', async () => {
+    mockPrisma.project.findUnique.mockResolvedValue({ userId: 'owner-xyz' });
+
+    const { status, body } = await post(
+      { project_id: 'proj-owned-by-xyz', script_text: 'INT. ROOM - DAY' },
+      DEFAULT_ENV,
+      'attacker-abc',
+    );
+
+    expect(status).toBe(403);
+    expect(body.success).toBe(false);
+    expect(body.message).toMatch(/forbidden/i);
+    expect(mockProcessScript).not.toHaveBeenCalled();
+  });
+
+  it('proceeds when authenticated user owns the project', async () => {
+    mockPrisma.project.findUnique.mockResolvedValue({ userId: 'user-abc' });
+    mockProcessScript.mockResolvedValue({ director_json: VALID_DIRECTOR_JSON, validation_report: {} });
+
+    const { status, body } = await post(
+      { project_id: 'my-proj', script_text: 'INT. ROOM - DAY' },
+      DEFAULT_ENV,
+      'user-abc',
+    );
+
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(mockPrisma.project.findUnique).toHaveBeenCalledWith({
+      where: { id: 'my-proj' },
+      select: { userId: true },
+    });
+  });
+
+  it('skips ownership check when req.user is absent (AUTH_DISABLED / dev)', async () => {
+    mockProcessScript.mockResolvedValue({ director_json: VALID_DIRECTOR_JSON, validation_report: {} });
+
+    const { status, body } = await post(
+      { project_id: 'any-proj', script_text: 'INT. ROOM - DAY' },
+      DEFAULT_ENV,
+      // no userId
+    );
+
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(mockPrisma.project.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('continues (non-fatal) when DB is unavailable during ownership check', async () => {
+    mockPrisma.project.findUnique.mockRejectedValue(new Error('Connection refused'));
+    mockProcessScript.mockResolvedValue({ director_json: VALID_DIRECTOR_JSON, validation_report: {} });
+
+    const { status, body } = await post(
+      { project_id: 'any-proj', script_text: 'INT. ROOM - DAY' },
+      DEFAULT_ENV,
+      'user-abc',
+    );
+
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
   });
 });

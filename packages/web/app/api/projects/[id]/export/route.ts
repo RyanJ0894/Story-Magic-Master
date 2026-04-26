@@ -11,13 +11,15 @@ import { pdf } from '@react-pdf/renderer';
 import { StoryScorePDF } from '@/lib/export/StoryScorePDF';
 import { getLatestScore } from '@/lib/scoring/service';
 import { log } from '@/lib/logger';
+import { logReadAccess, AuditActions } from '@/lib/api/audit';
 
 // =============================================================================
 // GET - Generate PDF
 // =============================================================================
 
 export const GET = withProjectAuth(
-  async (_request, { projectId, project }) => {
+  async (request, { userId, projectId, project }) => {
+    void logReadAccess({ userId, projectId, action: AuditActions.AUDIO_DOWNLOAD, request });
     if (!isFeatureEnabled('EXPORT_REPORTS')) {
       return NextResponse.json(
         { error: 'Feature not enabled', code: 'FEATURE_DISABLED' },

@@ -71,9 +71,17 @@ export const AuditActions = {
 
   // Project actions
   PROJECT_CREATE: 'project.create',
+  PROJECT_READ: 'project.read',
   PROJECT_UPDATE: 'project.update',
   PROJECT_DELETE: 'project.delete',
   PROJECT_GENERATE: 'project.generate',
+
+  // Audio actions
+  AUDIO_DOWNLOAD: 'audio.download',
+  AUDIO_STREAM: 'audio.stream',
+
+  // Script actions
+  SCRIPT_READ: 'script.read',
 
   // Share actions
   SHARE_CREATE: 'share.create',
@@ -104,6 +112,64 @@ export const ResourceTypes = {
   SUBSCRIPTION: 'subscription',
   SETTINGS: 'settings',
   ADMIN: 'admin',
+  AUDIO: 'audio',
+  SCRIPT: 'script',
 } as const;
 
 export type ResourceType = (typeof ResourceTypes)[keyof typeof ResourceTypes];
+
+// ---------------------------------------------------------------------------
+// Convenience helpers (BL-015)
+// ---------------------------------------------------------------------------
+
+export interface ReadAccessOptions {
+  userId: string;
+  projectId: string;
+  action?: string;
+  details?: Record<string, unknown>;
+  request?: Request;
+}
+
+/**
+ * Log a read-access event on a sensitive resource (project details, audio, script text).
+ * Fire-and-forget: never throws.
+ */
+export async function logReadAccess(opts: ReadAccessOptions): Promise<void> {
+  const { userId, projectId, action = AuditActions.PROJECT_READ, details = {}, request } = opts;
+  const reqInfo = request ? extractRequestInfo(request) : { ip_address: null, user_agent: null };
+  await logAuditEvent({
+    user_id: userId,
+    action,
+    resource_type: ResourceTypes.PROJECT,
+    resource_id: projectId,
+    details: { projectId, ...details },
+    ...reqInfo,
+  });
+}
+
+export interface DeletionOptions {
+  userId: string;
+  resourceType: string;
+  resourceId: string;
+  action?: string;
+  details?: Record<string, unknown>;
+  request?: Request;
+}
+
+/**
+ * Log a deletion event (user delete, project delete).
+ * Fire-and-forget: never throws.
+ */
+export async function logDeletion(opts: DeletionOptions): Promise<void> {
+  const { userId, resourceType, resourceId, action, details = {}, request } = opts;
+  const resolvedAction = action ?? `${resourceType}.delete`;
+  const reqInfo = request ? extractRequestInfo(request) : { ip_address: null, user_agent: null };
+  await logAuditEvent({
+    user_id: userId,
+    action: resolvedAction,
+    resource_type: resourceType,
+    resource_id: resourceId,
+    details,
+    ...reqInfo,
+  });
+}

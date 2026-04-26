@@ -3,6 +3,7 @@ import { GenerateScenesRequestSchema, GenerateScenesResponse } from '../schemas/
 import { processScript } from '../director/pipeline.js';
 import { log } from '../lib/logger.js';
 import { getEnv } from '../lib/env.js';
+import { prisma } from '../lib/prisma.js';
 
 const router = Router();
 
@@ -39,6 +40,39 @@ router.post('/generate-scenes', async (req: Request, res: Response): Promise<voi
   }
 
   const { project_id, script_text, voice_overrides } = parsed.data;
+
+  // Ownership check (BL-013): authenticated user must own this project.
+  // req.user is populated by authMiddleware; AUTH_DISABLED skips this safely
+  // because it only runs in non-production environments.
+  const requestingUserId = req.user?.id;
+  if (requestingUserId) {
+    try {
+      const project = await prisma.project.findUnique({
+        where: { id: project_id },
+        select: { userId: true },
+      });
+      if (!project) {
+        res.status(404).json({
+          project_id,
+          success: false,
+          message: 'Project not found',
+        } as GenerateScenesResponse);
+        return;
+      }
+      if (project.userId !== requestingUserId) {
+        log.warn('generate-scenes: ownership check failed', { projectId: project_id, requestingUserId });
+        res.status(403).json({
+          project_id,
+          success: false,
+          message: 'Forbidden: you do not own this project',
+        } as GenerateScenesResponse);
+        return;
+      }
+    } catch (err) {
+      // Non-fatal: if DB is unavailable, log and continue (allows dev without DB)
+      log.warn('generate-scenes: ownership check skipped (DB unavailable)', { projectId: project_id });
+    }
+  }
 
   // Pre-flight: enforce script size limits before any LLM call
   const { MAX_SCRIPT_CHARS, MAX_SCRIPT_PAGES } = getEnv();

@@ -132,10 +132,28 @@ export function withProjectAuth(
       return errorResponse('Project ID required', 400, { code: 'MISSING_PROJECT_ID' });
     }
 
+    // BL-014: Allow access if user owns the project OR is an accepted member
+    // of a team that has a TeamShare for this project.
     const project = await prisma.project.findFirst({
       where: {
         id: projectId,
-        userId: userId,
+        OR: [
+          { userId },
+          {
+            teamShares: {
+              some: {
+                team: {
+                  members: {
+                    some: {
+                      userId,
+                      acceptedAt: { not: null },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
       },
     });
 

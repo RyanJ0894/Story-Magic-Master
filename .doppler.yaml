@@ -1,0 +1,3 @@
+setup:
+  project: story-magic
+  config: dev

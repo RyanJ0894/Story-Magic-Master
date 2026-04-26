@@ -10,6 +10,7 @@ import { withProjectAuth, parseBody } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { updateProject, deleteProject } from '@/lib/services/projects';
+import { logReadAccess, logDeletion, AuditActions, ResourceTypes } from '@/lib/api/audit';
 
 // =============================================================================
 // Input Validation
@@ -25,7 +26,8 @@ const UpdateProjectSchema = z.object({
 // GET - Fetch a single project
 // =============================================================================
 
-export const GET = withProjectAuth(async (_request, { project }) => {
+export const GET = withProjectAuth(async (request, { userId, projectId, project }) => {
+  void logReadAccess({ userId, projectId, action: AuditActions.PROJECT_READ, request });
   return NextResponse.json({ project });
 });
 
@@ -59,9 +61,10 @@ export const PATCH = withProjectAuth(async (request, { prisma, projectId }) => {
 // DELETE - Delete a project
 // =============================================================================
 
-export const DELETE = withProjectAuth(async (_request, { prisma, projectId }) => {
+export const DELETE = withProjectAuth(async (request, { userId, prisma, projectId }) => {
   try {
     await deleteProject(prisma, projectId);
+    void logDeletion({ userId, resourceType: ResourceTypes.PROJECT, resourceId: projectId, action: AuditActions.PROJECT_DELETE, request });
     return NextResponse.json({ success: true, deleted: projectId });
   } catch {
     return NextResponse.json(

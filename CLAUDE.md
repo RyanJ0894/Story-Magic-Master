@@ -28,7 +28,8 @@ story-magic/
 │       ├── prisma/     # Schema + migrations
 │       └── supabase/   # Storage bucket config (auth is Clerk, not Supabase)
 ├── docker-compose.yml  # Local dev: PostgreSQL, Redis
-└── .env.local          # Credentials (gitignored)
+├── .doppler.yaml       # Doppler project config (story-magic/dev) — committed
+└── .env.local          # Credentials fallback (gitignored; prefer Doppler)
 ```
 
 ## Development Commands
@@ -36,7 +37,8 @@ story-magic/
 ```bash
 # Root
 pnpm install              # Install all workspace dependencies
-pnpm dev                  # Start all services in parallel
+doppler run -- pnpm dev   # Start all services (secrets from Doppler — preferred)
+pnpm dev                  # Start all services (uses .env.local if Doppler not available)
 pnpm dev:web              # Web only (port 22000)
 pnpm dev:orchestrator     # Orchestrator only (port 22002)
 pnpm build                # Build all packages

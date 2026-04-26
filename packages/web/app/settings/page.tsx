@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { ensureProfile } from '@/lib/ensure-profile';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -25,8 +25,13 @@ export default async function SettingsPage() {
     redirect('/login?redirect=/settings');
   }
 
-  const profile = await ensureProfile(userId);
+  const [profile, clerkUser] = await Promise.all([
+    ensureProfile(userId),
+    currentUser(),
+  ]);
   const tier = profile?.subscriptionTier || 'free';
+  const mfaEnabled = (clerkUser?.totpEnabled ?? false) || (clerkUser?.twoFactorEnabled ?? false);
+  const isAdmin = profile?.userType === 'admin';
 
   const tierNames: Record<string, string> = {
     free: 'Free',
@@ -201,11 +206,63 @@ export default async function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* MFA Required banner for admins */}
+            {isAdmin && !mfaEnabled && (
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                <Shield className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium text-amber-800 dark:text-amber-300">
+                    Two-Factor Authentication Required
+                  </p>
+                  <p className="text-sm text-amber-700 dark:text-amber-400 mt-0.5">
+                    Admin accounts must have 2FA enabled. Please enable it below to maintain full access.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* MFA status row */}
             <div className="flex items-center justify-between p-4 rounded-lg bg-muted">
               <div>
-                <p className="font-medium text-foreground">Authentication</p>
+                <p className="font-medium text-foreground">Two-Factor Authentication (2FA)</p>
                 <p className="text-sm text-muted-foreground">
-                  Managed by Clerk. Change your password, enable 2FA, and manage sessions.
+                  {mfaEnabled
+                    ? 'Your account is protected with two-factor authentication.'
+                    : 'Add an extra layer of security to your account with an authenticator app.'}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Badge
+                  variant={mfaEnabled ? 'outline' : 'secondary'}
+                  className={
+                    mfaEnabled
+                      ? 'border-green-500 text-green-600 dark:text-green-400'
+                      : 'text-muted-foreground'
+                  }
+                >
+                  {mfaEnabled ? 'Enabled' : 'Disabled'}
+                </Badge>
+                {!mfaEnabled && (
+                  <a
+                    href="https://accounts.clerk.dev/user/security"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button variant="default" size="sm">
+                      <Shield className="w-4 h-4 mr-2" />
+                      Enable 2FA
+                    </Button>
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* General auth management */}
+            <div className="flex items-center justify-between p-4 rounded-lg bg-muted">
+              <div>
+                <p className="font-medium text-foreground">Account & Sessions</p>
+                <p className="text-sm text-muted-foreground">
+                  Manage your password, connected accounts, and active sessions.
                 </p>
               </div>
               <a

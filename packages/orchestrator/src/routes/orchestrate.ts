@@ -3,6 +3,7 @@ import { OrchestrateRequestSchema, DirectorJSONSchema, OrchestrateResponse, type
 import { processScript } from '../director/pipeline.js';
 import { orchestrate, orchestrateParallel, type PipelineProgress } from '../orchestrator/pipeline.js';
 import { log } from '../lib/logger.js';
+import { prisma } from '../lib/prisma.js';
 
 const router = Router();
 
@@ -39,6 +40,38 @@ router.post('/orchestrate', async (req: Request, res: Response): Promise<void> =
   }
 
   let { project_id, scenes, script_text } = parsed.data;
+
+  // Ownership check (BL-013): authenticated user must own this project.
+  const requestingUserId = req.user?.id;
+  if (requestingUserId) {
+    try {
+      const project = await prisma.project.findUnique({
+        where: { id: project_id },
+        select: { userId: true },
+      });
+      if (!project) {
+        res.status(404).json({
+          status: 'error',
+          project_id,
+          message: 'Project not found',
+        } as OrchestrateResponse);
+        return;
+      }
+      if (project.userId !== requestingUserId) {
+        log.warn('orchestrate: ownership check failed', { projectId: project_id, requestingUserId });
+        res.status(403).json({
+          status: 'error',
+          project_id,
+          message: 'Forbidden: you do not own this project',
+        } as OrchestrateResponse);
+        return;
+      }
+    } catch (err) {
+      // Non-fatal: if DB is unavailable, log and continue (allows dev without DB)
+      log.warn('orchestrate: ownership check skipped (DB unavailable)', { projectId: project_id });
+    }
+  }
+
   let directorJSON: DirectorJSON;
 
   try {
