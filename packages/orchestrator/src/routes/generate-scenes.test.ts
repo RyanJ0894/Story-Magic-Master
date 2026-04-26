@@ -43,7 +43,12 @@ import router from './generate-scenes.js';
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
-const DEFAULT_ENV = { MAX_SCRIPT_CHARS: 75_000, MAX_SCRIPT_PAGES: 150 };
+const DEFAULT_ENV = {
+  MAX_SCRIPT_CHARS: 75_000,
+  MAX_SCRIPT_PAGES: 150,
+  DIRECTOR_MODEL: 'anthropic/claude-sonnet-4-6',
+  DIRECTOR_MODEL_ADVANCED: 'anthropic/claude-opus-4-6',
+};
 
 const VALID_DIRECTOR_JSON = {
   project_id: 'test-proj',
@@ -189,7 +194,8 @@ describe('generate-scenes happy path', () => {
     expect(body.success).toBe(true);
     expect(body.scene_count).toBe(1);
     expect(mockProcessScript).toHaveBeenCalledWith(
-      expect.objectContaining({ project_id: 'proj-1' })
+      expect.objectContaining({ project_id: 'proj-1' }),
+      expect.objectContaining({ directorModel: expect.any(String) })
     );
   });
 
