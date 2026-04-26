@@ -60,6 +60,18 @@ export interface MixOptions {
   outWav: string;
   outFinal: string;
   mixParams?: MixParams;
+  /** Total script page count — used to scale the final FFmpeg mix timeout. */
+  pageCount?: number;
+}
+
+/**
+ * Calculate mixer operation timeout from page count.
+ * Base: 30s + 0.5s/page, capped at 300s.
+ * Default (no pageCount): 120s.
+ */
+export function mixerTimeoutMs(pageCount?: number): number {
+  if (pageCount == null || pageCount <= 0) return 120_000;
+  return Math.min(30_000 + pageCount * 500, 300_000);
 }
 
 export interface MixManifest {
@@ -840,10 +852,11 @@ export async function mixScene(options: MixOptions): Promise<MixManifest> {
 
   ffmpegArgs.push('-filter_complex', filterGraph, '-map', '[mix]', '-c:a', 'pcm_s16le', '-ar', '48000', '-y', outWav);
 
-  log.info('Executing mix', { sceneId: scene_id, inputCount: inputCount });
+  const mixTimeout = mixerTimeoutMs(options.pageCount);
+  log.info('Executing mix', { sceneId: scene_id, inputCount: inputCount, mixTimeoutMs: mixTimeout });
 
   try {
-    await execa(ffmpeg, ffmpegArgs, { timeout: 120000 });
+    await execa(ffmpeg, ffmpegArgs, { timeout: mixTimeout });
   } catch (error) {
     log.error('Mix failed', error as Error, { sceneId: scene_id });
     await cleanupTempFiles(tempFiles);

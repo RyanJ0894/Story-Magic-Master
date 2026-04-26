@@ -99,10 +99,23 @@ export class DirectorAgent {
    * approach if the multi-pass pipeline fails catastrophically.
    */
   async process(input: DirectorAgentInput): Promise<DirectorJSON> {
+    const scriptLength = input.script_text.length;
     log.info('[DirectorAgent] starting multi-pass pipeline', {
       project_id: input.project_id,
-      scriptLength: input.script_text.length,
+      scriptLength,
     });
+
+    // Token-budget guardrail: Claude Sonnet 4.6 has a ~200K token context window.
+    // At ~4 chars/token, 160K chars ≈ 40K input tokens — leaves ample room for
+    // system prompt + output. Warn early so operators can tune MAX_SCRIPT_CHARS.
+    const TOKEN_BUDGET_WARN_CHARS = 160_000;
+    if (scriptLength > TOKEN_BUDGET_WARN_CHARS) {
+      log.warn('[DirectorAgent] script near token-budget limit — Pass 3 may produce truncated output', {
+        scriptLength,
+        tokenBudgetWarnChars: TOKEN_BUDGET_WARN_CHARS,
+        estimatedInputTokens: Math.round(scriptLength / 4),
+      });
+    }
 
     const pipelineStart = Date.now();
 

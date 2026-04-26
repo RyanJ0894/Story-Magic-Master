@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { GenerateScenesRequestSchema, GenerateScenesResponse } from '../schemas/director-json.js';
 import { processScript } from '../director/pipeline.js';
 import { log } from '../lib/logger.js';
+import { getEnv } from '../lib/env.js';
 
 const router = Router();
 
@@ -39,8 +40,29 @@ router.post('/generate-scenes', async (req: Request, res: Response): Promise<voi
 
   const { project_id, script_text, voice_overrides } = parsed.data;
 
+  // Pre-flight: enforce script size limits before any LLM call
+  const { MAX_SCRIPT_CHARS, MAX_SCRIPT_PAGES } = getEnv();
+  if (script_text.length > MAX_SCRIPT_CHARS) {
+    res.status(400).json({
+      project_id,
+      success: false,
+      message: `Script exceeds character limit (${script_text.length.toLocaleString()} > ${MAX_SCRIPT_CHARS.toLocaleString()} chars). Please reduce script length or contact support for extended limits.`,
+    } as GenerateScenesResponse);
+    return;
+  }
+  // Estimate page count: ~500 chars per page (average screenplay line density)
+  const estimatedPages = Math.ceil(script_text.length / 500);
+  if (estimatedPages > MAX_SCRIPT_PAGES) {
+    res.status(400).json({
+      project_id,
+      success: false,
+      message: `Script exceeds page limit (~${estimatedPages} pages > ${MAX_SCRIPT_PAGES} pages). Please reduce script length or contact support for extended limits.`,
+    } as GenerateScenesResponse);
+    return;
+  }
+
   try {
-    log.info('Starting scene generation', { projectId: project_id, scriptLength: script_text.length });
+    log.info('Starting scene generation', { projectId: project_id, scriptLength: script_text.length, estimatedPages });
     if (voice_overrides && Object.keys(voice_overrides).length > 0) {
       log.info('Voice overrides provided', { projectId: project_id, overrideCount: Object.keys(voice_overrides).length, characters: Object.keys(voice_overrides) });
     }

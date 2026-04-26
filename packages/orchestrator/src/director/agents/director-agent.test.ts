@@ -322,3 +322,67 @@ describe('DirectorAgent.run()', () => {
     expect(result).toBe(rawText);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Token budget warning — BL-009
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe('DirectorAgent token budget warning (BL-009)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('does NOT warn for scripts under 160K chars', async () => {
+    mockExtract.mockResolvedValue(makeManifest());
+    mockAssign.mockResolvedValue(makeVoiceMap());
+    mockConstruct.mockResolvedValue(makeValidDirectorJSON().scenes);
+
+    const { log } = await import('../../lib/logger.js');
+    const warnSpy = vi.mocked(log.warn);
+
+    const agent = new DirectorAgent();
+    const shortScript = 'A'.repeat(100_000); // 100K chars — well under threshold
+    await agent.process({ project_id: PROJECT_ID, script_text: shortScript });
+
+    expect(warnSpy).not.toHaveBeenCalledWith(
+      expect.stringContaining('token-budget'),
+      expect.anything()
+    );
+  });
+
+  it('emits a warning log for scripts over 160K chars', async () => {
+    mockExtract.mockResolvedValue(makeManifest());
+    mockAssign.mockResolvedValue(makeVoiceMap());
+    mockConstruct.mockResolvedValue(makeValidDirectorJSON().scenes);
+
+    const { log } = await import('../../lib/logger.js');
+    const warnSpy = vi.mocked(log.warn);
+
+    const agent = new DirectorAgent();
+    const longScript = 'A'.repeat(161_000); // 161K chars — over threshold
+    await agent.process({ project_id: PROJECT_ID, script_text: longScript });
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('token-budget'),
+      expect.objectContaining({
+        scriptLength: 161_000,
+        tokenBudgetWarnChars: 160_000,
+      })
+    );
+  });
+
+  it('includes estimated token count in the warning', async () => {
+    mockExtract.mockResolvedValue(makeManifest());
+    mockAssign.mockResolvedValue(makeVoiceMap());
+    mockConstruct.mockResolvedValue(makeValidDirectorJSON().scenes);
+
+    const { log } = await import('../../lib/logger.js');
+    const warnSpy = vi.mocked(log.warn);
+
+    const agent = new DirectorAgent();
+    await agent.process({ project_id: PROJECT_ID, script_text: 'A'.repeat(200_000) });
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ estimatedInputTokens: 50_000 }) // 200_000 / 4
+    );
+  });
+});

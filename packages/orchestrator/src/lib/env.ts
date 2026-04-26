@@ -65,6 +65,11 @@ const envSchema = z.object({
   // Storage
   AUDIO_OUTPUT_DIR: optionalString, // Defaults to process.cwd()/output
 
+  // Script size limits (pre-flight guards against LLM context overflow)
+  // Defaults: 150 pages / 75_000 chars. Both limits trigger a 400 before any LLM call.
+  MAX_SCRIPT_PAGES: z.string().optional().transform((v) => (v ? parseInt(v, 10) : 150)),
+  MAX_SCRIPT_CHARS: z.string().optional().transform((v) => (v ? parseInt(v, 10) : 75_000)),
+
   // Feature Flags
   AUTH_DISABLED: optionalTrueFalse,
   RATE_LIMIT_DISABLED: optionalTrueFalse,
