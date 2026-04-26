@@ -59,12 +59,18 @@ export class SceneAudioValidator {
 
     log.info('Starting scene audio validation');
 
+    // Build a scene_id → Scene map once (O(N)) instead of O(N²) linear search per scene
+    const directorSceneMap = new Map<string, Scene>();
+    for (const scene of directorJson.scenes || []) {
+      directorSceneMap.set(scene.scene_id, scene);
+    }
+
     // Validate each scene's audio selections
     for (const sceneAudio of sceneAudioJson.scenes || []) {
       const sceneId = sceneAudio.scene_id;
 
-      // Find corresponding scene in director JSON
-      const directorScene = this.findScene(directorJson, sceneId);
+      // O(1) map lookup
+      const directorScene = directorSceneMap.get(sceneId) ?? null;
       if (!directorScene) {
         log.warn('Could not find director scene', { sceneId });
         continue;

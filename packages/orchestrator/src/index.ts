@@ -128,35 +128,38 @@ app.get('/download/:project_id/:filename', authMiddleware, async (req: Request, 
     return;
   }
 
-  // Sanitize filename to prevent path traversal (check .., /, \, and encoded variants)
-  if (filename.includes('..') || filename.includes('/') || filename.includes('\\') ||
-      filename.includes('%2e') || filename.includes('%2f') || filename.includes('%5c')) {
+  // Decode and sanitize filename to prevent path traversal (single + double encoded)
+  const decodedFilename = decodeURIComponent(filename);
+  if (decodedFilename.includes('..') || decodedFilename.includes('/') || decodedFilename.includes('\\')) {
     res.status(400).json({ error: 'Invalid filename' });
     return;
   }
 
-  // Verify project ownership (IDOR prevention)
+  // Require authenticated user — ownership check is mandatory, not optional
   const userId = req.user?.id;
-  if (userId) {
-    try {
-      const { prisma } = await import('./lib/prisma.js');
-      const project = await prisma.project.findFirst({
-        where: { id: project_id, userId },
-        select: { id: true },
-      });
-      if (!project) {
-        res.status(404).json({ error: 'Project not found' });
-        return;
-      }
-    } catch (err) {
-      log.error('Download ownership check failed', err instanceof Error ? err : undefined);
-      res.status(500).json({ error: 'Failed to verify project ownership' });
+  if (!userId) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  try {
+    const { prisma } = await import('./lib/prisma.js');
+    const project = await prisma.project.findFirst({
+      where: { id: project_id, userId },
+      select: { id: true },
+    });
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
       return;
     }
+  } catch (err) {
+    log.error('Download ownership check failed', err instanceof Error ? err : undefined);
+    res.status(500).json({ error: 'Failed to verify project ownership' });
+    return;
   }
 
   const baseOutputDir = path.resolve(getOutputDir());
-  const filePath = path.resolve(baseOutputDir, project_id, filename);
+  const filePath = path.resolve(baseOutputDir, project_id, decodedFilename);
 
   // Verify resolved path is within output directory (belt-and-suspenders)
   if (!filePath.startsWith(baseOutputDir + path.sep)) {
@@ -164,13 +167,14 @@ app.get('/download/:project_id/:filename', authMiddleware, async (req: Request, 
     return;
   }
 
-  log.info('Download request', { project_id, filename, exists: fs.existsSync(filePath) });
+  log.info('Download request', { project_id, filename });
 
-  if (fs.existsSync(filePath)) {
-    res.download(filePath);
-  } else {
-    res.status(404).json({ error: 'File not found' });
-  }
+  // Use res.download callback to handle missing files — avoids existsSync TOCTTOU race
+  res.download(filePath, (err) => {
+    if (err && !res.headersSent) {
+      res.status(404).json({ error: 'File not found' });
+    }
+  });
 });
 
 // 404 handler

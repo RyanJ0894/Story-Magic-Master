@@ -6,6 +6,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
+// Hoist mock references so they're accessible inside vi.mock() factories
+const { mockCreateVoiceTools, mockResetUsedVoices } = vi.hoisted(() => {
+  const mockResetUsedVoices = vi.fn();
+  const mockCreateVoiceTools = vi.fn(() => ({
+    searchVoicesTool: { description: 'search', inputSchema: {}, execute: vi.fn() },
+    getVoiceByIdTool: { description: 'get', inputSchema: {}, execute: vi.fn() },
+    listVoiceLabelsTool: { description: 'list', inputSchema: {}, execute: vi.fn() },
+    resetUsedVoices: mockResetUsedVoices,
+  }));
+  return { mockCreateVoiceTools, mockResetUsedVoices };
+});
+
 vi.mock('../../lib/llm-client.js', () => ({
   runAgentLoop: vi.fn(),
   structureTextAsJSON: vi.fn(),
@@ -16,10 +28,7 @@ vi.mock('../../lib/logger.js', () => ({
 }));
 
 vi.mock('../tools/voice-search.js', () => ({
-  searchVoicesTool: { description: 'search', inputSchema: {}, execute: vi.fn() },
-  getVoiceByIdTool: { description: 'get', inputSchema: {}, execute: vi.fn() },
-  listVoiceLabelsTool: { description: 'list', inputSchema: {}, execute: vi.fn() },
-  resetUsedVoices: vi.fn(),
+  createVoiceTools: mockCreateVoiceTools,
 }));
 
 vi.mock('../prompts/voice-assignment-prompt.js', () => ({
@@ -37,7 +46,6 @@ vi.mock('../../lib/json-repair.js', async (importOriginal) => {
 import { VoiceAssignmentAgent } from './voice-assignment-agent.js';
 import { runAgentLoop, structureTextAsJSON } from '../../lib/llm-client.js';
 import { parseJSONSafely } from '../../lib/json-repair.js';
-import { resetUsedVoices } from '../tools/voice-search.js';
 import { DEFAULT_NARRATOR_VOICE, DEFAULT_MALE_VOICE, DEFAULT_FEMALE_VOICE } from '../../schemas/voice-map.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -83,12 +91,13 @@ describe('VoiceAssignmentAgent', () => {
     expect(result.default_narrator_voice).toBeTruthy();
   });
 
-  it('calls resetUsedVoices before the loop', async () => {
+  it('calls createVoiceTools and resetUsedVoices before the loop', async () => {
     vi.mocked(runAgentLoop).mockResolvedValue(JSON.stringify(makeValidVoiceMap()));
     vi.mocked(parseJSONSafely).mockReturnValue({ success: true, data: makeValidVoiceMap() });
     const agent = new VoiceAssignmentAgent();
     await agent.assign({ manifest: MANIFEST });
-    expect(resetUsedVoices).toHaveBeenCalledOnce();
+    expect(mockCreateVoiceTools).toHaveBeenCalled();
+    expect(mockResetUsedVoices).toHaveBeenCalledOnce();
   });
 
   it('falls back to structureTextAsJSON when JSON parse fails', async () => {

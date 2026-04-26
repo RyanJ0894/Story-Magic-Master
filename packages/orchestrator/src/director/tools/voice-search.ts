@@ -18,28 +18,52 @@ import {
   type AgeRange,
 } from './hybrid-voice-search.js';
 
-// Track used voices to ensure uniqueness across characters
-const usedVoiceIds = new Set<string>();
-
 /**
- * Reset used voices (call at the start of each script)
+ * Create a scoped voice-tracking Set + tools for a single agent invocation.
+ *
+ * IMPORTANT: Always use createVoiceTools() instead of the module-level singletons
+ * (searchVoicesTool / getVoiceByIdTool / listVoiceLabelsTool) when running multiple
+ * concurrent VoiceAssignmentAgent calls. The singletons share a global Set and will
+ * collide across concurrent requests — each project must have its own isolated scope.
+ *
+ * Usage:
+ *   const { searchVoicesTool, getVoiceByIdTool, listVoiceLabelsTool, reset } = createVoiceTools();
+ *   reset(); // clear before agent loop
  */
+export function createVoiceTools() {
+  const scopedUsedVoiceIds = new Set<string>();
+
+  const reset = () => scopedUsedVoiceIds.clear();
+
+  const searchVoices = buildSearchVoicesTool(scopedUsedVoiceIds);
+  const getVoiceById = buildGetVoiceByIdTool(scopedUsedVoiceIds);
+  const listVoiceLabels = buildListVoiceLabelsTool();
+
+  return {
+    searchVoicesTool: searchVoices,
+    getVoiceByIdTool: getVoiceById,
+    listVoiceLabelsTool: listVoiceLabels,
+    resetUsedVoices: reset,
+  };
+}
+
+// ── Module-level singletons (legacy — safe only for sequential single-project use) ──
+
+const _globalUsedVoiceIds = new Set<string>();
+
+/** @deprecated Use createVoiceTools() for concurrent safety. */
 export function resetUsedVoices(): void {
-  usedVoiceIds.clear();
+  _globalUsedVoiceIds.clear();
 }
 
-/**
- * Mark a voice as used
- */
+/** @deprecated Use createVoiceTools() for concurrent safety. */
 export function markVoiceUsed(voiceId: string): void {
-  usedVoiceIds.add(voiceId);
+  _globalUsedVoiceIds.add(voiceId);
 }
 
-/**
- * Get list of used voice IDs
- */
+/** @deprecated Use createVoiceTools() for concurrent safety. */
 export function getUsedVoiceIds(): string[] {
-  return Array.from(usedVoiceIds);
+  return Array.from(_globalUsedVoiceIds);
 }
 
 /**
@@ -67,10 +91,12 @@ function extractVoicePersonality(voice: VoiceMetadata): string {
 // Re-export detectAgeRangeFromLabel as parseAgeRangeFromLabel for local use
 const parseAgeRangeFromLabel = detectAgeRangeFromLabel;
 
-/**
- * Search for voices tool - callable by LLM agents
- */
-export const searchVoicesTool = tool({
+// ─────────────────────────────────────────────────────────────────────────────
+// Tool builder functions — each takes a scoped Set so instances don't collide
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildSearchVoicesTool(scopedUsed: Set<string>) {
+  return tool({
   description: `Search for voice profiles matching character descriptions.
 Returns voice profiles with voice_id, name, label, gender, tone, style, and description.
 IMPORTANT: Each voice can only be assigned to ONE character.
@@ -119,7 +145,7 @@ Scoring model (all voices scored, best rises to top):
         style,
         tone,
         isNarrator,
-        excludeVoiceIds: getUsedVoiceIds(),
+        excludeVoiceIds: Array.from(scopedUsed),
         topK: top_k,
       });
 
@@ -161,12 +187,11 @@ Scoring model (all voices scored, best rises to top):
       };
     }
   },
-});
+  });
+}
 
-/**
- * Get voice by ID tool - for verification
- */
-export const getVoiceByIdTool = tool({
+function buildGetVoiceByIdTool(scopedUsed: Set<string>) {
+  return tool({
   description: 'Get a specific voice profile by its ID. Use this to verify a voice selection.',
 
   inputSchema: z.object({
@@ -200,16 +225,15 @@ export const getVoiceByIdTool = tool({
         tone: Array.isArray(voice.tone) ? voice.tone.join(', ') : voice.tone || '',
         style: voice.style,
         description: voice.description || '',
-        is_used: usedVoiceIds.has(voice_id),
+        is_used: scopedUsed.has(voice_id),
       },
     };
   },
-});
+  });
+}
 
-/**
- * List available voice labels tool
- */
-export const listVoiceLabelsTool = tool({
+function buildListVoiceLabelsTool() {
+  return tool({
   description: 'List all available voice labels/categories. Use this to understand what voice types are available.',
 
   inputSchema: z.object({}),
@@ -240,4 +264,13 @@ export const listVoiceLabelsTool = tool({
       },
     };
   },
-});
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Legacy module-level singletons — backed by _globalUsedVoiceIds
+// Safe only when one script is processed at a time. Prefer createVoiceTools().
+// ─────────────────────────────────────────────────────────────────────────────
+export const searchVoicesTool = buildSearchVoicesTool(_globalUsedVoiceIds);
+export const getVoiceByIdTool = buildGetVoiceByIdTool(_globalUsedVoiceIds);
+export const listVoiceLabelsTool = buildListVoiceLabelsTool();

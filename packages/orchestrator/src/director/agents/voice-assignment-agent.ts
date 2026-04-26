@@ -17,12 +17,7 @@ import {
   VOICE_ASSIGNMENT_SYSTEM_PROMPT,
   buildVoiceAssignmentUserMessage,
 } from '../prompts/voice-assignment-prompt.js';
-import {
-  searchVoicesTool,
-  getVoiceByIdTool,
-  listVoiceLabelsTool,
-  resetUsedVoices,
-} from '../tools/voice-search.js';
+import { createVoiceTools } from '../tools/voice-search.js';
 import {
   VoiceMapSchema,
   DEFAULT_NARRATOR_VOICE,
@@ -62,6 +57,13 @@ export class VoiceAssignmentAgent {
       characterCount: manifest.characters.length,
     });
 
+    // Scoped tools: each invocation gets its own used-voice Set (concurrent-safe)
+    const {
+      searchVoicesTool,
+      getVoiceByIdTool,
+      listVoiceLabelsTool,
+      resetUsedVoices,
+    } = createVoiceTools();
     resetUsedVoices();
 
     const tools = {
