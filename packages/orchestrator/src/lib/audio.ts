@@ -1,5 +1,12 @@
 /**
  * Audio utilities for TTS generation and processing
+ *
+ * ElevenLabs optimisations (2026-04-26):
+ *  - model_id: eleven_turbo_v2_5 — same credits/char as standard, ~3× faster latency
+ *  - output_format: pcm_24000 — raw PCM avoids lossy MP3 encode/decode round-trip
+ *  - use_speaker_boost: false — removes unnecessary post-processing per call
+ *  - 30 s AbortController timeout — prevents silent hangs on slow ElevenLabs responses
+ *  - Configurable via ELEVENLABS_MODEL env var (default: eleven_turbo_v2_5)
  */
 
 import ffmpegStatic from 'ffmpeg-static';
@@ -15,6 +22,16 @@ const ffmpeg = ffmpegStatic as unknown as string;
 if (!ffmpeg) {
   throw new Error('FFmpeg binary not found. Please ensure ffmpeg-static is installed.');
 }
+
+// ElevenLabs model to use. eleven_turbo_v2_5 is the best price/performance ratio:
+// same character credits as eleven_multilingual_v2 but ~3× faster generation.
+// Override via ELEVENLABS_MODEL env var if needed (e.g. eleven_multilingual_v2 for
+// non-English scripts, or eleven_flash_v2_5 for maximum speed at slight quality cost).
+const DEFAULT_ELEVENLABS_MODEL = 'eleven_turbo_v2_5';
+
+// Per-request timeout for ElevenLabs TTS calls.
+// 30 s is generous for any single line; prevents silent hangs.
+const ELEVENLABS_REQUEST_TIMEOUT_MS = 30_000;
 
 export interface VoiceParams {
   voice_id: string;
@@ -73,16 +90,25 @@ export async function audioDurationSec(filePath: string): Promise<number> {
 }
 
 /**
- * Transcode MP3 to WAV using FFmpeg
+ * Convert raw PCM (signed 16-bit, 24 kHz, mono) received from ElevenLabs
+ * into a WAV buffer at 48 kHz stereo — the format expected by the mixer.
+ *
+ * Using PCM output from ElevenLabs avoids the lossy MP3 encode/decode round-trip
+ * and is faster than transcoding from MP3.
  */
-async function transcodeMp3ToWav(mp3: Buffer): Promise<Buffer> {
+async function transcodePcmToWav(pcm: Buffer): Promise<Buffer> {
   const { stdout } = await execa(
     ffmpeg,
-    ['-v', 'error', '-i', 'pipe:0', '-f', 'wav', '-ar', '48000', '-ac', '2', 'pipe:1'],
-    {
-      input: mp3,
-      encoding: 'buffer',
-    }
+    [
+      '-v', 'error',
+      // Describe the raw PCM input
+      '-f', 's16le', '-ar', '24000', '-ac', '1',
+      '-i', 'pipe:0',
+      // Output: WAV 48 kHz stereo (mixer requirement)
+      '-f', 'wav', '-ar', '48000', '-ac', '2',
+      'pipe:1',
+    ],
+    { input: pcm, encoding: 'buffer' }
   );
   return stdout as unknown as Buffer;
 }
@@ -94,15 +120,13 @@ const DEFAULT_VOICES = {
 };
 
 /**
- * Generate a short silent MP3 buffer for mock/test mode.
- * Uses FFmpeg to produce a real MP3 so downstream muxing still works.
+ * Generate a short silent WAV buffer for mock/test mode.
  */
-async function generateSilentMp3(durationSec = 1): Promise<Buffer> {
+async function generateSilentWav(durationSec = 1): Promise<Buffer> {
   const { stdout } = await execa(ffmpeg, [
-    '-f', 'lavfi', '-i', `anullsrc=r=44100:cl=mono`,
+    '-f', 'lavfi', '-i', `anullsrc=r=48000:cl=stereo`,
     '-t', String(durationSec),
-    '-c:a', 'libmp3lame', '-b:a', '128k',
-    '-f', 'mp3', 'pipe:1',
+    '-f', 'wav', 'pipe:1',
   ], { encoding: 'buffer' });
   return stdout as unknown as Buffer;
 }
@@ -120,24 +144,30 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
     const words = opts.text.trim().split(/\s+/).length;
     const estimatedSec = Math.max(0.5, words * 0.35); // ~0.35s per word
     log.info('TTS mock: returning silent audio', { words, estimatedSec, voiceId: opts.voice.voice_id });
-    return generateSilentMp3(estimatedSec);
+    return generateSilentWav(estimatedSec);
   }
 
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) throw new Error('ELEVENLABS_API_KEY missing');
+
+  const modelId = process.env.ELEVENLABS_MODEL || DEFAULT_ELEVENLABS_MODEL;
 
   const params = opts.voice.params_json;
   const hasParams = params && Object.keys(params).length > 0;
 
   const request_body = {
     text: opts.text,
+    model_id: modelId,
     voice_settings: hasParams
       ? params
       : {
           stability: 0.4,
           similarity_boost: 0.7,
+          use_speaker_boost: false,
         },
-    output_format: 'mp3_44100_128',
+    // Raw PCM at 24 kHz mono — no MP3 decode overhead.
+    // Transcoded to WAV 48 kHz stereo after receipt.
+    output_format: 'pcm_24000',
   };
 
   // Try with the requested voice, fall back to default if voice not found
@@ -145,23 +175,33 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
   let usedFallback = false;
 
   const generateWithVoice = async (vid: string): Promise<Buffer> => {
-    log.info('TTS: Generating audio', { voiceId: vid, usedFallback });
+    log.info('TTS: Generating audio', { voiceId: vid, modelId, usedFallback });
     log.debug('TTS request body', { request_body });
 
     return withRetry(
       async () => {
-        const res = await fetch(
-          `https://api.elevenlabs.io/v1/text-to-speech/${vid}`,
-          {
-            method: 'POST',
-            headers: {
-              'xi-api-key': apiKey,
-              'Content-Type': 'application/json',
-              'Accept': 'audio/mpeg',
-            },
-            body: JSON.stringify(request_body),
-          }
-        );
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), ELEVENLABS_REQUEST_TIMEOUT_MS);
+
+        let res: Response;
+        try {
+          res = await fetch(
+            `https://api.elevenlabs.io/v1/text-to-speech/${vid}`,
+            {
+              method: 'POST',
+              headers: {
+                'xi-api-key': apiKey,
+                'Content-Type': 'application/json',
+                // PCM output — no Accept: audio/mpeg needed
+                'Accept': 'audio/pcm',
+              },
+              body: JSON.stringify(request_body),
+              signal: controller.signal,
+            }
+          );
+        } finally {
+          clearTimeout(timeoutId);
+        }
 
         if (!res.ok) {
           const errorText = await res.text();
@@ -195,7 +235,7 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
           );
         }
 
-        return transcodeMp3ToWav(Buffer.from(await res.arrayBuffer()));
+        return transcodePcmToWav(Buffer.from(await res.arrayBuffer()));
       },
       {
         maxRetries: 3,
