@@ -22,12 +22,16 @@ const mockProfileCreate = vi.fn().mockResolvedValue({ id: 'user_new123' });
 const mockProfileUpdate = vi.fn().mockResolvedValue({});
 const mockProfileDelete = vi.fn().mockResolvedValue({});
 
+const mockCreditTransactionCreate = vi.fn().mockResolvedValue({});
 vi.mock('@/lib/db', () => ({
   prisma: {
     profile: {
       create: (...args: unknown[]) => mockProfileCreate(...args),
       update: (...args: unknown[]) => mockProfileUpdate(...args),
       delete: (...args: unknown[]) => mockProfileDelete(...args),
+    },
+    creditTransaction: {
+      create: (...args: unknown[]) => mockCreditTransactionCreate(...args),
     },
   },
 }));
@@ -216,6 +220,7 @@ describe('Clerk Webhook Handler (POST /api/webhooks/clerk)', () => {
           email: 'newuser@example.com',
           fullName: 'Jane Doe',
           avatarUrl: 'https://img.clerk.com/avatar.jpg',
+          credits: 3,
         },
       });
     });

@@ -14,6 +14,7 @@ vi.mock('@clerk/nextjs/server', () => ({
 }));
 
 // Mock Prisma
+const mockTransaction = vi.fn();
 const mockPrisma = {
   project: {
     findFirst: vi.fn(),
@@ -23,8 +24,17 @@ const mockPrisma = {
     delete: vi.fn(),
   },
   job: {
+    create: vi.fn(),
     update: vi.fn(),
   },
+  profile: {
+    findUnique: vi.fn(),
+    update: vi.fn(),
+  },
+  creditTransaction: {
+    create: vi.fn(),
+  },
+  $transaction: mockTransaction,
 };
 vi.mock('@/lib/db', () => ({
   prisma: mockPrisma,
@@ -89,6 +99,14 @@ describe('Generate API Route - POST /api/generate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockValidateCsrf.mockReturnValue(null);
+    // Default: pro user with ample credits (bypass credit gate)
+    mockPrisma.profile.findUnique.mockResolvedValue({
+      id: 'user_test123',
+      subscriptionTier: 'pro',
+      credits: 0,
+    });
+    // Default transaction: invoke the callback and return its result
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma));
   });
 
   // -------------------------------------------------------------------------
@@ -280,5 +298,75 @@ describe('Generate API Route - POST /api/generate', () => {
 
     expect(response.status).toBe(400);
     expect(data.code).toBe('SCRIPT_TOO_LONG');
+  });
+
+  // -------------------------------------------------------------------------
+  // 9. Credit gate — free tier
+  // -------------------------------------------------------------------------
+
+  it('returns 402 when free-tier user has insufficient credits', async () => {
+    mockAuth.mockResolvedValueOnce({ userId: 'user_test123', getToken: vi.fn().mockResolvedValue('test-token') });
+    mockPrisma.project.findFirst.mockResolvedValueOnce(mockProject);
+    mockPrisma.profile.findUnique.mockResolvedValueOnce({
+      id: 'user_test123',
+      subscriptionTier: 'free',
+      credits: 0,
+    });
+
+    const request = createGenerateRequest({
+      projectId: VALID_PROJECT_ID,
+      jobId: VALID_JOB_ID,
+    });
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(402);
+    expect(data.code).toBe('INSUFFICIENT_CREDITS');
+    expect(typeof data.creditsNeeded).toBe('number');
+    expect(data.creditsHeld).toBe(0);
+  });
+
+  it('allows generation and deducts credits for free-tier user with sufficient credits', async () => {
+    mockAuth.mockResolvedValueOnce({ userId: 'user_test123', getToken: vi.fn().mockResolvedValue('test-token') });
+    mockPrisma.project.findFirst.mockResolvedValueOnce(mockProject);
+    mockPrisma.profile.findUnique.mockResolvedValueOnce({
+      id: 'user_test123',
+      subscriptionTier: 'free',
+      credits: 10,
+    });
+    mockPrisma.job.update.mockResolvedValueOnce({});
+
+    const request = createGenerateRequest({
+      projectId: VALID_PROJECT_ID,
+      jobId: VALID_JOB_ID,
+    });
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+    // Transaction was called (atomic deduction)
+    expect(mockTransaction).toHaveBeenCalled();
+  });
+
+  it('bypasses credit check for pro-tier users', async () => {
+    mockAuth.mockResolvedValueOnce({ userId: 'user_test123', getToken: vi.fn().mockResolvedValue('test-token') });
+    mockPrisma.project.findFirst.mockResolvedValueOnce(mockProject);
+    mockPrisma.profile.findUnique.mockResolvedValueOnce({
+      id: 'user_test123',
+      subscriptionTier: 'pro',
+      credits: 0, // zero credits, but pro tier bypasses
+    });
+    mockPrisma.job.update.mockResolvedValueOnce({});
+
+    const request = createGenerateRequest({
+      projectId: VALID_PROJECT_ID,
+      jobId: VALID_JOB_ID,
+    });
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
   });
 });

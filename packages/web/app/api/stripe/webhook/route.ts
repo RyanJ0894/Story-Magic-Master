@@ -54,6 +54,29 @@ export async function POST(request: Request) {
         const customerId = session.customer as string;
         const subscriptionId = session.subscription as string;
 
+        // --- Scene credit pack purchase ---
+        if (session.metadata?.type === 'credit_purchase') {
+          const { userId: creditUserId, credits } = session.metadata;
+          const creditAmount = parseInt(credits ?? '0', 10);
+          if (creditUserId && creditAmount > 0) {
+            await Promise.all([
+              prisma.profile.update({
+                where: { id: creditUserId },
+                data: { credits: { increment: creditAmount } },
+              }),
+              prisma.creditTransaction.create({
+                data: {
+                  profileId: creditUserId,
+                  amount: creditAmount,
+                  reason: 'purchase',
+                },
+              }),
+            ]);
+            log.info('credit_purchase recorded', { userId: creditUserId, credits: creditAmount });
+          }
+          break;
+        }
+
         // --- Advanced Analysis upgrade (one-time payment, per-project) ---
         if (session.metadata?.type === 'advanced_analysis') {
           const { userId: advUserId, projectId } = session.metadata;

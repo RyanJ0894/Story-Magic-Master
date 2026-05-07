@@ -33,6 +33,7 @@ model Profile {
   writerCode           String?   @unique @map("writer_code")
   readerCode           String?   @unique @map("reader_code")
   externalId           String?   @unique @map("external_id") // Old Supabase UUID during migration
+  credits              Int       @default(0)
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at")
 
@@ -62,6 +63,7 @@ model Profile {
   scriptReviews         ScriptReview[]        @relation("Reviewer")
   writerSubscriptions   WriterSubscription[]  @relation("WriterSubs")
   readerSubscriptions   WriterSubscription[]  @relation("SubscriberSubs")
+  creditTransactions    CreditTransaction[]
 
   @@index([stripeCustomerId])
   @@index([stripeSubscriptionId])
@@ -280,6 +282,20 @@ model Purchase {
   @@index([projectId])
   @@index([projectId, purchaseType, status])
   @@map("purchases")
+}
+
+model CreditTransaction {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId String   @map("profile_id")
+  amount    Int      // positive = credit, negative = debit
+  reason    String   // signup_bonus | purchase | scene_generation | refund
+  jobId     String?  @map("job_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("credit_transactions")
 }
 
 // =============================================================================

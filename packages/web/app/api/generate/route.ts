@@ -96,6 +96,52 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
   // Sanitize script text before processing
   const sanitizedScript = sanitizeScriptText(project.scriptText as string);
 
+  // Credit gate — free-tier users are charged 1 credit per estimated scene.
+  // Paid-tier users (creator/pro/studio) bypass this check entirely.
+  const profile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { subscriptionTier: true, credits: true },
+  });
+
+  const PAID_TIERS = new Set(['creator', 'pro', 'studio']);
+  const isPaidTier = PAID_TIERS.has(profile?.subscriptionTier ?? 'free');
+
+  if (!isPaidTier) {
+    // Estimate scene count: use cached director JSON if available, else page-based estimate
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const directorScenes = (project as any).directorJson?.scenes;
+    const creditsNeeded = Array.isArray(directorScenes) && directorScenes.length > 0
+      ? directorScenes.length
+      : Math.max(1, Math.ceil(project.pageCount / 10));
+
+    const creditsHeld = profile?.credits ?? 0;
+
+    if (creditsHeld < creditsNeeded) {
+      return NextResponse.json({
+        error: 'Insufficient scene credits',
+        code: 'INSUFFICIENT_CREDITS',
+        creditsNeeded,
+        creditsHeld,
+      }, { status: 402 });
+    }
+
+    // Atomically deduct credits and record the transaction
+    await prisma.$transaction(async (tx) => {
+      await tx.profile.update({
+        where: { id: userId },
+        data: { credits: { decrement: creditsNeeded } },
+      });
+      await tx.creditTransaction.create({
+        data: {
+          profileId: userId,
+          amount: -creditsNeeded,
+          reason: 'scene_generation',
+          jobId: jobId ?? null,
+        },
+      });
+    });
+  }
+
   // Get voice assignments (user-selected voice overrides)
   const voiceOverrides: Record<string, string> = {};
   const voiceAssignments = project.voiceAssignments as unknown[];

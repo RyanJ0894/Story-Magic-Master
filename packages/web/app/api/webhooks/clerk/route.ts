@@ -57,12 +57,23 @@ export async function POST(request: Request) {
       const email = email_addresses?.[0]?.email_address;
       const fullName = [first_name, last_name].filter(Boolean).join(' ') || email;
 
+      const SIGNUP_BONUS_CREDITS = 3;
+
       await prisma.profile.create({
         data: {
           id,
           email: email ?? null,
           fullName: fullName ?? null,
           avatarUrl: image_url ?? null,
+          credits: SIGNUP_BONUS_CREDITS,
+        },
+      });
+
+      await prisma.creditTransaction.create({
+        data: {
+          profileId: id,
+          amount: SIGNUP_BONUS_CREDITS,
+          reason: 'signup_bonus',
         },
       });
       break;

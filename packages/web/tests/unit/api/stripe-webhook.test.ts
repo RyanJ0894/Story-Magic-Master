@@ -16,6 +16,7 @@ const mockPurchaseUpsert = vi.fn().mockResolvedValue({ id: 'purchase-1' });
 const mockPurchaseCreate = vi.fn().mockResolvedValue({ id: 'purchase-1' });
 const mockPurchaseFindFirst = vi.fn().mockResolvedValue(null);
 const mockImpactDonationCreate = vi.fn().mockResolvedValue({ id: 'donation-1' });
+const mockCreditTransactionCreate = vi.fn().mockResolvedValue({ id: 'ct-1' });
 
 vi.mock('@/lib/db', () => ({
   prisma: {
@@ -38,6 +39,9 @@ vi.mock('@/lib/db', () => ({
     },
     impactDonation: {
       create: (...args: unknown[]) => mockImpactDonationCreate(...args),
+    },
+    creditTransaction: {
+      create: (...args: unknown[]) => mockCreditTransactionCreate(...args),
     },
   },
 }));
@@ -430,6 +434,60 @@ describe('Stripe Webhook Handler', () => {
       expect(response.status).toBe(200);
       const json = await response.json();
       expect(json.received).toBe(true);
+    });
+  });
+
+  describe('checkout.session.completed — credit_purchase', () => {
+    it('credits 20 to profile and records transaction on credit_purchase', async () => {
+      mockConstructWebhookEvent.mockReturnValue(
+        createStripeEvent('checkout.session.completed', {
+          payment_intent: 'pi_credits_abc',
+          currency: 'usd',
+          metadata: {
+            type: 'credit_purchase',
+            userId: 'user-123',
+            credits: '20',
+          },
+        })
+      );
+
+      const request = createWebhookRequest('{}', 'valid_sig');
+      const response = await POST(request);
+      expect(response.status).toBe(200);
+
+      expect(mockProfileUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'user-123' },
+          data: expect.objectContaining({
+            credits: expect.objectContaining({ increment: 20 }),
+          }),
+        })
+      );
+
+      expect(mockCreditTransactionCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            profileId: 'user-123',
+            amount: 20,
+            reason: 'purchase',
+          }),
+        })
+      );
+    });
+
+    it('skips credit_purchase when userId is missing', async () => {
+      mockConstructWebhookEvent.mockReturnValue(
+        createStripeEvent('checkout.session.completed', {
+          payment_intent: 'pi_credits_abc',
+          metadata: { type: 'credit_purchase', credits: '20' },
+        })
+      );
+
+      const request = createWebhookRequest('{}', 'valid_sig');
+      const response = await POST(request);
+      expect(response.status).toBe(200);
+      expect(mockProfileUpdate).not.toHaveBeenCalled();
+      expect(mockCreditTransactionCreate).not.toHaveBeenCalled();
     });
   });
 
