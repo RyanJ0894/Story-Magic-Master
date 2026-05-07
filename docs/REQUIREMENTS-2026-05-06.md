@@ -52,6 +52,10 @@
 | PIPE-2.19 | Scene-level audio regeneration | P2 | `POST /api/projects/[id]/regenerate-scene` | COMPLETE | |
 | PIPE-2.20 | Preview generation | P2 | `POST /preview` orchestrator + `/api/preview` web proxy | COMPLETE | |
 | PIPE-2.21 | Demo script generation | P2 | `POST /api/generate-demo-script` — seeded example | COMPLETE | |
+| PIPE-2.22 | Fountain native parser | P1 | `orchestrator/src/director/parsers/fountain.ts` — spec-compliant `.fountain` → internal `ParsedScript` | NOT IMPL | Issue #33 |
+| PIPE-2.23 | Final Draft (FDX) XML parser | P1 | `orchestrator/src/director/parsers/fdx.ts` — `.fdx` XML → `ParsedScript`; FD10/FD12 variant handling | NOT IMPL | Issue #33 |
+| PIPE-2.24 | Director notes prompt injection | P1 | `director/pipeline.ts` Pass 1 — inject `project.directorNotes` as structured read-only context; sanitized | NOT IMPL | Issue #36 — prompt injection safety required |
+| PIPE-2.25 | Emotion override in TTS | P2 | Apply `project.emotionOverrides` map before ElevenLabs TTS call; ElevenLabs v3 audio tags where supported | NOT IMPL | Issue #37 |
 
 ---
 
@@ -110,6 +114,10 @@
 | BILL-5.12 | Stripe webhook verification (events list) | P0 | `checkout.session.completed` in Stripe dashboard | BLOCKED | Ryan action in Stripe dashboard |
 | BILL-5.13 | Donation flow (Impact) | P2 | `POST /api/stripe/donate` + `POST /api/stripe/webhook` impact path | COMPLETE | |
 | BILL-5.14 | Purchase seed fixtures | P2 | Dev/test fixtures for `Purchase` model | NOT IMPL | BK-004 (~2 SP) |
+| BILL-5.15 | Credit balance on Profile | P1 | `Profile.credits Int @default(0)` + `CreditTransaction` model; migration | NOT IMPL | Issue #34 |
+| BILL-5.16 | Credit pack purchase (Stripe) | P1 | `POST /api/credits/purchase` → Stripe Checkout one-time payment; $9.99/20 credits | NOT IMPL | Issue #34 |
+| BILL-5.17 | Credit deduction on generation | P1 | Atomic deduct in `POST /api/generate`; free tier gated; Pro/Enterprise bypass | NOT IMPL | Issue #34 |
+| BILL-5.18 | Signup bonus credits | P2 | 3 credits added on new `Profile` creation | NOT IMPL | Issue #34 |
 
 ---
 
@@ -169,6 +177,9 @@
 | SHARE-8.12 | Team activity log | P2 | `GET /api/teams/[id]/activity` | COMPLETE | |
 | SHARE-8.13 | Invite by token | P1 | `GET/POST /api/invite/[token]` | COMPLETE | |
 | SHARE-8.14 | Feedback modal (per project) | P2 | `PATCH /api/projects/[id]/feedback` | PARTIAL | 1.5s auto-close should be removed — UX-005 |
+| SHARE-8.15 | ScriptShare scene index | P1 | `ScriptShare.sceneIndex Int?` + `sceneStartMs Int?`; migration | NOT IMPL | Issue #35 |
+| SHARE-8.16 | Scene share URL generation | P1 | `POST /api/shares` accepts `{ sceneIndex?, sceneStartMs? }`; "Share scene" button per scene card | NOT IMPL | Issue #35 |
+| SHARE-8.17 | Listen page scene seek | P1 | `?scene=N` param seeks player to `sceneStartMs` on mount; "Sharing: Scene N" banner | NOT IMPL | Issue #35 |
 
 ---
 
@@ -245,7 +256,33 @@
 
 ---
 
-## 13. Gap Analysis
+## 13. Creative Direction & Performance (Competitive Sprint D)
+
+| Req ID | Feature | Priority | Planned Implementation | Status | Notes |
+|--------|---------|----------|----------------------|--------|-------|
+| CDIR-13.1 | Director Notes model | P1 | `Project.directorNotes Json?` — shape: `{ characters: { [name]: string }, global: string }` | NOT IMPL | Issue #36 |
+| CDIR-13.2 | Director Notes API | P1 | `GET/PUT /api/projects/[id]/director-notes` — Clerk auth, ownership check | NOT IMPL | Issue #36 |
+| CDIR-13.3 | Director Notes panel UI | P1 | Collapsible pre-generation panel; per-character + global notes; auto-save on blur | NOT IMPL | Issue #36 |
+| CDIR-13.4 | Emotion overrides model | P2 | `Project.emotionOverrides Json?` — map `{ [dialogueId]: emotion }`; migration | NOT IMPL | Issue #37 |
+| CDIR-13.5 | Emotion overrides API | P2 | `GET/PUT /api/projects/[id]/emotion-overrides` | NOT IMPL | Issue #37 |
+| CDIR-13.6 | Performance direction panel UI | P2 | "Performance" tab; emotion Select per dialogue line; "Re-render scene" button per scene | NOT IMPL | Issue #37 |
+| CDIR-13.7 | Fountain/FDX upload UI | P1 | File input `accept` extended; upload label updated; file type badge in project header | NOT IMPL | Issue #33 |
+
+---
+
+## 14. Distribution & Podcast (Competitive Sprint E)
+
+| Req ID | Feature | Priority | Planned Implementation | Status | Notes |
+|--------|---------|----------|----------------------|--------|-------|
+| DIST-14.1 | PodcastFeed model | P2 | `id`, `projectId` (unique), `episodeTitle`, `description`, `coverArtUrl?`, `rssFeedSlug` (unique), `published`, `publishedAt?`; migration | NOT IMPL | Issue #38 |
+| DIST-14.2 | Podcast publish API | P2 | `POST /api/projects/[id]/podcast/publish` — creates feed; validates completed audio; sets R2 object to public-read | NOT IMPL | Issue #38 |
+| DIST-14.3 | RSS 2.0 feed endpoint | P2 | `GET /listen/[code]/podcast.rss` — valid RSS XML with `<enclosure>` M4A URL, `<itunes:duration>` | NOT IMPL | Issue #38 |
+| DIST-14.4 | Public podcast page | P2 | `/listen/[code]/podcast` — cover art, inline player, "Subscribe via RSS", "Add to Apple Podcasts" deep link | NOT IMPL | Issue #38 |
+| DIST-14.5 | Publish podcast UI | P2 | "Publish as Podcast" button on completed project; publish modal with title/description/cover art | NOT IMPL | Issue #38 |
+
+---
+
+## 15. Gap Analysis
 
 | Feature | Status | Gap | Impact | Resolution Plan | Target | Priority |
 |---------|--------|-----|--------|-----------------|--------|---------|
@@ -263,4 +300,4 @@
 
 ---
 
-*Requirements baseline as of 2026-05-06 — v1.0.0-beta. 1,370 tests (862 web + 508 orchestrator), 0 TypeScript errors. 3 P0 external blockers remain (DNS, Stripe account, Stripe webhook). See ROADMAP-2026-05-06.md for sprint plan.*
+*Requirements baseline as of 2026-05-06 — v1.0.0-beta. 1,370 tests (862 web + 508 orchestrator), 0 TypeScript errors. 3 P0 external blockers remain (DNS, Stripe account, Stripe webhook). Updated 2026-05-07 with 19 new competitive REQ entries (Issues #33–#38). See ROADMAP-2026-05-07.md for sprint plan.*
