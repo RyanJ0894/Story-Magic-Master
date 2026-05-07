@@ -86,7 +86,9 @@ export function RewriteModal({
   const [isSelecting, setIsSelecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedRewrite, setSelectedRewrite] = useState<string | null>(null);
-  const [selectedStyle, setSelectedStyle] = useState<RewriteStyle>('moderate');
+  const [selectedStyle, setSelectedStyle] = useState<RewriteStyle>(
+    () => (typeof window !== 'undefined' ? (localStorage.getItem('rewrite-style-preference') as RewriteStyle | null) : null) ?? 'moderate'
+  );
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showDiff, setShowDiff] = useState(false);
 
@@ -248,7 +250,7 @@ export function RewriteModal({
 
               <RadioGroup
                 value={selectedStyle}
-                onValueChange={(v) => setSelectedStyle(v as RewriteStyle)}
+                onValueChange={(v) => { setSelectedStyle(v as RewriteStyle); localStorage.setItem('rewrite-style-preference', v); }}
                 className="grid grid-cols-3 gap-3"
               >
                 {styleOptions.map((option) => (

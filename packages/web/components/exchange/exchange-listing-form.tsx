@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,6 +39,7 @@ export function ExchangeListingForm({ projectId, initialListing }: Props) {
   const [genre, setGenre] = useState(initialListing?.genre ?? '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -62,6 +64,7 @@ export function ExchangeListingForm({ projectId, initialListing }: Props) {
           genre: data.listing.exchangeGenre,
           listedAt: data.listing.exchangeListedAt,
         });
+        toast({ description: listing?.isPublic ? 'Listing updated.' : 'Script listed on the Exchange.' });
       }
     } finally {
       setLoading(false);
@@ -75,6 +78,7 @@ export function ExchangeListingForm({ projectId, initialListing }: Props) {
       const res = await fetch(`/api/projects/${projectId}/exchange`, { method: 'DELETE' });
       if (res.ok) {
         setListing((prev) => prev ? { ...prev, isPublic: false } : prev);
+        toast({ description: 'Removed from the Exchange.' });
       }
     } finally {
       setLoading(false);

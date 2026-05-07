@@ -64,6 +64,7 @@ export function ShareModal({
   const [recipientEmail, setRecipientEmail] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [showAllShares, setShowAllShares] = useState(false);
   const { toast } = useToast();
 
   const handleCopy = async (url: string) => {
@@ -270,7 +271,7 @@ export function ShareModal({
               <Badge variant="secondary">{existingShares.length}</Badge>
             </div>
             <div className="space-y-2 max-h-32 overflow-y-auto">
-              {existingShares.slice(0, 5).map((share) => (
+              {(showAllShares ? existingShares : existingShares.slice(0, 5)).map((share) => (
                 <div
                   key={share.id}
                   className="flex items-center justify-between text-sm p-2 rounded-lg bg-muted"
@@ -289,6 +290,14 @@ export function ShareModal({
                 </div>
               ))}
             </div>
+            {existingShares.length > 5 && !showAllShares && (
+              <button
+                onClick={() => setShowAllShares(true)}
+                className="mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                View all ({existingShares.length})
+              </button>
+            )}
           </div>
         )}
       </DialogContent>

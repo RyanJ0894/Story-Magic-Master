@@ -23,7 +23,11 @@
     "worker": "tsx worker.ts",
     "seed:corpus": "tsx scripts/seed-corpus.ts",
     "ingest:training": "tsx scripts/ingest-training-scripts.ts",
-    "score:corpus": "tsx scripts/score-corpus.ts"
+    "score:corpus": "tsx scripts/score-corpus.ts",
+    "db:seed": "prisma db seed"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.15",

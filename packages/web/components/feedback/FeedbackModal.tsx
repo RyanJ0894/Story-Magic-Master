@@ -142,9 +142,6 @@ export function FeedbackModal({
       }
 
       setSubmitted(true);
-      setTimeout(() => {
-        handleClose();
-      }, 1500);
     } catch (error) {
       log.error('Failed to submit feedback', error);
       toast({
