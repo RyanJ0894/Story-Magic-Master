@@ -106,6 +106,7 @@ model Project {
   scriptShares      ScriptShare[]
   readerLibrary     ReaderLibrary[]
   purchases         Purchase[]
+  podcastFeed       PodcastFeed?
   contentAccessLogs ContentAccessLog[]
   storyScores       StoryScore[]
   suggestions       Suggestion[]
@@ -296,6 +297,23 @@ model CreditTransaction {
 
   @@index([profileId])
   @@map("credit_transactions")
+}
+
+model PodcastFeed {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId     String    @unique @map("project_id") @db.Uuid
+  episodeTitle  String    @map("episode_title")
+  description   String    @db.Text
+  coverArtUrl   String?   @map("cover_art_url")
+  rssFeedSlug   String    @unique @map("rss_feed_slug")
+  published     Boolean   @default(false)
+  publishedAt   DateTime? @map("published_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("podcast_feeds")
 }
 
 // =============================================================================
