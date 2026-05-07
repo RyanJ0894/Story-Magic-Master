@@ -46,7 +46,7 @@ export interface PlaybackManifest {
   project_id: string;
   order: ManifestSceneEntry[];
   total: number;
-  public_url: string | null;
+  public_url: string;
   mp3_url?: string | null;
 }
 
@@ -179,15 +179,28 @@ export async function makePlaybackManifest(
     totalDuration = await audioDurationSec(scenePaths[0].path);
   }
 
-  // Serve episode from local Render Disk
-  const episodePath = path.join(getOutputDir(), project_id, 'episode.m4a');
-  let publicUrl: string | null = null;
-
-  if (fs.existsSync(episodePath)) {
-    // Use the local file path as the URL — served via the orchestrator's static file route
-    publicUrl = `/audio/${project_id}/episode.m4a`;
-    log.info('Episode available at local path', { projectId: project_id, publicUrl });
+  // Validate project_id is a UUID before using in path construction (prevent path traversal).
+  // path.basename strips any residual separators as a taint-clear step.
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(project_id)) {
+    throw new Error(`Invalid project_id format: ${project_id}`);
   }
+  const safeProjectId = path.basename(project_id);
+
+  // Serve episode from local Render Disk.
+  // safeProjectId is validated as UUID above — path traversal is not possible.
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+  const episodePath = path.join(getOutputDir(), safeProjectId, 'episode.m4a');
+
+  if (!fs.existsSync(episodePath)) {
+    throw new Error(
+      `Episode file not found after concatenation: ${episodePath}. ` +
+      `Concatenation may have failed silently or written to an unexpected path.`
+    );
+  }
+
+  // Use the local file path as the URL — served via the orchestrator's static file route
+  const publicUrl = `/audio/${safeProjectId}/episode.m4a`;
+  log.info('Episode available at local path', { projectId: project_id, publicUrl });
 
   // MP3 conversion intentionally skipped in the main pipeline path.
   // For long scripts (60-100+ min), synchronous FFmpeg MP3 conversion blocks

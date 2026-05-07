@@ -271,6 +271,7 @@ export async function processGenerationJob(
     const audioUrls = orchestratorResult.audio_urls || [];
     const manifest = orchestratorResult.playback_manifest;
 
+    let audioOutputsCreated = 0;
     for (const audioUrl of audioUrls) {
       if (!audioUrl) continue;
       const fileName = audioUrl.split('/').pop() || 'output.mp3';
@@ -294,6 +295,16 @@ export async function processGenerationJob(
           format: fileName.endsWith('.m4a') ? 'm4a' : 'mp3',
         },
       });
+      audioOutputsCreated++;
+    }
+
+    // Guard: if no audio was produced, treat as a pipeline failure — do not silently complete.
+    if (audioOutputsCreated === 0) {
+      throw new Error(
+        'Orchestrator returned no usable audio URLs. ' +
+        'The episode file may not have been written to disk. ' +
+        `audio_urls received: ${JSON.stringify(orchestratorResult.audio_urls ?? [])}`
+      );
     }
 
     // Step 5: Increment usage
