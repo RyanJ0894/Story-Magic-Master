@@ -64,17 +64,42 @@ export async function POST(request: Request) {
                 : session.payment_intent.id
               : null;
 
-            await prisma.purchase.create({
-              data: {
-                userId: advUserId,
-                projectId,
-                purchaseType: 'advanced_analysis',
-                amountCents: 999,
-                currency: session.currency ?? 'usd',
-                stripePaymentIntentId: paymentIntentId,
-                status: 'completed',
-              },
-            });
+            // upsert on stripePaymentIntentId makes this idempotent on
+            // Stripe webhook retries (stripePaymentIntentId is @unique in schema).
+            // When paymentIntentId is null, fall back to a guard that avoids
+            // a second create for the same project.
+            if (paymentIntentId) {
+              await prisma.purchase.upsert({
+                where: { stripePaymentIntentId: paymentIntentId },
+                create: {
+                  userId: advUserId,
+                  projectId,
+                  purchaseType: 'advanced_analysis',
+                  amountCents: 999,
+                  currency: session.currency ?? 'usd',
+                  stripePaymentIntentId: paymentIntentId,
+                  status: 'completed',
+                },
+                update: { status: 'completed' },
+              });
+            } else {
+              const alreadyExists = await prisma.purchase.findFirst({
+                where: { projectId, purchaseType: 'advanced_analysis', status: 'completed' },
+                select: { id: true },
+              });
+              if (!alreadyExists) {
+                await prisma.purchase.create({
+                  data: {
+                    userId: advUserId,
+                    projectId,
+                    purchaseType: 'advanced_analysis',
+                    amountCents: 999,
+                    currency: session.currency ?? 'usd',
+                    status: 'completed',
+                  },
+                });
+              }
+            }
 
             log.info('advanced_analysis purchase recorded', { userId: advUserId, projectId });
           }

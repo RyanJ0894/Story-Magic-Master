@@ -54,13 +54,13 @@ model Purchase {
   purchaseType          String   @map("purchase_type")
   amountCents           Int      @map("amount_cents")
   currency              String   @default("usd")
-  stripePaymentIntentId String?  @map("stripe_payment_intent_id")
+  stripePaymentIntentId String?  @unique @map("stripe_payment_intent_id")
   stripeInvoiceId       String?  @map("stripe_invoice_id")
   status                String   @default("completed")
   createdAt             DateTime @default(now()) @map("created_at")
 
   @@index([userId])
   @@index([projectId])
-  @@index([stripePaymentIntentId])
+  @@index([projectId, purchaseType, status])
   @@map("purchases")
 }

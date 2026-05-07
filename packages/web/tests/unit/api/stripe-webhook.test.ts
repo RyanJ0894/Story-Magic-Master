@@ -12,6 +12,10 @@ const mockProfileFindFirst = vi.fn().mockResolvedValue({ id: 'user-123' });
 const mockUsageUpsert = vi.fn().mockResolvedValue({});
 const mockSubscriptionUpsert = vi.fn().mockResolvedValue({});
 const mockSubscriptionUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+const mockPurchaseUpsert = vi.fn().mockResolvedValue({ id: 'purchase-1' });
+const mockPurchaseCreate = vi.fn().mockResolvedValue({ id: 'purchase-1' });
+const mockPurchaseFindFirst = vi.fn().mockResolvedValue(null);
+const mockImpactDonationCreate = vi.fn().mockResolvedValue({ id: 'donation-1' });
 
 vi.mock('@/lib/db', () => ({
   prisma: {
@@ -26,6 +30,14 @@ vi.mock('@/lib/db', () => ({
     subscription: {
       upsert: (...args: unknown[]) => mockSubscriptionUpsert(...args),
       updateMany: (...args: unknown[]) => mockSubscriptionUpdateMany(...args),
+    },
+    purchase: {
+      upsert: (...args: unknown[]) => mockPurchaseUpsert(...args),
+      create: (...args: unknown[]) => mockPurchaseCreate(...args),
+      findFirst: (...args: unknown[]) => mockPurchaseFindFirst(...args),
+    },
+    impactDonation: {
+      create: (...args: unknown[]) => mockImpactDonationCreate(...args),
     },
   },
 }));
@@ -73,6 +85,7 @@ describe('Stripe Webhook Handler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockProfileFindFirst.mockResolvedValue({ id: 'user-123' });
+    mockPurchaseFindFirst.mockResolvedValue(null);
   });
 
   describe('Signature verification', () => {
@@ -107,6 +120,110 @@ describe('Stripe Webhook Handler', () => {
       await POST(request);
 
       expect(mockConstructWebhookEvent).toHaveBeenCalledWith(body, sig);
+    });
+  });
+
+  describe('checkout.session.completed — advanced_analysis', () => {
+    it('should upsert a Purchase record for advanced_analysis', async () => {
+      mockConstructWebhookEvent.mockReturnValue(
+        createStripeEvent('checkout.session.completed', {
+          metadata: { type: 'advanced_analysis', userId: 'user-123', projectId: 'proj-abc' },
+          payment_intent: 'pi_test_abc123',
+          currency: 'usd',
+        })
+      );
+
+      const request = createWebhookRequest('{}', 'valid_sig');
+      const response = await POST(request);
+      expect(response.status).toBe(200);
+
+      expect(mockPurchaseUpsert).toHaveBeenCalledWith({
+        where: { stripePaymentIntentId: 'pi_test_abc123' },
+        create: expect.objectContaining({
+          userId: 'user-123',
+          projectId: 'proj-abc',
+          purchaseType: 'advanced_analysis',
+          amountCents: 999,
+          status: 'completed',
+        }),
+        update: { status: 'completed' },
+      });
+    });
+
+    it('should be idempotent — upsert not create on retry', async () => {
+      const makeEvent = () =>
+        createStripeEvent('checkout.session.completed', {
+          metadata: { type: 'advanced_analysis', userId: 'user-123', projectId: 'proj-abc' },
+          payment_intent: 'pi_test_abc123',
+          currency: 'usd',
+        });
+
+      mockConstructWebhookEvent.mockReturnValue(makeEvent());
+      await POST(createWebhookRequest('{}', 'valid_sig'));
+
+      mockConstructWebhookEvent.mockReturnValue(makeEvent());
+      await POST(createWebhookRequest('{}', 'valid_sig'));
+
+      // upsert should be called twice (once per delivery), create never
+      expect(mockPurchaseUpsert).toHaveBeenCalledTimes(2);
+      expect(mockPurchaseCreate).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to findFirst+create when payment_intent is absent', async () => {
+      mockConstructWebhookEvent.mockReturnValue(
+        createStripeEvent('checkout.session.completed', {
+          metadata: { type: 'advanced_analysis', userId: 'user-123', projectId: 'proj-abc' },
+          payment_intent: null,
+          currency: 'usd',
+        })
+      );
+
+      const request = createWebhookRequest('{}', 'valid_sig');
+      const response = await POST(request);
+      expect(response.status).toBe(200);
+
+      expect(mockPurchaseFindFirst).toHaveBeenCalled();
+      expect(mockPurchaseCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            purchaseType: 'advanced_analysis',
+            status: 'completed',
+          }),
+        })
+      );
+    });
+
+    it('should skip create when purchase already exists (null payment_intent)', async () => {
+      mockPurchaseFindFirst.mockResolvedValue({ id: 'existing-purchase' });
+      mockConstructWebhookEvent.mockReturnValue(
+        createStripeEvent('checkout.session.completed', {
+          metadata: { type: 'advanced_analysis', userId: 'user-123', projectId: 'proj-abc' },
+          payment_intent: null,
+          currency: 'usd',
+        })
+      );
+
+      const request = createWebhookRequest('{}', 'valid_sig');
+      const response = await POST(request);
+      expect(response.status).toBe(200);
+
+      expect(mockPurchaseCreate).not.toHaveBeenCalled();
+    });
+
+    it('should skip processing when userId or projectId is missing', async () => {
+      mockConstructWebhookEvent.mockReturnValue(
+        createStripeEvent('checkout.session.completed', {
+          metadata: { type: 'advanced_analysis', userId: '', projectId: '' },
+          payment_intent: 'pi_test_xyz',
+          currency: 'usd',
+        })
+      );
+
+      const request = createWebhookRequest('{}', 'valid_sig');
+      const response = await POST(request);
+      expect(response.status).toBe(200);
+      expect(mockPurchaseUpsert).not.toHaveBeenCalled();
+      expect(mockPurchaseCreate).not.toHaveBeenCalled();
     });
   });
 
