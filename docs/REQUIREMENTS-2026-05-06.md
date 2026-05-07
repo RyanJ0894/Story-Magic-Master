@@ -1,3 +1,5 @@
+> **Superseded by:** [REQUIREMENTS-2026-05-07.md](REQUIREMENTS-2026-05-07.md) — Updated 2026-05-07 (Sprint D–G complete, sections 15–19 added)
+
 # Story Magic — Product Requirements
 
 **Date:** 2026-05-06
