@@ -66,6 +66,7 @@ export function VoiceCloneUploader({ onCloneCreated }: VoiceCloneUploaderProps) 
       setClones((prev) => [newClone, ...prev]);
       setName('');
       setFile(null);
+      setError(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       onCloneCreated?.(newClone);
     } catch {

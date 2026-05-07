@@ -108,8 +108,7 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
 
   if (!isPaidTier) {
     // Estimate scene count: use cached director JSON if available, else page-based estimate
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const directorScenes = (project as any).directorJson?.scenes;
+    const directorScenes = (project.directorJson as { scenes?: unknown[] } | null)?.scenes;
     const creditsNeeded = Array.isArray(directorScenes) && directorScenes.length > 0
       ? directorScenes.length
       : Math.max(1, Math.ceil(project.pageCount / 10));

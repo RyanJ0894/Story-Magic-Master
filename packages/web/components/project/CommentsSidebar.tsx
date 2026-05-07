@@ -42,15 +42,21 @@ export function CommentsSidebar({ projectId, currentUserId, onSeekTo }: Comments
   const [body, setBody] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setFetchError(null);
     try {
       const res = await fetch(`/api/projects/${projectId}/comments`);
       if (res.ok) {
         const json = await res.json() as { comments: Comment[] };
         setComments(json.comments);
+      } else {
+        setFetchError('Failed to load comments.');
       }
+    } catch {
+      setFetchError('Connection error. Try again.');
     } finally {
       setLoading(false);
     }
@@ -99,7 +105,13 @@ export function CommentsSidebar({ projectId, currentUserId, onSeekTo }: Comments
       {/* Comment list */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {loading && <p className="text-xs text-muted-foreground">Loading…</p>}
-        {!loading && comments.length === 0 && (
+        {!loading && fetchError && (
+          <p className="text-xs text-destructive text-center py-4">
+            {fetchError}{' '}
+            <button onClick={() => void load()} className="underline hover:no-underline">Retry</button>
+          </p>
+        )}
+        {!loading && !fetchError && comments.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-8">
             No comments yet. Be the first!
           </p>
