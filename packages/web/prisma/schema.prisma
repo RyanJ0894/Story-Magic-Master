@@ -65,6 +65,8 @@ model Profile {
   readerSubscriptions   WriterSubscription[]  @relation("SubscriberSubs")
   creditTransactions    CreditTransaction[]
   voiceClones           VoiceClone[]
+  apiKeys               ApiKey[]
+  webhookEndpoints      WebhookEndpoint[]
 
   @@index([stripeCustomerId])
   @@index([stripeSubscriptionId])
@@ -1002,4 +1004,38 @@ model VoiceClone {
 
   @@index([userId])
   @@map("voice_clones")
+}
+
+// =============================================================================
+// PUBLIC API
+// =============================================================================
+
+model ApiKey {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @map("user_id")
+  name       String
+  keyHash    String    @unique @map("key_hash") // SHA-256 of the raw key
+  keyPrefix  String    @map("key_prefix")       // first 8 chars of raw key for display
+  lastUsedAt DateTime? @map("last_used_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([keyHash])
+  @@map("api_keys")
+}
+
+model WebhookEndpoint {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id")
+  url       String
+  secret    String   // HMAC-SHA256 signing secret (stored plaintext — needed for signing)
+  events    String[] // e.g. ["job.completed", "job.failed"]
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("webhook_endpoints")
 }

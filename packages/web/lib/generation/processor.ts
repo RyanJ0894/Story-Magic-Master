@@ -8,6 +8,7 @@
 import { prisma } from '@/lib/db';
 import { log } from '@/lib/logger';
 import { orchestratorGenerate } from '@/lib/orchestrator-fetch';
+import { dispatchWebhooks } from '@/lib/webhooks/deliver';
 
 // =============================================================================
 // Logging Helpers
@@ -339,6 +340,13 @@ export async function processGenerationJob(
     log.info('[PIPELINE] complete', { jobId: jobId.slice(0, 8), totalSec: elapsed(), pageCount });
     logProgress(jobId, 'done', `Generation completed in ${elapsed()}s`);
 
+    // Fire webhooks non-blocking — never let delivery failure affect the job result
+    dispatchWebhooks('job.completed', userId, jobId, projectId, {
+      audioUrl: orchestratorResult && typeof orchestratorResult === 'object' && 'audioUrl' in orchestratorResult
+        ? (orchestratorResult as Record<string, unknown>).audioUrl
+        : null,
+    }).catch(() => {});
+
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const errorStack = error instanceof Error ? error.stack : undefined;
@@ -374,5 +382,7 @@ export async function processGenerationJob(
       where: { id: projectId },
       data: { status: 'failed' },
     });
+
+    dispatchWebhooks('job.failed', userId, jobId, projectId, { error: errorMessage }).catch(() => {});
   }
 }

@@ -2,7 +2,7 @@ services:
   # PostgreSQL Database (for local development)
   # In production, Supabase provides the database
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: story-magic-postgres
     ports:
       - "5432:5432"
