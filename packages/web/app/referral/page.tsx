@@ -10,10 +10,10 @@ import { Label } from '@/components/ui/label';
 import { CheckCircle, Tag } from 'lucide-react';
 
 const TIER_DISPLAY: Record<string, { name: string; pages: string }> = {
-  creator: { name: 'Starter Enterprise', pages: '50 pages/month' },
-  pro:     { name: 'Professional Simulation', pages: '200 pages/month' },
-  studio:  { name: 'Studio Enterprise', pages: '1,000 pages/month' },
-  enterprise: { name: 'Enterprise Unlimited', pages: 'Unlimited pages' },
+  creator:    { name: 'Starter',             pages: '5 scripts/month' },
+  pro:        { name: 'Pro',                 pages: '15 scripts/month' },
+  studio:     { name: 'Creator',             pages: '25 scripts/month' },
+  enterprise: { name: 'Enterprise Unlimited', pages: 'Unlimited' },
 };
 
 function ReferralForm() {

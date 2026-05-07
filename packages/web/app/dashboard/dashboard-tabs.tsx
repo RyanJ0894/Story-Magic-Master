@@ -8,8 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import {
   Plus, FileText, Folder, Mic, Users,
-  CheckCircle, Loader2, XCircle, ChevronRight, ChevronDown, BarChart2, Building2,
+  CheckCircle, Loader2, XCircle, ChevronRight, ChevronDown, BarChart2, Building2, Star,
 } from 'lucide-react';
+import { PRICING_TIERS } from '@/lib/stripe/config';
 
 interface Project {
   id: string;
@@ -40,12 +41,6 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; cl
 const TABS = ['Overview', 'Projects', 'Voice Library', 'Analytics'] as const;
 type Tab = typeof TABS[number];
 
-const INDIVIDUAL_PLANS = [
-  { key: 'free',    label: 'Free',    sub: 'Limited Trial',   scripts: '1 script/month',  price: 'Free' },
-  { key: 'creator', label: 'Starter', sub: '',                scripts: '5 scripts/month', price: '$29/mo' },
-  { key: 'pro',     label: 'Pro',     sub: '',                scripts: '15 scripts/month',price: '$79/mo' },
-  { key: 'studio',  label: 'Creator', sub: '',                scripts: '25 scripts/month',price: '$199/mo' },
-];
 
 export function DashboardTabs({
   projects, tier, tierDisplayName, tierLimit, usedPages, remaining, usagePercent,
@@ -206,30 +201,52 @@ export function DashboardTabs({
           <div>
             <h2 className="text-base font-semibold mb-3">Subscription Plans</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {INDIVIDUAL_PLANS.map((plan) => {
-                const isCurrent = tier === plan.key;
+              {PRICING_TIERS.map((plan) => {
+                const isCurrent = tier === plan.tier;
                 return (
                   <div
-                    key={plan.key}
+                    key={plan.tier}
                     className={`rounded-xl border p-4 flex flex-col gap-2 ${
                       isCurrent
                         ? 'border-violet-500 bg-violet-500/5'
+                        : plan.highlighted
+                        ? 'border-violet-400/40 bg-card'
                         : 'border-border bg-card'
                     }`}
                   >
-                    {isCurrent && (
+                    {isCurrent ? (
                       <span className="text-xs font-semibold text-violet-500 uppercase tracking-wide">Current Plan</span>
+                    ) : plan.highlighted ? (
+                      <span className="flex items-center gap-1 text-xs font-semibold text-amber-500 uppercase tracking-wide">
+                        <Star className="w-3 h-3" /> Most Popular
+                      </span>
+                    ) : (
+                      <span className="text-xs">&nbsp;</span>
                     )}
                     <div>
-                      <p className="font-semibold text-sm text-foreground">{plan.label}</p>
-                      {plan.sub && <p className="text-xs text-muted-foreground">{plan.sub}</p>}
-                      <p className="text-xs text-muted-foreground mt-0.5">{plan.scripts}</p>
+                      <p className="font-semibold text-sm text-foreground">{plan.name}</p>
+                      <p className="text-xs text-muted-foreground">{plan.tagline}</p>
                     </div>
+                    <p className="text-base font-bold text-foreground">
+                      {plan.monthlyPrice === 0 ? 'Free' : `$${plan.monthlyPrice}/mo`}
+                    </p>
+                    <ul className="space-y-1 flex-1">
+                      {plan.features.slice(0, 3).map((feature) => (
+                        <li key={feature} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                          <CheckCircle className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
                     {isCurrent ? (
-                      <p className="text-sm font-bold text-foreground">{plan.price}</p>
+                      <Link href="/billing">
+                        <Button size="sm" variant="ghost" className="w-full text-xs h-7 text-muted-foreground">
+                          Manage Plan
+                        </Button>
+                      </Link>
                     ) : (
-                      <Link href={`/referral?plan=${plan.key}`}>
-                        <Button size="sm" variant="outline" className="w-full text-xs h-7">
+                      <Link href={`/referral?plan=${plan.tier}`}>
+                        <Button size="sm" variant={plan.highlighted ? 'default' : 'outline'} className={`w-full text-xs h-7${plan.highlighted ? ' brand-gradient brand-gradient-hover' : ''}`}>
                           Upgrade
                         </Button>
                       </Link>
