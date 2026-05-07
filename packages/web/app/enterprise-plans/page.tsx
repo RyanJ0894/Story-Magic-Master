@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -131,12 +131,6 @@ export default function EnterprisePlansPage() {
   const [activated, setActivated] = useState<string | null>(null);
   const directUpgradeEnabled = process.env.NEXT_PUBLIC_ALLOW_DIRECT_UPGRADE === 'true';
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && !sessionStorage.getItem('enterprise_access')) {
-      router.replace('/enterprise');
-    }
-  }, [router]);
-
   const handleActivate = async (planName: string) => {
     const tier = PLAN_TIERS[planName];
     if (!tier) return;
@@ -149,7 +143,7 @@ export default function EnterprisePlansPage() {
       });
       if (res.ok) {
         setActivated(planName);
-        setTimeout(() => router.push('/dashboard'), 1500);
+        setTimeout(() => router.push('/enterprise/dashboard'), 1500);
       }
     } finally {
       setActivating(null);
