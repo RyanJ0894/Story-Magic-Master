@@ -11,7 +11,7 @@ set -euo pipefail
 
 DOPPLER_PROJECT="story-magic"
 DOPPLER_CONFIG="prd"
-RENDER_API_KEY="${RENDER_API_KEY:-rnd_LCVBmWMcVfQeWT3gcrdlW7D8AuTN}"
+RENDER_API_KEY="${RENDER_API_KEY:-rnd_wfmF6x9CPhGMnM2IVtbnvLicYMaF}"
 RENDER_API="https://api.render.com/v1"
 
 WEB_SERVICE_ID="srv-d5mmo2emcj7s73c6ffs0"
