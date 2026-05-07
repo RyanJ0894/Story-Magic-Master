@@ -53,6 +53,7 @@ model Profile {
   teamSharesBy          TeamShare[]
   activityLogs          ActivityLog[]
   projectNotes          ProjectNote[]
+  projectComments       ProjectComment[]
   alerts                Alert[]               @relation("AlertUser")
   alertsRelated         Alert[]               @relation("RelatedUser")
   alertPreferences      AlertPreference?
@@ -119,6 +120,7 @@ model Project {
   alerts            Alert[]
   activityLogs      ActivityLog[]
   projectNotes      ProjectNote[]
+  projectComments   ProjectComment[]
   scriptReviews     ScriptReview[]
   humanReviews      HumanReview[]
 
@@ -710,6 +712,31 @@ model ProjectNote {
   @@index([authorId])
   @@index([projectId, authorId])
   @@map("project_notes")
+}
+
+// =============================================================================
+// PROJECT COMMENTS
+// Shared comments visible to all project collaborators (owner + TeamShare/ScriptShare).
+// Distinct from ProjectNote (private per-user).
+// =============================================================================
+
+model ProjectComment {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String   @map("project_id") @db.Uuid
+  userId           String   @map("user_id")
+  sceneIndex       Int?     @map("scene_index")
+  audioTimestampMs Int?     @map("audio_timestamp_ms")
+  body             String   @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author  Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt(sort: Desc)])
+  @@index([userId])
+  @@map("project_comments")
 }
 
 model TeamMember {

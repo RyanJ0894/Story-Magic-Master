@@ -12,6 +12,7 @@ import ScriptStatusChangeEmail from '@/emails/ScriptStatusChangeEmail';
 import ScriptSharedEmail from '@/emails/ScriptSharedEmail';
 import HumanReviewRequestEmail from '@/emails/HumanReviewRequestEmail';
 import HumanReviewDecisionEmail from '@/emails/HumanReviewDecisionEmail';
+import CommentNotificationEmail from '@/emails/CommentNotificationEmail';
 
 // Lazy-loaded Resend client (to avoid build-time initialization errors)
 let resendClient: Resend | null = null;
@@ -262,6 +263,41 @@ export async function sendHumanReviewDecisionEmail(params: {
     return { success: true, id: data?.id };
   } catch (error) {
     log.error('[Email] Review decision exception', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+// =============================================================================
+// Comment Notification — Project Owner
+// =============================================================================
+
+export async function sendCommentNotificationEmail(params: {
+  to: string;
+  ownerName: string;
+  commenterName: string;
+  projectName: string;
+  commentBody: string;
+  projectUrl: string;
+}): Promise<EmailResult> {
+  const { to, ownerName, commenterName, projectName, commentBody, projectUrl } = params;
+  try {
+    const html = await render(
+      CommentNotificationEmail({ ownerName, commenterName, projectName, commentBody, projectUrl })
+    );
+    const { data, error } = await getResendClient().emails.send({
+      from: FROM_ADDRESS,
+      to,
+      subject: `${commenterName} commented on "${projectName}"`,
+      html,
+    });
+    if (error) {
+      log.error('[Email] Comment notification failed', error);
+      return { success: false, error: error.message };
+    }
+    log.info('[Email] Comment notification sent', { id: data?.id });
+    return { success: true, id: data?.id };
+  } catch (error) {
+    log.error('[Email] Comment notification exception', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
