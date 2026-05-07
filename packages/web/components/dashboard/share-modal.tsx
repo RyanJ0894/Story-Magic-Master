@@ -32,6 +32,8 @@ import {
   Users,
   Download,
   Eye,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import type { ScriptShare, AccessLevel } from '@/lib/types/marketplace';
 
@@ -65,6 +67,7 @@ export function ShareModal({
   const [isCreating, setIsCreating] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [showAllShares, setShowAllShares] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
   const { toast } = useToast();
 
   const handleCopy = async (url: string) => {
@@ -130,58 +133,74 @@ export function ShareModal({
 
           {/* Share Tab — Link + optional Email in one flow */}
           <TabsContent value="share" className="space-y-4 mt-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Access Level</Label>
-                <Select value={accessLevel} onValueChange={(v) => setAccessLevel(v as AccessLevel)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="stream">
-                      <div className="flex items-center gap-2">
-                        <Eye className="w-4 h-4" />
-                        Stream Only
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="download">
-                      <div className="flex items-center gap-2">
-                        <Download className="w-4 h-4" />
-                        Allow Download
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <button
+              onClick={() => setShowOptions((v) => !v)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showOptions ? (
+                <ChevronUp className="w-3 h-3" />
+              ) : (
+                <ChevronDown className="w-3 h-3" />
+              )}
+              {showOptions ? 'Hide options' : 'Options'}
+            </button>
 
-              <div className="space-y-2">
-                <Label>Expires</Label>
-                <Select value={expiresIn} onValueChange={setExpiresIn}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="never">Never</SelectItem>
-                    <SelectItem value="24">24 hours</SelectItem>
-                    <SelectItem value="168">7 days</SelectItem>
-                    <SelectItem value="720">30 days</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            {showOptions && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Access Level</Label>
+                    <Select value={accessLevel} onValueChange={(v) => setAccessLevel(v as AccessLevel)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="stream">
+                          <div className="flex items-center gap-2">
+                            <Eye className="w-4 h-4" />
+                            Stream Only
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="download">
+                          <div className="flex items-center gap-2">
+                            <Download className="w-4 h-4" />
+                            Allow Download
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-            <div className="space-y-2">
-              <Label>
-                Recipient Email{' '}
-                <span className="text-muted-foreground font-normal">(optional)</span>
-              </Label>
-              <Input
-                type="email"
-                placeholder="agent@talent-agency.com"
-                value={recipientEmail}
-                onChange={(e) => setRecipientEmail(e.target.value)}
-              />
-            </div>
+                  <div className="space-y-2">
+                    <Label>Expires</Label>
+                    <Select value={expiresIn} onValueChange={setExpiresIn}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="never">Never</SelectItem>
+                        <SelectItem value="24">24 hours</SelectItem>
+                        <SelectItem value="168">7 days</SelectItem>
+                        <SelectItem value="720">30 days</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>
+                    Recipient Email{' '}
+                    <span className="text-muted-foreground font-normal">(optional)</span>
+                  </Label>
+                  <Input
+                    type="email"
+                    placeholder="agent@talent-agency.com"
+                    value={recipientEmail}
+                    onChange={(e) => setRecipientEmail(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
 
             {shareUrl ? (
               <div className="space-y-3">
@@ -290,12 +309,19 @@ export function ShareModal({
                 </div>
               ))}
             </div>
-            {existingShares.length > 5 && !showAllShares && (
+            {existingShares.length > 5 && (
               <button
-                onClick={() => setShowAllShares(true)}
-                className="mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setShowAllShares((v) => !v)}
+                className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
-                View all ({existingShares.length})
+                {showAllShares ? (
+                  <>
+                    <ChevronUp className="w-3 h-3" />
+                    Show less
+                  </>
+                ) : (
+                  `View all (${existingShares.length})`
+                )}
               </button>
             )}
           </div>

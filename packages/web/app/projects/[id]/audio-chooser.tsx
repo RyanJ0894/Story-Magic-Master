@@ -618,7 +618,7 @@ function AudioSelectionDialog({
 
   return (
     <Dialog open={state.open} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+      <DialogContent className="max-w-2xl h-full sm:h-auto sm:max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <config.icon className={cn('w-5 h-5', config.color)} />

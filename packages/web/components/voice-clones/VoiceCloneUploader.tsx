@@ -4,7 +4,7 @@ import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Upload, Loader2, Mic, Trash2 } from 'lucide-react';
+import { Upload, Loader2, Mic, Trash2, ChevronRight } from 'lucide-react';
 
 interface VoiceClone {
   id: string;
@@ -142,10 +142,22 @@ export function VoiceCloneUploader({ onCloneCreated }: VoiceCloneUploaderProps) 
       <div>
         <button
           onClick={loadClones}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
           disabled={loadingClones}
         >
-          {loadingClones ? 'Loading…' : loaded ? `Your clones (${clones.length})` : 'View your clones ▸'}
+          {loadingClones ? (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Loading…
+            </>
+          ) : loaded ? (
+            `Your clones (${clones.length})`
+          ) : (
+            <>
+              View your clones
+              <ChevronRight className="h-3 w-3" />
+            </>
+          )}
         </button>
 
         {loaded && clones.length > 0 && (
