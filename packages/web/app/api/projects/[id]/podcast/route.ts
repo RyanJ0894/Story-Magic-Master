@@ -37,7 +37,7 @@ export const GET = withProjectAuth(async (_request, { prisma, projectId }) => {
 });
 
 // POST /api/projects/[id]/podcast — create or update podcast feed
-export const POST = withProjectAuth(async (request, { prisma, projectId }) => {
+export const POST = withProjectAuth(async (request, { prisma, projectId, userId }) => {
   const parsed = await parseBody(request, PublishPodcastSchema);
   if ('error' in parsed) return parsed.error;
 
@@ -84,6 +84,7 @@ export const POST = withProjectAuth(async (request, { prisma, projectId }) => {
   const feed = await prisma.podcastFeed.create({
     data: {
       projectId,
+      userId,
       episodeTitle,
       description,
       coverArtUrl: coverArtUrl ?? null,

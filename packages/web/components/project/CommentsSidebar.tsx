@@ -43,6 +43,8 @@ export function CommentsSidebar({ projectId, currentUserId, onSeekTo }: Comments
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -86,9 +88,20 @@ export function CommentsSidebar({ projectId, currentUserId, onSeekTo }: Comments
   }
 
   async function deleteComment(id: string) {
-    const res = await fetch(`/api/projects/${projectId}/comments/${id}`, { method: 'DELETE' });
-    if (res.ok) {
-      setComments((prev) => prev.filter((c) => c.id !== id));
+    if (!window.confirm('Delete this comment? This cannot be undone.')) return;
+    setDeletingId(id);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/comments/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setComments((prev) => prev.filter((c) => c.id !== id));
+      } else {
+        setDeleteError('Failed to delete comment. Please try again.');
+      }
+    } catch {
+      setDeleteError('Connection error. Please try again.');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -116,6 +129,12 @@ export function CommentsSidebar({ projectId, currentUserId, onSeekTo }: Comments
             No comments yet. Be the first!
           </p>
         )}
+        {deleteError && (
+          <p className="text-xs text-destructive text-center py-1">
+            {deleteError}{' '}
+            <button onClick={() => setDeleteError(null)} className="underline hover:no-underline">Dismiss</button>
+          </p>
+        )}
         {comments.map((c) => (
           <div key={c.id} className="group space-y-1">
             <div className="flex items-start justify-between gap-2">
@@ -126,7 +145,8 @@ export function CommentsSidebar({ projectId, currentUserId, onSeekTo }: Comments
                 {c.userId === currentUserId && (
                   <button
                     onClick={() => void deleteComment(c.id)}
-                    className="p-0.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive"
+                    disabled={deletingId === c.id}
+                    className="p-0.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive disabled:opacity-50"
                     title="Delete comment"
                   >
                     <Trash2 className="h-3 w-3" />

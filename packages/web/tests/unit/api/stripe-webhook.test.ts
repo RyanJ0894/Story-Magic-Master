@@ -17,6 +17,7 @@ const mockPurchaseCreate = vi.fn().mockResolvedValue({ id: 'purchase-1' });
 const mockPurchaseFindFirst = vi.fn().mockResolvedValue(null);
 const mockImpactDonationCreate = vi.fn().mockResolvedValue({ id: 'donation-1' });
 const mockCreditTransactionCreate = vi.fn().mockResolvedValue({ id: 'ct-1' });
+const mockCreditTransactionFindUnique = vi.fn().mockResolvedValue(null); // null = not yet processed
 
 vi.mock('@/lib/db', () => ({
   prisma: {
@@ -42,7 +43,9 @@ vi.mock('@/lib/db', () => ({
     },
     creditTransaction: {
       create: (...args: unknown[]) => mockCreditTransactionCreate(...args),
+      findUnique: (...args: unknown[]) => mockCreditTransactionFindUnique(...args),
     },
+    $transaction: (ops: unknown[]) => Promise.all(ops as Promise<unknown>[]),
   },
 }));
 
@@ -90,6 +93,7 @@ describe('Stripe Webhook Handler', () => {
     vi.clearAllMocks();
     mockProfileFindFirst.mockResolvedValue({ id: 'user-123' });
     mockPurchaseFindFirst.mockResolvedValue(null);
+    mockCreditTransactionFindUnique.mockResolvedValue(null); // not yet processed by default
   });
 
   describe('Signature verification', () => {
@@ -480,6 +484,22 @@ describe('Stripe Webhook Handler', () => {
         createStripeEvent('checkout.session.completed', {
           payment_intent: 'pi_credits_abc',
           metadata: { type: 'credit_purchase', credits: '20' },
+        })
+      );
+
+      const request = createWebhookRequest('{}', 'valid_sig');
+      const response = await POST(request);
+      expect(response.status).toBe(200);
+      expect(mockProfileUpdate).not.toHaveBeenCalled();
+      expect(mockCreditTransactionCreate).not.toHaveBeenCalled();
+    });
+
+    it('skips credit_purchase when session already processed (idempotency)', async () => {
+      mockCreditTransactionFindUnique.mockResolvedValue({ id: 'ct-already' });
+      mockConstructWebhookEvent.mockReturnValue(
+        createStripeEvent('checkout.session.completed', {
+          id: 'cs_duplicate',
+          metadata: { type: 'credit_purchase', userId: 'user-123', credits: '20' },
         })
       );
 

@@ -44,6 +44,9 @@ import {
   Loader2,
   Volume2,
   RefreshCw,
+  ChevronDown,
+  ChevronRight,
+  CopyCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type {
@@ -403,6 +406,9 @@ function SceneAudioCard({
   onRemainingPreviewsChanged,
   regeneratingScene,
   onRegenerateScene,
+  isExpanded,
+  onToggleExpand,
+  onApplyToAll,
 }: {
   scene: NonNullable<AudioChooserProps['directorJson']>['scenes'] extends (infer S)[] | undefined ? S : never;
   sceneIndex: number;
@@ -417,6 +423,9 @@ function SceneAudioCard({
   onRemainingPreviewsChanged?: (remaining: number) => void;
   regeneratingScene: number | null;
   onRegenerateScene: (sceneIndex: number) => void;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onApplyToAll: (fromSceneId: string) => void;
 }) {
   const sceneId = scene.scene_id;
   const sceneOverrides = overrides.filter(o => o.scene_id === sceneId);
@@ -436,15 +445,26 @@ function SceneAudioCard({
   const overrideCount = sceneOverrides.filter(o => o.user_selected).length;
 
   return (
-    <div className="border rounded-lg p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <h4 className="font-medium text-sm">Scene {sceneIndex + 1}</h4>
-          {scene.summary && (
-            <p className="text-xs text-muted-foreground truncate max-w-md">{scene.summary}</p>
+    <div className="border rounded-lg overflow-hidden">
+      {/* Clickable header — always visible */}
+      <div
+        className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/30 transition-colors"
+        onClick={onToggleExpand}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          {isExpanded ? (
+            <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
           )}
+          <div className="min-w-0">
+            <h4 className="font-medium text-sm">Scene {sceneIndex + 1}</h4>
+            {!isExpanded && scene.summary && (
+              <p className="text-xs text-muted-foreground truncate max-w-md">{scene.summary}</p>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
           {scene.mood && (
             <Badge variant="secondary" className="text-xs">{scene.mood}</Badge>
           )}
@@ -453,18 +473,31 @@ function SceneAudioCard({
               {overrideCount} override{overrideCount !== 1 ? 's' : ''}
             </Badge>
           )}
+          {overrideCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onApplyToAll(sceneId)}
+              disabled={disabled}
+              className="h-7 text-xs px-2"
+              title="Copy these audio selections to all scenes"
+            >
+              <CopyCheck className="w-3 h-3 mr-1" />
+              Apply to all
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
             onClick={() => onRegenerateScene(sceneIndex)}
             disabled={disabled || regeneratingScene !== null}
-            className="h-8 text-xs"
+            className="h-7 text-xs"
             title="Regenerate this scene's audio"
           >
             {regeneratingScene === sceneIndex ? (
               <>
                 <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                Regenerating...
+                Regen…
               </>
             ) : (
               <>
@@ -484,40 +517,48 @@ function SceneAudioCard({
         </div>
       </div>
 
-      <AudioCategorySection
-        category="music"
-        cues={scene.music || []}
-        sceneId={sceneId}
-        sceneContext={sceneContext}
-        overrides={sceneOverrides}
-        onChangeClick={(idx) => onOpenDialog(sceneId, 'music', idx)}
-        onLockToggle={(idx) => onLockToggle(sceneId, 'music', idx)}
-        disabled={disabled}
-      />
+      {/* Collapsible body */}
+      {isExpanded && (
+        <div className="px-4 pb-4 space-y-3 border-t border-border/50">
+          {scene.summary && (
+            <p className="text-xs text-muted-foreground pt-2">{scene.summary}</p>
+          )}
+          <AudioCategorySection
+            category="music"
+            cues={scene.music || []}
+            sceneId={sceneId}
+            sceneContext={sceneContext}
+            overrides={sceneOverrides}
+            onChangeClick={(idx) => onOpenDialog(sceneId, 'music', idx)}
+            onLockToggle={(idx) => onLockToggle(sceneId, 'music', idx)}
+            disabled={disabled}
+          />
 
-      <AudioCategorySection
-        category="ambience"
-        cues={scene.ambience || []}
-        sceneId={sceneId}
-        sceneContext={sceneContext}
-        overrides={sceneOverrides}
-        onChangeClick={(idx) => onOpenDialog(sceneId, 'ambience', idx)}
-        onLockToggle={(idx) => onLockToggle(sceneId, 'ambience', idx)}
-        disabled={disabled}
-      />
+          <AudioCategorySection
+            category="ambience"
+            cues={scene.ambience || []}
+            sceneId={sceneId}
+            sceneContext={sceneContext}
+            overrides={sceneOverrides}
+            onChangeClick={(idx) => onOpenDialog(sceneId, 'ambience', idx)}
+            onLockToggle={(idx) => onLockToggle(sceneId, 'ambience', idx)}
+            disabled={disabled}
+          />
 
-      <AudioCategorySection
-        category="sfx"
-        cues={scene.sfx || []}
-        sceneId={sceneId}
-        sceneContext={sceneContext}
-        overrides={sceneOverrides}
-        onChangeClick={(idx) => onOpenDialog(sceneId, 'sfx', idx)}
-        onLockToggle={(idx) => onLockToggle(sceneId, 'sfx', idx)}
-        onRemoveCue={(idx) => onRemoveCue(sceneId, 'sfx', idx)}
-        onAddCue={() => onAddCue(sceneId, 'sfx')}
-        disabled={disabled}
-      />
+          <AudioCategorySection
+            category="sfx"
+            cues={scene.sfx || []}
+            sceneId={sceneId}
+            sceneContext={sceneContext}
+            overrides={sceneOverrides}
+            onChangeClick={(idx) => onOpenDialog(sceneId, 'sfx', idx)}
+            onLockToggle={(idx) => onLockToggle(sceneId, 'sfx', idx)}
+            onRemoveCue={(idx) => onRemoveCue(sceneId, 'sfx', idx)}
+            onAddCue={() => onAddCue(sceneId, 'sfx')}
+            disabled={disabled}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -711,6 +752,7 @@ export function AudioChooser({ projectId, directorJson, disabled, remainingPrevi
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [regeneratingScene, setRegeneratingScene] = useState<number | null>(null);
+  const [expandedScenes, setExpandedScenes] = useState<Set<number>>(new Set([0]));
   const [dialogState, setDialogState] = useState<SelectionDialogState>({
     open: false,
     sceneId: '',
@@ -881,6 +923,30 @@ export function AudioChooser({ projectId, directorJson, disabled, remainingPrevi
     });
   }, [scenes]);
 
+  // Toggle scene expand/collapse
+  const handleToggleScene = useCallback((index: number) => {
+    setExpandedScenes(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index); else next.add(index);
+      return next;
+    });
+  }, []);
+
+  // Apply all user-selected overrides from one scene to all other scenes
+  const handleApplyToAllScenes = useCallback((fromSceneId: string) => {
+    const sourceOverrides = overrides.filter(o => o.scene_id === fromSceneId && o.user_selected);
+    if (sourceOverrides.length === 0) return;
+    const otherSceneIds = scenes.map(s => s.scene_id).filter(id => id !== fromSceneId);
+    const newOverrides = overrides.filter(o => o.scene_id === fromSceneId); // keep source as-is
+    for (const targetId of otherSceneIds) {
+      // Remove existing user overrides for this scene, then add copies from source
+      const kept = overrides.filter(o => o.scene_id === targetId && !o.user_selected);
+      const copies = sourceOverrides.map(o => ({ ...o, scene_id: targetId }));
+      newOverrides.push(...kept, ...copies);
+    }
+    saveOverrides(newOverrides);
+  }, [overrides, scenes, saveOverrides]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -903,6 +969,8 @@ export function AudioChooser({ projectId, directorJson, disabled, remainingPrevi
 
   const totalOverrides = overrides.filter(o => o.user_selected).length;
 
+  const allExpanded = expandedScenes.size === scenes.length;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -922,6 +990,12 @@ export function AudioChooser({ projectId, directorJson, disabled, remainingPrevi
           )}
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setExpandedScenes(allExpanded ? new Set() : new Set(scenes.map((_, i) => i)))}
+            className="text-xs text-muted-foreground hover:text-foreground underline"
+          >
+            {allExpanded ? 'Collapse all' : 'Expand all'}
+          </button>
           <span className="text-xs text-muted-foreground">
             {remainingPreviews} preview{remainingPreviews !== 1 ? 's' : ''} remaining
           </span>
@@ -945,6 +1019,9 @@ export function AudioChooser({ projectId, directorJson, disabled, remainingPrevi
           onRemainingPreviewsChanged={handleRemainingPreviewsChanged}
           regeneratingScene={regeneratingScene}
           onRegenerateScene={handleRegenerateScene}
+          isExpanded={expandedScenes.has(index)}
+          onToggleExpand={() => handleToggleScene(index)}
+          onApplyToAll={handleApplyToAllScenes}
         />
       ))}
 

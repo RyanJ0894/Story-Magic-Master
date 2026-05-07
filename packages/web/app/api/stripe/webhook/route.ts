@@ -59,20 +59,30 @@ export async function POST(request: Request) {
           const { userId: creditUserId, credits } = session.metadata;
           const creditAmount = parseInt(credits ?? '0', 10);
           if (creditUserId && creditAmount > 0) {
-            await Promise.all([
-              prisma.profile.update({
-                where: { id: creditUserId },
-                data: { credits: { increment: creditAmount } },
-              }),
-              prisma.creditTransaction.create({
-                data: {
-                  profileId: creditUserId,
-                  amount: creditAmount,
-                  reason: 'purchase',
-                },
-              }),
-            ]);
-            log.info('credit_purchase recorded', { userId: creditUserId, credits: creditAmount });
+            // Idempotent: stripeSessionId is @unique — upsert prevents double-credit on retries
+            const existing = await prisma.creditTransaction.findUnique({
+              where: { stripeSessionId: session.id },
+              select: { id: true },
+            });
+            if (!existing) {
+              await prisma.$transaction([
+                prisma.profile.update({
+                  where: { id: creditUserId },
+                  data: { credits: { increment: creditAmount } },
+                }),
+                prisma.creditTransaction.create({
+                  data: {
+                    profileId: creditUserId,
+                    amount: creditAmount,
+                    reason: 'purchase',
+                    stripeSessionId: session.id,
+                  },
+                }),
+              ]);
+              log.info('credit_purchase recorded', { userId: creditUserId, credits: creditAmount });
+            } else {
+              log.info('credit_purchase already processed, skipping', { sessionId: session.id });
+            }
           }
           break;
         }
