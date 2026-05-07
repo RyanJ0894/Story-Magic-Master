@@ -319,6 +319,7 @@ registerProcessor('scene_regeneration', async (job, context) => {
   const metadata = (jobRow.result as Record<string, unknown>)?.metadata as {
     sceneIndex?: number;
     scene?: Record<string, unknown>;
+    emotion_overrides?: Record<string, string>;
   } | undefined;
 
   if (metadata?.sceneIndex === undefined || !metadata?.scene) {
@@ -330,6 +331,7 @@ registerProcessor('scene_regeneration', async (job, context) => {
   const orchestratorResponse = await orchestratorGenerate('/orchestrate', {
     project_id: job.projectId,
     scenes: [metadata.scene],
+    emotion_overrides: metadata.emotion_overrides,
   });
 
   if (!orchestratorResponse.ok) {

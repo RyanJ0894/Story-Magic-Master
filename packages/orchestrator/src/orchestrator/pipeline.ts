@@ -239,7 +239,8 @@ export async function orchestrate(directorJSON: unknown): Promise<OrchestrationR
  */
 export async function orchestrateParallel(
   directorJSON: unknown,
-  onProgress?: PipelineProgressCallback
+  onProgress?: PipelineProgressCallback,
+  emotionOverrides: Record<string, string> = {},
 ): Promise<OrchestrationResult> {
   // Step 0: Validate
   if (onProgress) {
@@ -282,7 +283,8 @@ export async function orchestrateParallel(
         });
       }
     },
-    parseInt(process.env.TTS_CONCURRENCY || '6', 10) // Configurable; reduce for memory-constrained envs
+    parseInt(process.env.TTS_CONCURRENCY || '6', 10), // Configurable; reduce for memory-constrained envs
+    emotionOverrides
   );
 
   // Step 2: Progressive Scene Assembly

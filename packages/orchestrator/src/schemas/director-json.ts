@@ -1,11 +1,19 @@
 import { z } from 'zod';
 
 // Dialogue line schema - represents a single line of dialogue or narration
+export const EMOTION_VALUES = [
+  'NEUTRAL', 'EXCITED', 'NERVOUS', 'SARCASTIC', 'TENDER',
+  'AUTHORITATIVE', 'WHISPERED', 'JOYFUL', 'SORROWFUL', 'ANGRY',
+] as const;
+
+export type Emotion = typeof EMOTION_VALUES[number];
+
 export const DialogueLineSchema = z.object({
   line_id: z.string(),
   character: z.string(),
   text: z.string().min(1),
   voice_key: z.string(),
+  emotion: z.string().optional(),
   // Metadata fields (only present on first line per character)
   // LLM may return null for unknown values — nullish() accepts both null and undefined
   character_age: z.number().nullish(),
@@ -135,6 +143,8 @@ export const OrchestrateRequestSchema = z.object({
   scenes: z.array(SceneSchema).optional(),
   // Optional: allow passing script_text to run director internally
   script_text: z.string().optional(),
+  // Optional: user emotion overrides — { [line_id]: emotion }
+  emotion_overrides: z.record(z.string(), z.string()).optional(),
 });
 
 export type OrchestrateRequest = z.infer<typeof OrchestrateRequestSchema>;

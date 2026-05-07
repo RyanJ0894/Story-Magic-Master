@@ -40,7 +40,7 @@ router.post('/orchestrate', async (req: Request, res: Response): Promise<void> =
     return;
   }
 
-  let { project_id, scenes, script_text } = parsed.data;
+  let { project_id, scenes, script_text, emotion_overrides } = parsed.data;
 
   // Ownership check (BL-013): authenticated user must own this project.
   const requestingUserId = req.user?.id;
@@ -133,7 +133,7 @@ router.post('/orchestrate', async (req: Request, res: Response): Promise<void> =
     const result = useParallel
       ? await orchestrateParallel(directorJSON, (progress: PipelineProgress) => {
           log.info('Orchestration progress', { projectId: project_id, step: progress.step, percent: progress.percent, message: progress.message });
-        })
+        }, emotion_overrides ?? {})
       : await orchestrate(directorJSON);
 
     res.json({

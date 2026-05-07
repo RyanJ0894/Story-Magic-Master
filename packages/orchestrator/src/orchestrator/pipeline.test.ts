@@ -546,7 +546,8 @@ describe('orchestrateParallel (parallel pipeline)', () => {
         scenes: expect.any(Array),
       }),
       expect.any(Function), // onProgress callback
-      6 // default concurrency (from TTS_CONCURRENCY env or fallback)
+      6, // default concurrency (from TTS_CONCURRENCY env or fallback)
+      {} // default empty emotion overrides
     );
   });
 

@@ -559,3 +559,101 @@ describe('isSceneComplete', () => {
     expect(isSceneComplete(result, scene)).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// applyEmotionTag (emotion override text transformation)
+// ---------------------------------------------------------------------------
+
+describe('applyEmotionTag', () => {
+  it('prepends ElevenLabs audio tag for WHISPERED emotion', async () => {
+    const { applyEmotionTag } = await import('./parallel-tts.js');
+    expect(applyEmotionTag('Hello.', 'WHISPERED')).toBe('[whispers] Hello.');
+  });
+
+  it('prepends audio tag for NERVOUS emotion', async () => {
+    const { applyEmotionTag } = await import('./parallel-tts.js');
+    expect(applyEmotionTag('Not sure.', 'NERVOUS')).toBe('[nervously] Not sure.');
+  });
+
+  it('returns unchanged text for unknown emotion', async () => {
+    const { applyEmotionTag } = await import('./parallel-tts.js');
+    expect(applyEmotionTag('Hello.', 'NEUTRAL')).toBe('Hello.');
+  });
+
+  it('returns unchanged text for empty emotion', async () => {
+    const { applyEmotionTag } = await import('./parallel-tts.js');
+    expect(applyEmotionTag('Hello.', '')).toBe('Hello.');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parallelTTSGenerate with emotion overrides
+// ---------------------------------------------------------------------------
+
+describe('parallelTTSGenerate with emotionOverrides', () => {
+  beforeEach(async () => {
+    vi.resetAllMocks();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { readStemByKey, writeStem } = await import('../../lib/storage.js');
+    const { ttsGenerate } = await import('../../lib/audio.js');
+    const { getVoiceForCharacter, upsertVoiceMap } = await import('../../lib/db.js');
+
+    vi.mocked(readStemByKey).mockResolvedValue(null);
+    vi.mocked(writeStem).mockImplementation(
+      async (project_id: string, scene_id: string, line_id: string) =>
+        `/data/stems/${project_id}_${scene_id}_${line_id}.wav`
+    );
+    vi.mocked(ttsGenerate).mockResolvedValue(Buffer.from('fake-wav'));
+    vi.mocked(getVoiceForCharacter).mockResolvedValue(null);
+    vi.mocked(upsertVoiceMap).mockResolvedValue({
+      project_id: 'proj_001',
+      character: 'Unknown',
+      voice_id: '21m00Tcm4TlvDq8ikWAM',
+      provider: 'elevenlabs',
+      params_json: {},
+    });
+  });
+
+  it('applies emotion tag to TTS text when override provided', async () => {
+    const { parallelTTSGenerate } = await import('./parallel-tts.js');
+    const { ttsGenerate } = await import('../../lib/audio.js');
+
+    const director = makeDirectorJSON({
+      scenes: [makeScene({
+        scene_id: 'scene_001',
+        dialogue: [
+          { line_id: 'line_001', character: 'John', text: 'I know nothing.', voice_key: 'v1' },
+        ],
+      })],
+    });
+
+    await parallelTTSGenerate(director, undefined, 1, { line_001: 'WHISPERED' });
+
+    expect(vi.mocked(ttsGenerate)).toHaveBeenCalledWith(
+      expect.objectContaining({ text: '[whispers] I know nothing.' }),
+    );
+  });
+
+  it('leaves text unchanged for lines without an override', async () => {
+    const { parallelTTSGenerate } = await import('./parallel-tts.js');
+    const { ttsGenerate } = await import('../../lib/audio.js');
+
+    const director = makeDirectorJSON({
+      scenes: [makeScene({
+        scene_id: 'scene_001',
+        dialogue: [
+          { line_id: 'line_001', character: 'John', text: 'Normal speech.', voice_key: 'v1' },
+        ],
+      })],
+    });
+
+    await parallelTTSGenerate(director, undefined, 1, {});
+
+    expect(vi.mocked(ttsGenerate)).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'Normal speech.' }),
+    );
+  });
+});

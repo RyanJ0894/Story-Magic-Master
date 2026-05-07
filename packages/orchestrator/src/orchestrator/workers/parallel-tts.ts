@@ -17,6 +17,26 @@ import { prisma } from '../../lib/prisma.js';
 import { log } from '../../lib/logger.js';
 import type { DirectorJSON, Scene, DialogueLine } from '../../schemas/director-json.js';
 
+// Maps emotion enum values to ElevenLabs audio tag prefixes.
+// Tags are supported in eleven_turbo_v2_5 and newer models.
+const EMOTION_TAG_MAP: Record<string, string> = {
+  WHISPERED: '[whispers]',
+  NERVOUS: '[nervously]',
+  EXCITED: '[excited]',
+  SARCASTIC: '[sarcastically]',
+  TENDER: '[tenderly]',
+  ANGRY: '[angrily]',
+  SORROWFUL: '[sadly]',
+  JOYFUL: '[joyfully]',
+  AUTHORITATIVE: '[authoritatively]',
+};
+
+export function applyEmotionTag(text: string, emotion: string): string {
+  const tag = EMOTION_TAG_MAP[emotion.toUpperCase()];
+  if (!tag) return text;
+  return `${tag} ${text}`;
+}
+
 export interface StemResult {
   scene_id: string;
   line_id: string;
@@ -67,7 +87,8 @@ interface LineTask {
 export async function parallelTTSGenerate(
   director: DirectorJSON,
   onProgress?: TTSProgressCallback,
-  concurrency: number = 12
+  concurrency: number = 12,
+  emotionOverrides: Record<string, string> = {},
 ): Promise<ParallelTTSResult> {
   const project_id = director.project_id;
 
@@ -176,7 +197,11 @@ export async function parallelTTSGenerate(
           textPreview: line.text.substring(0, 40),
         });
 
-        const wav = await ttsGenerate({ voice, text: line.text });
+        const effectiveEmotion = emotionOverrides[line.line_id] ?? line.emotion;
+        const ttsText = effectiveEmotion
+          ? applyEmotionTag(line.text, effectiveEmotion)
+          : line.text;
+        const wav = await ttsGenerate({ voice, text: ttsText });
         const stemPath = await writeStem(project_id, scene_id, line.line_id, wav, key);
 
         // Store in database via Prisma raw SQL

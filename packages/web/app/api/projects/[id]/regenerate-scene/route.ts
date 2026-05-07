@@ -15,6 +15,7 @@ import { log } from '@/lib/logger';
 
 const RegenerateSceneSchema = z.object({
   sceneIndex: z.number().int().min(0, 'Scene index must be non-negative'),
+  emotionOverrides: z.record(z.string(), z.string()).optional(),
 });
 
 export const POST = withProjectAuth(
@@ -22,7 +23,7 @@ export const POST = withProjectAuth(
     // Parse and validate body
     const parsed = await parseBody(request, RegenerateSceneSchema);
     if ('error' in parsed) return parsed.error;
-    const { sceneIndex } = parsed.data;
+    const { sceneIndex, emotionOverrides } = parsed.data;
 
     // Get director_json from project
     const directorJson = project.director_json as {
@@ -57,6 +58,7 @@ export const POST = withProjectAuth(
       metadata: {
         sceneIndex,
         scene: targetScene,
+        emotion_overrides: emotionOverrides,
       },
     });
 
