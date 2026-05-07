@@ -39,7 +39,7 @@ router.post('/generate-scenes', async (req: Request, res: Response): Promise<voi
     return;
   }
 
-  const { project_id, script_text, voice_overrides } = parsed.data;
+  const { project_id, script_text, voice_overrides, director_notes } = parsed.data;
 
   // Ownership check (BL-013): authenticated user must own this project.
   // req.user is populated by authMiddleware; AUTH_DISABLED skips this safely
@@ -132,7 +132,7 @@ router.post('/generate-scenes', async (req: Request, res: Response): Promise<voi
     // 3. AudioDirectorAgent selects audio → Scene Audio JSON
     // 4. Validators check and auto-correct business rules
     // 5. Merge results into final Director JSON
-    const result = await processScript({ project_id, script_text, voice_overrides }, { directorModel });
+    const result = await processScript({ project_id, script_text, voice_overrides, director_notes }, { directorModel });
 
     const processingTime = (Date.now() - start) / 1000;
     log.info('Scene generation complete', { projectId: project_id, processingTimeSeconds: processingTime, sceneCount: result.director_json.scenes.length });

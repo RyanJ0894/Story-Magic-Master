@@ -125,7 +125,7 @@ export async function processGenerationJob(
     // Step 2: Parse script via Director Agent (skip if a prior run already produced directorJson)
     const existingProject = await prisma.project.findUnique({
       where: { id: projectId },
-      select: { directorJson: true },
+      select: { directorJson: true, directorNotes: true },
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -154,6 +154,10 @@ export async function processGenerationJob(
       if (Object.keys(voiceOverrides).length > 0) {
         generateScenesBody.voice_overrides = voiceOverrides;
         log.info('[PIPELINE] voice overrides', { count: Object.keys(voiceOverrides).length });
+      }
+      if (existingProject?.directorNotes) {
+        generateScenesBody.director_notes = JSON.stringify(existingProject.directorNotes);
+        log.info('[PIPELINE] director notes attached');
       }
 
       const directorResponse = await orchestratorGenerate('/generate-scenes', generateScenesBody);

@@ -123,6 +123,8 @@ export const GenerateScenesRequestSchema = z.object({
   script_text: z.string().min(1),
   // Optional: character_name -> voice_id mapping for user-selected voices
   voice_overrides: z.record(z.string(), z.string()).optional(),
+  // Optional: pre-generation creative direction from the user
+  director_notes: z.string().max(10000).optional(),
 });
 
 export type GenerateScenesRequest = z.infer<typeof GenerateScenesRequestSchema>;

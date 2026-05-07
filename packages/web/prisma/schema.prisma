@@ -81,6 +81,7 @@ model Project {
   scriptText            String?  @map("script_text")
   pageCount             Int      @default(0) @map("page_count")
   directorJson          Json?    @map("director_json")
+  directorNotes         Json?    @map("director_notes")
   preferredWorkflowMode String   @default("automatic") @map("preferred_workflow_mode")
   currentRunNumber      Int      @default(0) @map("current_run_number")
   voiceAssignments      Json     @default("[]") @map("voice_assignments")

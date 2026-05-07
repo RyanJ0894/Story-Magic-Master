@@ -12,6 +12,7 @@ import { SceneAudioValidator } from './validation/audio-validator.js';
 import { log } from '../lib/logger.js';
 import { prisma } from '../lib/prisma.js';
 import { VoiceMapSchema, type VoiceMap } from '../schemas/voice-map.js';
+import { buildDirectorNotesBlock, type DirectorNotes } from './utils/sanitize-director-notes.js';
 import type {
   DirectorJSON,
   SceneAudioJSON,
@@ -31,6 +32,8 @@ export interface PipelineInput {
   script_text: string;
   // Optional: character_name -> voice_id mapping for user-selected voices
   voice_overrides?: Record<string, string>;
+  // Optional: pre-generation creative direction (already serialized JSON string)
+  director_notes?: string;
 }
 
 // Re-export for convenience
@@ -112,10 +115,25 @@ export async function processScript(
 
   log.info('Pipeline starting script processing', { projectId: input.project_id });
 
+  // Append director notes block to script_text if provided
+  let effectiveScriptText = input.script_text;
+  if (input.director_notes) {
+    try {
+      const notes = JSON.parse(input.director_notes) as DirectorNotes;
+      const block = buildDirectorNotesBlock(notes);
+      if (block) {
+        effectiveScriptText = input.script_text + block;
+        log.info('[Pipeline] director notes injected', { projectId: input.project_id });
+      }
+    } catch {
+      log.warn('[Pipeline] failed to parse director_notes — skipping injection', { projectId: input.project_id });
+    }
+  }
+
   // Phase 1: Run DirectorAgent
   // Agent now returns validated DirectorJSON (Zod-validated at boundary)
   log.info('Pipeline Phase 1: Running DirectorAgent');
-  let directorJson = await directorAgent.process(input);
+  let directorJson = await directorAgent.process({ ...input, script_text: effectiveScriptText });
 
   // Persist the VoiceMap produced (or used) so subsequent runs skip Pass 2
   const voiceMapToSave = directorAgent.lastVoiceMap ?? cachedVoiceMap;
