@@ -9,6 +9,7 @@ import { prisma } from '@/lib/db';
 import { log } from '@/lib/logger';
 import { orchestratorGenerate } from '@/lib/orchestrator-fetch';
 import { dispatchWebhooks } from '@/lib/webhooks/deliver';
+import { triggerHumanReviewIfPurchased } from '@/lib/human-review/trigger';
 
 // =============================================================================
 // Logging Helpers
@@ -346,6 +347,9 @@ export async function processGenerationJob(
         ? (orchestratorResult as Record<string, unknown>).audioUrl
         : null,
     }).catch(() => {});
+
+    // Human-in-loop: if the user purchased white-glove review, queue it now
+    triggerHumanReviewIfPurchased(userId, projectId, jobId, orchestratorResult).catch(() => {});
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

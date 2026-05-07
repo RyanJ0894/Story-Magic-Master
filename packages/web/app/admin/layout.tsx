@@ -11,6 +11,7 @@ const navigation: AdminNavItem[] = [
   { name: 'Audit Log', href: '/admin/audit-log', icon: 'FileText' },
   { name: 'Corpus', href: '/admin/corpus', icon: 'BookOpen' },
   { name: 'Impact', href: '/admin/impact', icon: 'Heart' },
+  { name: 'Review Queue', href: '/admin/review-queue', icon: 'ClipboardCheck' },
   { name: 'Settings', href: '/admin/settings', icon: 'Settings' },
 ];
 

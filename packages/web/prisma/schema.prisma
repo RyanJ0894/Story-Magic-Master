@@ -120,6 +120,7 @@ model Project {
   activityLogs      ActivityLog[]
   projectNotes      ProjectNote[]
   scriptReviews     ScriptReview[]
+  humanReviews      HumanReview[]
 
   @@index([userId])
   @@index([status])
@@ -1038,4 +1039,30 @@ model WebhookEndpoint {
 
   @@index([userId])
   @@map("webhook_endpoints")
+}
+
+// =============================================================================
+// HUMAN-IN-LOOP REVIEW
+// =============================================================================
+
+model HumanReview {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId            String    @map("project_id") @db.Uuid
+  jobId                String    @map("job_id") @db.Uuid
+  userId               String    @map("user_id")       // customer
+  status               String    @default("pending")   // pending | approved | rejected
+  reviewerNotes        String?   @map("reviewer_notes") @db.Text
+  reviewedAt           DateTime? @map("reviewed_at")
+  reviewedBy           String?   @map("reviewed_by")   // admin Clerk ID
+  notifiedReviewerAt   DateTime? @map("notified_reviewer_at")
+  notifiedCustomerAt   DateTime? @map("notified_customer_at")
+  amountCents          Int       @default(9900) @map("amount_cents")
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([userId])
+  @@map("human_reviews")
 }

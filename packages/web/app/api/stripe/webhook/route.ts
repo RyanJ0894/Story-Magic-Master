@@ -129,6 +129,53 @@ export async function POST(request: Request) {
           break;
         }
 
+        // --- Human-in-loop review (one-time payment, per-project) ---
+        if (session.metadata?.type === 'human_review') {
+          const { userId: hrUserId, projectId } = session.metadata;
+          if (hrUserId && projectId) {
+            const paymentIntentId = session.payment_intent
+              ? typeof session.payment_intent === 'string'
+                ? session.payment_intent
+                : session.payment_intent.id
+              : null;
+
+            if (paymentIntentId) {
+              await prisma.purchase.upsert({
+                where: { stripePaymentIntentId: paymentIntentId },
+                create: {
+                  userId: hrUserId,
+                  projectId,
+                  purchaseType: 'human_review',
+                  amountCents: session.amount_total ?? 9900,
+                  currency: session.currency ?? 'usd',
+                  stripePaymentIntentId: paymentIntentId,
+                  status: 'completed',
+                },
+                update: { status: 'completed' },
+              });
+            } else {
+              const alreadyExists = await prisma.purchase.findFirst({
+                where: { projectId, purchaseType: 'human_review', status: 'completed' },
+                select: { id: true },
+              });
+              if (!alreadyExists) {
+                await prisma.purchase.create({
+                  data: {
+                    userId: hrUserId,
+                    projectId,
+                    purchaseType: 'human_review',
+                    amountCents: session.amount_total ?? 9900,
+                    currency: session.currency ?? 'usd',
+                    status: 'completed',
+                  },
+                });
+              }
+            }
+            log.info('human_review purchase recorded', { userId: hrUserId, projectId });
+          }
+          break;
+        }
+
         // --- Impact donation (one-time payment) ---
         if (session.metadata?.type === 'impact_donation') {
           const amountCents = session.amount_total ?? 0;

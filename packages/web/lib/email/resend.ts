@@ -10,6 +10,8 @@ import { render } from '@react-email/components';
 import TeamInviteEmail from '@/emails/TeamInviteEmail';
 import ScriptStatusChangeEmail from '@/emails/ScriptStatusChangeEmail';
 import ScriptSharedEmail from '@/emails/ScriptSharedEmail';
+import HumanReviewRequestEmail from '@/emails/HumanReviewRequestEmail';
+import HumanReviewDecisionEmail from '@/emails/HumanReviewDecisionEmail';
 
 // Lazy-loaded Resend client (to avoid build-time initialization errors)
 let resendClient: Resend | null = null;
@@ -190,6 +192,77 @@ export async function sendScriptSharedEmail(params: {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
     };
+  }
+}
+
+// =============================================================================
+// Human Review — Reviewer Notification
+// =============================================================================
+
+export async function sendHumanReviewRequestEmail(params: {
+  to: string;
+  projectName: string;
+  customerName: string;
+  reviewQueueUrl: string;
+  audioUrl?: string;
+}): Promise<EmailResult> {
+  const { to, projectName, customerName, reviewQueueUrl, audioUrl } = params;
+  try {
+    const html = await render(
+      HumanReviewRequestEmail({ projectName, customerName, reviewQueueUrl, audioUrl })
+    );
+    const { data, error } = await getResendClient().emails.send({
+      from: FROM_ADDRESS,
+      to,
+      subject: `[Review Queue] New audio ready — "${projectName}"`,
+      html,
+    });
+    if (error) {
+      log.error('[Email] Review request failed', error);
+      return { success: false, error: error.message };
+    }
+    log.info('[Email] Review request sent', { id: data?.id });
+    return { success: true, id: data?.id };
+  } catch (error) {
+    log.error('[Email] Review request exception', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+// =============================================================================
+// Human Review — Customer Decision Notification
+// =============================================================================
+
+export async function sendHumanReviewDecisionEmail(params: {
+  to: string;
+  customerName: string;
+  projectName: string;
+  decision: 'approved' | 'rejected';
+  reviewerNotes?: string;
+  projectUrl: string;
+  audioUrl?: string;
+}): Promise<EmailResult> {
+  const { to, customerName, projectName, decision, reviewerNotes, projectUrl, audioUrl } = params;
+  try {
+    const html = await render(
+      HumanReviewDecisionEmail({ customerName, projectName, decision, reviewerNotes, projectUrl, audioUrl })
+    );
+    const label = decision === 'approved' ? 'approved ✓' : 'reviewed';
+    const { data, error } = await getResendClient().emails.send({
+      from: FROM_ADDRESS,
+      to,
+      subject: `Your audio for "${projectName}" has been ${label}`,
+      html,
+    });
+    if (error) {
+      log.error('[Email] Review decision failed', error);
+      return { success: false, error: error.message };
+    }
+    log.info('[Email] Review decision sent', { id: data?.id, decision });
+    return { success: true, id: data?.id };
+  } catch (error) {
+    log.error('[Email] Review decision exception', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
 
