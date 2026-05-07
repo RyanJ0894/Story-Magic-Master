@@ -48,6 +48,7 @@ import { VoiceChooser } from './voice-chooser';
 import { AudioChooser } from './audio-chooser';
 import GenerateButton from './generate-button';
 import AudioPlayer from './audio-player';
+import { PreviewButton } from './preview-button';
 import { WorkflowModeSelector } from './workflow-mode-selector';
 import { RunSelector, type Run } from './run-selector';
 import { RunHistory } from './run-history';
@@ -647,20 +648,40 @@ export function ProjectWorkflow({
                 />
               </div>
             ) : (
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    Uses <strong>{project.pageCount}</strong> page{project.pageCount !== 1 ? 's' : ''} from your quota.
-                  </p>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Uses <strong>{project.pageCount}</strong> page{project.pageCount !== 1 ? 's' : ''} from your quota.
+                    </p>
+                  </div>
+                  <GenerateButton
+                    projectId={project.id}
+                    pageCount={project.pageCount}
+                    status={project.status}
+                    hasScript={!!project.scriptText}
+                    label="Generate Now"
+                    workflowMode="automatic"
+                  />
                 </div>
-                <GenerateButton
-                  projectId={project.id}
-                  pageCount={project.pageCount}
-                  status={project.status}
-                  hasScript={!!project.scriptText}
-                  label="Generate Now"
-                  workflowMode="automatic"
-                />
+                {/* Quick Preview — only shown when scenes are already parsed */}
+                {(() => {
+                  const firstSceneId = (project.directorJson as { scenes?: Array<{ scene_id?: string }> } | null)?.scenes?.[0]?.scene_id;
+                  if (!firstSceneId) return null;
+                  return (
+                    <div className="flex items-center justify-between pt-2 border-t border-amber-200 dark:border-amber-800">
+                      <p className="text-xs text-muted-foreground">
+                        Hear Scene 1 first &mdash; preview ready in ~90s
+                      </p>
+                      <PreviewButton
+                        projectId={project.id}
+                        sceneId={firstSceneId}
+                        remainingPreviews={remainingPreviews}
+                        onRemainingChanged={setRemainingPreviews}
+                      />
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </CardContent>

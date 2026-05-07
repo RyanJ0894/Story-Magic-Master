@@ -64,6 +64,7 @@ model Profile {
   writerSubscriptions   WriterSubscription[]  @relation("WriterSubs")
   readerSubscriptions   WriterSubscription[]  @relation("SubscriberSubs")
   creditTransactions    CreditTransaction[]
+  voiceClones           VoiceClone[]
 
   @@index([stripeCustomerId])
   @@index([stripeSubscriptionId])
@@ -984,4 +985,21 @@ model WriterSubscription {
   @@index([writerId])
   @@index([subscriberId])
   @@map("writer_subscriptions")
+}
+
+// =============================================================================
+// VOICE CLONES
+// =============================================================================
+
+model VoiceClone {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String   @map("user_id")
+  name               String
+  elevenLabsVoiceId  String   @map("elevenlabs_voice_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("voice_clones")
 }

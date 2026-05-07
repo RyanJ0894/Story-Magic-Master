@@ -1,0 +1,32 @@
+{
+  "name": "Story Magic",
+  "short_name": "Story Magic",
+  "description": "Transform screenplays into immersive audio experiences",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#7c3aed",
+  "orientation": "portrait-primary",
+  "categories": ["entertainment", "productivity"],
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/dashboard",
+      "description": "View your projects"
+    },
+    {
+      "name": "New Project",
+      "url": "/projects/new",
+      "description": "Start a new script"
+    }
+  ]
+}
