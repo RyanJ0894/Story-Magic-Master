@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Upload, FileText, X } from 'lucide-react';
 
-const ACCEPTED_EXTENSIONS = '.txt,.md,.docx,.pdf,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const ACCEPTED_EXTENSIONS = '.txt,.md,.docx,.pdf,.fountain,.fdx,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 function formatFileSize(bytes: number): string {
@@ -40,8 +40,8 @@ export function UploadScreenplay({
   const handleFile = useCallback(
     (selectedFile: File) => {
       const ext = selectedFile.name.slice(selectedFile.name.lastIndexOf('.')).toLowerCase();
-      if (!['.txt', '.md', '.docx', '.pdf'].includes(ext)) {
-        toast.error('Unsupported file type. Please upload a .txt, .md, .docx, or .pdf file.');
+      if (!['.txt', '.md', '.docx', '.pdf', '.fountain', '.fdx'].includes(ext)) {
+        toast.error('Unsupported file type. Please upload a .pdf, .fdx, .fountain, .docx, .md, or .txt file.');
         return;
       }
       if (selectedFile.size > MAX_FILE_SIZE) {
@@ -166,7 +166,10 @@ export function UploadScreenplay({
             Drop your screenplay here or click to browse
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Supports .pdf, .docx, .md, and .txt files (max 10MB)
+            Final Draft (.fdx) · Fountain (.fountain) · PDF · Word · Markdown · Plain text
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Max 10 MB — native formats give the best parse results
           </p>
         </div>
         <input
