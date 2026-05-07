@@ -7,6 +7,7 @@
 
 import { withProjectAuth, errorResponse } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 const CharacterNotesSchema = z.record(z.string(), z.string().max(2000));
@@ -51,7 +52,7 @@ export const PUT = withProjectAuth(async (request, { prisma, projectId }) => {
 
   const updated = await prisma.project.update({
     where: { id: projectId },
-    data: { directorNotes: parsed.data.directorNotes ?? null },
+    data: { directorNotes: parsed.data.directorNotes ?? Prisma.DbNull },
     select: { directorNotes: true },
   });
 

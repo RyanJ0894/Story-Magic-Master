@@ -213,6 +213,8 @@ export interface ShareAccessResult {
     id: string;
     accessLevel: string;
     expiresAt: Date | null;
+    sceneIndex: number | null;
+    sceneStartMs: number | null;
   };
   project: {
     id: string | undefined;

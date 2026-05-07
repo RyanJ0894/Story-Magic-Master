@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Prisma } from '@prisma/client';
 import { NextRequest } from 'next/server';
 
 // =============================================================================
@@ -188,7 +189,7 @@ describe('PUT /api/projects/[id]/director-notes', () => {
     const res = await PUT(req, createRouteParams(PROJECT_ID));
     expect(res.status).toBe(200);
     expect(mockPrisma.project.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { directorNotes: null } })
+      expect.objectContaining({ data: { directorNotes: Prisma.DbNull } })
     );
   });
 });

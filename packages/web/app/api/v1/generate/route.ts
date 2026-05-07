@@ -48,7 +48,7 @@ export const POST = withApiKey(async (request, { userId, prisma }) => {
       status: 'queued',
       jobType: 'audio_generation',
       progress: { step: 'queued', percent: 0, details: 'Queued via API', updated_at: now },
-      metadata: { source: 'public_api', workflowMode: 'automatic', pageCount: project.pageCount },
+      workflowMode: 'automatic',
     },
     select: { id: true, status: true, createdAt: true },
   });

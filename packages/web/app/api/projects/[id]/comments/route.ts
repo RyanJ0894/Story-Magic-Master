@@ -45,7 +45,7 @@ async function getAccessibleProject(projectId: string, userId: string) {
 
   // ScriptShare: caller has been shared this project individually
   const scriptShare = await prisma.scriptShare.findFirst({
-    where: { projectId, sharedWithId: userId },
+    where: { projectId, sharedWith: userId },
     select: { id: true },
   });
   if (scriptShare) return project;
