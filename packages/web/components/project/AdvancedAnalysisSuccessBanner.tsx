@@ -6,26 +6,28 @@
  * Shown on the project page when `?advanced=success` is in the URL
  * (i.e., the user just completed the Stripe checkout for Advanced Analysis).
  *
- * Renders a dismissable success toast / banner and removes the query param
- * from the URL without a full page reload.
+ * Strips the param immediately so it cannot be shared/bookmarked.
+ * Auto-dismisses after 6 seconds.
  */
 
 import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { CheckCircle2, X } from 'lucide-react';
 
 export function AdvancedAnalysisSuccessBanner() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     if (searchParams.get('advanced') === 'success') {
       setVisible(true);
-      // Strip the query param without a navigation push
+      // Strip the param immediately — prevents sharing/bookmarking the trigger URL
       const url = new URL(window.location.href);
       url.searchParams.delete('advanced');
       window.history.replaceState({}, '', url.toString());
+      // Auto-dismiss after 6 s; user can also click X
+      const timer = setTimeout(() => setVisible(false), 6000);
+      return () => clearTimeout(timer);
     }
   }, [searchParams]);
 

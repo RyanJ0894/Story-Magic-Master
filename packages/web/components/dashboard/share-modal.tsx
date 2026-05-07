@@ -66,9 +66,6 @@ export function ShareModal({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Placeholder URL before share is created
-  const placeholderUrl = 'Click "Create Share Link" to generate a URL';
-
   const handleCopy = async (url: string) => {
     await navigator.clipboard.writeText(url);
     setCopied(true);
@@ -112,21 +109,17 @@ export function ShareModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Share "{projectName}"</DialogTitle>
+          <DialogTitle>Share &ldquo;{projectName}&rdquo;</DialogTitle>
           <DialogDescription>
             Create a shareable link or send directly to industry readers
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="link" className="mt-4">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="link">
+        <Tabs defaultValue="share" className="mt-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="share">
               <Link2 className="w-4 h-4 mr-2" />
-              Link
-            </TabsTrigger>
-            <TabsTrigger value="email">
-              <Mail className="w-4 h-4 mr-2" />
-              Email
+              Share
             </TabsTrigger>
             <TabsTrigger value="qr">
               <QrCode className="w-4 h-4 mr-2" />
@@ -134,28 +127,8 @@ export function ShareModal({
             </TabsTrigger>
           </TabsList>
 
-          {/* Link Tab */}
-          <TabsContent value="link" className="space-y-4 mt-4">
-            <div className="flex items-center gap-2">
-              <Input
-                value={shareUrl || placeholderUrl}
-                readOnly
-                className={`font-mono text-sm ${!shareUrl ? 'text-muted-foreground italic' : ''}`}
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => shareUrl && handleCopy(shareUrl)}
-                disabled={!shareUrl}
-              >
-                {copied ? (
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                ) : (
-                  <Copy className="w-4 h-4" />
-                )}
-              </Button>
-            </div>
-
+          {/* Share Tab — Link + optional Email in one flow */}
+          <TabsContent value="share" className="space-y-4 mt-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Access Level</Label>
@@ -196,19 +169,11 @@ export function ShareModal({
               </div>
             </div>
 
-            <Button className="w-full" onClick={handleCreateShare} disabled={isCreating}>
-              {isCreating ? 'Creating...' : 'Create Share Link'}
-            </Button>
-
-            <p className="text-xs text-muted-foreground text-center">
-              Anyone with this link can access the audio. Readers will need to create a free account.
-            </p>
-          </TabsContent>
-
-          {/* Email Tab */}
-          <TabsContent value="email" className="space-y-4 mt-4">
             <div className="space-y-2">
-              <Label>Recipient Email</Label>
+              <Label>
+                Recipient Email{' '}
+                <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
               <Input
                 type="email"
                 placeholder="agent@talent-agency.com"
@@ -217,32 +182,42 @@ export function ShareModal({
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Access Level</Label>
-              <Select value={accessLevel} onValueChange={(v) => setAccessLevel(v as AccessLevel)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="stream">Stream Only (recommended)</SelectItem>
-                  <SelectItem value="download">Allow Download</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {shareUrl ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={shareUrl}
+                    readOnly
+                    className="font-mono text-sm"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleCopy(shareUrl)}
+                  >
+                    {copied ? (
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
 
-            <Button
-              className="w-full"
-              onClick={handleEmailShare}
-              disabled={!recipientEmail || !shareUrl}
-            >
-              <Mail className="w-4 h-4 mr-2" />
-              Open Email Client
-            </Button>
+                {recipientEmail && (
+                  <Button variant="outline" className="w-full" onClick={handleEmailShare}>
+                    <Mail className="w-4 h-4 mr-2" />
+                    Open Email Client
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <Button className="w-full" onClick={handleCreateShare} disabled={isCreating}>
+                {isCreating ? 'Creating...' : 'Create Share Link'}
+              </Button>
+            )}
 
             <p className="text-xs text-muted-foreground text-center">
-              {shareUrl
-                ? 'Opens your default email client with a pre-filled message'
-                : 'Create a share link first in the Link tab'}
+              Anyone with this link can access the audio. Readers will need a free account.
             </p>
           </TabsContent>
 

@@ -84,8 +84,13 @@ export function AdvancedAnalysisUpgrade({ projectId, purchased: initialPurchased
           </Badge>
         </CardTitle>
         <CardDescription className="text-muted-foreground text-sm leading-relaxed">
-          Deeper character insight, richer scene construction, more nuanced voice matching — powered by Claude Opus.
-          One-time upgrade for this project.
+          Powered by Claude Opus — Anthropic&apos;s most capable model:
+          <ul className="mt-2 space-y-1 list-none">
+            <li className="flex items-start gap-2"><span className="text-purple-500 mt-0.5">✦</span>Richer character arcs — deeper motivation, subtext, and relationship dynamics</li>
+            <li className="flex items-start gap-2"><span className="text-purple-500 mt-0.5">✦</span>Nuanced voice matching — accent, cadence, and tone mapped to character background</li>
+            <li className="flex items-start gap-2"><span className="text-purple-500 mt-0.5">✦</span>Scene-level emotion — ambient and music cues tuned to dramatic beats, not just genre</li>
+          </ul>
+          <span className="block mt-2 text-xs">One-time upgrade for this project only.</span>
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-0">

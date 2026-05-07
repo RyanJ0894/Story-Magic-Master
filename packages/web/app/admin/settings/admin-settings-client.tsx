@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +18,7 @@ import {
   Server,
   Key,
   Loader2,
+  ChevronDown,
 } from 'lucide-react';
 
 interface EnvInfo {
@@ -91,7 +93,18 @@ export default function AdminSettingsClient({ envInfo }: { envInfo: EnvInfo }) {
   const [settings, setSettings] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [savingSection, setSavingSection] = useState<SectionName | null>(null);
+  const [openSections, setOpenSections] = useState({
+    general: true,
+    security: false,
+    email: false,
+    notifications: false,
+    billing: false,
+  });
   const fetchedRef = useRef(false);
+
+  const toggleSection = useCallback((section: keyof typeof openSections) => {
+    setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  }, []);
 
   // Fetch settings on mount
   useEffect(() => {
@@ -193,258 +206,293 @@ export default function AdminSettingsClient({ envInfo }: { envInfo: EnvInfo }) {
 
       <div className="grid gap-6 max-w-4xl">
         {/* General Settings */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <Globe className="w-5 h-5 text-muted-foreground" />
-              <div>
-                <CardTitle>General Settings</CardTitle>
-                <CardDescription>Platform name, branding, and general options</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-2">
-              <Label htmlFor="platform-name">Platform Name</Label>
-              <Input
-                id="platform-name"
-                value={String(getSetting(SETTING_KEYS.platformName))}
-                onChange={(e) => updateSetting(SETTING_KEYS.platformName, e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="support-email">Support Email</Label>
-              <Input
-                id="support-email"
-                type="email"
-                value={String(getSetting(SETTING_KEYS.supportEmail))}
-                onChange={(e) => updateSetting(SETTING_KEYS.supportEmail, e.target.value)}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Maintenance Mode</Label>
-                <p className="text-sm text-muted-foreground">Temporarily disable user access</p>
-              </div>
-              <Switch
-                checked={Boolean(getSetting(SETTING_KEYS.maintenanceMode))}
-                onCheckedChange={(checked) => updateSetting(SETTING_KEYS.maintenanceMode, checked)}
-                aria-label="Toggle maintenance mode"
-              />
-            </div>
-            <SaveButton section="general" saving={savingSection} onSave={saveSection} />
-          </CardContent>
-        </Card>
+        <Collapsible open={openSections.general} onOpenChange={() => toggleSection('general')}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors rounded-t-lg select-none">
+                <div className="flex items-center gap-3">
+                  <Globe className="w-5 h-5 text-muted-foreground" />
+                  <div className="flex-1">
+                    <CardTitle>General Settings</CardTitle>
+                    <CardDescription>Platform name, branding, and general options</CardDescription>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${openSections.general ? 'rotate-180' : ''}`} />
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="platform-name">Platform Name</Label>
+                  <Input
+                    id="platform-name"
+                    value={String(getSetting(SETTING_KEYS.platformName))}
+                    onChange={(e) => updateSetting(SETTING_KEYS.platformName, e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="support-email">Support Email</Label>
+                  <Input
+                    id="support-email"
+                    type="email"
+                    value={String(getSetting(SETTING_KEYS.supportEmail))}
+                    onChange={(e) => updateSetting(SETTING_KEYS.supportEmail, e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Maintenance Mode</Label>
+                    <p className="text-sm text-muted-foreground">Temporarily disable user access</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(getSetting(SETTING_KEYS.maintenanceMode))}
+                    onCheckedChange={(checked) => updateSetting(SETTING_KEYS.maintenanceMode, checked)}
+                    aria-label="Toggle maintenance mode"
+                  />
+                </div>
+                <SaveButton section="general" saving={savingSection} onSave={saveSection} />
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
 
         {/* Security Settings */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <Shield className="w-5 h-5 text-muted-foreground" />
-              <div>
-                <CardTitle>Security</CardTitle>
-                <CardDescription>Authentication and access control settings</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Require Email Verification</Label>
-                <p className="text-sm text-muted-foreground">New users must verify email</p>
-              </div>
-              <Switch
-                checked={Boolean(getSetting(SETTING_KEYS.requireEmailVerification))}
-                onCheckedChange={(checked) => updateSetting(SETTING_KEYS.requireEmailVerification, checked)}
-                aria-label="Toggle require email verification"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Allow Social Login</Label>
-                <p className="text-sm text-muted-foreground">Enable Google/Apple sign in</p>
-              </div>
-              <Switch
-                checked={Boolean(getSetting(SETTING_KEYS.allowSocialLogin))}
-                onCheckedChange={(checked) => updateSetting(SETTING_KEYS.allowSocialLogin, checked)}
-                aria-label="Toggle allow social login"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Two-Factor Authentication</Label>
-                <p className="text-sm text-muted-foreground">Require 2FA for admin accounts</p>
-              </div>
-              <Switch
-                checked={Boolean(getSetting(SETTING_KEYS.twoFactorAuth))}
-                onCheckedChange={(checked) => updateSetting(SETTING_KEYS.twoFactorAuth, checked)}
-                aria-label="Toggle two-factor authentication"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="session-timeout">Session Timeout (hours)</Label>
-              <Input
-                id="session-timeout"
-                type="number"
-                value={String(getSetting(SETTING_KEYS.sessionTimeout))}
-                onChange={(e) => updateSetting(SETTING_KEYS.sessionTimeout, Number(e.target.value))}
-                className="w-32"
-              />
-            </div>
-            <SaveButton section="security" saving={savingSection} onSave={saveSection} />
-          </CardContent>
-        </Card>
+        <Collapsible open={openSections.security} onOpenChange={() => toggleSection('security')}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors rounded-t-lg select-none">
+                <div className="flex items-center gap-3">
+                  <Shield className="w-5 h-5 text-muted-foreground" />
+                  <div className="flex-1">
+                    <CardTitle>Security</CardTitle>
+                    <CardDescription>Authentication and access control settings</CardDescription>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${openSections.security ? 'rotate-180' : ''}`} />
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Require Email Verification</Label>
+                    <p className="text-sm text-muted-foreground">New users must verify email</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(getSetting(SETTING_KEYS.requireEmailVerification))}
+                    onCheckedChange={(checked) => updateSetting(SETTING_KEYS.requireEmailVerification, checked)}
+                    aria-label="Toggle require email verification"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Allow Social Login</Label>
+                    <p className="text-sm text-muted-foreground">Enable Google/Apple sign in</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(getSetting(SETTING_KEYS.allowSocialLogin))}
+                    onCheckedChange={(checked) => updateSetting(SETTING_KEYS.allowSocialLogin, checked)}
+                    aria-label="Toggle allow social login"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Two-Factor Authentication</Label>
+                    <p className="text-sm text-muted-foreground">Require 2FA for admin accounts</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(getSetting(SETTING_KEYS.twoFactorAuth))}
+                    onCheckedChange={(checked) => updateSetting(SETTING_KEYS.twoFactorAuth, checked)}
+                    aria-label="Toggle two-factor authentication"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="session-timeout">Session Timeout (hours)</Label>
+                  <Input
+                    id="session-timeout"
+                    type="number"
+                    value={String(getSetting(SETTING_KEYS.sessionTimeout))}
+                    onChange={(e) => updateSetting(SETTING_KEYS.sessionTimeout, Number(e.target.value))}
+                    className="w-32"
+                  />
+                </div>
+                <SaveButton section="security" saving={savingSection} onSave={saveSection} />
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
 
         {/* Email Settings */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <Mail className="w-5 h-5 text-muted-foreground" />
-              <div>
-                <CardTitle>Email Configuration</CardTitle>
-                <CardDescription>Transactional email settings</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-2">
-              <Label htmlFor="from-email">From Email</Label>
-              <Input
-                id="from-email"
-                type="email"
-                value={String(getSetting(SETTING_KEYS.fromEmail))}
-                onChange={(e) => updateSetting(SETTING_KEYS.fromEmail, e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="from-name">From Name</Label>
-              <Input
-                id="from-name"
-                value={String(getSetting(SETTING_KEYS.fromName))}
-                onChange={(e) => updateSetting(SETTING_KEYS.fromName, e.target.value)}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Welcome Email</Label>
-                <p className="text-sm text-muted-foreground">Send welcome email on signup</p>
-              </div>
-              <Switch
-                checked={Boolean(getSetting(SETTING_KEYS.welcomeEmail))}
-                onCheckedChange={(checked) => updateSetting(SETTING_KEYS.welcomeEmail, checked)}
-                aria-label="Toggle welcome email on signup"
-              />
-            </div>
-            <SaveButton section="email" saving={savingSection} onSave={saveSection} />
-          </CardContent>
-        </Card>
+        <Collapsible open={openSections.email} onOpenChange={() => toggleSection('email')}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors rounded-t-lg select-none">
+                <div className="flex items-center gap-3">
+                  <Mail className="w-5 h-5 text-muted-foreground" />
+                  <div className="flex-1">
+                    <CardTitle>Email Configuration</CardTitle>
+                    <CardDescription>Transactional email settings</CardDescription>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${openSections.email ? 'rotate-180' : ''}`} />
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="from-email">From Email</Label>
+                  <Input
+                    id="from-email"
+                    type="email"
+                    value={String(getSetting(SETTING_KEYS.fromEmail))}
+                    onChange={(e) => updateSetting(SETTING_KEYS.fromEmail, e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="from-name">From Name</Label>
+                  <Input
+                    id="from-name"
+                    value={String(getSetting(SETTING_KEYS.fromName))}
+                    onChange={(e) => updateSetting(SETTING_KEYS.fromName, e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Welcome Email</Label>
+                    <p className="text-sm text-muted-foreground">Send welcome email on signup</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(getSetting(SETTING_KEYS.welcomeEmail))}
+                    onCheckedChange={(checked) => updateSetting(SETTING_KEYS.welcomeEmail, checked)}
+                    aria-label="Toggle welcome email on signup"
+                  />
+                </div>
+                <SaveButton section="email" saving={savingSection} onSave={saveSection} />
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
 
         {/* Notification Settings */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <Bell className="w-5 h-5 text-muted-foreground" />
-              <div>
-                <CardTitle>Admin Notifications</CardTitle>
-                <CardDescription>Configure admin alerts and notifications</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>New User Signups</Label>
-                <p className="text-sm text-muted-foreground">Get notified on new registrations</p>
-              </div>
-              <Switch
-                checked={Boolean(getSetting(SETTING_KEYS.notifyNewSignups))}
-                onCheckedChange={(checked) => updateSetting(SETTING_KEYS.notifyNewSignups, checked)}
-                aria-label="Toggle new user signup notifications"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>New Subscriptions</Label>
-                <p className="text-sm text-muted-foreground">Get notified on new paid subscriptions</p>
-              </div>
-              <Switch
-                checked={Boolean(getSetting(SETTING_KEYS.notifyNewSubscriptions))}
-                onCheckedChange={(checked) => updateSetting(SETTING_KEYS.notifyNewSubscriptions, checked)}
-                aria-label="Toggle new subscription notifications"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Subscription Cancellations</Label>
-                <p className="text-sm text-muted-foreground">Get notified when users cancel</p>
-              </div>
-              <Switch
-                checked={Boolean(getSetting(SETTING_KEYS.notifyCancellations))}
-                onCheckedChange={(checked) => updateSetting(SETTING_KEYS.notifyCancellations, checked)}
-                aria-label="Toggle subscription cancellation notifications"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Failed Payments</Label>
-                <p className="text-sm text-muted-foreground">Get notified on payment failures</p>
-              </div>
-              <Switch
-                checked={Boolean(getSetting(SETTING_KEYS.notifyFailedPayments))}
-                onCheckedChange={(checked) => updateSetting(SETTING_KEYS.notifyFailedPayments, checked)}
-                aria-label="Toggle failed payment notifications"
-              />
-            </div>
-            <SaveButton section="notifications" saving={savingSection} onSave={saveSection} />
-          </CardContent>
-        </Card>
+        <Collapsible open={openSections.notifications} onOpenChange={() => toggleSection('notifications')}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors rounded-t-lg select-none">
+                <div className="flex items-center gap-3">
+                  <Bell className="w-5 h-5 text-muted-foreground" />
+                  <div className="flex-1">
+                    <CardTitle>Admin Notifications</CardTitle>
+                    <CardDescription>Configure admin alerts and notifications</CardDescription>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${openSections.notifications ? 'rotate-180' : ''}`} />
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>New User Signups</Label>
+                    <p className="text-sm text-muted-foreground">Get notified on new registrations</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(getSetting(SETTING_KEYS.notifyNewSignups))}
+                    onCheckedChange={(checked) => updateSetting(SETTING_KEYS.notifyNewSignups, checked)}
+                    aria-label="Toggle new user signup notifications"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>New Subscriptions</Label>
+                    <p className="text-sm text-muted-foreground">Get notified on new paid subscriptions</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(getSetting(SETTING_KEYS.notifyNewSubscriptions))}
+                    onCheckedChange={(checked) => updateSetting(SETTING_KEYS.notifyNewSubscriptions, checked)}
+                    aria-label="Toggle new subscription notifications"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Subscription Cancellations</Label>
+                    <p className="text-sm text-muted-foreground">Get notified when users cancel</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(getSetting(SETTING_KEYS.notifyCancellations))}
+                    onCheckedChange={(checked) => updateSetting(SETTING_KEYS.notifyCancellations, checked)}
+                    aria-label="Toggle subscription cancellation notifications"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Failed Payments</Label>
+                    <p className="text-sm text-muted-foreground">Get notified on payment failures</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(getSetting(SETTING_KEYS.notifyFailedPayments))}
+                    onCheckedChange={(checked) => updateSetting(SETTING_KEYS.notifyFailedPayments, checked)}
+                    aria-label="Toggle failed payment notifications"
+                  />
+                </div>
+                <SaveButton section="notifications" saving={savingSection} onSave={saveSection} />
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
 
         {/* Billing Settings */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <CreditCard className="w-5 h-5 text-muted-foreground" />
-              <div>
-                <CardTitle>Billing & Payments</CardTitle>
-                <CardDescription>Stripe and subscription settings</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Stripe Mode</Label>
-                <p className="text-sm text-muted-foreground">Current payment environment</p>
-              </div>
-              <Badge variant={envInfo.stripeMode === 'live' ? 'default' : 'secondary'}>
-                {envInfo.stripeMode === 'live' ? 'Live' : 'Test'}
-              </Badge>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="trial-days">Trial Period (days)</Label>
-              <Input
-                id="trial-days"
-                type="number"
-                value={String(getSetting(SETTING_KEYS.trialDays))}
-                onChange={(e) => updateSetting(SETTING_KEYS.trialDays, Number(e.target.value))}
-                className="w-32"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Grace Period on Payment Failure</Label>
-                <p className="text-sm text-muted-foreground">Days before suspending access</p>
-              </div>
-              <Input
-                type="number"
-                value={String(getSetting(SETTING_KEYS.gracePeriodDays))}
-                onChange={(e) => updateSetting(SETTING_KEYS.gracePeriodDays, Number(e.target.value))}
-                className="w-20"
-              />
-            </div>
-            <SaveButton section="billing" saving={savingSection} onSave={saveSection} />
-          </CardContent>
-        </Card>
+        <Collapsible open={openSections.billing} onOpenChange={() => toggleSection('billing')}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors rounded-t-lg select-none">
+                <div className="flex items-center gap-3">
+                  <CreditCard className="w-5 h-5 text-muted-foreground" />
+                  <div className="flex-1">
+                    <CardTitle>Billing & Payments</CardTitle>
+                    <CardDescription>Stripe and subscription settings</CardDescription>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${openSections.billing ? 'rotate-180' : ''}`} />
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Stripe Mode</Label>
+                    <p className="text-sm text-muted-foreground">Current payment environment</p>
+                  </div>
+                  <Badge variant={envInfo.stripeMode === 'live' ? 'default' : 'secondary'}>
+                    {envInfo.stripeMode === 'live' ? 'Live' : 'Test'}
+                  </Badge>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="trial-days">Trial Period (days)</Label>
+                  <Input
+                    id="trial-days"
+                    type="number"
+                    value={String(getSetting(SETTING_KEYS.trialDays))}
+                    onChange={(e) => updateSetting(SETTING_KEYS.trialDays, Number(e.target.value))}
+                    className="w-32"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Grace Period on Payment Failure</Label>
+                    <p className="text-sm text-muted-foreground">Days before suspending access</p>
+                  </div>
+                  <Input
+                    type="number"
+                    value={String(getSetting(SETTING_KEYS.gracePeriodDays))}
+                    onChange={(e) => updateSetting(SETTING_KEYS.gracePeriodDays, Number(e.target.value))}
+                    className="w-20"
+                  />
+                </div>
+                <SaveButton section="billing" saving={savingSection} onSave={saveSection} />
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
 
         {/* API & Integrations */}
         <Card>
