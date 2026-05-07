@@ -41,6 +41,8 @@ export const CreateShareRequestSchema = z.object({
   recipient_name: z.string().max(100).optional(),
   max_plays: z.number().int().positive().optional(),
   password: z.string().min(4).max(50).optional(),
+  scene_index: z.number().int().min(0).optional(),
+  scene_start_ms: z.number().int().min(0).optional(),
 });
 
 export type CreateShareRequest = z.infer<typeof CreateShareRequestSchema>;

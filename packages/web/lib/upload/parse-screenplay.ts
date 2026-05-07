@@ -2,7 +2,7 @@ import mammoth from 'mammoth';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB (PDFs can be larger)
 const WORDS_PER_PAGE = 250;
-const ALLOWED_EXTENSIONS = ['.txt', '.md', '.docx', '.pdf'] as const;
+const ALLOWED_EXTENSIONS = ['.txt', '.md', '.docx', '.pdf', '.fountain', '.fdx'] as const;
 
 type AllowedExtension = (typeof ALLOWED_EXTENSIONS)[number];
 
@@ -42,7 +42,7 @@ export async function parseScreenplay(
 
   if (!ALLOWED_EXTENSIONS.includes(ext as AllowedExtension)) {
     throw new Error(
-      `Unsupported file type "${ext}". Accepted formats: .txt, .md, .docx, .pdf`
+      `Unsupported file type "${ext}". Accepted formats: .txt, .md, .docx, .pdf, .fountain, .fdx`
     );
   }
 
@@ -74,10 +74,105 @@ export async function parseScreenplay(
       text = pdfResult.text;
       break;
     }
+    case '.fountain':
+      text = parseFountain(buffer.toString('utf-8'));
+      break;
+    case '.fdx':
+      text = parseFDX(buffer.toString('utf-8'));
+      break;
   }
 
   return {
     text,
     pageCount: countPages(text),
   };
+}
+
+/**
+ * Strips Fountain title page metadata, inline notes, and boneyard comments.
+ * The Fountain spec defines the title page as a block of "Key: Value" lines
+ * at the very start of the document, ending at the first blank line that is
+ * followed by a line that is NOT a key:value pair.
+ */
+export function parseFountain(content: string): string {
+  if (!content) return '';
+
+  // Normalise line endings
+  let text = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // Strip boneyard block comments /* ... */ (may span lines)
+  text = text.replace(/\/\*[\s\S]*?\*\//g, '');
+
+  // Strip inline notes [[ ... ]] (may span lines)
+  text = text.replace(/\[\[[\s\S]*?\]\]/g, '');
+
+  // Strip title page: leading key:value block before first blank line
+  const lines = text.split('\n');
+  const titlePageEnd = detectTitlePageEnd(lines);
+  if (titlePageEnd > 0) {
+    text = lines.slice(titlePageEnd).join('\n');
+  }
+
+  return text.trim();
+}
+
+/** Returns the line index immediately after the title page block, or 0. */
+function detectTitlePageEnd(lines: string[]): number {
+  const keyValueRe = /^[A-Za-z][A-Za-z ]*:\s*.*/;
+  let i = 0;
+  // Skip leading key:value lines (allow continuation lines indented with whitespace)
+  while (i < lines.length && (keyValueRe.test(lines[i]) || (i > 0 && /^\s+/.test(lines[i])))) {
+    i++;
+  }
+  // Must be followed by a blank line separator to count as a valid title page
+  if (i === 0 || i >= lines.length || lines[i].trim() !== '') return 0;
+  // Skip the blank line(s)
+  while (i < lines.length && lines[i].trim() === '') i++;
+  return i;
+}
+
+function decodeXmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
+/**
+ * Extracts plain text from a Final Draft FDX XML file.
+ * FDX has a predictable structure: Paragraph elements contain Text children.
+ * Uses regex rather than a full XML parser to avoid adding a dependency.
+ * Returns '' on empty input and tolerates malformed XML without throwing.
+ */
+export function parseFDX(xmlContent: string): string {
+  if (!xmlContent.trim()) return '';
+
+  try {
+    const paragraphs: string[] = [];
+
+    // Extract each <Paragraph ...>...</Paragraph> block
+    const paragraphRe = /<Paragraph[^>]*>([\s\S]*?)<\/Paragraph>/gi;
+    let paraMatch: RegExpExecArray | null;
+
+    while ((paraMatch = paragraphRe.exec(xmlContent)) !== null) {
+      const paraBody = paraMatch[1];
+      // Concatenate all <Text ...>...</Text> nodes within the paragraph
+      const textRe = /<Text[^>]*>([\s\S]*?)<\/Text>/gi;
+      const parts: string[] = [];
+      let textMatch: RegExpExecArray | null;
+
+      while ((textMatch = textRe.exec(paraBody)) !== null) {
+        parts.push(decodeXmlEntities(textMatch[1]));
+      }
+
+      const line = parts.join('').trim();
+      if (line) paragraphs.push(line);
+    }
+
+    return paragraphs.join('\n');
+  } catch {
+    return '';
+  }
 }

@@ -293,6 +293,8 @@ model ScriptShare {
   shareToken     String?   @unique @map("share_token")
   shareCode      String?   @unique @map("share_code")
   accessLevel    String    @default("stream") @map("access_level")
+  sceneIndex     Int?      @map("scene_index")
+  sceneStartMs   Int?      @map("scene_start_ms")
   viaReaderCode  String?   @map("via_reader_code")
   expiresAt      DateTime? @map("expires_at")
   passwordHash   String?   @map("password_hash")

@@ -222,4 +222,36 @@ describe('POST /api/projects/upload', () => {
 
     expect(response.status).toBe(201);
   });
+
+  it('creates a project from a .fountain file upload', async () => {
+    const file = createFile(
+      'INT. COFFEE SHOP - DAY\n\nSARAH sits alone.',
+      'script.fountain',
+      'text/plain'
+    );
+    const request = createFormDataRequest({ file });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(data.id).toBe(PROJECT_ID);
+    expect(mockParseScreenplay).toHaveBeenCalledWith(expect.any(Buffer), 'script.fountain');
+  });
+
+  it('creates a project from a .fdx file upload', async () => {
+    const file = createFile(
+      '<FinalDraft><Content><Paragraph Type="Scene Heading"><Text>INT. OFFICE - DAY</Text></Paragraph></Content></FinalDraft>',
+      'script.fdx',
+      'application/xml'
+    );
+    const request = createFormDataRequest({ file });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(data.id).toBe(PROJECT_ID);
+    expect(mockParseScreenplay).toHaveBeenCalledWith(expect.any(Buffer), 'script.fdx');
+  });
 });

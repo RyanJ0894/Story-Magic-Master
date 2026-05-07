@@ -18,6 +18,8 @@ vi.mock('pdf-parse', () => ({
 
 import {
   parseScreenplay,
+  parseFountain,
+  parseFDX,
   getProjectNameFromFilename,
 } from '@/lib/upload/parse-screenplay';
 
@@ -129,6 +131,176 @@ describe('parseScreenplay', () => {
     expect(result.pageCount).toBe(2);
   });
 });
+
+// =============================================================================
+// Fountain parser
+// =============================================================================
+
+const FOUNTAIN_BASIC = `INT. COFFEE SHOP - DAY
+
+SARAH sits alone at a corner table.
+
+SARAH
+(quietly)
+I don't know what I'm doing here.`;
+
+const FOUNTAIN_WITH_TITLE_PAGE = `Title: The Coffee Shop
+Author: Jane Doe
+Draft date: May 2026
+
+${FOUNTAIN_BASIC}`;
+
+const FOUNTAIN_WITH_NOTES = `INT. OFFICE - NIGHT [[this is a note]]
+
+MICHAEL
+We need to talk. /* old deleted line */`;
+
+describe('parseFountain', () => {
+  it('returns plain-text content as-is for a basic fountain script', () => {
+    const result = parseFountain(FOUNTAIN_BASIC);
+    expect(result).toContain('INT. COFFEE SHOP - DAY');
+    expect(result).toContain('SARAH');
+    expect(result).toContain("I don't know what I'm doing here.");
+  });
+
+  it('strips title page metadata block', () => {
+    const result = parseFountain(FOUNTAIN_WITH_TITLE_PAGE);
+    expect(result).not.toContain('Title: The Coffee Shop');
+    expect(result).not.toContain('Author: Jane Doe');
+    expect(result).toContain('INT. COFFEE SHOP - DAY');
+    expect(result).toContain('SARAH');
+  });
+
+  it('strips inline notes [[ ... ]]', () => {
+    const result = parseFountain(FOUNTAIN_WITH_NOTES);
+    expect(result).not.toContain('[[this is a note]]');
+    expect(result).toContain('INT. OFFICE - NIGHT');
+  });
+
+  it('strips boneyard block comments /* ... */', () => {
+    const result = parseFountain(FOUNTAIN_WITH_NOTES);
+    expect(result).not.toContain('/* old deleted line */');
+    expect(result).toContain('We need to talk.');
+  });
+
+  it('handles CRLF line endings gracefully', () => {
+    const crlf = FOUNTAIN_BASIC.replace(/\n/g, '\r\n');
+    const result = parseFountain(crlf);
+    expect(result).toContain('INT. COFFEE SHOP - DAY');
+    expect(result).toContain('SARAH');
+  });
+
+  it('returns empty string for empty input', () => {
+    expect(parseFountain('')).toBe('');
+  });
+});
+
+describe('parseScreenplay — .fountain files', () => {
+  it('parses a .fountain file and returns extracted text', async () => {
+    const buffer = Buffer.from(FOUNTAIN_BASIC, 'utf-8');
+    const result = await parseScreenplay(buffer, 'script.fountain');
+    expect(result.text).toContain('INT. COFFEE SHOP - DAY');
+    expect(result.text).toContain('SARAH');
+    expect(result.pageCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it('strips title page from .fountain upload', async () => {
+    const buffer = Buffer.from(FOUNTAIN_WITH_TITLE_PAGE, 'utf-8');
+    const result = await parseScreenplay(buffer, 'myscript.fountain');
+    expect(result.text).not.toContain('Author: Jane Doe');
+    expect(result.text).toContain('INT. COFFEE SHOP - DAY');
+  });
+});
+
+// =============================================================================
+// FDX parser
+// =============================================================================
+
+const FDX_BASIC = `<?xml version="1.0" encoding="UTF-8"?>
+<FinalDraft DocumentType="Script" Template="No" Version="3">
+  <Content>
+    <Paragraph Type="Scene Heading"><Text>INT. COFFEE SHOP - DAY</Text></Paragraph>
+    <Paragraph Type="Action"><Text>SARAH sits alone at a corner table.</Text></Paragraph>
+    <Paragraph Type="Character"><Text>SARAH</Text></Paragraph>
+    <Paragraph Type="Parenthetical"><Text>(quietly)</Text></Paragraph>
+    <Paragraph Type="Dialogue"><Text>I don't know what I'm doing here.</Text></Paragraph>
+  </Content>
+</FinalDraft>`;
+
+const FDX_WITH_ENTITIES = `<?xml version="1.0" encoding="UTF-8"?>
+<FinalDraft DocumentType="Script" Template="No" Version="3">
+  <Content>
+    <Paragraph Type="Action"><Text>Tom &amp; Jerry run. They shout &quot;Stop!&quot;</Text></Paragraph>
+    <Paragraph Type="Character"><Text>TOM</Text></Paragraph>
+    <Paragraph Type="Dialogue"><Text>Can&apos;t catch me!</Text></Paragraph>
+  </Content>
+</FinalDraft>`;
+
+const FDX_MULTI_TEXT_NODES = `<?xml version="1.0" encoding="UTF-8"?>
+<FinalDraft DocumentType="Script" Template="No" Version="3">
+  <Content>
+    <Paragraph Type="Dialogue">
+      <Text>Hello, </Text>
+      <Text Style="Bold">world</Text>
+      <Text>.</Text>
+    </Paragraph>
+  </Content>
+</FinalDraft>`;
+
+describe('parseFDX', () => {
+  it('extracts scene heading from FDX', () => {
+    const result = parseFDX(FDX_BASIC);
+    expect(result).toContain('INT. COFFEE SHOP - DAY');
+  });
+
+  it('extracts character name from FDX', () => {
+    const result = parseFDX(FDX_BASIC);
+    expect(result).toContain('SARAH');
+  });
+
+  it('extracts dialogue from FDX', () => {
+    const result = parseFDX(FDX_BASIC);
+    expect(result).toContain("I don't know what I'm doing here.");
+  });
+
+  it('decodes XML entities in text content', () => {
+    const result = parseFDX(FDX_WITH_ENTITIES);
+    expect(result).toContain('Tom & Jerry');
+    expect(result).toContain('"Stop!"');
+    expect(result).toContain("Can't catch me!");
+  });
+
+  it('concatenates multiple Text nodes within a single Paragraph', () => {
+    const result = parseFDX(FDX_MULTI_TEXT_NODES);
+    expect(result).toContain('Hello, world.');
+  });
+
+  it('returns empty string for empty XML input', () => {
+    expect(parseFDX('')).toBe('');
+  });
+
+  it('handles malformed XML gracefully (no throw)', () => {
+    expect(() => parseFDX('<not valid xml')).not.toThrow();
+  });
+});
+
+describe('parseScreenplay — .fdx files', () => {
+  it('parses a .fdx file and returns extracted text', async () => {
+    const buffer = Buffer.from(FDX_BASIC, 'utf-8');
+    const result = await parseScreenplay(buffer, 'script.fdx');
+    expect(result.text).toContain('INT. COFFEE SHOP - DAY');
+    expect(result.text).toContain('SARAH');
+    expect(result.pageCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it('decodes XML entities in .fdx upload', async () => {
+    const buffer = Buffer.from(FDX_WITH_ENTITIES, 'utf-8');
+    const result = await parseScreenplay(buffer, 'entities.fdx');
+    expect(result.text).toContain('Tom & Jerry');
+  });
+});
+
+// =============================================================================
 
 describe('getProjectNameFromFilename', () => {
   it('strips extension from filename', () => {

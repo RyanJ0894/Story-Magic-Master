@@ -87,6 +87,23 @@ describe('Share DTOs', () => {
         password: 'a'.repeat(51),
       })).toThrow();
     });
+
+    it('accepts optional scene_index and scene_start_ms for scene shares', () => {
+      const result = CreateShareRequestSchema.parse({
+        project_id: '550e8400-e29b-41d4-a716-446655440000',
+        scene_index: 3,
+        scene_start_ms: 142000,
+      });
+      expect(result.scene_index).toBe(3);
+      expect(result.scene_start_ms).toBe(142000);
+    });
+
+    it('rejects negative scene_index', () => {
+      expect(() => CreateShareRequestSchema.parse({
+        project_id: '550e8400-e29b-41d4-a716-446655440000',
+        scene_index: -1,
+      })).toThrow();
+    });
   });
 
   describe('UpdateShareRequestSchema', () => {

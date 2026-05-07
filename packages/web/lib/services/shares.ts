@@ -22,6 +22,8 @@ export interface CreateShareInput {
   recipientName?: string | null;
   maxPlays?: number | null;
   password?: string | null;
+  sceneIndex?: number | null;
+  sceneStartMs?: number | null;
 }
 
 export interface UpdateShareInput {
@@ -127,6 +129,8 @@ export async function createShare(
       recipientName: input.recipientName ?? null,
       maxPlays: input.maxPlays ?? null,
       passwordHash: input.password ? await hashPassword(input.password) : null,
+      sceneIndex: input.sceneIndex ?? null,
+      sceneStartMs: input.sceneStartMs ?? null,
       isActive: true,
     },
   });
@@ -353,6 +357,8 @@ export async function accessShare(
       id: share.id,
       accessLevel: share.accessLevel,
       expiresAt: share.expiresAt,
+      sceneIndex: share.sceneIndex ?? null,
+      sceneStartMs: share.sceneStartMs ?? null,
     },
     project: {
       id: share.project?.id,

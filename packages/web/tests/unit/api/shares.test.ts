@@ -290,5 +290,77 @@ describe('Shares API', () => {
       const { hashPassword } = await import('@/lib/password');
       expect(hashPassword).toHaveBeenCalledWith('secretpass');
     });
+
+    it('creates a scene-level share storing sceneIndex and sceneStartMs', async () => {
+      const createdShare = {
+        id: 'share-scene',
+        projectId: '550e8400-e29b-41d4-a716-446655440000',
+        shareCode: 'test-share-code',
+        accessLevel: 'stream',
+        sceneIndex: 3,
+        sceneStartMs: 142000,
+        isActive: true,
+      };
+
+      mockAuth.mockResolvedValueOnce({ userId });
+      mockPrisma.project.findFirst.mockResolvedValueOnce(mockProject);
+      mockPrisma.subscription.findFirst.mockResolvedValueOnce(mockSubscription);
+      mockPrisma.scriptShare.create.mockResolvedValueOnce(createdShare);
+
+      const request = new NextRequest('http://localhost:22000/api/shares', {
+        method: 'POST',
+        headers: { origin: 'http://localhost:22000' },
+        body: JSON.stringify({
+          project_id: '550e8400-e29b-41d4-a716-446655440000',
+          scene_index: 3,
+          scene_start_ms: 142000,
+        }),
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.share.sceneIndex).toBe(3);
+      expect(data.share.sceneStartMs).toBe(142000);
+      expect(mockPrisma.scriptShare.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            sceneIndex: 3,
+            sceneStartMs: 142000,
+          }),
+        })
+      );
+    });
+
+    it('omits sceneIndex and sceneStartMs when not provided (full-project share)', async () => {
+      const createdShare = {
+        id: 'share-full',
+        projectId: '550e8400-e29b-41d4-a716-446655440000',
+        shareCode: 'test-share-code',
+        sceneIndex: null,
+        sceneStartMs: null,
+      };
+
+      mockAuth.mockResolvedValueOnce({ userId });
+      mockPrisma.project.findFirst.mockResolvedValueOnce(mockProject);
+      mockPrisma.subscription.findFirst.mockResolvedValueOnce(mockSubscription);
+      mockPrisma.scriptShare.create.mockResolvedValueOnce(createdShare);
+
+      const request = new NextRequest('http://localhost:22000/api/shares', {
+        method: 'POST',
+        headers: { origin: 'http://localhost:22000' },
+        body: JSON.stringify({ project_id: '550e8400-e29b-41d4-a716-446655440000' }),
+      });
+      await POST(request);
+
+      expect(mockPrisma.scriptShare.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            sceneIndex: null,
+            sceneStartMs: null,
+          }),
+        })
+      );
+    });
   });
 });

@@ -30,6 +30,8 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
     recipient_name,
     max_plays,
     password,
+    scene_index,
+    scene_start_ms,
   } = parsed.data;
 
   try {
@@ -41,6 +43,8 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
       recipientName: recipient_name,
       maxPlays: max_plays,
       password,
+      sceneIndex: scene_index ?? null,
+      sceneStartMs: scene_start_ms ?? null,
     });
 
     return NextResponse.json(result);
