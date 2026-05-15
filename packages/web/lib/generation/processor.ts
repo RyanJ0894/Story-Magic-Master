@@ -298,6 +298,7 @@ export async function processGenerationJob(
       const orchestratorResponse = await orchestratorGenerate('/orchestrate', {
         project_id: projectId,
         scenes: chunk.scenes,
+        chunk_index: chunk.index,
       });
       const chunkSec = Math.round((Date.now() - chunkStart) / 1000);
 
@@ -389,7 +390,31 @@ export async function processGenerationJob(
       );
     }
 
-    const finalAudioUrl = allAudioUrls[0] ?? null;
+    // Sprint K: stitch segment files into a single episode.m4a when chunked
+    let finalAudioUrl: string | null = allAudioUrls[0] ?? null;
+    if (isChunked && audioOutputsCreated > 0) {
+      try {
+        const stitchResponse = await orchestratorGenerate('/stitch-segments', {
+          project_id: projectId,
+          segment_count: chunks.length,
+        });
+        if (stitchResponse.ok) {
+          const stitchResult = await stitchResponse.json() as Record<string, unknown>;
+          if (typeof stitchResult.audio_url === 'string') {
+            finalAudioUrl = stitchResult.audio_url;
+          }
+        } else {
+          log.warn('[PIPELINE] stitch-segments failed — using first segment URL', {
+            jobId: jobId.slice(0, 8), status: stitchResponse.status,
+          });
+        }
+      } catch (stitchErr) {
+        log.warn('[PIPELINE] stitch-segments error — using first segment URL', {
+          jobId: jobId.slice(0, 8),
+          error: stitchErr instanceof Error ? stitchErr.message : String(stitchErr),
+        });
+      }
+    }
 
     await updateJobProgress('mixing', 85, 'Finalizing audio mix...');
 

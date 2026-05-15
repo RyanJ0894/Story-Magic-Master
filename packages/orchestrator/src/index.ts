@@ -39,6 +39,7 @@ import analyzeRouter from './routes/analyze.js';
 import previewRouter from './routes/preview.js';
 import impactRouter from './routes/impact.js';
 import stemsRouter from './routes/stems.js';
+import stitchSegmentsRouter from './routes/stitch-segments.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -104,10 +105,12 @@ app.use('/', healthRouter);
 // Generation routes accept either service-to-service key (X-Service-Key) or Clerk JWT
 app.use('/generate-scenes', serviceAuthMiddleware, strictRateLimitMiddleware);
 app.use('/orchestrate', serviceAuthMiddleware, strictRateLimitMiddleware);
+app.use('/stitch-segments', serviceAuthMiddleware, strictRateLimitMiddleware);
 app.use('/analyze', serviceAuthMiddleware, rateLimitMiddleware);
 app.use('/preview', serviceAuthMiddleware, strictRateLimitMiddleware);
 app.use('/', generateScenesRouter);
 app.use('/', orchestrateRouter);
+app.use('/', stitchSegmentsRouter);
 app.use('/', analyzeRouter);
 app.use('/', previewRouter);
 
@@ -159,6 +162,7 @@ app.get('/download/:project_id/:filename', authMiddleware, async (req: Request, 
   }
 
   const baseOutputDir = path.resolve(getOutputDir());
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal, javascript.express.security.audit.express-path-join-resolve-traversal.express-path-join-resolve-traversal
   const filePath = path.resolve(baseOutputDir, project_id, decodedFilename);
 
   // Verify resolved path is within output directory (belt-and-suspenders)

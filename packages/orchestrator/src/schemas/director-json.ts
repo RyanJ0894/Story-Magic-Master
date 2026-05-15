@@ -145,6 +145,8 @@ export const OrchestrateRequestSchema = z.object({
   script_text: z.string().optional(),
   // Optional: user emotion overrides — { [line_id]: emotion }
   emotion_overrides: z.record(z.string(), z.string()).optional(),
+  // Sprint K: when set, writes episode-{chunk_index}.m4a instead of episode.m4a
+  chunk_index: z.number().int().min(0).optional(),
 });
 
 export type OrchestrateRequest = z.infer<typeof OrchestrateRequestSchema>;

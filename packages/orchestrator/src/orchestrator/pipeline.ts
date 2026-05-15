@@ -64,22 +64,33 @@ export interface OrchestrationResult {
   manifest_path: string;
   scenes: SceneOutput[];
   audio_urls: (string | null)[];
-  manifest: PlaybackManifest;
+  manifest: PlaybackManifest | null;
 }
 
 // concatenateDialogueStems extracted to shared/concat-stems.ts
 import { concatenateDialogueStems } from './shared/concat-stems.js';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Validate project_id is a UUID and return a path-safe copy. Throws on invalid input. */
+function safeId(id: string, label: string): string {
+  if (!UUID_RE.test(id)) throw new Error(`Invalid ${label} format: ${id}`);
+  // path.basename is a taint-clear step that strips any residual separators
+  return path.basename(id);
+}
+
 /**
  * Main orchestration pipeline
  */
-export async function orchestrate(directorJSON: unknown): Promise<OrchestrationResult> {
+export async function orchestrate(directorJSON: unknown, options: { chunkIndex?: number } = {}): Promise<OrchestrationResult> {
   log.info('Validating Director JSON');
   const parsed = DirectorJSONSchema.safeParse(directorJSON);
   if (!parsed.success) {
     throw new Error('Invalid Director JSON: ' + JSON.stringify(parsed.error.issues));
   }
   const director = parsed.data;
+  const safeProjectId = safeId(director.project_id, 'project_id');
+
   log.generation(director.project_id, 'validation-complete', {
     sceneCount: director.scenes.length,
   });
@@ -87,7 +98,9 @@ export async function orchestrate(directorJSON: unknown): Promise<OrchestrationR
   log.info('Loading audio catalog');
   const catalog: AudioCatalog = loadCatalog();
 
-  const projectDir = path.join(getOutputDir(), director.project_id);
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+  const projectDir = path.join(getOutputDir(), safeProjectId);
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
   const scenesDir = path.join(projectDir, 'scenes');
   fs.mkdirSync(projectDir, { recursive: true });
   fs.mkdirSync(scenesDir, { recursive: true });
@@ -96,6 +109,9 @@ export async function orchestrate(directorJSON: unknown): Promise<OrchestrationR
 
   for (let i = 0; i < director.scenes.length; i++) {
     const scene = director.scenes[i];
+    // Strip any path separators from scene_id before using in filenames
+    const safeSceneId = path.basename(scene.scene_id);
+
     log.generation(director.project_id, 'scene-start', {
       sceneIndex: i + 1,
       totalScenes: director.scenes.length,
@@ -135,10 +151,12 @@ export async function orchestrate(directorJSON: unknown): Promise<OrchestrationR
     });
 
     log.generation(director.project_id, 'mix-start', { sceneId: scene.scene_id });
-    const sceneOutput = path.join(projectDir, `scene-${scene.scene_id}.m4a`);
+    // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+    const sceneOutput = path.join(projectDir, `scene-${safeSceneId}.m4a`);
 
     // Prepare dialogue by concatenating stems
-    const dialoguePath = path.join(scenesDir, `dialogue-${scene.scene_id}.m4a`);
+    // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+    const dialoguePath = path.join(scenesDir, `dialogue-${safeSceneId}.m4a`);
     await concatenateDialogueStems(stems, dialoguePath);
 
     const mixInputs = resolveCuesToMixInputs({
@@ -152,7 +170,8 @@ export async function orchestrate(directorJSON: unknown): Promise<OrchestrationR
     if (mixInputs.sfx) log.debug('Adding SFX layers', { sceneId: scene.scene_id, sfxCount: mixInputs.sfx.length });
 
     // Prepare temp files for mixer
-    const tempWav = path.join(scenesDir, `temp-${scene.scene_id}.wav`);
+    // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+    const tempWav = path.join(scenesDir, `temp-${safeSceneId}.wav`);
     const mixParams = getDefaultMixParams(scene.mix as Record<string, unknown>);
 
     // Call mixer with correct interface
@@ -188,15 +207,31 @@ export async function orchestrate(directorJSON: unknown): Promise<OrchestrationR
     sceneCount: sceneOutputs.length,
   });
 
+  // Sprint K: when chunkIndex is set, write episode-N.m4a to avoid overwriting between chunks
+  const episodeName = options.chunkIndex !== undefined ? `episode-${options.chunkIndex}.m4a` : 'episode.m4a';
   log.generation(director.project_id, 'concatenation-start');
-  const episodePath = path.join(projectDir, 'episode.m4a');
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+  const episodePath = path.join(projectDir, episodeName);
   await concatScenesWithCrossfade(sceneOutputs.map((s) => s.path), episodePath, {
     fadeDuration: 1.5,
     fadeType: 'tri',
   });
   log.generation(director.project_id, 'concatenation-complete', {
-    outputFile: path.basename(episodePath),
+    outputFile: episodeName,
   });
+
+  // For chunked generation: skip manifest (stitch step generates the final manifest)
+  if (options.chunkIndex !== undefined) {
+    return {
+      project_id: director.project_id,
+      output_dir: projectDir,
+      episode_path: episodePath,
+      manifest_path: '',
+      scenes: sceneOutputs,
+      audio_urls: [`/audio/${safeProjectId}/${episodeName}`],
+      manifest: null,
+    };
+  }
 
   log.generation(director.project_id, 'manifest-start');
   const manifest = await makePlaybackManifest(
@@ -204,6 +239,7 @@ export async function orchestrate(directorJSON: unknown): Promise<OrchestrationR
     sceneOutputs.map((s) => ({ scene_id: s.scene_id, path: s.path })),
     1.5
   );
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
   const manifestPath = path.join(projectDir, 'manifest.json');
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
   log.generation(director.project_id, 'manifest-complete');
@@ -241,6 +277,7 @@ export async function orchestrateParallel(
   directorJSON: unknown,
   onProgress?: PipelineProgressCallback,
   emotionOverrides: Record<string, string> = {},
+  options: { chunkIndex?: number } = {},
 ): Promise<OrchestrationResult> {
   // Step 0: Validate
   if (onProgress) {
@@ -253,6 +290,8 @@ export async function orchestrateParallel(
     throw new Error('Invalid Director JSON: ' + JSON.stringify(parsed.error.issues));
   }
   const director = parsed.data;
+  const safeProjectId = safeId(director.project_id, 'project_id');
+
   const totalLines = director.scenes.reduce((sum, s) => sum + s.dialogue.length, 0);
   log.generation(director.project_id, 'validation-complete', {
     sceneCount: director.scenes.length,
@@ -261,7 +300,9 @@ export async function orchestrateParallel(
   });
 
   // Setup output directories
-  const projectDir = path.join(getOutputDir(), director.project_id);
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+  const projectDir = path.join(getOutputDir(), safeProjectId);
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
   const scenesDir = path.join(projectDir, 'scenes');
   fs.mkdirSync(projectDir, { recursive: true });
   fs.mkdirSync(scenesDir, { recursive: true });
@@ -320,8 +361,34 @@ export async function orchestrateParallel(
     onProgress({ step: 'stitching', percent: 85, message: 'Creating final episode...' });
   }
 
-  const episodePath = path.join(projectDir, 'episode.m4a');
+  // Sprint K: when chunkIndex is set, write episode-N.m4a to avoid overwriting between chunks
+  const episodeName = options.chunkIndex !== undefined ? `episode-${options.chunkIndex}.m4a` : 'episode.m4a';
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+  const episodePath = path.join(projectDir, episodeName);
   await finalConcatenation(stitchResult.scenes, episodePath, 1.5);
+
+  // For chunked generation: skip manifest (stitch step generates the final manifest)
+  if (options.chunkIndex !== undefined) {
+    const sceneOutputsChunk: SceneOutput[] = stitchResult.scenes.map((s) => ({
+      scene_id: s.scene_id,
+      path: s.path,
+      timeline: s.timeline,
+      alignment: s.alignment,
+      cues: s.cues,
+    }));
+    if (onProgress) {
+      onProgress({ step: 'complete', percent: 100, message: 'Orchestration complete!' });
+    }
+    return {
+      project_id: director.project_id,
+      output_dir: projectDir,
+      episode_path: episodePath,
+      manifest_path: '',
+      scenes: sceneOutputsChunk,
+      audio_urls: [`/audio/${safeProjectId}/${episodeName}`],
+      manifest: null,
+    };
+  }
 
   // Step 4: Generate Manifest
   log.generation(director.project_id, 'manifest-start');
@@ -335,6 +402,7 @@ export async function orchestrateParallel(
     stitchResult.scenes.map((s) => ({ scene_id: s.scene_id, path: s.path })),
     1.5
   );
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
   const manifestPath = path.join(projectDir, 'manifest.json');
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 

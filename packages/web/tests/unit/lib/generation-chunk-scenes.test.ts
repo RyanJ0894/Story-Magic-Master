@@ -29,12 +29,13 @@ describe('chunkScenes', () => {
   });
 
   it('assigns correct startScene/endScene for multi-chunk scripts', () => {
-    const scenes = Array.from({ length: 30 }, (_, i) => ({ scene_id: `s${i}` }));
+    const sceneCount = SCENES_PER_CHUNK + 5; // exactly 2 chunks regardless of SCENES_PER_CHUNK value
+    const scenes = Array.from({ length: sceneCount }, (_, i) => ({ scene_id: `s${i}` }));
     const chunks = chunkScenes(scenes);
     expect(chunks[0].startScene).toBe(0);
     expect(chunks[0].endScene).toBe(SCENES_PER_CHUNK - 1);
     expect(chunks[1].startScene).toBe(SCENES_PER_CHUNK);
-    expect(chunks[1].endScene).toBe(29);
+    expect(chunks[1].endScene).toBe(sceneCount - 1);
   });
 
   it('preserves all scenes across all chunks', () => {

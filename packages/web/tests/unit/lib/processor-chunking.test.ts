@@ -75,6 +75,9 @@ function setupMocks(sceneCount: number) {
       const url = `https://storage.example.com/audio/chunk-${chunkIndex++}.m4a`;
       return makeOrchestratorSuccess(url);
     }
+    if (path === '/stitch-segments') {
+      return { ok: true, json: async () => ({ status: 'success', audio_url: 'https://storage.example.com/audio/episode.m4a' }) };
+    }
     return { ok: true, json: async () => ({ director_json: { scenes } }) };
   });
 
@@ -136,11 +139,11 @@ describe('processGenerationJob — chunked generation (Sprint K)', () => {
     await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 25);
 
     // Find the job.update call that sets firstAudioUrl
-    const jobUpdates = mockPrisma.job.update.mock.calls as Array<[unknown, { data: Record<string, unknown> }]>;
-    const firstAudioUpdate = jobUpdates.find(([, args]) => args.data.firstAudioUrl != null);
+    const jobUpdates = mockPrisma.job.update.mock.calls as Array<[{ data: Record<string, unknown> }]>;
+    const firstAudioUpdate = jobUpdates.find(([args]) => args?.data?.firstAudioUrl != null);
     expect(firstAudioUpdate).toBeDefined();
-    expect(typeof firstAudioUpdate![1].data.firstAudioUrl).toBe('string');
-    expect((firstAudioUpdate![1].data.firstAudioUrl as string)).toContain('.m4a');
+    expect(typeof firstAudioUpdate![0].data.firstAudioUrl).toBe('string');
+    expect((firstAudioUpdate![0].data.firstAudioUrl as string)).toContain('.m4a');
   });
 
   it('writes segment status updates to the job for each chunk', async () => {
@@ -149,8 +152,8 @@ describe('processGenerationJob — chunked generation (Sprint K)', () => {
 
     await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 25);
 
-    const jobUpdates = mockPrisma.job.update.mock.calls as Array<[unknown, { data: Record<string, unknown> }]>;
-    const segmentUpdates = jobUpdates.filter(([, args]) => args.data.segments != null);
+    const jobUpdates = mockPrisma.job.update.mock.calls as Array<[{ data: Record<string, unknown> }]>;
+    const segmentUpdates = jobUpdates.filter(([args]) => args?.data?.segments != null);
     // At least 2 updates (one per chunk)
     expect(segmentUpdates.length).toBeGreaterThanOrEqual(2);
   });
@@ -209,8 +212,8 @@ describe('processGenerationJob — chunked generation (Sprint K)', () => {
     // All segments fail → job should fail with clear error
     await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 25);
 
-    const jobFailUpdate = (mockPrisma.job.update.mock.calls as Array<[unknown, { data: Record<string, unknown> }]>)
-      .find(([, args]) => args.data.status === 'failed');
+    const jobFailUpdate = (mockPrisma.job.update.mock.calls as Array<[{ data: Record<string, unknown> }]>)
+      .find(([args]) => args?.data?.status === 'failed');
     expect(jobFailUpdate).toBeDefined();
   });
 });
