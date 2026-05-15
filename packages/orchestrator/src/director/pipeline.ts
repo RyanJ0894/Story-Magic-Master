@@ -38,6 +38,7 @@ export interface PipelineInput {
 
 // Re-export for convenience
 export type { PipelineResult, DirectorJSON, SceneAudioJSON };
+export { chunkScript, extractSceneInfo, countScenes } from './utils/script-chunker.js';
 
 /**
  * Load a previously saved VoiceMap for a project.

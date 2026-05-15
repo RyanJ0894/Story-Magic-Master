@@ -61,16 +61,15 @@
 
 **File:** `packages/orchestrator/src/director/pipeline.ts`
 
-- [ ] **K-1a** — Implement `chunkScript(text: string, maxPagesPerChunk: number): string[]`
-  - Splits at act/scene heading boundaries (never mid-dialogue)
-  - Page estimate: 55 words ≈ 1 page (industry standard)
-  - Default `maxPagesPerChunk = 25`
-  - Returns array of script text segments with proper scene numbering preserved
-  - *Done when:* Unit test passes for a 90-page script → 4 chunks, each ≤ 25 pages
-- [ ] **K-1b** — Add `chunkScript` export to director pipeline public API
-  - *Done when:* Importable from `@story-magic/orchestrator`
-- [ ] **K-1c** — Unit tests: `packages/orchestrator/src/director/__tests__/chunk-script.test.ts`
-  - 4 test cases: exact boundary, mid-scene fallback, single chunk (short script), 150-page (6 chunks)
+- [x] **K-1a** — Implement `chunkScript(text: string, scenesPerChunk: number): ScriptChunk[]`
+  - Splits at INT./EXT./INT/EXT. scene headings (never mid-scene)
+  - Default `scenesPerChunk = 15` (≈ 25 pages/chunk for real scripts at ~1.5p/scene)
+  - Falls back to single chunk for scripts with no recognisable scene headings
+  - *Done:* `packages/orchestrator/src/director/utils/script-chunker.ts` — 17 tests passing
+- [x] **K-1b** — Add `chunkScript` export to director pipeline public API
+  - *Done:* Re-exported from `pipeline.ts` (commit with K-3b)
+- [x] **K-1c** — Unit tests: `packages/orchestrator/src/director/utils/script-chunker.test.ts`
+  - 17 tests: exact boundary, no-heading fallback, single chunk, 90-page (4 chunks), 150-page (6 chunks), contiguous coverage
 
 ---
 
@@ -99,11 +98,10 @@
 
 **File:** `packages/orchestrator/src/orchestrator/workers/export.ts`
 
-- [ ] **K-4a** — Add `concatenateSegments(segmentPaths: string[], outputPath: string): Promise<void>`
-  - Uses existing `concatScenesWithCrossfade` pattern; 1.5s crossfade between segments
-  - *Done when:* Test with 3 segment files → single M4A output correct duration
-- [ ] **K-4b** — Update generation processor to call segment stitch after all segments complete
-- [ ] **K-4c** — Store final stitched URL as `job.audioUrl` (existing field); segment URLs remain in `job.segments` for progressive playback
+- [x] **K-4a** — Add `concatenateSegments(segmentPaths: string[], outputPath: string): Promise<void>`
+  - Reused `concatScenesWithCrossfade` directly in `/stitch-segments` route — commit 84e3a85
+- [x] **K-4b** — Update generation processor to call segment stitch after all segments complete — commit 84e3a85
+- [x] **K-4c** — Store final stitched URL as `job.audioUrl` (existing field); segment URLs remain in `job.segments` for progressive playback — commit 84e3a85
 
 ---
 

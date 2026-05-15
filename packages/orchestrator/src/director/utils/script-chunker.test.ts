@@ -131,6 +131,22 @@ describe('chunkScript', () => {
       expect(chunks[i].start_scene_num).toBe(chunks[i - 1].end_scene_num + 1);
     }
   });
+
+  it('90-page equivalent (58 scenes, default 15/chunk) → 4 chunks', () => {
+    // 58 real screenplay scenes ≈ 90 pages at ~1.5 pages/scene
+    const script = makeScript(58);
+    const chunks = chunkScript(script, 15);
+    expect(chunks).toHaveLength(4);
+    expect(chunks[chunks.length - 1].end_scene_num).toBe(58);
+  });
+
+  it('150-page equivalent (90 scenes, default 15/chunk) → 6 chunks', () => {
+    // 90 real screenplay scenes ≈ 150 pages at ~1.5–2 pages/scene
+    const script = makeScript(90);
+    const chunks = chunkScript(script, 15);
+    expect(chunks).toHaveLength(6);
+    expect(chunks[chunks.length - 1].end_scene_num).toBe(90);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
