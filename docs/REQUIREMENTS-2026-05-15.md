@@ -268,7 +268,7 @@
 | INFRA-12.11 | CORS / CORP headers | P1 | `Cross-Origin-Resource-Policy: cross-origin` on audio routes | COMPLETE | |
 | INFRA-12.12 | Checkly heartbeat monitors | P1 | Uptime checks on health endpoint | COMPLETE | |
 | INFRA-12.13 | Connection pooling | P1 | 8 connections/service (16 total) vs 20-connection PG limit | COMPLETE | |
-| INFRA-12.14 | TOTP enforcement (admin org) | P1 | Clerk account settings → Security → Add authenticator | BLOCKED | Ryan personal TOTP enrollment pending |
+| INFRA-12.14 | TOTP enforcement (admin org) | P1 | Clerk account settings → Security → Add authenticator | COMPLETE | Enrolled on dbbuilderio@gmail.com Clerk account (2026-05-15) |
 | INFRA-12.15 | SOC 2 prep (audit logging) | P2 | `AuditLog` model; 7-year retention design | COMPLETE | Sprint 6-7 |
 | INFRA-12.16 | Email testing mode | P1 | `EMAIL_TESTING_MODE=false` for real send | COMPLETE | Default true in dev |
 | INFRA-12.17 | HMAC webhook signing | P1 | SHA-256 HMAC signed payloads on all outbound webhooks | COMPLETE | PR #53 — Sprint F |
