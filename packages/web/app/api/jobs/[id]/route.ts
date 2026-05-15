@@ -41,5 +41,13 @@ export const GET = withAuth(async (_request, { userId, prisma, params }) => {
     created_at: job.createdAt,
     project_id: job.projectId,
     project_status: job.project.status,
+    // Sprint K: segment-level progress for chunked generation
+    segments: job.segments ?? null,
+    // Sprint L: first completed segment URL — player can start before full job completes
+    firstAudioUrl: job.firstAudioUrl ?? null,
+    // Derive top-level audio_url from the completed job result (backwards compat)
+    audio_url: job.status === 'completed'
+      ? ((job.result as Record<string, unknown>)?.audio_urls as string[] | undefined)?.[0] ?? null
+      : null,
   });
 }, { rateLimit: 'loose' });

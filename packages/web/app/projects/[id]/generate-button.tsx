@@ -25,6 +25,10 @@ interface JobStatus {
   error?: string;
   started_at?: string;
   completed_at?: string;
+  // Sprint K/L — progressive playback
+  firstAudioUrl?: string | null;
+  segments?: Array<{ index: number; status: string; audioUrl: string | null }> | null;
+  audio_url?: string | null;
 }
 
 interface QueuePosition {
@@ -41,6 +45,8 @@ interface GenerateButtonProps {
   workflowMode?: 'automatic' | 'fine_tuned';
   hasScript?: boolean;
   onJobStarted?: () => void;
+  /** Called as soon as the first audio segment is ready — before full job completion */
+  onFirstAudioReady?: (audioUrl: string) => void;
 }
 
 const ESTIMATED_DURATION_MS = 120000; // 2 minutes estimated
@@ -53,11 +59,13 @@ export default function GenerateButton({
   workflowMode = 'fine_tuned',
   hasScript = true,
   onJobStarted,
+  onFirstAudioReady,
 }: GenerateButtonProps) {
   const { userId, isSignedIn } = useAuth();
   const [loading, setLoading] = useState(false);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
+  const firstAudioFiredRef = useRef(false);
   const [queuePosition, setQueuePosition] = useState<QueuePosition | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [timerProgress, setTimerProgress] = useState(0);
@@ -111,6 +119,13 @@ export default function GenerateButton({
       const data: JobStatus = await response.json();
       setJobStatus(data);
 
+      // Sprint L Fast Start: fire onFirstAudioReady as soon as the first segment URL appears,
+      // before the full job completes.
+      if (!firstAudioFiredRef.current && data.firstAudioUrl && onFirstAudioReady) {
+        firstAudioFiredRef.current = true;
+        onFirstAudioReady(data.firstAudioUrl);
+      }
+
       // Check if job is complete or failed
       if (data.status === 'completed') {
         if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
@@ -144,6 +159,7 @@ export default function GenerateButton({
   // Start timer and polling
   const startTracking = useCallback((jobId: string) => {
     startTimeRef.current = Date.now();
+    firstAudioFiredRef.current = false;
     setElapsedTime(0);
     setTimerProgress(0);
     setCurrentJobId(jobId);
@@ -241,6 +257,7 @@ export default function GenerateButton({
       parsing: 'Parsing Script',
       parsing_complete: 'Script Parsed',
       generating_audio: 'Generating Audio',
+      first_audio_ready: 'Audio Started',
       mixing: 'Mixing Tracks',
       uploading: 'Uploading',
       finalizing: 'Finalizing',

@@ -161,6 +161,8 @@ model Job {
   actualDurationMs    Int?      @map("actual_duration_ms")
   runNumber           Int?      @map("run_number")
   workflowMode        String    @default("automatic") @map("workflow_mode")
+  segments            Json?
+  firstAudioUrl       String?   @map("first_audio_url")
 
   // Relations
   project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)

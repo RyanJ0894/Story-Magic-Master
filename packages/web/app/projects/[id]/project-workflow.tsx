@@ -300,6 +300,9 @@ export function ProjectWorkflow({
   // Comparison state
   const [comparisonRuns, setComparisonRuns] = useState<{ runA: number; runB: number } | null>(null);
 
+  // Sprint L Fast Start: URL of the first available audio segment (before full job completion)
+  const [progressiveAudioUrl, setProgressiveAudioUrl] = useState<string | null>(null);
+
   // Save skipped steps to localStorage
   useEffect(() => {
     localStorage.setItem(`project-${project.id}-skipped-steps`, JSON.stringify(Array.from(skippedSteps)));
@@ -587,6 +590,18 @@ export function ProjectWorkflow({
               </>
             ) : isProcessing ? (
               <div className="space-y-4">
+                {/* Fast Start: show audio player as soon as first segment is ready */}
+                {progressiveAudioUrl && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                      Audio started — more generating in background…
+                    </p>
+                    <AudioPlayer
+                      outputs={[{ id: 'progressive', fileName: 'preview.m4a', filePath: '' }]}
+                      directUrl={progressiveAudioUrl}
+                    />
+                  </div>
+                )}
                 <div className="flex items-center gap-3">
                   <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
                   <span>Generating audio... This may take a few minutes.</span>
@@ -644,7 +659,8 @@ export function ProjectWorkflow({
                   hasScript={!!project.scriptText}
                   label="Retry"
                   workflowMode="automatic"
-                  onJobStarted={() => { setRetryStarted(true); setErrorExpanded(false); }}
+                  onJobStarted={() => { setRetryStarted(true); setErrorExpanded(false); setProgressiveAudioUrl(null); }}
+                  onFirstAudioReady={setProgressiveAudioUrl}
                 />
               </div>
             ) : (
@@ -662,6 +678,7 @@ export function ProjectWorkflow({
                     hasScript={!!project.scriptText}
                     label="Generate Now"
                     workflowMode="automatic"
+                    onFirstAudioReady={setProgressiveAudioUrl}
                   />
                 </div>
                 {/* Quick Preview — only shown when scenes are already parsed */}

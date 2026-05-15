@@ -10,6 +10,7 @@ import { log } from '@/lib/logger';
 import { orchestratorGenerate } from '@/lib/orchestrator-fetch';
 import { dispatchWebhooks } from '@/lib/webhooks/deliver';
 import { triggerHumanReviewIfPurchased } from '@/lib/human-review/trigger';
+import { chunkScenes, segmentProgressLabel } from '@/lib/generation/chunk-script';
 
 // =============================================================================
 // Logging Helpers
@@ -246,72 +247,154 @@ export async function processGenerationJob(
       await updateJobProgress('audio_overrides', 27, `Applied ${audioOverrides.length} audio override(s)`);
     }
 
-    // Step 3: Call Orchestrator to generate audio
-    const totalScenes = directorJson.scenes?.length || 0;
-    await updateJobProgress('generating_audio', 30, `Generating TTS audio for ${totalScenes} scenes...`);
+    // Step 3: Split scenes into chunks and process each segment independently.
+    // This prevents timeout on long scripts — each chunk is ~14 scenes (~90–120s of TTS).
+    const allScenes: unknown[] = directorJson.scenes || [];
+    const chunks = chunkScenes(allScenes);
+    const isChunked = chunks.length > 1;
 
-    const orchestratorStart = Date.now();
-    log.info('[PIPELINE] orchestrator start', { jobId: jobId.slice(0, 8), totalScenes, elapsedSec: elapsed() });
-
-    const orchestratorResponse = await orchestratorGenerate('/orchestrate', {
-      project_id: projectId,
-      scenes: directorJson.scenes || [],
+    log.info('[PIPELINE] orchestrator start', {
+      jobId: jobId.slice(0, 8),
+      totalScenes: allScenes.length,
+      segments: chunks.length,
+      elapsedSec: elapsed(),
     });
 
-    const orchestratorSec = Math.round((Date.now() - orchestratorStart) / 1000);
+    // Segment status tracker written to jobs.segments after each chunk
+    type SegmentStatus = {
+      index: number;
+      status: 'pending' | 'processing' | 'ready' | 'failed';
+      audioUrl: string | null;
+    };
 
-    if (!orchestratorResponse.ok) {
-      const errorBody = await orchestratorResponse.text();
-      log.error('[PIPELINE] orchestrator failed', undefined, { jobId: jobId.slice(0, 8), orchestratorSec, errorBody: errorBody.slice(0, 500) });
-      await logJobEvent(jobId, projectId, 'error', 'generating_audio', `Orchestrator failed after ${orchestratorSec}s`, { orchestratorSec }, errorBody.slice(0, 500));
-      throw new Error(`Orchestrator failed: ${errorBody}`);
-    }
+    const segmentStatuses: SegmentStatus[] = chunks.map((c) => ({
+      index: c.index,
+      status: 'pending',
+      audioUrl: null,
+    }));
 
-    const orchestratorResult = await orchestratorResponse.json();
-    log.info('[PIPELINE] orchestrator complete', { jobId: jobId.slice(0, 8), orchestratorSec, elapsedSec: elapsed() });
-    await updateJobProgress('mixing', 75, 'Mixing audio tracks...', { orchestratorSec });
-
-    // Step 4: Store audio output records
-    await updateJobProgress('uploading', 85, 'Uploading final audio...');
-
-    const audioUrls = orchestratorResult.audio_urls || [];
-    const manifest = orchestratorResult.playback_manifest;
-
+    const allAudioUrls: string[] = [];
+    let lastManifest: Record<string, unknown> | null = null;
     let audioOutputsCreated = 0;
-    for (const audioUrl of audioUrls) {
-      if (!audioUrl) continue;
-      const fileName = audioUrl.split('/').pop() || 'output.mp3';
-      // Extract relative path from known URL patterns:
-      //   Supabase: .../storage/v1/object/public/{path}
-      //   Orchestrator local: /audio/{projectId}/{filename}  → strip leading /audio/
-      const supabaseMatch = audioUrl.match(/\/storage\/v1\/object\/public\/(.+)$/);
-      const localMatch = audioUrl.match(/^\/audio\/(.+)$/);
-      const filePath = supabaseMatch
-        ? supabaseMatch[1]
-        : localMatch
-          ? localMatch[1]
-          : `${projectId}/${fileName}`;
-      await prisma.audioOutput.create({
-        data: {
-          projectId,
-          jobId,
-          fileName,
-          filePath,
-          durationSeconds: manifest?.total_duration ?? null,
-          format: fileName.endsWith('.m4a') ? 'm4a' : 'mp3',
-        },
+    let orchestratorResult: Record<string, unknown> = {};
+
+    const baseProgressPercent = 30; // percent at start of audio generation
+    const progressRangePercent = 55; // 30–85% is the audio generation window
+
+    for (const chunk of chunks) {
+      const label = segmentProgressLabel(chunk, chunks.length);
+      const chunkProgressPercent = baseProgressPercent +
+        Math.round((chunk.index / chunks.length) * progressRangePercent);
+
+      // Update segment status to processing
+      segmentStatuses[chunk.index].status = 'processing';
+      await updateJobProgress('generating_audio', chunkProgressPercent, label);
+      await prisma.job.update({
+        where: { id: jobId },
+        data: { segments: JSON.parse(JSON.stringify(segmentStatuses)) },
       });
-      audioOutputsCreated++;
+
+      const chunkStart = Date.now();
+      const orchestratorResponse = await orchestratorGenerate('/orchestrate', {
+        project_id: projectId,
+        scenes: chunk.scenes,
+      });
+      const chunkSec = Math.round((Date.now() - chunkStart) / 1000);
+
+      if (!orchestratorResponse.ok) {
+        const errorBody = await orchestratorResponse.text();
+        const msg = `Orchestrator failed on segment ${chunk.index + 1}/${chunks.length} after ${chunkSec}s`;
+        log.error('[PIPELINE] orchestrator chunk failed', undefined, {
+          jobId: jobId.slice(0, 8), chunkIndex: chunk.index, chunkSec, errorBody: errorBody.slice(0, 500),
+        });
+        await logJobEvent(jobId, projectId, 'error', 'generating_audio', msg, { chunkIndex: chunk.index, chunkSec }, errorBody.slice(0, 500));
+
+        // Mark this segment failed; continue with remaining segments (partial audio)
+        segmentStatuses[chunk.index].status = 'failed';
+        await prisma.job.update({
+          where: { id: jobId },
+          data: { segments: JSON.parse(JSON.stringify(segmentStatuses)) },
+        });
+        continue;
+      }
+
+      orchestratorResult = await orchestratorResponse.json() as Record<string, unknown>;
+      const chunkAudioUrls: string[] = (orchestratorResult.audio_urls as string[] | undefined) || [];
+      const manifest = orchestratorResult.playback_manifest as Record<string, unknown> | undefined;
+      lastManifest = manifest ?? lastManifest;
+
+      log.info('[PIPELINE] orchestrator chunk complete', {
+        jobId: jobId.slice(0, 8),
+        chunkIndex: chunk.index,
+        chunkSec,
+        audioUrls: chunkAudioUrls.length,
+        elapsedSec: elapsed(),
+      });
+
+      // Persist audio output records for this chunk
+      for (const audioUrl of chunkAudioUrls) {
+        if (!audioUrl) continue;
+        const fileName = audioUrl.split('/').pop() || 'output.mp3';
+        const supabaseMatch = audioUrl.match(/\/storage\/v1\/object\/public\/(.+)$/);
+        const localMatch = audioUrl.match(/^\/audio\/(.+)$/);
+        const filePath = supabaseMatch
+          ? supabaseMatch[1]
+          : localMatch
+            ? localMatch[1]
+            : `${projectId}/${fileName}`;
+        await prisma.audioOutput.create({
+          data: {
+            projectId,
+            jobId,
+            fileName,
+            filePath,
+            durationSeconds: manifest?.total_duration as number ?? null,
+            format: fileName.endsWith('.m4a') ? 'm4a' : 'mp3',
+          },
+        });
+        allAudioUrls.push(audioUrl);
+        audioOutputsCreated++;
+      }
+
+      // Mark segment ready; set firstAudioUrl on first successful chunk (Sprint L Fast Start)
+      const segmentAudioUrl = chunkAudioUrls[0] ?? null;
+      segmentStatuses[chunk.index].status = 'ready';
+      segmentStatuses[chunk.index].audioUrl = segmentAudioUrl;
+
+      // Fire firstAudioUrl on the very first chunk to succeed (not necessarily index 0)
+      const isFirstSuccessfulChunk = segmentAudioUrl && allAudioUrls.length === chunkAudioUrls.filter(Boolean).length;
+      const updateData: Record<string, unknown> = {
+        segments: JSON.parse(JSON.stringify(segmentStatuses)),
+      };
+      if (isFirstSuccessfulChunk) {
+        updateData.firstAudioUrl = segmentAudioUrl;
+        updateData.progress = {
+          step: 'first_audio_ready',
+          percent: chunkProgressPercent + Math.round(progressRangePercent / chunks.length),
+          details: isChunked
+            ? 'Audio started — continuing generation in background…'
+            : 'Audio ready',
+          updated_at: new Date().toISOString(),
+        };
+      }
+      await prisma.job.update({ where: { id: jobId }, data: updateData });
     }
 
-    // Guard: if no audio was produced, treat as a pipeline failure — do not silently complete.
+    // Guard: at least one chunk must have produced audio
     if (audioOutputsCreated === 0) {
       throw new Error(
-        'Orchestrator returned no usable audio URLs. ' +
-        'The episode file may not have been written to disk. ' +
-        `audio_urls received: ${JSON.stringify(orchestratorResult.audio_urls ?? [])}`
+        'Orchestrator returned no usable audio URLs across all segments. ' +
+        `Segments attempted: ${chunks.length}. ` +
+        `Last result: ${JSON.stringify(orchestratorResult?.audio_urls ?? [])}`
       );
     }
+
+    const finalAudioUrl = allAudioUrls[0] ?? null;
+
+    await updateJobProgress('mixing', 85, 'Finalizing audio mix...');
+
+    // Build a merged manifest (use last chunk's manifest as base; extend with total URLs)
+    const mergedManifest = { ...(lastManifest ?? {}), audio_urls: allAudioUrls };
 
     // Step 5: Increment usage
     await updateJobProgress('finalizing', 95, 'Finalizing and updating usage...');
@@ -334,18 +417,19 @@ export async function processGenerationJob(
         status: 'completed',
         completedAt: completionTime,
         progress: { step: 'done', percent: 100, details: 'Generation complete!', updated_at: completionTime.toISOString() },
-        result: orchestratorResult,
+        result: mergedManifest,
+        // Persist final audio URL for direct access on completed jobs
+        firstAudioUrl: finalAudioUrl,
+        segments: JSON.parse(JSON.stringify(segmentStatuses)),
       },
     });
 
-    log.info('[PIPELINE] complete', { jobId: jobId.slice(0, 8), totalSec: elapsed(), pageCount });
+    log.info('[PIPELINE] complete', { jobId: jobId.slice(0, 8), totalSec: elapsed(), pageCount, segments: chunks.length });
     logProgress(jobId, 'done', `Generation completed in ${elapsed()}s`);
 
     // Fire webhooks non-blocking — never let delivery failure affect the job result
     dispatchWebhooks('job.completed', userId, jobId, projectId, {
-      audioUrl: orchestratorResult && typeof orchestratorResult === 'object' && 'audioUrl' in orchestratorResult
-        ? (orchestratorResult as Record<string, unknown>).audioUrl
-        : null,
+      audioUrl: finalAudioUrl,
     }).catch(() => {});
 
     // Human-in-loop: if the user purchased white-glove review, queue it now

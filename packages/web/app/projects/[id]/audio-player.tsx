@@ -15,9 +15,11 @@ interface AudioOutput {
 
 interface AudioPlayerProps {
   outputs: AudioOutput[];
+  /** When set, overrides the constructed URL for the current track with this direct URL (used for progressive playback). */
+  directUrl?: string;
 }
 
-export default function AudioPlayer({ outputs }: AudioPlayerProps) {
+export default function AudioPlayer({ outputs, directUrl }: AudioPlayerProps) {
   const [currentTrack, setCurrentTrack] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -171,9 +173,9 @@ export default function AudioPlayer({ outputs }: AudioPlayerProps) {
     );
   }
 
-  // Construct the download URL
+  // Construct the playback URL — directUrl (progressive playback) takes precedence over constructed path
   const orchestratorUrl = process.env.NEXT_PUBLIC_ORCHESTRATOR_URL || process.env.ORCHESTRATOR_URL || '';
-  const audioUrl = `${orchestratorUrl}/audio/${currentOutput.filePath}`;
+  const audioUrl = directUrl || `${orchestratorUrl}/audio/${currentOutput.filePath}`;
 
   return (
     <div className="space-y-4">

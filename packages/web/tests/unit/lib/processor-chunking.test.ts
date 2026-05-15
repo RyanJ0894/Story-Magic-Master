@@ -1,0 +1,216 @@
+/**
+ * Tests for chunked generation in processGenerationJob (Sprint K)
+ *
+ * Verifies that long scripts (many scenes) are split into segments and each
+ * segment is sent as a separate /orchestrate call. Verifies segment status
+ * updates and firstAudioUrl progressive-playback behaviour.
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { SCENES_PER_CHUNK } from '@/lib/generation/chunk-script';
+
+const { mockPrisma, mockOrchestratorGenerate } = vi.hoisted(() => {
+  const mockPrisma = {
+    project: { findUnique: vi.fn(), update: vi.fn() },
+    job: { update: vi.fn(), findUnique: vi.fn() },
+    jobLog: { create: vi.fn() },
+    audioOutput: { create: vi.fn() },
+    profile: { findUnique: vi.fn() },
+    $executeRaw: vi.fn(),
+  };
+  const mockOrchestratorGenerate = vi.fn();
+  return { mockPrisma, mockOrchestratorGenerate };
+});
+
+vi.mock('@/lib/db', () => ({ prisma: mockPrisma }));
+vi.mock('@/lib/orchestrator-fetch', () => ({
+  orchestratorGenerate: (...args: unknown[]) => mockOrchestratorGenerate(...args),
+}));
+vi.mock('@/lib/logger', () => ({
+  log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+vi.mock('@/lib/webhooks/deliver', () => ({ dispatchWebhooks: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('@/lib/human-review/trigger', () => ({ triggerHumanReviewIfPurchased: vi.fn().mockResolvedValue(undefined) }));
+
+import { processGenerationJob } from '@/lib/generation/processor';
+
+const PROJECT_ID = 'proj-chunk-test';
+const JOB_ID = 'job-chunk-test';
+const USER_ID = 'user-chunk-test';
+const SCRIPT = 'INT. OFFICE - DAY\nJOHN\nHello.';
+
+function makeScenes(count: number) {
+  return Array.from({ length: count }, (_, i) => ({
+    scene_id: `scene-${i}`,
+    dialogue: [{ character: 'JOHN', line: `Line ${i}` }],
+  }));
+}
+
+function makeOrchestratorSuccess(audioUrl: string) {
+  return {
+    ok: true,
+    json: async () => ({
+      audio_urls: [audioUrl],
+      playback_manifest: { total_duration: 120 },
+    }),
+  };
+}
+
+function setupMocks(sceneCount: number) {
+  const scenes = makeScenes(sceneCount);
+
+  mockPrisma.job.update.mockResolvedValue({});
+  mockPrisma.job.findUnique.mockResolvedValue({ status: 'processing' });
+  mockPrisma.project.findUnique
+    .mockResolvedValueOnce({ directorJson: { scenes }, directorNotes: null })
+    .mockResolvedValueOnce({ audioOverrides: [] });
+  mockPrisma.project.update.mockResolvedValue({});
+  mockPrisma.jobLog.create.mockResolvedValue({});
+  mockPrisma.audioOutput.create.mockResolvedValue({});
+  mockPrisma.$executeRaw.mockResolvedValue(undefined);
+
+  let chunkIndex = 0;
+  mockOrchestratorGenerate.mockImplementation(async (path: string) => {
+    if (path === '/orchestrate') {
+      const url = `https://storage.example.com/audio/chunk-${chunkIndex++}.m4a`;
+      return makeOrchestratorSuccess(url);
+    }
+    return { ok: true, json: async () => ({ director_json: { scenes } }) };
+  });
+
+  return scenes;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe('processGenerationJob — chunked generation (Sprint K)', () => {
+  it('sends one /orchestrate call for a short script (single chunk)', async () => {
+    setupMocks(5); // well under SCENES_PER_CHUNK
+
+    await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 3);
+
+    const orchestrateCalls = mockOrchestratorGenerate.mock.calls.filter(
+      ([path]: [string]) => path === '/orchestrate',
+    );
+    expect(orchestrateCalls).toHaveLength(1);
+  });
+
+  it('sends multiple /orchestrate calls for a long script', async () => {
+    const sceneCount = SCENES_PER_CHUNK * 2 + 3; // 3 chunks
+    setupMocks(sceneCount);
+
+    await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 40);
+
+    const orchestrateCalls = mockOrchestratorGenerate.mock.calls.filter(
+      ([path]: [string]) => path === '/orchestrate',
+    );
+    expect(orchestrateCalls).toHaveLength(3);
+  });
+
+  it('each orchestrate call receives only that chunk\'s scenes', async () => {
+    const sceneCount = SCENES_PER_CHUNK + 5; // 2 chunks
+    const scenes = setupMocks(sceneCount);
+
+    await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 25);
+
+    const orchestrateCalls = mockOrchestratorGenerate.mock.calls.filter(
+      ([path]: [string]) => path === '/orchestrate',
+    );
+
+    // First chunk: scenes 0..SCENES_PER_CHUNK-1
+    const firstChunkScenes = (orchestrateCalls[0][1] as { scenes: typeof scenes }).scenes;
+    expect(firstChunkScenes).toHaveLength(SCENES_PER_CHUNK);
+    expect(firstChunkScenes[0]).toEqual(scenes[0]);
+
+    // Second chunk: scenes SCENES_PER_CHUNK..end
+    const secondChunkScenes = (orchestrateCalls[1][1] as { scenes: typeof scenes }).scenes;
+    expect(secondChunkScenes).toHaveLength(5);
+    expect(secondChunkScenes[0]).toEqual(scenes[SCENES_PER_CHUNK]);
+  });
+
+  it('sets firstAudioUrl on the job after the first chunk completes', async () => {
+    setupMocks(SCENES_PER_CHUNK + 3); // 2 chunks
+
+    await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 25);
+
+    // Find the job.update call that sets firstAudioUrl
+    const jobUpdates = mockPrisma.job.update.mock.calls as Array<[unknown, { data: Record<string, unknown> }]>;
+    const firstAudioUpdate = jobUpdates.find(([, args]) => args.data.firstAudioUrl != null);
+    expect(firstAudioUpdate).toBeDefined();
+    expect(typeof firstAudioUpdate![1].data.firstAudioUrl).toBe('string');
+    expect((firstAudioUpdate![1].data.firstAudioUrl as string)).toContain('.m4a');
+  });
+
+  it('writes segment status updates to the job for each chunk', async () => {
+    const sceneCount = SCENES_PER_CHUNK + 5;
+    setupMocks(sceneCount);
+
+    await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 25);
+
+    const jobUpdates = mockPrisma.job.update.mock.calls as Array<[unknown, { data: Record<string, unknown> }]>;
+    const segmentUpdates = jobUpdates.filter(([, args]) => args.data.segments != null);
+    // At least 2 updates (one per chunk)
+    expect(segmentUpdates.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('still completes successfully when one chunk fails (partial audio)', async () => {
+    const scenes = makeScenes(SCENES_PER_CHUNK + 3);
+
+    mockPrisma.job.update.mockResolvedValue({});
+    mockPrisma.job.findUnique.mockResolvedValue({ status: 'processing' });
+    mockPrisma.project.findUnique
+      .mockResolvedValueOnce({ directorJson: { scenes }, directorNotes: null })
+      .mockResolvedValueOnce({ audioOverrides: [] });
+    mockPrisma.project.update.mockResolvedValue({});
+    mockPrisma.jobLog.create.mockResolvedValue({});
+    mockPrisma.audioOutput.create.mockResolvedValue({});
+    mockPrisma.$executeRaw.mockResolvedValue(undefined);
+
+    let callCount = 0;
+    mockOrchestratorGenerate.mockImplementation(async (path: string) => {
+      if (path === '/orchestrate') {
+        callCount++;
+        // Second chunk fails
+        if (callCount === 2) {
+          return { ok: false, text: async () => 'TTS timeout' };
+        }
+        return makeOrchestratorSuccess(`https://storage.example.com/audio/chunk-${callCount}.m4a`);
+      }
+      return { ok: true, json: async () => ({ director_json: { scenes } }) };
+    });
+
+    // Should not throw — partial audio is acceptable
+    await expect(
+      processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 25)
+    ).resolves.not.toThrow();
+  });
+
+  it('throws when ALL chunks fail (no audio produced)', async () => {
+    const scenes = makeScenes(SCENES_PER_CHUNK + 3);
+
+    mockPrisma.job.update.mockResolvedValue({});
+    mockPrisma.job.findUnique.mockResolvedValue({ status: 'processing' });
+    mockPrisma.project.findUnique
+      .mockResolvedValueOnce({ directorJson: { scenes }, directorNotes: null })
+      .mockResolvedValueOnce({ audioOverrides: [] });
+    mockPrisma.project.update.mockResolvedValue({});
+    mockPrisma.jobLog.create.mockResolvedValue({});
+    mockPrisma.$executeRaw.mockResolvedValue(undefined);
+
+    mockOrchestratorGenerate.mockImplementation(async (path: string) => {
+      if (path === '/orchestrate') {
+        return { ok: false, text: async () => 'TTS timeout' };
+      }
+      return { ok: true, json: async () => ({ director_json: { scenes } }) };
+    });
+
+    // All segments fail → job should fail with clear error
+    await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 25);
+
+    const jobFailUpdate = (mockPrisma.job.update.mock.calls as Array<[unknown, { data: Record<string, unknown> }]>)
+      .find(([, args]) => args.data.status === 'failed');
+    expect(jobFailUpdate).toBeDefined();
+  });
+});
