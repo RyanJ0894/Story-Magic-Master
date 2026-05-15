@@ -1,8 +1,13 @@
 /**
- * GET  /api/projects/[id]/comments — list all shared comments
- * POST /api/projects/[id]/comments — add a comment
+ * GET  /api/projects/[id]/comments — list all comments + reactions
+ * POST /api/projects/[id]/comments — create a comment or upsert a reaction
  *
  * Access: project owner OR active TeamShare member OR ScriptShare recipient.
+ *
+ * POST body:
+ *   { text?: string, sceneIndex?: number, audioTimestampMs?: number }  — text note
+ *   { reactionType: 'like'|'dislike'|'undecided', sceneIndex: number } — reaction upsert
+ *   (one field required: text or reactionType)
  */
 
 import { NextResponse } from 'next/server';
@@ -15,15 +20,21 @@ import { notifyNewComment } from '@/lib/comments/notify';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-const CreateCommentSchema = z.object({
-  body: z.string().min(1).max(2000),
-  sceneIndex: z.number().int().nonnegative().optional(),
-  audioTimestampMs: z.number().int().nonnegative().optional(),
-});
+const REACTION_TYPES = ['like', 'dislike', 'undecided'] as const;
 
-// Returns the project if caller has access, null otherwise.
+const CreateCommentSchema = z
+  .object({
+    text: z.string().min(1).max(2000).optional(),
+    body: z.string().min(1).max(2000).optional(), // backward compat alias for text
+    sceneIndex: z.number().int().nonnegative().optional(),
+    audioTimestampMs: z.number().int().nonnegative().optional(),
+    reactionType: z.enum(REACTION_TYPES).optional(),
+  })
+  .refine((d) => d.text ?? d.body ?? d.reactionType, {
+    message: 'At least one of text or reactionType is required',
+  });
+
 async function getAccessibleProject(projectId: string, userId: string) {
-  // Owner check
   const project = await prisma.project.findFirst({
     where: { id: projectId },
     select: { id: true, userId: true, name: true },
@@ -31,19 +42,12 @@ async function getAccessibleProject(projectId: string, userId: string) {
   if (!project) return null;
   if (project.userId === userId) return project;
 
-  // TeamShare: caller is an accepted member of a team that has this project shared
   const teamShare = await prisma.teamShare.findFirst({
-    where: {
-      projectId,
-      team: {
-        members: { some: { userId, status: 'accepted' } },
-      },
-    },
+    where: { projectId, team: { members: { some: { userId, status: 'accepted' } } } },
     select: { id: true },
   });
   if (teamShare) return project;
 
-  // ScriptShare: caller has been shared this project individually
   const scriptShare = await prisma.scriptShare.findFirst({
     where: { projectId, sharedWith: userId },
     select: { id: true },
@@ -51,6 +55,39 @@ async function getAccessibleProject(projectId: string, userId: string) {
   if (scriptShare) return project;
 
   return null;
+}
+
+const COMMENT_SELECT = {
+  id: true,
+  body: true,
+  reactionType: true,
+  sceneIndex: true,
+  audioTimestampMs: true,
+  createdAt: true,
+  userId: true,
+  author: { select: { fullName: true, email: true } },
+} as const;
+
+function shapeComment(c: {
+  id: string;
+  body: string | null;
+  reactionType: string | null;
+  sceneIndex: number | null;
+  audioTimestampMs: number | null;
+  createdAt: Date;
+  userId: string;
+  author: { fullName: string | null; email: string | null };
+}) {
+  return {
+    id: c.id,
+    text: c.body,
+    reactionType: c.reactionType,
+    sceneIndex: c.sceneIndex,
+    audioTimestampMs: c.audioTimestampMs,
+    createdAt: c.createdAt,
+    userId: c.userId,
+    user: { name: c.author.fullName ?? c.author.email ?? 'Unknown' },
+  };
 }
 
 export async function GET(_request: Request, { params }: RouteParams) {
@@ -65,18 +102,10 @@ export async function GET(_request: Request, { params }: RouteParams) {
   const comments = await prisma.projectComment.findMany({
     where: { projectId },
     orderBy: { createdAt: 'asc' },
-    select: {
-      id: true,
-      body: true,
-      sceneIndex: true,
-      audioTimestampMs: true,
-      createdAt: true,
-      userId: true,
-      author: { select: { fullName: true, email: true } },
-    },
+    select: COMMENT_SELECT,
   });
 
-  return NextResponse.json({ comments });
+  return NextResponse.json({ comments: comments.map(shapeComment) });
 }
 
 export async function POST(request: Request, { params }: RouteParams) {
@@ -88,37 +117,39 @@ export async function POST(request: Request, { params }: RouteParams) {
   const project = await getAccessibleProject(projectId, userId);
   if (!project) return errorResponse('Project not found', 404);
 
-  let body: unknown;
-  try { body = await request.json(); } catch { return errorResponse('Invalid JSON', 400); }
+  let rawBody: unknown;
+  try { rawBody = await request.json(); } catch { return errorResponse('Invalid JSON', 400); }
 
-  const parsed = CreateCommentSchema.safeParse(body);
+  const parsed = CreateCommentSchema.safeParse(rawBody);
   if (!parsed.success) return errorResponse(parsed.error.errors[0]?.message ?? 'Invalid input', 400);
+
+  const { text, body: bodyAlias, sceneIndex, audioTimestampMs, reactionType } = parsed.data;
+  const noteText = text ?? bodyAlias ?? null;
+
+  // Reaction upsert: remove existing reaction for this user+scene, then insert
+  if (reactionType && sceneIndex != null) {
+    await prisma.projectComment.deleteMany({
+      where: { projectId, userId, sceneIndex, reactionType: { not: null } },
+    });
+  }
 
   const comment = await prisma.projectComment.create({
     data: {
       projectId,
       userId,
-      body: parsed.data.body,
-      sceneIndex: parsed.data.sceneIndex ?? null,
-      audioTimestampMs: parsed.data.audioTimestampMs ?? null,
+      body: noteText,
+      reactionType: reactionType ?? null,
+      sceneIndex: sceneIndex ?? null,
+      audioTimestampMs: audioTimestampMs ?? null,
     },
-    select: {
-      id: true,
-      body: true,
-      sceneIndex: true,
-      audioTimestampMs: true,
-      createdAt: true,
-      userId: true,
-      author: { select: { fullName: true, email: true } },
-    },
+    select: COMMENT_SELECT,
   });
 
-  // Fire-and-forget: notify project owner if commenter is not the owner
-  if (project.userId !== userId) {
-    notifyNewComment({ projectId, projectName: project.name, comment, ownerId: project.userId })
+  if (noteText && project.userId !== userId) {
+    notifyNewComment({ projectId, projectName: project.name, comment: { ...comment, body: noteText }, ownerId: project.userId })
       .catch(() => {});
   }
 
-  log.info('[Comments] created', { projectId, userId });
-  return NextResponse.json(comment, { status: 201 });
+  log.info('[Comments] created', { projectId, userId, hasReaction: !!reactionType });
+  return NextResponse.json({ comment: shapeComment(comment) }, { status: 201 });
 }

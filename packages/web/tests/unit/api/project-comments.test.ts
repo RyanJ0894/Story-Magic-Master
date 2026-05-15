@@ -83,7 +83,7 @@ describe('GET /api/projects/[id]/comments', () => {
     const json = await res.json();
     expect(res.status).toBe(200);
     expect(json.comments).toHaveLength(1);
-    expect(json.comments[0].body).toBe('Great scene!');
+    expect(json.comments[0].text).toBe('Great scene!');
   });
 
   it('returns comments for TeamShare member', async () => {
@@ -156,7 +156,7 @@ describe('POST /api/projects/[id]/comments', () => {
     );
     expect(res.status).toBe(201);
     const json = await res.json();
-    expect(json.body).toBe('Great scene!');
+    expect(json.comment.text).toBe('Great scene!');
   });
 
   it('returns 400 for empty body', async () => {

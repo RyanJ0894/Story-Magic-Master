@@ -202,6 +202,7 @@ export default async function ProjectPage(
 
         {/* Workflow */}
         <ProjectWorkflow
+          currentUserId={userId}
           project={{
             id: project.id,
             name: project.name,

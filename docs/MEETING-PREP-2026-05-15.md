@@ -10,7 +10,7 @@
 
 Today's session completed **Sprints K and L** in full — the full-script chunking architecture and the entire progressive playback frontend are shipped and deployed. The platform can now process 150-page scripts without timing out, and users hear their first audio within ~90 seconds of starting generation.
 
-**Where we stand:** v2.2.0 is live. The only remaining sprint before launch-readiness is **Sprint M** (Screenplay Player + Notes), targeted for 2026-06-02–12. There are also **4 Ryan action items** that are actively blocking DNS/invites right now.
+**Where we stand:** v2.2.0 is live. The only remaining sprint before launch-readiness is **Sprint M** (Screenplay Player + Notes), targeted for 2026-05-16. There are also **4 Ryan action items** that are actively blocking DNS/invites right now.
 
 **Target launch: mid-June 2026.**
 
@@ -82,7 +82,7 @@ Three categories: **Ryan must do**, **DNS/config**, and **Sprint M code work**.
 
 ---
 
-### Category A — Ryan Must Do (Blocking Today)
+### Category A — Must Do (Blocking Today)
 
 These 4 items are blocking the app from being usable at `app.storymagicapp.net`. Chris handles them as soon as Ryan provides the values.
 

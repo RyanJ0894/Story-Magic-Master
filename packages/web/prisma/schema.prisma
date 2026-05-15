@@ -738,7 +738,8 @@ model ProjectComment {
   userId           String   @map("user_id")
   sceneIndex       Int?     @map("scene_index")
   audioTimestampMs Int?     @map("audio_timestamp_ms")
-  body             String   @db.Text
+  body             String?  @db.Text
+  reactionType     String?  @map("reaction_type")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
 
@@ -750,6 +751,7 @@ model ProjectComment {
   @@index([projectId, sceneIndex])
   @@index([projectId, audioTimestampMs])
   @@index([userId])
+  @@index([projectId, sceneIndex, reactionType])
   @@map("project_comments")
 }
 

@@ -48,6 +48,8 @@ import { VoiceChooser } from './voice-chooser';
 import { AudioChooser } from './audio-chooser';
 import GenerateButton from './generate-button';
 import AudioPlayer from './audio-player';
+import { ScreenplayPlayer, type NoteComment } from '@/components/project/ScreenplayPlayer';
+import { NotesPanel } from '@/components/project/NotesPanel';
 import { PreviewButton } from './preview-button';
 import { WorkflowModeSelector } from './workflow-mode-selector';
 import { RunSelector, type Run } from './run-selector';
@@ -105,6 +107,7 @@ interface ProjectWorkflowProps {
     preferredWorkflowMode?: WorkflowMode;
     currentRunNumber: number;
   };
+  currentUserId: string;
   storyScore?: {
     id: string;
     overallScore?: number;
@@ -248,6 +251,7 @@ function CurrentActionCard({ step, children }: { step: WorkflowStep; children: R
 
 export function ProjectWorkflow({
   project,
+  currentUserId,
   storyScore,
   audioOutputs,
   latestJob,
@@ -299,6 +303,9 @@ export function ProjectWorkflow({
 
   // Comparison state
   const [comparisonRuns, setComparisonRuns] = useState<{ runA: number; runB: number } | null>(null);
+
+  // Sprint M: last comment added via ScreenplayPlayer — propagated to NotesPanel
+  const [lastAddedComment, setLastAddedComment] = useState<NoteComment | undefined>();
 
   // Sprint L Fast Start: URL of the first available audio segment (before full job completion)
   const [progressiveAudioUrl, setProgressiveAudioUrl] = useState<string | null>(null);
@@ -589,6 +596,23 @@ export function ProjectWorkflow({
                     workflowMode="automatic"
                   />
                 </div>
+                {project.scriptText && (
+                  <div className="grid grid-cols-[1fr_280px] border border-border rounded-lg overflow-hidden h-[560px]">
+                    <div className="overflow-y-auto p-4">
+                      <ScreenplayPlayer
+                        projectId={project.id}
+                        scriptText={project.scriptText}
+                        currentUserId={currentUserId}
+                        onCommentAdded={setLastAddedComment}
+                      />
+                    </div>
+                    <NotesPanel
+                      projectId={project.id}
+                      currentUserId={currentUserId}
+                      newComment={lastAddedComment}
+                    />
+                  </div>
+                )}
               </>
             ) : isProcessing ? (
               <div className="space-y-4">
@@ -1084,6 +1108,23 @@ export function ProjectWorkflow({
                           Compare Scripts
                         </Button>
                       </div>
+                      {project.scriptText && (
+                        <div className="grid grid-cols-[1fr_280px] border border-border rounded-lg overflow-hidden h-[560px]">
+                          <div className="overflow-y-auto p-4">
+                            <ScreenplayPlayer
+                              projectId={project.id}
+                              scriptText={project.scriptText}
+                              currentUserId={currentUserId}
+                              onCommentAdded={setLastAddedComment}
+                            />
+                          </div>
+                          <NotesPanel
+                            projectId={project.id}
+                            currentUserId={currentUserId}
+                            newComment={lastAddedComment}
+                          />
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="text-center py-6 text-muted-foreground">
