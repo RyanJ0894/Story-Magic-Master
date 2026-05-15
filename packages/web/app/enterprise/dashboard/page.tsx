@@ -103,6 +103,20 @@ export default async function EnterpriseDashboardPage() {
     };
   });
 
+  // Notes & Reactions across all team-shared projects
+  const teamProjectIds = team.teamShares.map((s) => s.project.id);
+  const teamComments = teamProjectIds.length > 0
+    ? await prisma.projectComment.findMany({
+        where: { projectId: { in: teamProjectIds } },
+        include: {
+          author: { select: { fullName: true, email: true } },
+          project: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+      })
+    : [];
+
   const profile = await prisma.profile.findUnique({
     where: { id: userId },
     select: { fullName: true, email: true, subscriptionTier: true },
@@ -214,6 +228,7 @@ export default async function EnterpriseDashboardPage() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="team">Team</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
+            <TabsTrigger value="notes">Notes & Reactions</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
 
@@ -348,6 +363,65 @@ export default async function EnterpriseDashboardPage() {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          {/* Notes & Reactions Tab */}
+          <TabsContent value="notes">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Team Notes & Reactions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {teamComments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    No notes or reactions yet. Share a project with your team and ask them to annotate the screenplay.
+                  </p>
+                ) : (
+                  <div className="space-y-1">
+                    {teamComments.map((comment) => {
+                      const isReaction = !!comment.reactionType && !comment.body;
+                      return (
+                        <div
+                          key={comment.id}
+                          className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-sm"
+                        >
+                          {/* Reaction / note icon */}
+                          <span className="text-base leading-none mt-0.5 w-5 text-center flex-shrink-0">
+                            {isReaction
+                              ? comment.reactionType === 'like' ? '👍' : comment.reactionType === 'dislike' ? '👎' : '🤔'
+                              : '📝'}
+                          </span>
+
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">
+                              {comment.author.fullName ?? comment.author.email ?? 'Team member'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              <Link href={`/projects/${comment.project.id}`} className="hover:underline font-medium">
+                                {comment.project.name}
+                              </Link>
+                              {comment.sceneIndex != null && (
+                                <> · Scene {comment.sceneIndex + 1}</>
+                              )}
+                            </p>
+                            {comment.body && (
+                              <p className="text-xs text-foreground/80 mt-0.5 line-clamp-2">{comment.body}</p>
+                            )}
+                            {isReaction && (
+                              <p className="text-xs text-muted-foreground mt-0.5 capitalize">{comment.reactionType}</p>
+                            )}
+                          </div>
+
+                          <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+                            {timeAgo(comment.createdAt)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Analytics Tab */}
