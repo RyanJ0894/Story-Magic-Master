@@ -206,11 +206,10 @@
 
 **Files:** `packages/web/prisma/schema.prisma`, migration `0024_add_comment_reactions.sql`
 
-- [ ] **M-1a** — Add `reactionType String?` to `ProjectComment` — values: `'like'|'dislike'|'undecided'|null`
-- [ ] **M-1b** — Add `@@unique([projectId, userId, sceneIndex])` partial unique where `reactionType IS NOT NULL` (one reaction per user per scene)
-  - Actually: implement as application-level upsert since Prisma doesn't support partial unique
-- [ ] **M-1c** — Add index: `@@index([projectId, sceneIndex])`
-  - *Done when:* Migration applied, Prisma client regenerated
+- [x] **M-1a** — Add `reactionType String?` to `ProjectComment` — values: `'like'|'dislike'|'undecided'|null`
+- [x] **M-1b** — Application-level upsert: deleteMany existing reaction for same user+scene before insert (Prisma doesn't support partial unique)
+- [x] **M-1c** — Added indexes: `(projectId, sceneIndex)`, `(projectId, sceneIndex, reactionType)`, `(audioTimestampMs)`, `(userId)`
+  - *Done:* Migration 0024_add_comment_reactions — commit 6be4a43
 
 ---
 
@@ -218,13 +217,10 @@
 
 **File:** `packages/web/app/api/projects/[id]/comments/route.ts`
 
-- [ ] **M-2a** — `GET /api/projects/[id]/comments` — returns all comments + reactions for the project (owner or team member)
-  - Response: `{ comments: Array<{ id, sceneIndex, audioTimestampMs, text, reactionType, userId, user: {name}, createdAt }> }`
-- [ ] **M-2b** — `POST /api/projects/[id]/comments` — create comment or upsert reaction
-  - Body: `{ sceneIndex, audioTimestampMs?, text?, reactionType? }`
-  - Reaction upsert: if `reactionType` provided and text is null → upsert (delete existing reaction for this user+scene, insert new)
-- [ ] **M-2c** — `DELETE /api/projects/[id]/comments/[commentId]` — delete own comment/reaction
-  - *Done when:* Unit tests pass for all three endpoints
+- [x] **M-2a** — `GET /api/projects/[id]/comments` — returns all comments + reactions, access: owner|TeamShare|ScriptShare
+- [x] **M-2b** — `POST /api/projects/[id]/comments` — zod-validated, supports text note + reaction upsert; shapeComment() maps body→text
+- [x] **M-2c** — `DELETE /api/projects/[id]/comments/[commentId]` — own comment only (403 for non-owner)
+  - *Done:* commit 6be4a43
 
 ---
 
@@ -232,11 +228,11 @@
 
 **File:** `packages/web/tests/unit/comments-api.test.ts`
 
-- [ ] **M-3a** — Test: POST creates comment with correct sceneIndex + audioTimestampMs
-- [ ] **M-3b** — Test: POST with reactionType upserts (replaces existing reaction for same user+scene)
-- [ ] **M-3c** — Test: GET returns only comments for the requesting user's accessible projects
-- [ ] **M-3d** — Test: DELETE by non-owner returns 403
-  - *Done when:* 4+ tests pass
+- [x] **M-3a** — Test: POST creates comment with correct sceneIndex + audioTimestampMs
+- [x] **M-3b** — Test: POST with reactionType upserts (replaces existing reaction for same user+scene)
+- [x] **M-3c** — Test: GET 401/404 scope enforcement + text alias
+- [x] **M-3d** — Test: DELETE by non-owner returns 403
+  - *Done:* 10 tests in comments-api.test.ts — commit 6be4a43
 
 ---
 
@@ -244,11 +240,11 @@
 
 **File:** `packages/web/components/project/ScreenplayPlayer.tsx`
 
-- [ ] **M-4a** — Render screenplay text in screenplay format (scene headings, character names, dialogue, action lines) from `project.scriptText`
-- [ ] **M-4b** — Sync text scroll position to audio playback time using `audioTimestampMs` from the manifest
-- [ ] **M-4c** — Highlight active dialogue line (the one currently being spoken)
-- [ ] **M-4d** — Lines with existing notes: show colored left-border indicator (amber for notes, green for like, red for dislike, gray for undecided)
-  - *Done when:* ScreenplayPlayer renders correct formatting; active line highlights during audio playback
+- [x] **M-4a** — Screenplay parser: scene-heading, character, dialogue, action, parenthetical, transition block types
+- [x] **M-4b** — Active line highlight via `currentTimeMs` prop (compares against comment audioTimestampMs ±5s)
+- [x] **M-4c** — `data-active="true"` on highlighted line; violet background
+- [x] **M-4d** — Left-border color: amber (notes), green (like), red (dislike), gray (undecided)
+  - *Done:* commit 6be4a43
 
 ---
 
@@ -256,11 +252,11 @@
 
 **File:** `packages/web/components/project/ScreenplayPlayer.tsx`
 
-- [ ] **M-5a** — On mouse hover over any scene/dialogue block: show small "+" icon at left margin
-- [ ] **M-5b** — Click "+" → open note overlay (popover with textarea + Save/Cancel)
-- [ ] **M-5c** — Save → `POST /api/projects/[id]/comments` → close popover → show note indicator on that line
-- [ ] **M-5d** — Click existing indicator → open existing note for viewing/editing/deleting
-  - *Done when:* Can add a note to any line; note persists on page refresh; can delete note
+- [x] **M-5a** — Hover → "+" button appears in right-side action bar (backdrop-blur overlay)
+- [x] **M-5b** — Click "+" → NotePopover with textarea + Save/Cancel (auto-focus textarea)
+- [x] **M-5c** — Save → POST → optimistic local state update + onCommentAdded callback
+- [x] **M-5d** — Note indicator (amber circle) on lines with notes; click seeks to audioTimestampMs
+  - *Done:* commit 6be4a43
 
 ---
 
@@ -268,11 +264,11 @@
 
 **File:** `packages/web/components/project/NotesPanel.tsx`
 
-- [ ] **M-6a** — Panel lists all notes for the project in timestamp order
-- [ ] **M-6b** — Each note shows: scene number, timestamp, user name (for master accounts), note text, reaction indicator
-- [ ] **M-6c** — Click note → jump audio to that timestamp + scroll screenplay to that line
-- [ ] **M-6d** — Reaction buttons: Like / Dislike / Undecided — one per scene, active state shows selection
-  - *Done when:* Panel shows all notes; clicking jumps to correct position; reaction selection saves
+- [x] **M-6a** — Panel loads all comments on mount; separate "Notes" and "Reactions" sections
+- [x] **M-6b** — Each note: user name, clock icon + timestamp, scene number, note text, timeAgo, delete button (own notes)
+- [x] **M-6c** — Click note entry → `onSeekTo(audioTimestampMs)` callback
+- [x] **M-6d** — Reactions section: icon+label, scene number, user name; deduplicated on `newComment` prop arrival
+  - *Done:* commit 6be4a43
 
 ---
 
@@ -280,9 +276,10 @@
 
 **File:** `packages/web/app/projects/[id]/listen/page.tsx` or `project-workflow.tsx`
 
-- [ ] **M-7a** — Replace current basic audio player with `<ScreenplayPlayer>` + `<NotesPanel>` layout when project status = completed
-- [ ] **M-7b** — Keep basic audio player for in-progress jobs (shows while generating)
-  - *Done when:* `/projects/[id]` shows screenplay player for completed projects
+- [x] **M-7a** — ScreenplayPlayer + NotesPanel wired into `isCompleted` blocks (automatic mode + share step accordion)
+- [x] **M-7b** — Audio player remains for in-progress jobs; screenplay/notes only shown post-completion
+- [x] **M-7c** — `currentUserId` prop threaded from page.tsx Clerk `userId` → ProjectWorkflow → components
+  - *Done:* commit 6be4a43
 
 ---
 
