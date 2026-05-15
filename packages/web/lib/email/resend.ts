@@ -31,8 +31,10 @@ function getResendClient(): Resend {
 // Base URL for the app
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://www.storymagicapp.net';
 
-// From address
-const FROM_ADDRESS = 'Story Magic <noreply@storymagicapp.net>';
+// From address — override via RESEND_FROM_ADDRESS when storymagicapp.net
+// is not yet verified in Resend (e.g. use noreply@servicevision.io temporarily).
+const FROM_ADDRESS =
+  process.env.RESEND_FROM_ADDRESS || 'Story Magic <noreply@storymagicapp.net>';
 
 // =============================================================================
 // Types
