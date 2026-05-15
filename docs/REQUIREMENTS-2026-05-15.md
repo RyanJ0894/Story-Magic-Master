@@ -258,7 +258,7 @@
 | INFRA-12.1 | Render.com deployment (web + orchestrator) | P0 | `render.yaml` IaC | COMPLETE | Both services live at storymagicapp.net |
 | INFRA-12.2 | Doppler secrets management | P0 | `story-magic/prd` — 72 secrets; `sync-doppler-to-render.sh` | COMPLETE | 73 vars synced to Render |
 | INFRA-12.3 | DNS — app CNAME | P0 | `app.storymagicapp.net` CNAME → Render via Cloudflare | COMPLETE | Live on Cloudflare (May 2026) |
-| INFRA-12.4 | DNS — Clerk auth subdomains | P0 | `clerk.storymagicapp.net` + `accounts.storymagicapp.net` CNAMEs in Cloudflare | BLOCKED | Ryan must get CNAME targets from Clerk dashboard |
+| INFRA-12.4 | DNS — Clerk auth subdomains | P0 | `clerk.storymagicapp.net` + `accounts.storymagicapp.net` CNAMEs in Cloudflare | COMPLETE | All 5 Clerk CNAMEs added via Cloudflare API (2026-05-15); resolving |
 | INFRA-12.5 | Sentry error monitoring | P1 | `@sentry/nextjs` + orchestrator Sentry client | COMPLETE | |
 | INFRA-12.6 | Rate limiting (per-route tiers) | P0 | `packages/web/lib/ratelimit.ts` — tight/loose/api tiers | COMPLETE | |
 | INFRA-12.7 | Clerk production keys | P0 | `pk_live_*` / `sk_live_*` in Doppler prd | COMPLETE | Confirmed in Doppler prd (Ryan May 2026) |
@@ -272,7 +272,7 @@
 | INFRA-12.15 | SOC 2 prep (audit logging) | P2 | `AuditLog` model; 7-year retention design | COMPLETE | Sprint 6-7 |
 | INFRA-12.16 | Email testing mode | P1 | `EMAIL_TESTING_MODE=false` for real send | COMPLETE | Default true in dev |
 | INFRA-12.17 | HMAC webhook signing | P1 | SHA-256 HMAC signed payloads on all outbound webhooks | COMPLETE | PR #53 — Sprint F |
-| INFRA-12.18 | RESEND_FROM_ADDRESS env var | P1 | `lib/email/resend.ts` uses `process.env.RESEND_FROM_ADDRESS` fallback | COMPLETE | Sprint J — commit d69cccd; add to Doppler prd (Ryan action) |
+| INFRA-12.18 | RESEND_FROM_ADDRESS env var | P1 | `lib/email/resend.ts` uses `process.env.RESEND_FROM_ADDRESS` fallback | COMPLETE | Set in Doppler prd + synced to Render (2026-05-15); delivery confirmed (Resend ID 52cbe737) |
 
 ---
 
