@@ -124,8 +124,8 @@
 | BILL-5.8 | Advanced Analysis add-on ($9.99) | P1 | `POST /api/projects/[id]/advanced-analysis` → Stripe Checkout | COMPLETE | Per-project; Claude Opus 4.6; idempotent webhook |
 | BILL-5.9 | Enterprise direct upgrade | P1 | `POST /api/upgrade` + referral codes | COMPLETE | |
 | BILL-5.10 | Referral code system | P2 | `GET /api/referral/upgrade` | COMPLETE | |
-| BILL-5.11 | Stripe production keys | P0 | Doppler prd config; Ryan must migrate from DBBuilder account | BLOCKED | BK-003 — Ryan action |
-| BILL-5.12 | Stripe webhook verification (events list) | P0 | `checkout.session.completed` in Stripe dashboard | BLOCKED | Ryan action in Stripe dashboard |
+| BILL-5.11 | Stripe production keys | P0 | Doppler prd config; DBBuilder account (dbbuilderio@gmail.com) | COMPLETE | acct_1T6QhFJdkVGiN7Mz — charges_enabled, payouts_enabled, details_submitted ✅ (2026-05-15) |
+| BILL-5.12 | Stripe webhook verification (events list) | P1 | `checkout.session.completed` + price IDs in Stripe dashboard | NOT IMPL | Ryan to verify event list in Stripe dashboard; webhook secret already live |
 | BILL-5.13 | Donation flow (Impact) | P2 | `POST /api/stripe/donate` + `POST /api/stripe/webhook` impact path | COMPLETE | |
 | BILL-5.14 | Purchase seed fixtures | P2 | Dev/test fixtures for `Purchase` model | COMPLETE | PR #45 — Sprint B |
 | BILL-5.15 | Credit balance on Profile | P1 | `Profile.credits Int @default(0)` + `CreditTransaction` model; migration 0020 | COMPLETE | PR #41 — Sprint D |
@@ -394,12 +394,12 @@
 
 | Feature | Status | Gap | Impact | Resolution Plan | Target | Priority |
 |---------|--------|-----|--------|-----------------|--------|---------|
-| Clerk auth subdomains | BLOCKED | `clerk.storymagicapp.net` + `accounts.storymagicapp.net` CNAMEs missing from Cloudflare | Auth broken at storymagicapp.net | Ryan gets CNAME targets from Clerk dashboard → Chris adds to Cloudflare | Sprint J (NOW) | P0 |
-| RESEND_FROM_ADDRESS | BLOCKED | Env var not yet in Doppler prd | Team invite emails fail | Ryan adds `RESEND_FROM_ADDRESS=Story Magic <noreply@servicevision.io>` to Doppler prd | Sprint J (NOW) | P0 |
-| Stripe production keys | BLOCKED | Still on DBBuilder shared account | Revenue goes to wrong account | Ryan creates Story Magic Stripe account, sends keys | Pre-launch | P0 |
-| Stripe webhook events list | BLOCKED | `checkout.session.completed` not confirmed in Stripe dashboard | Subscriptions don't activate | Ryan checks Stripe webhook event list | Pre-launch | P0 |
-| TOTP enrollment | BLOCKED | Ryan personal authenticator app not enrolled | Admin account unprotected | Ryan: Clerk account → Security → Add authenticator | Pre-launch | P1 |
-| Corpus ingestion | BLOCKED | Anthropic + Google AI keys not on Render | Comparables + StoryScore degraded | Ryan provides keys; run `pnpm ingest:training && pnpm score:corpus` | Post-launch | P1 |
+| ~~Clerk auth subdomains~~ | ~~BLOCKED~~ COMPLETE | — | — | All 5 Clerk CNAMEs added via Cloudflare API (2026-05-15) | Done | — |
+| ~~RESEND_FROM_ADDRESS~~ | ~~BLOCKED~~ COMPLETE | — | — | Set in Doppler prd + confirmed (2026-05-15); storymagicapp.net domain verified | Done | — |
+| ~~Stripe production keys~~ | ~~BLOCKED~~ COMPLETE | — | — | DBBuilder account (acct_1T6QhFJdkVGiN7Mz) — charges_enabled ✅ (2026-05-15) | Done | — |
+| ~~TOTP enrollment~~ | ~~BLOCKED~~ COMPLETE | — | — | Enrolled on dbbuilderio@gmail.com Clerk account (2026-05-15) | Done | — |
+| ~~Corpus ingestion~~ | ~~BLOCKED~~ COMPLETE | — | — | Anthropic + Google keys pushed to Render; 42/42 scripts scored (2026-05-15) | Done | — |
+| Stripe webhook events list | NOT IMPL | `checkout.session.completed` not confirmed in Stripe dashboard | Subscriptions may not activate | Ryan verifies event list in Stripe dashboard; webhook secret already live | Pre-launch | P1 |
 | Real-time screenplay scroll | DEFERRED | AudioPlayer has no `onTimeUpdate` prop | Screenplay doesn't scroll to active audio position | Add `onTimeUpdate` callback to AudioPlayer; wire to `currentTimeMs` | v3.1+ | P2 |
 | Export notes as PDF/CSV | NOT IMPL | No export endpoint | Enterprise clients want artifacts | `GET /api/projects/[id]/comments/export` | v3.1+ | P2 |
 | Mobile-responsive screenplay player | NOT IMPL | Fixed 280px NotesPanel not mobile-friendly | Mobile enterprise access | Responsive grid; NotesPanel as drawer on mobile | v3.1+ | P2 |
