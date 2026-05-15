@@ -102,12 +102,12 @@ async function mockProgressiveJob(page: import('@playwright/test').Page) {
 }
 
 async function mockGenerateEndpoint(page: import('@playwright/test').Page) {
-  await page.route(`**/api/projects/${MOCK_PROJECT_ID}/generate`, async (route) => {
+  await page.route('**/api/generate', async (route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ job_id: MOCK_JOB_ID, status: 'queued' }),
+        body: JSON.stringify({ jobId: MOCK_JOB_ID }),
       });
     } else {
       await route.continue();

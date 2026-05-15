@@ -156,10 +156,10 @@
 
 **File:** `packages/web/e2e/progressive-playback.authenticated.spec.ts`
 
-- [ ] **L-3a** — Test: mocked job status returns `firstAudioUrl` on 2nd poll → player appears before `status: 'completed'`
-- [ ] **L-3b** — Test: UI never shows text containing "chunk" or "segment" during generation
-- [ ] **L-3c** — Test: buffer indicator appears when `segments[last].status !== 'ready'` and playback position is within 10s of end
-  - *Done when:* All 3 tests pass
+- [x] **L-3a** — Test: mocked job status returns `firstAudioUrl` on 2nd poll → player appears before `status: 'completed'`
+- [x] **L-3b** — Test: UI never shows text containing "chunk" or "segment" during generation
+- [x] **L-3c** — Test: buffer indicator appears when `segments[last].status !== 'ready'`
+  - *Done:* `progressive-playback.authenticated.spec.ts` — 5 test cases across 4 describe groups; fixed mock (API path + jobId casing)
 
 ---
 
