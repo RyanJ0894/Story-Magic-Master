@@ -120,11 +120,16 @@ export async function callScoringLLM(
     model,
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.3,
-    maxOutputTokens: 4096,
+    maxTokens: 8192,
   });
 
-  // Strip markdown code fences if present
-  const jsonStr = text.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
+  // Extract the JSON object by finding the first '{' and last '}',
+  // which handles code fences, preamble text, and model thinking traces.
+  const jsonStart = text.indexOf('{');
+  const jsonEnd = text.lastIndexOf('}');
+  const jsonStr = jsonStart >= 0 && jsonEnd > jsonStart
+    ? text.slice(jsonStart, jsonEnd + 1)
+    : text;
 
   let parsed: unknown;
   try {

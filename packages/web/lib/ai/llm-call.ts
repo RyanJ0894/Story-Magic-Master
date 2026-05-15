@@ -121,9 +121,11 @@ export async function callLLMAndParse<T>(options: CallLLMOptions<T>): Promise<T>
   }
 
   // Step 3: Parse JSON from the response
+  // Strip markdown code fences that some models (e.g. Gemini 2.5 Flash) add despite JSON-only prompts
+  const cleaned = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
   let parsed: unknown;
   try {
-    parsed = JSON.parse(content);
+    parsed = JSON.parse(cleaned);
   } catch {
     throw new LLMCallError(
       'Failed to parse LLM response as JSON',
