@@ -273,6 +273,7 @@
 | INFRA-12.16 | Email testing mode | P1 | `EMAIL_TESTING_MODE=false` for real send | COMPLETE | Default true in dev |
 | INFRA-12.17 | HMAC webhook signing | P1 | SHA-256 HMAC signed payloads on all outbound webhooks | COMPLETE | PR #53 — Sprint F |
 | INFRA-12.18 | RESEND_FROM_ADDRESS env var | P1 | `lib/email/resend.ts` uses `process.env.RESEND_FROM_ADDRESS` fallback | COMPLETE | Set in Doppler prd + synced to Render (2026-05-15); delivery confirmed (Resend ID 52cbe737) |
+| INFRA-12.19 | Resend sending domain — storymagicapp.net | P1 | Resend → Domains → verify storymagicapp.net DNS | COMPLETE | Verified by Ryan (2026-05-15); all outbound email now from @storymagicapp.net |
 
 ---
 
