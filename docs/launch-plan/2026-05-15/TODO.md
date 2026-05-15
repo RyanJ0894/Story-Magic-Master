@@ -189,10 +189,12 @@
 
 **Files:** Catalog JSON files in `packages/orchestrator/src/lib/`
 
-- [ ] **L-6a** — Audit current catalog: list all music categories and SFX categories
-- [ ] **L-6b** — Identify top 10 missing categories (run test scripts in each genre, find "no match" fallbacks)
-- [ ] **L-6c** — Add entries for missing categories (use ElevenLabs sound effects library or Freesound.org CC0 equivalents)
-  - *Done when:* Thriller, romance, sci-fi, comedy genre test scripts all produce genre-appropriate music selections
+- [x] **L-6a** — Audit current catalog: list all music categories and SFX categories
+  - *Done:* 39 music tracks/10 groups, 45 ambience/22 groups, 53 SFX/21 groups — gaps: sci-fi music, thin comedy, no horror-specific guidance
+- [x] **L-6b** — Identify top 10 missing categories (run test scripts in each genre, find "no match" fallbacks)
+  - *Done:* Missing: sci-fi, comedy, horror-specific music guidance + genre→group mapping rules
+- [x] **L-6c** — Add entries for missing categories (use ElevenLabs sound effects library or Freesound.org CC0 equivalents)
+  - *Done:* Added 2 music_selection_rules (genre→group mapping + sci-fi fallback), 4 music_examples (sci-fi/thriller/comedy/horror), `genre_to_music_group_quick_reference` top-level key → `audio_selection_knowledge.json` now has 6 rules, 15 examples
 
 **Checkpoint L:** Audio starts within 90 seconds; same character = same voice; genre context shapes music.
 

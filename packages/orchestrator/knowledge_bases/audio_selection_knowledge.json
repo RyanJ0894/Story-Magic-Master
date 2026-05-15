@@ -419,6 +419,58 @@
           "avoid": "Sad music - scene is active not emotional"
         }
       ]
+    },
+    {
+      "scene_type": "sci_fi_space_battle",
+      "script_scene": "EXT. SPACE - SPACECRAFT DECK",
+      "script_excerpt": "The spacecraft navigates through asteroid field. Danger imminent.",
+      "music_selections": [
+        {
+          "file": "m_epic_orchestra_action_01.mp3",
+          "group": "EPIC",
+          "reasoning": "No SCI-FI group exists \u2014 use EPIC for space action. High intensity 80-90."
+        }
+      ],
+      "genre_note": "sci-fi \u2014 EPIC is the correct fallback for space action sequences"
+    },
+    {
+      "scene_type": "thriller_investigation",
+      "script_scene": "INT. DETECTIVE OFFICE - NIGHT",
+      "script_excerpt": "Detective examines crime scene photos. Something doesn't add up.",
+      "music_selections": [
+        {
+          "file": "m_strings_orchestra_mysterious_01.mp3",
+          "group": "MYSTERIOUS, SCARY",
+          "reasoning": "Crime investigation = MYSTERIOUS, SCARY at low intensity (30-45) for slow revelation."
+        }
+      ],
+      "genre_note": "crime/thriller \u2014 MYSTERIOUS, SCARY is the primary group for investigation scenes"
+    },
+    {
+      "scene_type": "comedy_mishap",
+      "script_scene": "INT. KITCHEN - DAY",
+      "script_excerpt": "DAVE spills the entire pot of soup. Complete chaos ensues.",
+      "music_selections": [
+        {
+          "file": "m_piano_strings_playful_01.mp3",
+          "group": "PLAYFUL",
+          "reasoning": "Comic mishap = PLAYFUL. Low intensity (30-45). GROOVY RETRO also works for slapstick."
+        }
+      ],
+      "genre_note": "comedy \u2014 PLAYFUL is the primary group; GROOVY RETRO for nostalgic comedy"
+    },
+    {
+      "scene_type": "horror_dread_building",
+      "script_scene": "INT. ABANDONED HOUSE - NIGHT",
+      "script_excerpt": "Sarah hears footsteps above. The lights flicker. She's not alone.",
+      "music_selections": [
+        {
+          "file": "m_dark_ambient_scary_01.mp3",
+          "group": "MYSTERIOUS, SCARY",
+          "reasoning": "Horror dread = MYSTERIOUS, SCARY at low intensity (20-35) for creeping tension. Increase to 70+ for jump scare."
+        }
+      ],
+      "genre_note": "horror \u2014 MYSTERIOUS, SCARY is the only appropriate group"
     }
   ],
   "music_selection_rules": [
@@ -437,6 +489,28 @@
     {
       "rule": "Avoid contradicting scene mood",
       "explanation": "Never use uplifting music in tragic scenes, playful music in dangerous scenes, or scary music in romantic scenes. Match the emotional reality."
+    },
+    {
+      "rule": "Genre-to-group mapping for music selection",
+      "explanation": "Match the script genre to the appropriate music group for consistent genre tone.",
+      "genre_mappings": {
+        "thriller/crime": "Use TENSE or MYSTERIOUS, SCARY groups. TENSE for chase/confrontation; MYSTERIOUS, SCARY for investigation/revelation.",
+        "sci-fi/futuristic": "Use EPIC or MYSTERIOUS, SCARY groups. EPIC for space/action sequences; MYSTERIOUS, SCARY for alien/unknown elements.",
+        "comedy": "Use PLAYFUL group. Keep intensity below 50. GROOVY RETRO works for comedic montages.",
+        "romance": "Use LOVE group. For romantic tension, combine LOVE + lower intensity DRAMATIC.",
+        "horror": "Use MYSTERIOUS, SCARY group exclusively. High intensity (70-85) for jump scares, low (20-40) for dread.",
+        "western": "Use DRAMATIC or EPIC groups. Suggest orchestral with sweeping strings.",
+        "action/war": "Use EPIC or TENSE groups. High intensity (80-95) for battle scenes.",
+        "drama": "Use DRAMATIC or SAD groups depending on emotional register. UPLIFTING for redemption arcs."
+      }
+    },
+    {
+      "rule": "Science fiction scenes lack sci-fi music group \u2014 use EPIC as primary fallback",
+      "explanation": "There is no SCI-FI group in the catalog. Use EPIC for space/adventure sequences and MYSTERIOUS, SCARY for alien/tech suspense. Add 'futuristic' or 'space' as mood tags in query.",
+      "correct_examples": [
+        "INT. SPACESHIP BRIDGE \u2014 query: 'epic orchestral space adventure' \u2192 group: EPIC",
+        "EXT. ALIEN PLANET \u2014 query: 'mysterious otherworldly tense' \u2192 group: MYSTERIOUS, SCARY"
+      ]
     }
   ],
   "ambience_rules": [
@@ -801,5 +875,15 @@
       "why_its_wrong": "Narration needs distinct authoritative quality",
       "correct_approach": "Use Narrator label for all V.O. sections, even if character is narrating"
     }
-  ]
+  ],
+  "genre_to_music_group_quick_reference": {
+    "thriller/crime": "TENSE or MYSTERIOUS, SCARY",
+    "sci-fi": "EPIC (primary), MYSTERIOUS, SCARY (for suspense/alien)",
+    "comedy": "PLAYFUL (primary), GROOVY RETRO (montage/nostalgia)",
+    "romance": "LOVE",
+    "horror": "MYSTERIOUS, SCARY",
+    "western": "DRAMATIC or EPIC",
+    "action/war": "EPIC or TENSE",
+    "drama": "DRAMATIC or SAD"
+  }
 }
