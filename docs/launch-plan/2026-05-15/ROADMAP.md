@@ -1,3 +1,5 @@
+> **Superseded by:** [ROADMAP-2026-05-15.md](../../ROADMAP-2026-05-15.md) — Updated 2026-05-15
+
 # Story Magic — June Launch Roadmap
 
 **Date:** 2026-05-15  

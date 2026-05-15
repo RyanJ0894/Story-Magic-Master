@@ -1,3 +1,5 @@
+> **Superseded by:** [ROADMAP-2026-05-15.md](ROADMAP-2026-05-15.md) — Updated 2026-05-15
+
 # Story Magic — Product Roadmap
 
 **Date:** 2026-05-07 (final — post-merge)
