@@ -13,6 +13,7 @@ import { log } from '../lib/logger.js';
 import { prisma } from '../lib/prisma.js';
 import { VoiceMapSchema, type VoiceMap } from '../schemas/voice-map.js';
 import { buildDirectorNotesBlock, type DirectorNotes } from './utils/sanitize-director-notes.js';
+import { extractScriptContext, formatScriptContext } from './utils/script-context.js';
 import type {
   DirectorJSON,
   SceneAudioJSON,
@@ -163,10 +164,12 @@ export async function processScript(
     directorValidationReport.auto_corrected = true;
   }
 
-  // Phase 3: Run AudioDirectorAgent
-  // Agent now returns validated SceneAudioJSON (Zod-validated at boundary)
+  // Phase 3: Run AudioDirectorAgent (with script genre/tone context for better audio selection)
   log.info('Pipeline Phase 3: Running AudioDirectorAgent');
-  let sceneAudioJson = await audioDirectorAgent.process(directorJson);
+  const scriptCtx = extractScriptContext(input.script_text);
+  const scriptContextBlock = formatScriptContext(scriptCtx);
+  log.info('[Pipeline] script context extracted', { genre: scriptCtx.genre, tone: scriptCtx.tone, era: scriptCtx.era });
+  let sceneAudioJson = await audioDirectorAgent.process(directorJson, scriptContextBlock);
 
   // Phase 4: Validate and auto-correct Scene Audio JSON (business rules)
   log.info('Pipeline Phase 4: Validating Scene Audio JSON');

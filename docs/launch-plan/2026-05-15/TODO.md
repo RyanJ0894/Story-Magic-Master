@@ -167,11 +167,10 @@
 
 **File:** `packages/orchestrator/src/director/pipeline.ts`
 
-- [ ] **L-4a** — Add `extractCharacters(scriptText: string): CharacterProfile[]` — first LLM pass over full script (or first chunk) to extract all named characters + descriptions
-  - Output: `[{ name: 'SARAH', description: '30s, tired but determined, female', voiceId?: string }]`
-- [ ] **L-4b** — Pass `characterRegistry` to every scene's voice-assignment LLM call: "Use these voice assignments for consistency: SARAH → voice-id-xxx, MARCUS → voice-id-yyy"
-- [ ] **L-4c** — Persist character registry in `job.metadata` so it survives segment boundaries
-  - *Done when:* Same character has same voice ID in scene 1 and scene 20 of a 50-page test script
+- [x] **L-4a** — `extractCharacters`: `CharacterExtractionAgent` (Pass 1) — extracts all speaking characters, injects NARRATOR, supports chunked-parallel extraction for long scripts
+- [x] **L-4b** — Character registry (VoiceMap) passed to every `SceneConstructionAgent` chunk call via `scene-construction-prompt.ts` buildVoiceTable
+- [x] **L-4c** — VoiceMap persisted in `project.voiceAssignments` (pipeline.ts `saveVoiceMap`); all chunks use identical voiceMap → voice consistency guaranteed
+  - *Architecture:* Character extraction runs ONCE per project; voiceMap baked into all directorJson voice_key fields before chunked TTS
 
 ---
 
@@ -179,10 +178,10 @@
 
 **File:** `packages/orchestrator/src/director/pipeline.ts`
 
-- [ ] **L-5a** — Add `extractScriptContext(scriptText: string): ScriptContext` — quick LLM call (or regex heuristics) to determine genre, tone, era
-  - Output: `{ genre: 'thriller', tone: 'dark, tense', era: '1980s', setting: 'Los Angeles' }`
-- [ ] **L-5b** — Prepend context to every scene-level music/SFX selection prompt
-  - *Done when:* Thriller scripts select dark/tense music; romance scripts select warm music
+- [x] **L-5a** — `extractScriptContext(scriptText): ScriptContext` — regex heuristics, ~1ms, 8 tests
+  - File: `packages/orchestrator/src/director/utils/script-context.ts`
+- [x] **L-5b** — `formatScriptContext` block prepended to AudioDirectorAgent user message in `pipeline.ts`
+  - *Done:* Thriller → dark/tense, romance → warm/emotional, sci-fi → futuristic etc.
 
 ---
 

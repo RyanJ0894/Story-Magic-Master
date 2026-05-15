@@ -44,10 +44,14 @@ export class AudioDirectorAgent {
   }
 
   /**
-   * Process Director JSON and return Scene Audio JSON
+   * Process Director JSON and return Scene Audio JSON.
+   * @param directorJson - serialized DirectorJSON
+   * @param scriptContext - optional genre/tone/era block to prepend (from extractScriptContext)
    */
-  async run(directorJson: string): Promise<string> {
-    log.info('AudioDirectorAgent starting', { model: this.model });
+  async run(directorJson: string, scriptContext?: string): Promise<string> {
+    log.info('AudioDirectorAgent starting', { model: this.model, hasScriptContext: !!scriptContext });
+
+    const userMessage = scriptContext ? `${scriptContext}${directorJson}` : directorJson;
 
     const tools = {
       search_music: searchMusicTool,
@@ -58,7 +62,7 @@ export class AudioDirectorAgent {
     };
 
     try {
-      const result = await runAgentLoop(directorJson, {
+      const result = await runAgentLoop(userMessage, {
         model: this.model,
         systemPrompt: AUDIO_DIRECTOR_SYSTEM_PROMPT,
         tools,
@@ -82,7 +86,7 @@ export class AudioDirectorAgent {
    * Falls back to structured output generation if JSON parsing fails.
    * Accepts DirectorJSON (typed) or string for flexibility.
    */
-  async process(directorJson: DirectorJSON | string): Promise<SceneAudioJSON> {
+  async process(directorJson: DirectorJSON | string, scriptContext?: string): Promise<SceneAudioJSON> {
     const input = typeof directorJson === 'string'
       ? directorJson
       : JSON.stringify(directorJson);
@@ -92,7 +96,7 @@ export class AudioDirectorAgent {
       ? JSON.parse(directorJson).project_id || 'unknown'
       : directorJson.project_id;
 
-    const result = await this.run(input);
+    const result = await this.run(input, scriptContext);
 
     // Log the raw response for debugging (first 500 chars)
     log.debug('AudioDirectorAgent raw response preview', { preview: result.slice(0, 500) });
