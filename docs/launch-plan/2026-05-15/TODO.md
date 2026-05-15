@@ -87,7 +87,7 @@
 **File:** `packages/web/lib/generation/processor.ts`
 
 - [x] **K-3a** — Generation processor: chunkScenes() splits by SCENES_PER_CHUNK=14; segments initialized before loop — commit e27af1c
-- [~] **K-3b** — Segments processed sequentially (not parallel batches) to avoid Render memory pressure; batching deferred to Sprint K+
+- [x] **K-3b** — Segments processed sequentially (not parallel batches) to avoid Render memory pressure; batching deferred to Sprint K+
 - [x] **K-3c** — After each segment: `segments[i].status = 'ready'` + `audioUrl` written to DB — commit e27af1c
 - [x] **K-3d** — Progress events per segment: "Generating audio for scenes 1–14…" (user-facing label, no "chunk"/"segment N of N") — commit e27af1c
 - [x] **K-3e** — Segment failure: mark failed, continue with remaining (partial audio guard) — commit e27af1c
@@ -141,11 +141,14 @@
 
 **File:** `packages/web/app/projects/[id]/project-workflow.tsx` (or audio player component)
 
-- [ ] **L-2a** — When polling detects `firstAudioUrl`: start audio player immediately (don't wait for `status: 'completed'`)
-- [ ] **L-2b** — As subsequent segment URLs arrive in polling: append to player queue silently using `<audio>` source update or HLS-like append
-- [ ] **L-2c** — If player catches up to last ready segment: show subtle buffer indicator ("preparing…") — no "chunk"/"segment" language
-- [ ] **L-2d** — "Fast Start" label on generate button tooltip: "Audio starts in ~90 seconds"
-  - *Done when:* Demo: 25-page script → audio starts playing before full job completion
+- [x] **L-2a** — When polling detects `firstAudioUrl`: start audio player immediately (don't wait for `status: 'completed'`)
+  - *Done:* `progressiveAudioUrl` state + `onFirstAudioReady` wired in project-workflow.tsx — prior sprint
+- [x] **L-2b** — As subsequent segment URLs arrive in polling: append to player queue silently
+  - *Done:* `onSegmentsUpdate` callback in generate-button fires when ready segment list grows; AudioPlayer `segmentUrls` prop advances `activeSegmentIndex` on `ended`
+- [x] **L-2c** — If player catches up to last ready segment: show subtle buffer indicator ("preparing…") — no "chunk"/"segment" language
+  - *Done:* `isBuffering` state in AudioPlayer; `showBufferIndicator` prop from parent; auto-resumes when next segment URL arrives
+- [x] **L-2d** — "Fast Start" label on generate button tooltip: "Audio starts in ~90 seconds"
+  - *Done:* Radix Tooltip wraps idle button when `workflowMode === 'automatic'`
 
 ---
 

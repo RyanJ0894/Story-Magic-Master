@@ -302,6 +302,8 @@ export function ProjectWorkflow({
 
   // Sprint L Fast Start: URL of the first available audio segment (before full job completion)
   const [progressiveAudioUrl, setProgressiveAudioUrl] = useState<string | null>(null);
+  // Sprint L-2b: ordered list of all ready segment URLs for sequential playback
+  const [progressiveSegmentUrls, setProgressiveSegmentUrls] = useState<string[]>([]);
 
   // Save skipped steps to localStorage
   useEffect(() => {
@@ -598,7 +600,9 @@ export function ProjectWorkflow({
                     </p>
                     <AudioPlayer
                       outputs={[{ id: 'progressive', fileName: 'preview.m4a', filePath: '' }]}
-                      directUrl={progressiveAudioUrl}
+                      directUrl={progressiveSegmentUrls.length === 0 ? progressiveAudioUrl : undefined}
+                      segmentUrls={progressiveSegmentUrls.length > 0 ? progressiveSegmentUrls : undefined}
+                      showBufferIndicator
                     />
                   </div>
                 )}
@@ -659,8 +663,9 @@ export function ProjectWorkflow({
                   hasScript={!!project.scriptText}
                   label="Retry"
                   workflowMode="automatic"
-                  onJobStarted={() => { setRetryStarted(true); setErrorExpanded(false); setProgressiveAudioUrl(null); }}
+                  onJobStarted={() => { setRetryStarted(true); setErrorExpanded(false); setProgressiveAudioUrl(null); setProgressiveSegmentUrls([]); }}
                   onFirstAudioReady={setProgressiveAudioUrl}
+                  onSegmentsUpdate={setProgressiveSegmentUrls}
                 />
               </div>
             ) : (
@@ -678,7 +683,9 @@ export function ProjectWorkflow({
                     hasScript={!!project.scriptText}
                     label="Generate Now"
                     workflowMode="automatic"
+                    onJobStarted={() => { setProgressiveAudioUrl(null); setProgressiveSegmentUrls([]); }}
                     onFirstAudioReady={setProgressiveAudioUrl}
+                    onSegmentsUpdate={setProgressiveSegmentUrls}
                   />
                 </div>
                 {/* Quick Preview — only shown when scenes are already parsed */}

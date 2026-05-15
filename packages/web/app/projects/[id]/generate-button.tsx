@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Loader2, Sparkles, RefreshCw, Clock, CheckCircle, XCircle } from 'lucide-react';
 
 interface JobProgress {
@@ -47,6 +48,8 @@ interface GenerateButtonProps {
   onJobStarted?: () => void;
   /** Called as soon as the first audio segment is ready — before full job completion */
   onFirstAudioReady?: (audioUrl: string) => void;
+  /** Called whenever new ready segment URLs arrive — receives the full ordered list of ready URLs */
+  onSegmentsUpdate?: (urls: string[]) => void;
 }
 
 const ESTIMATED_DURATION_MS = 120000; // 2 minutes estimated
@@ -60,12 +63,14 @@ export default function GenerateButton({
   hasScript = true,
   onJobStarted,
   onFirstAudioReady,
+  onSegmentsUpdate,
 }: GenerateButtonProps) {
   const { userId, isSignedIn } = useAuth();
   const [loading, setLoading] = useState(false);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
   const firstAudioFiredRef = useRef(false);
+  const lastSegmentCountRef = useRef(0);
   const [queuePosition, setQueuePosition] = useState<QueuePosition | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [timerProgress, setTimerProgress] = useState(0);
@@ -126,6 +131,17 @@ export default function GenerateButton({
         onFirstAudioReady(data.firstAudioUrl);
       }
 
+      // Sprint L-2b: fire onSegmentsUpdate whenever the ready segment list grows
+      if (onSegmentsUpdate && data.segments) {
+        const readyUrls = data.segments
+          .filter((s) => s.status === 'ready' && s.audioUrl)
+          .map((s) => s.audioUrl as string);
+        if (readyUrls.length > lastSegmentCountRef.current) {
+          lastSegmentCountRef.current = readyUrls.length;
+          onSegmentsUpdate(readyUrls);
+        }
+      }
+
       // Check if job is complete or failed
       if (data.status === 'completed') {
         if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
@@ -160,6 +176,7 @@ export default function GenerateButton({
   const startTracking = useCallback((jobId: string) => {
     startTimeRef.current = Date.now();
     firstAudioFiredRef.current = false;
+    lastSegmentCountRef.current = 0;
     setElapsedTime(0);
     setTimerProgress(0);
     setCurrentJobId(jobId);
@@ -382,7 +399,7 @@ export default function GenerateButton({
     );
   }
 
-  return (
+  const button = (
     <Button
       onClick={handleGenerate}
       disabled={loading || status === 'processing'}
@@ -403,4 +420,17 @@ export default function GenerateButton({
       )}
     </Button>
   );
+
+  if (workflowMode === 'automatic' && !loading) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>{button}</TooltipTrigger>
+          <TooltipContent>Audio starts in ~90 seconds</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return button;
 }

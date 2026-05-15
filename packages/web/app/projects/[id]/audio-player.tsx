@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Play, Pause, Download, Music, Volume2, VolumeX } from 'lucide-react';
+import { Play, Pause, Download, Music, Volume2, VolumeX, Loader2 } from 'lucide-react';
 
 interface AudioOutput {
   id: string;
@@ -17,9 +17,13 @@ interface AudioPlayerProps {
   outputs: AudioOutput[];
   /** When set, overrides the constructed URL for the current track with this direct URL (used for progressive playback). */
   directUrl?: string;
+  /** Ordered list of segment URLs for progressive multi-chunk playback. Supersedes directUrl when non-empty. */
+  segmentUrls?: string[];
+  /** When true, shows a "Preparing…" indicator after all available segments have played. */
+  showBufferIndicator?: boolean;
 }
 
-export default function AudioPlayer({ outputs, directUrl }: AudioPlayerProps) {
+export default function AudioPlayer({ outputs, directUrl, segmentUrls, showBufferIndicator }: AudioPlayerProps) {
   const [currentTrack, setCurrentTrack] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -28,10 +32,25 @@ export default function AudioPlayer({ outputs, directUrl }: AudioPlayerProps) {
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [activeSegmentIndex, setActiveSegmentIndex] = useState(0);
+  const [isBuffering, setIsBuffering] = useState(false);
+  const isFirstSegmentAdvanceRef = useRef(true);
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
 
   const currentOutput = outputs[currentTrack];
+  const isSegmentMode = !!segmentUrls && segmentUrls.length > 0;
+
+  const handleEnded = useCallback(() => {
+    if (isSegmentMode && segmentUrls && activeSegmentIndex < segmentUrls.length - 1) {
+      setActiveSegmentIndex((i) => i + 1);
+    } else if (isSegmentMode && showBufferIndicator) {
+      setIsBuffering(true);
+      setIsPlaying(false);
+    } else {
+      setIsPlaying(false);
+    }
+  }, [isSegmentMode, segmentUrls, activeSegmentIndex, showBufferIndicator]);
 
   const togglePlayPause = useCallback(() => {
     if (!audioRef.current) return;
@@ -127,6 +146,31 @@ export default function AudioPlayer({ outputs, directUrl }: AudioPlayerProps) {
     }
   }, [volume, isMuted]);
 
+  // Auto-play when segment index advances (skip initial mount)
+  useEffect(() => {
+    if (isFirstSegmentAdvanceRef.current) {
+      isFirstSegmentAdvanceRef.current = false;
+      return;
+    }
+    if (!audioRef.current) return;
+    audioRef.current.load();
+    audioRef.current.play().catch(() => {});
+    setProgress(0);
+    setCurrentTime(0);
+    setDuration(0);
+    setIsPlaying(true);
+  }, [activeSegmentIndex]);
+
+  // Resume from buffering when new segment arrives
+  useEffect(() => {
+    if (!isBuffering || !segmentUrls) return;
+    const nextIndex = activeSegmentIndex + 1;
+    if (nextIndex < segmentUrls.length && segmentUrls[nextIndex]) {
+      setIsBuffering(false);
+      setActiveSegmentIndex(nextIndex);
+    }
+  }, [segmentUrls, activeSegmentIndex, isBuffering]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -173,9 +217,10 @@ export default function AudioPlayer({ outputs, directUrl }: AudioPlayerProps) {
     );
   }
 
-  // Construct the playback URL — directUrl (progressive playback) takes precedence over constructed path
+  // Construct the playback URL — active segment URL takes highest precedence, then directUrl, then constructed path
   const orchestratorUrl = process.env.NEXT_PUBLIC_ORCHESTRATOR_URL || process.env.ORCHESTRATOR_URL || '';
-  const audioUrl = directUrl || `${orchestratorUrl}/audio/${currentOutput.filePath}`;
+  const activeSegmentUrl = isSegmentMode ? segmentUrls?.[activeSegmentIndex] : undefined;
+  const audioUrl = activeSegmentUrl || directUrl || `${orchestratorUrl}/audio/${currentOutput.filePath}`;
 
   return (
     <div className="space-y-4">
@@ -184,7 +229,7 @@ export default function AudioPlayer({ outputs, directUrl }: AudioPlayerProps) {
         src={audioUrl}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
-        onEnded={() => setIsPlaying(false)}
+        onEnded={handleEnded}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
       />
@@ -267,6 +312,14 @@ export default function AudioPlayer({ outputs, directUrl }: AudioPlayerProps) {
           </div>
         </div>
       </Card>
+
+      {/* Buffer indicator — shown when player has caught up to available audio */}
+      {isBuffering && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+          <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+          <span>Preparing…</span>
+        </div>
+      )}
 
       {/* Download Section */}
       <div className="flex items-center justify-between">
