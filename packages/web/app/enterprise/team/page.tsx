@@ -28,10 +28,9 @@ interface Team {
 }
 
 const ROLES = [
-  { value: 'talent', label: 'Talent / Actor' },
-  { value: 'staff', label: 'Staff' },
-  { value: 'representation', label: 'Representation' },
+  { value: 'member', label: 'Member' },
   { value: 'admin', label: 'Admin' },
+  { value: 'viewer', label: 'Viewer (read-only)' },
 ];
 
 export default function EnterpriseTeamPage() {
@@ -39,7 +38,7 @@ export default function EnterpriseTeamPage() {
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState('talent');
+  const [inviteRole, setInviteRole] = useState('member');
   const [inviting, setInviting] = useState(false);
   const [teamName, setTeamName] = useState('');
   const [creatingTeam, setCreatingTeam] = useState(false);

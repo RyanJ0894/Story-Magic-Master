@@ -120,7 +120,7 @@ export async function callScoringLLM(
     model,
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.3,
-    maxTokens: 8192,
+    maxOutputTokens: 8192,
   });
 
   // Extract the JSON object by finding the first '{' and last '}',

@@ -251,6 +251,11 @@ export async function processGenerationJob(
     // This prevents timeout on long scripts — each chunk is ~14 scenes (~90–120s of TTS).
     const allScenes: unknown[] = directorJson.scenes || [];
     const chunks = chunkScenes(allScenes);
+
+    // Orchestrator base URL — needed to absolutize local /audio/ paths before writing them
+    // to the job record. These paths are later read by the BROWSER (not the server), so they
+    // must point to the orchestrator host, not the Next.js frontend.
+    const orchestratorBase = (process.env.ORCHESTRATOR_URL ?? '').replace(/\/$/, '');
     const isChunked = chunks.length > 1;
 
     log.info('[PIPELINE] orchestrator start', {
@@ -359,8 +364,11 @@ export async function processGenerationJob(
 
       // Mark segment ready; set firstAudioUrl on first successful chunk (Sprint L Fast Start)
       const segmentAudioUrl = chunkAudioUrls[0] ?? null;
+      const absSegmentUrl = segmentAudioUrl?.startsWith('/')
+        ? `${orchestratorBase}${segmentAudioUrl}`
+        : segmentAudioUrl;
       segmentStatuses[chunk.index].status = 'ready';
-      segmentStatuses[chunk.index].audioUrl = segmentAudioUrl;
+      segmentStatuses[chunk.index].audioUrl = absSegmentUrl ?? null;
 
       // Fire firstAudioUrl on the very first chunk to succeed (not necessarily index 0)
       const isFirstSuccessfulChunk = segmentAudioUrl && allAudioUrls.length === chunkAudioUrls.filter(Boolean).length;
@@ -368,7 +376,7 @@ export async function processGenerationJob(
         segments: JSON.parse(JSON.stringify(segmentStatuses)),
       };
       if (isFirstSuccessfulChunk) {
-        updateData.firstAudioUrl = segmentAudioUrl;
+        updateData.firstAudioUrl = absSegmentUrl;
         updateData.progress = {
           step: 'first_audio_ready',
           percent: chunkProgressPercent + Math.round(progressRangePercent / chunks.length),
@@ -391,7 +399,10 @@ export async function processGenerationJob(
     }
 
     // Sprint K: stitch segment files into a single episode.m4a when chunked
-    let finalAudioUrl: string | null = allAudioUrls[0] ?? null;
+    const rawFirstUrl = allAudioUrls[0] ?? null;
+    let finalAudioUrl: string | null = rawFirstUrl?.startsWith('/')
+      ? `${orchestratorBase}${rawFirstUrl}`
+      : rawFirstUrl;
     if (isChunked && audioOutputsCreated > 0) {
       try {
         const stitchResponse = await orchestratorGenerate('/stitch-segments', {
@@ -401,7 +412,8 @@ export async function processGenerationJob(
         if (stitchResponse.ok) {
           const stitchResult = await stitchResponse.json() as Record<string, unknown>;
           if (typeof stitchResult.audio_url === 'string') {
-            finalAudioUrl = stitchResult.audio_url;
+            const raw = stitchResult.audio_url;
+            finalAudioUrl = raw.startsWith('/') ? `${orchestratorBase}${raw}` : raw;
           }
         } else {
           log.warn('[PIPELINE] stitch-segments failed — using first segment URL', {
