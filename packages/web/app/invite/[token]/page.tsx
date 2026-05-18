@@ -157,13 +157,11 @@ export default function InvitePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground text-center">
+              New to Story Magic? Create a free account to join the team.
+            </p>
             <Link href={`/login?redirect=/invite/${token}`} className="block">
-              <Button className="w-full">Sign In</Button>
-            </Link>
-            <Link href={`/signup?redirect=/invite/${token}`} className="block">
-              <Button variant="outline" className="w-full">
-                Create Account
-              </Button>
+              <Button className="w-full brand-gradient brand-gradient-hover">Create Account or Sign In</Button>
             </Link>
           </CardContent>
         </Card>

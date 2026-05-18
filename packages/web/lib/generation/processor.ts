@@ -343,11 +343,13 @@ export async function processGenerationJob(
         const fileName = audioUrl.split('/').pop() || 'output.mp3';
         const supabaseMatch = audioUrl.match(/\/storage\/v1\/object\/public\/(.+)$/);
         const localMatch = audioUrl.match(/^\/audio\/(.+)$/);
+        // For local /audio/... paths, store the absolute orchestrator URL so the
+        // browser AudioPlayer can load it directly without needing NEXT_PUBLIC_ORCHESTRATOR_URL.
         const filePath = supabaseMatch
           ? supabaseMatch[1]
           : localMatch
-            ? localMatch[1]
-            : `${projectId}/${fileName}`;
+            ? (orchestratorBase ? `${orchestratorBase}/audio/${localMatch[1]}` : localMatch[1])
+            : (orchestratorBase ? `${orchestratorBase}/audio/${projectId}/${fileName}` : `${projectId}/${fileName}`);
         await prisma.audioOutput.create({
           data: {
             projectId,

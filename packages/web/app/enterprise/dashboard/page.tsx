@@ -139,6 +139,10 @@ export default async function EnterpriseDashboardPage() {
           </div>
           <div className="flex items-center gap-2">
             <AlertsDropdown />
+            <div className="hidden sm:flex flex-col items-end text-right leading-tight">
+              <span className="text-xs font-medium text-foreground truncate max-w-[140px]">{profile?.fullName || 'My Account'}</span>
+              <span className="text-xs text-muted-foreground truncate max-w-[140px]">{profile?.email || ''}</span>
+            </div>
             <Link href="/enterprise/team">
               <Button variant="outline" size="sm">Manage Team</Button>
             </Link>

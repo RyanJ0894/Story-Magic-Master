@@ -130,7 +130,7 @@ The four things that matter most before we declare launch-ready:
 
 Once those pass and Sentry is clean for 24 hours, we are launch-ready.
 
-**Target launch: mid-June 2026.**
+**Target launch: June 2026.**
 
 ---
 
