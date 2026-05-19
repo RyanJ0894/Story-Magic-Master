@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Play, Pause, Download, Music, Volume2, VolumeX, Loader2 } from 'lucide-react';
+import { resolveAudioUrl } from '@/lib/resolve-audio-url';
 
 interface AudioOutput {
   id: string;
@@ -218,15 +219,8 @@ export default function AudioPlayer({ outputs, directUrl, segmentUrls, showBuffe
   }
 
   // Construct the playback URL — active segment URL takes highest precedence, then directUrl, then constructed path
-  const orchestratorUrl = process.env.NEXT_PUBLIC_ORCHESTRATOR_URL || '';
   const activeSegmentUrl = isSegmentMode ? segmentUrls?.[activeSegmentIndex] : undefined;
-  // filePath is an absolute URL for newly-generated outputs; fall back to constructing
-  // one via orchestratorUrl for any legacy relative-path records in the database.
-  const audioUrl = activeSegmentUrl || directUrl || (
-    currentOutput.filePath.startsWith('http')
-      ? currentOutput.filePath
-      : `${orchestratorUrl}/audio/${currentOutput.filePath}`
-  );
+  const audioUrl = activeSegmentUrl || directUrl || resolveAudioUrl(currentOutput.filePath);
 
   return (
     <div className="space-y-4">

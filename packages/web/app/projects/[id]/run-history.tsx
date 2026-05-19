@@ -38,6 +38,7 @@ import {
 import { cn } from '@/lib/utils';
 import { format, formatDistanceToNow } from 'date-fns';
 import type { Run } from './run-selector';
+import { resolveAudioUrl } from '@/lib/resolve-audio-url';
 
 interface AudioOutput {
   id: string;
@@ -289,11 +290,7 @@ export function RunHistory({
                         <div className="flex items-center gap-1 px-2 py-1 bg-muted rounded">
                           <Volume2 className="w-3 h-3 text-muted-foreground" />
                           <MiniAudioPlayer
-                            src={
-                              run.audioOutputs[0].filePath.startsWith('http')
-                                ? run.audioOutputs[0].filePath
-                                : `${process.env.NEXT_PUBLIC_ORCHESTRATOR_URL || ''}/audio/${run.audioOutputs[0].filePath}`
-                            }
+                            src={resolveAudioUrl(run.audioOutputs[0].filePath)}
                             duration={run.audioOutputs[0].durationSeconds}
                           />
                         </div>
