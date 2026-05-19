@@ -12,6 +12,7 @@ import { validateCsrf } from '@/lib/csrf';
 import { rateLimit, getClientIp } from '@/lib/api/rate-limit';
 import { log } from '@/lib/logger';
 import { errorResponse } from '@/lib/api/error-response';
+import { ensureProfile } from '@/lib/ensure-profile';
 
 // =============================================================================
 // GET - Get invite details
@@ -106,6 +107,11 @@ export async function POST(
   if (!userId) {
     return errorResponse('Please sign in to accept this invite', 401, { code: 'AUTH_REQUIRED', details: { redirectTo: `/login?redirect=/invite/${token}` } });
   }
+
+  // Ensure a Profile row exists — teamMember.userId is a FK to profiles.id,
+  // so new Clerk users who haven't visited the dashboard yet would trigger a
+  // FK violation without this call.
+  await ensureProfile(userId);
 
   try {
     // Get invite
