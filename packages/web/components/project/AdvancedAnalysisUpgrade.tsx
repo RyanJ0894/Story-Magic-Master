@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Loader2, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Loader2, CheckCircle2, X } from 'lucide-react';
 
 interface AdvancedAnalysisUpgradeProps {
   projectId: string;
@@ -24,6 +24,10 @@ interface AdvancedAnalysisUpgradeProps {
 export function AdvancedAnalysisUpgrade({ projectId, purchased: initialPurchased }: AdvancedAnalysisUpgradeProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(`adv-analysis-dismissed-${projectId}`) === '1';
+  });
 
   if (initialPurchased) {
     return (
@@ -70,6 +74,8 @@ export function AdvancedAnalysisUpgrade({ projectId, purchased: initialPurchased
     }
   }
 
+  if (dismissed) return null;
+
   return (
     <Card className="border-purple-200 dark:border-purple-800/60 bg-gradient-to-br from-purple-50/50 to-background dark:from-purple-950/20 dark:to-background">
       <CardHeader className="pb-3">
@@ -82,6 +88,17 @@ export function AdvancedAnalysisUpgrade({ projectId, purchased: initialPurchased
           >
             $9.99 one-time
           </Badge>
+          <button
+            onClick={() => {
+              localStorage.setItem(`adv-analysis-dismissed-${projectId}`, '1');
+              setDismissed(true);
+            }}
+            className="p-0.5 rounded text-purple-400 hover:text-purple-600 dark:hover:text-purple-200 transition-colors"
+            title="Dismiss"
+            aria-label="Dismiss Advanced Analysis upgrade"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </CardTitle>
         <CardDescription className="text-muted-foreground text-sm leading-relaxed">
           Powered by Claude Opus — Anthropic&apos;s most capable model:

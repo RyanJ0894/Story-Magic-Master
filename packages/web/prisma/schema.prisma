@@ -228,6 +228,7 @@ model AudioOutput {
   job     Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
+  @@index([jobId])
   @@map("audio_outputs")
 }
 
@@ -835,6 +836,7 @@ model Alert {
   relatedUser Profile? @relation("RelatedUser", fields: [relatedUserId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, isRead])
   @@map("alerts")
 }
 
@@ -1135,5 +1137,6 @@ model HumanReview {
   @@unique([jobId])
   @@index([status, createdAt(sort: Desc)])
   @@index([userId])
+  @@index([projectId])
   @@map("human_reviews")
 }

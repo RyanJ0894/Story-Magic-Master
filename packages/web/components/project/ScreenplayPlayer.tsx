@@ -169,7 +169,10 @@ function NotePopover({
   useEffect(() => { textareaRef.current?.focus(); }, []);
 
   return (
-    <div className="absolute left-0 top-full mt-1 z-50 w-72 rounded-lg border border-border bg-background shadow-lg p-3 space-y-2">
+    <div
+      className="absolute left-0 top-full mt-1 z-50 w-72 rounded-lg border border-border bg-background shadow-lg p-3 space-y-2"
+      onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }}
+    >
       <textarea
         ref={textareaRef}
         value={text}
@@ -214,6 +217,7 @@ export function ScreenplayPlayer({
   const [hoverBlockIndex, setHoverBlockIndex] = useState<number | null>(null);
   const [openNoteBlockIndex, setOpenNoteBlockIndex] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [reactionSaving, setReactionSaving] = useState<number | null>(null);
 
   const blocks = parseScreenplay(scriptText);
 
@@ -272,6 +276,8 @@ export function ScreenplayPlayer({
   }
 
   async function saveReaction(sceneIndex: number, reactionType: string) {
+    if (reactionSaving === sceneIndex) return;
+    setReactionSaving(sceneIndex);
     try {
       const res = await fetch(`/api/projects/${projectId}/comments`, {
         method: 'POST',
@@ -292,6 +298,8 @@ export function ScreenplayPlayer({
       }
     } catch {
       toast.error('Network error — reaction not saved.');
+    } finally {
+      setReactionSaving(null);
     }
   }
 

@@ -107,7 +107,7 @@ export default async function EnterpriseDashboardPage() {
   // Notes & Reactions across all team-shared projects (first page — client handles load more)
   const teamProjectIds = team.teamShares.map((s) => s.project.id);
   const NOTES_PAGE_SIZE = 20;
-  const [teamComments, totalTeamComments] = teamProjectIds.length > 0
+  const [teamComments, totalTeamComments, totalDecisions] = teamProjectIds.length > 0
     ? await Promise.all([
         prisma.projectComment.findMany({
           where: { projectId: { in: teamProjectIds } },
@@ -119,8 +119,9 @@ export default async function EnterpriseDashboardPage() {
           take: NOTES_PAGE_SIZE,
         }),
         prisma.projectComment.count({ where: { projectId: { in: teamProjectIds } } }),
+        prisma.projectComment.count({ where: { projectId: { in: teamProjectIds }, reactionType: { not: null } } }),
       ])
-    : [[], 0];
+    : [[], 0, 0];
 
   const profile = await prisma.profile.findUnique({
     where: { id: userId },
@@ -208,9 +209,9 @@ export default async function EnterpriseDashboardPage() {
                   <Activity className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">50+</p>
-                  <p className="text-xs text-muted-foreground">Voice Library</p>
-                  <p className="text-xs text-muted-foreground">Standard voices</p>
+                  <p className="text-2xl font-bold">{totalDecisions}</p>
+                  <p className="text-xs text-muted-foreground">Script Decisions</p>
+                  <p className="text-xs text-muted-foreground">Reactions total</p>
                 </div>
               </div>
             </CardContent>

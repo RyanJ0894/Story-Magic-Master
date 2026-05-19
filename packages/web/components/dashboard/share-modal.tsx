@@ -26,12 +26,10 @@ import {
   Copy,
   Mail,
   Link2,
-  QrCode,
-  Clock,
   CheckCircle,
   Users,
-  Download,
   Eye,
+  Download,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
@@ -120,14 +118,10 @@ export function ShareModal({
         </DialogHeader>
 
         <Tabs defaultValue="share" className="mt-4">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-1">
             <TabsTrigger value="share">
               <Link2 className="w-4 h-4 mr-2" />
               Share
-            </TabsTrigger>
-            <TabsTrigger value="qr">
-              <QrCode className="w-4 h-4 mr-2" />
-              QR Code
             </TabsTrigger>
           </TabsList>
 
@@ -241,45 +235,6 @@ export function ShareModal({
             </p>
           </TabsContent>
 
-          {/* QR Code Tab */}
-          <TabsContent value="qr" className="space-y-4 mt-4">
-            <div className="flex flex-col items-center gap-4">
-              <div className="w-48 h-48 bg-muted rounded-lg flex items-center justify-center border-2 border-dashed">
-                <QrCode className="w-24 h-24 text-muted-foreground" />
-              </div>
-              <p className="text-sm text-muted-foreground text-center">
-                Perfect for in-person pitches. Show this QR code for instant access.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>QR Code Type</Label>
-              <Select defaultValue="temporary">
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="temporary">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      Temporary (24h, 1 play)
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="permanent">
-                    <div className="flex items-center gap-2">
-                      <Link2 className="w-4 h-4" />
-                      Permanent Link
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Button className="w-full" variant="outline">
-              <Download className="w-4 h-4 mr-2" />
-              Download QR Code
-            </Button>
-          </TabsContent>
         </Tabs>
 
         {/* Existing Shares */}
