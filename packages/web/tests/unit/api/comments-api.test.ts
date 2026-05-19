@@ -25,6 +25,7 @@ const mockPrisma = {
     findUnique: vi.fn(),
     delete: vi.fn(),
   },
+  $transaction: vi.fn((cb: (tx: unknown) => Promise<unknown>) => cb(mockPrisma)),
 };
 vi.mock('@/lib/db', () => ({ prisma: mockPrisma }));
 vi.mock('@/lib/logger', () => ({ log: { info: vi.fn(), error: vi.fn(), warn: vi.fn() } }));

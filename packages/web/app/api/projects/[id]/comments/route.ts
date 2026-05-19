@@ -126,23 +126,24 @@ export async function POST(request: Request, { params }: RouteParams) {
   const { text, body: bodyAlias, sceneIndex, audioTimestampMs, reactionType } = parsed.data;
   const noteText = text ?? bodyAlias ?? null;
 
-  // Reaction upsert: remove existing reaction for this user+scene, then insert
-  if (reactionType && sceneIndex != null) {
-    await prisma.projectComment.deleteMany({
-      where: { projectId, userId, sceneIndex, reactionType: { not: null } },
+  // Reaction upsert: atomic delete-then-insert to prevent duplicate rows under concurrent requests
+  const comment = await prisma.$transaction(async (tx) => {
+    if (reactionType && sceneIndex != null) {
+      await tx.projectComment.deleteMany({
+        where: { projectId, userId, sceneIndex, reactionType: { not: null } },
+      });
+    }
+    return tx.projectComment.create({
+      data: {
+        projectId,
+        userId,
+        body: noteText,
+        reactionType: reactionType ?? null,
+        sceneIndex: sceneIndex ?? null,
+        audioTimestampMs: audioTimestampMs ?? null,
+      },
+      select: COMMENT_SELECT,
     });
-  }
-
-  const comment = await prisma.projectComment.create({
-    data: {
-      projectId,
-      userId,
-      body: noteText,
-      reactionType: reactionType ?? null,
-      sceneIndex: sceneIndex ?? null,
-      audioTimestampMs: audioTimestampMs ?? null,
-    },
-    select: COMMENT_SELECT,
   });
 
   if (noteText && project.userId !== userId) {

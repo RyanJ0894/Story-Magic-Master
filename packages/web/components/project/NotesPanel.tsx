@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { MessageSquare, Trash2, Clock, ThumbsUp, ThumbsDown, HelpCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { NoteComment } from './ScreenplayPlayer';
 
@@ -76,10 +77,17 @@ export function NotesPanel({ projectId, currentUserId, onSeekTo, newComment }: N
   }, [newComment, currentUserId]);
 
   async function deleteComment(id: string) {
+    if (!window.confirm('Delete this note?')) return;
     setDeletingId(id);
     try {
       const res = await fetch(`/api/projects/${projectId}/comments/${id}`, { method: 'DELETE' });
-      if (res.ok) setComments((prev) => prev.filter((c) => c.id !== id));
+      if (res.ok) {
+        setComments((prev) => prev.filter((c) => c.id !== id));
+      } else {
+        toast.error('Failed to delete note. Please try again.');
+      }
+    } catch {
+      toast.error('Network error — note not deleted.');
     } finally {
       setDeletingId(null);
     }

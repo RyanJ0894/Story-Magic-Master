@@ -19,8 +19,9 @@ const mockPrisma = {
   project: { findFirst: vi.fn() },
   teamShare: { findFirst: vi.fn() },
   scriptShare: { findFirst: vi.fn() },
-  projectComment: { findMany: vi.fn(), create: vi.fn(), findUnique: vi.fn(), delete: vi.fn() },
+  projectComment: { findMany: vi.fn(), create: vi.fn(), deleteMany: vi.fn(), findUnique: vi.fn(), delete: vi.fn() },
   profile: { findUnique: vi.fn() },
+  $transaction: vi.fn((cb: (tx: unknown) => Promise<unknown>) => cb(mockPrisma)),
 };
 vi.mock('@/lib/db', () => ({ prisma: mockPrisma }));
 

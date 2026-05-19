@@ -177,6 +177,9 @@ model Job {
   @@index([createdAt(sort: Desc)])
   @@index([jobType])
   @@index([projectId, runNumber])
+  // UNTRACKED: partial index "jobs_first_audio_url_not_null" ON jobs(id) WHERE first_audio_url IS NOT NULL
+  // Created in migration 0023, re-asserted in 0025. Prisma cannot represent partial indexes.
+  // Do NOT run `prisma db push` on production — it will drop this index.
   @@map("jobs")
 }
 
@@ -752,6 +755,10 @@ model ProjectComment {
   @@index([projectId, audioTimestampMs])
   @@index([userId])
   @@index([projectId, sceneIndex, reactionType])
+  // UNTRACKED: partial unique index "project_comments_user_reaction_scene_uniq"
+  // ON project_comments(project_id, user_id, scene_index) WHERE reaction_type IS NOT NULL
+  // Created in migration 0025. Prisma cannot represent partial unique constraints.
+  // Do NOT run `prisma db push` on production — it will drop this index.
   @@map("project_comments")
 }
 

@@ -9,6 +9,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ThumbsUp, ThumbsDown, HelpCircle, Plus, X, MessageSquare } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -258,7 +259,13 @@ export function ScreenplayPlayer({
         const json = await res.json() as { comment: NoteComment };
         setComments((prev) => [...prev, json.comment]);
         onCommentAdded?.(json.comment);
+      } else {
+        setOpenNoteBlockIndex(blockIndex);
+        toast.error('Failed to save note. Please try again.');
       }
+    } catch {
+      setOpenNoteBlockIndex(blockIndex);
+      toast.error('Network error — note not saved.');
     } finally {
       setSubmitting(false);
     }
@@ -273,7 +280,6 @@ export function ScreenplayPlayer({
       });
       if (res.ok) {
         const json = await res.json() as { comment: NoteComment };
-        // Remove old reaction for this scene from current user, add new
         setComments((prev) => [
           ...prev.filter(
             (c) => !(c.sceneIndex === sceneIndex && c.reactionType && c.userId === currentUserId)
@@ -281,8 +287,12 @@ export function ScreenplayPlayer({
           json.comment,
         ]);
         onCommentAdded?.(json.comment);
+      } else {
+        toast.error('Could not save reaction. Please try again.');
       }
-    } catch { /* non-fatal */ }
+    } catch {
+      toast.error('Network error — reaction not saved.');
+    }
   }
 
   return (
@@ -307,7 +317,8 @@ export function ScreenplayPlayer({
         return (
           <div
             key={i}
-            className={cn('relative group', {
+            tabIndex={0}
+            className={cn('relative group focus:outline-none', {
               'pl-3 border-l-2': hasNote,
               'border-amber-400 dark:border-amber-500': hasNote && !currentReaction,
               'border-green-500': currentReaction === 'like',
@@ -316,6 +327,10 @@ export function ScreenplayPlayer({
             })}
             onMouseEnter={() => setHoverBlockIndex(i)}
             onMouseLeave={() => setHoverBlockIndex(null)}
+            onFocus={() => setHoverBlockIndex(i)}
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) setHoverBlockIndex(null);
+            }}
           >
             {/* Screenplay block */}
             <p
@@ -351,8 +366,8 @@ export function ScreenplayPlayer({
               </span>
             )}
 
-            {/* Hover actions: add note + reaction buttons */}
-            {isHovered && (
+            {/* Hover/focus actions: add note + reaction buttons */}
+            {(isHovered || openNoteBlockIndex === i) && (
               <div className="absolute right-0 top-0 flex items-center gap-1 bg-background/90 backdrop-blur-sm border border-border rounded px-1.5 py-0.5 shadow-sm">
                 <button
                   data-testid="note-icon"
