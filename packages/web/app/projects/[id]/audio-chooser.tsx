@@ -752,7 +752,7 @@ export function AudioChooser({ projectId, directorJson, disabled, remainingPrevi
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [regeneratingScene, setRegeneratingScene] = useState<number | null>(null);
-  const [expandedScenes, setExpandedScenes] = useState<Set<number>>(new Set([0]));
+  const [expandedScenes, setExpandedScenes] = useState<Set<number>>(new Set());
   const [dialogState, setDialogState] = useState<SelectionDialogState>({
     open: false,
     sceneId: '',
