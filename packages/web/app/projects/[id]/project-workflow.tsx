@@ -1079,6 +1079,7 @@ export function ProjectWorkflow({
                               }
                               // Share with first team (for MVP)
                               const team = teams[0];
+                              if (!window.confirm(`Share "${project.name}" with team "${team.name}"?`)) return;
                               const shareRes = await apiFetch('/api/teams/share', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },

@@ -44,16 +44,22 @@ const REACTION_META: Record<string, { icon: React.ReactNode; label: string; colo
 export function NotesPanel({ projectId, currentUserId, onSeekTo, newComment }: NotesPanelProps) {
   const [comments, setComments] = useState<NoteComment[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch(`/api/projects/${projectId}/comments`);
       if (res.ok) {
         const json = await res.json() as { comments: NoteComment[] };
         setComments(json.comments);
+      } else {
+        setError('Could not load notes.');
       }
+    } catch {
+      setError('Connection error.');
     } finally {
       setLoading(false);
     }
@@ -115,7 +121,16 @@ export function NotesPanel({ projectId, currentUserId, onSeekTo, newComment }: N
       <div className="flex-1 overflow-y-auto">
         {loading && <p className="text-xs text-muted-foreground px-4 py-3">Loading…</p>}
 
-        {!loading && comments.length === 0 && (
+        {!loading && error && (
+          <button
+            onClick={() => void load()}
+            className="w-full text-left text-xs text-destructive px-4 py-3 hover:underline"
+          >
+            {error} Tap to retry.
+          </button>
+        )}
+
+        {!loading && !error && comments.length === 0 && (
           <p className="text-xs text-muted-foreground text-center px-4 py-8">
             Hover over any line to add a note or reaction.
           </p>

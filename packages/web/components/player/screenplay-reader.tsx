@@ -262,6 +262,26 @@ export function ScreenplayReader({
     document.addEventListener('mouseup', onUp);
   };
 
+  const handleProgressTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!progressRef.current) return;
+    setIsDragging(true);
+    const rect = progressRef.current.getBoundingClientRect();
+    seekTo((e.touches[0].clientX - rect.left) / rect.width);
+
+    const onMove = (ev: TouchEvent) => {
+      if (!progressRef.current) return;
+      const r = progressRef.current.getBoundingClientRect();
+      seekTo((ev.touches[0].clientX - r.left) / r.width);
+    };
+    const onEnd = () => {
+      setIsDragging(false);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+    };
+    document.addEventListener('touchmove', onMove, { passive: true });
+    document.addEventListener('touchend', onEnd);
+  };
+
   const seekToLine = (lineId: string) => {
     if (!audioRef.current) return;
     const timing = timingMap.current.get(lineId);
@@ -687,6 +707,7 @@ export function ScreenplayReader({
                   aria-valuemax={Math.round(duration)}
                   aria-valuenow={Math.round(currentTime)}
                   onMouseDown={handleProgressMouseDown}
+                  onTouchStart={handleProgressTouchStart}
                   className="h-2 bg-muted rounded-full cursor-pointer overflow-hidden"
                 >
                   <div
