@@ -24,7 +24,8 @@
     "seed:corpus": "tsx scripts/seed-corpus.ts",
     "ingest:training": "tsx scripts/ingest-training-scripts.ts",
     "score:corpus": "tsx scripts/score-corpus.ts",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "postinstall": "prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
