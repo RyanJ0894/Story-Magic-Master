@@ -19,6 +19,7 @@ import {
   Minimize2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { resolveAudioUrl } from '@/lib/resolve-audio-url';
 
 // =============================================================================
 // Types
@@ -291,8 +292,7 @@ export function ScriptSyncPlayer({
     );
   }
 
-  const orchestratorUrl = process.env.NEXT_PUBLIC_ORCHESTRATOR_URL || process.env.ORCHESTRATOR_URL || '';
-  const audioUrl = `${orchestratorUrl}/audio/${currentOutput.filePath}`;
+  const audioUrl = resolveAudioUrl(currentOutput.filePath);
 
   return (
     <div className={cn('space-y-4', className)}>

@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { resolveAudioUrl } from '@/lib/resolve-audio-url';
 
 interface AudioOutput {
   id: string;
@@ -130,7 +131,7 @@ function AudioPlayerPanel({
         {/* Hidden audio element */}
         <audio
           ref={audioRef}
-          src={run.audioOutputs[0]?.filePath}
+          src={run.audioOutputs[0]?.filePath ? resolveAudioUrl(run.audioOutputs[0].filePath) : undefined}
           muted={isMuted}
         />
 

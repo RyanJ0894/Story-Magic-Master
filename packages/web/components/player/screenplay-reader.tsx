@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { resolveAudioUrl } from '@/lib/resolve-audio-url';
 
 // =============================================================================
 // Types
@@ -128,7 +129,7 @@ export function ScreenplayReader({
   const timingMap = useRef<Map<string, { start: number; end: number }>>(new Map());
 
   const currentOutput = audioOutputs[0];
-  const audioUrl = currentOutput ? `${orchestratorUrl}/audio/${currentOutput.filePath}` : '';
+  const audioUrl = currentOutput ? resolveAudioUrl(currentOutput.filePath) : '';
 
   // Build timing map from scene data
   useEffect(() => {
