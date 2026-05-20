@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/authenticated';
 import { SHORT_SCRIPT } from './fixtures/test-script';
 
 /**
@@ -72,6 +72,8 @@ async function setupReaderMocks(page: import('@playwright/test').Page) {
 
 test.describe('Screenplay Reader — Unauthenticated', () => {
   test('redirects unauthenticated users to login', async ({ page }) => {
+    // Clear auth cookies to simulate an unauthenticated user within the authenticated fixture
+    await page.context().clearCookies();
     await page.goto(`/projects/${MOCK_PROJECT_ID}/listen`);
     await expect(page).toHaveURL(/\/(login|sign-in)/, { timeout: 10000 });
   });

@@ -1,5 +1,4 @@
-import { test, expect } from '@playwright/test';
-import { SHORT_SCRIPT } from './fixtures/test-script';
+import { test, expect } from './fixtures/authenticated';
 
 /**
  * Screenplay Notes + Reactions — /projects/:id and /enterprise/dashboard
@@ -23,7 +22,8 @@ import { SHORT_SCRIPT } from './fixtures/test-script';
 // Mock data
 // ---------------------------------------------------------------------------
 
-const MOCK_PROJECT_ID = 'e2e-notes-project-00000000-0000-0000-0000-000000000001';
+/** Completed project with audio in the Render DB — SSR (Prisma) hydrates correctly */
+const MOCK_PROJECT_ID = '71e98a0f-731f-4a25-8cab-2226daca0a3e';
 const MOCK_COMMENT_ID = 'e2e-comment-00000000-0000-0000-0000-000000000001';
 const MOCK_TEAM_ID = 'e2e-notes-team-00000000-0000-0000-0000-000000000001';
 
@@ -43,26 +43,12 @@ const MOCK_COMMENT = {
 // ---------------------------------------------------------------------------
 
 async function mockCompletedProject(page: import('@playwright/test').Page) {
-  await page.route(`**/api/projects/${MOCK_PROJECT_ID}`, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        id: MOCK_PROJECT_ID,
-        name: 'The Last Frontier',
-        status: 'completed',
-        audio_url: `https://storage.example.com/audio/${MOCK_PROJECT_ID}/final.m4a`,
-        script_text: SHORT_SCRIPT,
-        page_count: 2,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }),
+  // SSR (Prisma) loads the real project from the DB — only mock audio file requests
+  for (const pattern of ['**/audio/**', '**/*.m4a', '**/*.mp3']) {
+    await page.route(pattern, async (route) => {
+      await route.fulfill({ status: 200, contentType: 'audio/mp4', body: Buffer.alloc(256) });
     });
-  });
-
-  await page.route('**/audio/**', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'audio/mp4', body: Buffer.alloc(256) });
-  });
+  }
 }
 
 async function mockCommentsApi(
