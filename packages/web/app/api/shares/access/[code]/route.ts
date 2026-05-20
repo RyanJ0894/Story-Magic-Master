@@ -6,6 +6,7 @@ import { VerifySharePasswordRequestSchema } from '@/lib/api/dto';
 import { rateLimit, getClientIp } from '@/lib/api/rate-limit';
 import { errorResponse } from '@/lib/api/error-response';
 import { accessShare, ShareServiceError } from '@/lib/services/shares';
+import { resolveAudioUrl } from '@/lib/resolve-audio-url';
 
 interface RouteParams {
   params: Promise<{ code: string }>;
@@ -174,7 +175,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       code: share.project?.user?.writerCode ?? '',
     },
     audio: audioOutput ? {
-      url: audioOutput.filePath,
+      url: resolveAudioUrl(audioOutput.filePath),
       duration: audioOutput.durationSeconds,
     } : null,
     canDownload: share.accessLevel === 'download',

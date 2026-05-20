@@ -15,7 +15,8 @@
     "test:ui": "vitest --ui",
     "test:legacy": "node tests/test-orchestrator.js",
     "lint": "eslint . --ext .ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "refresh:voices": "tsx scripts/refresh-voice-catalog.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.71",

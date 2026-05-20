@@ -9,8 +9,10 @@
  * to `new Audio()`, causing the browser to resolve them against the web origin
  * and receive a 404 HTML page that plays back as static noise.
  */
-export function resolveAudioUrl(filePath: string): string {
-  if (filePath.startsWith('http')) return filePath;
-  const base = process.env.NEXT_PUBLIC_ORCHESTRATOR_URL || '';
-  return `${base}/audio/${filePath}`;
+export function resolveAudioUrl(filePath: string | undefined | null): string {
+  if (!filePath) return '';
+  if (/^https?:\/\//i.test(filePath)) return filePath;
+  const base = (process.env.NEXT_PUBLIC_ORCHESTRATOR_URL ?? '').replace(/\/+$/, '');
+  const path = filePath.replace(/^\/+/, '');
+  return `${base}/audio/${path}`;
 }

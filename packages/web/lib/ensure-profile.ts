@@ -9,16 +9,6 @@ import { prisma } from '@/lib/db';
 import type { Profile } from '@prisma/client';
 
 export async function ensureProfile(userId: string): Promise<Profile> {
-  // Try to find existing profile first
-  const existing = await prisma.profile.findUnique({
-    where: { id: userId },
-  });
-
-  if (existing) {
-    return existing;
-  }
-
-  // Profile doesn't exist — fetch Clerk user details and create one
   const clerkUser = await currentUser();
 
   const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? null;
@@ -26,12 +16,14 @@ export async function ensureProfile(userId: string): Promise<Profile> {
     [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ') ||
     email;
 
-  return prisma.profile.create({
-    data: {
+  return prisma.profile.upsert({
+    where: { id: userId },
+    create: {
       id: userId,
       email,
       fullName: fullName ?? null,
       avatarUrl: clerkUser?.imageUrl ?? null,
     },
+    update: {},
   });
 }

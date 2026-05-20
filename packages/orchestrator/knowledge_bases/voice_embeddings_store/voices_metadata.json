@@ -3,9 +3,9 @@
     "voice_id": "CwhRBWXzGAHq8TQ4Fs17",
     "name": "Roger - Laid-Back, Casual, Resonant",
     "gender": "Male",
-    "label": "Male 30s to 40s",
+    "label": "Older Male",
     "style": "American",
-    "tone": "classy",
+    "tone": "Calm",
     "description": "Roger - Laid-Back, Casual, Resonant"
   },
   {
@@ -14,7 +14,7 @@
     "gender": "Female",
     "label": "Female - 20s to 30s",
     "style": "American",
-    "tone": "professional",
+    "tone": "Professional",
     "description": "Sarah - Mature, Reassuring, Confident"
   },
   {
@@ -23,7 +23,7 @@
     "gender": "Female",
     "label": "Female - 20s to 30s",
     "style": "American",
-    "tone": "sassy",
+    "tone": "Energetic",
     "description": "Laura - Enthusiast, Quirky Attitude"
   },
   {
@@ -32,7 +32,7 @@
     "gender": "Male",
     "label": "Male 20s to 30s",
     "style": "Australian",
-    "tone": "hyped",
+    "tone": "Energetic",
     "description": "Charlie - Deep, Confident, Energetic"
   },
   {
@@ -41,25 +41,25 @@
     "gender": "Male",
     "label": "Narrator",
     "style": "British",
-    "tone": "mature",
+    "tone": "Calm",
     "description": "George - Warm, Captivating Storyteller"
   },
   {
     "voice_id": "N2lVS1w4EtoT3dr4eOWO",
     "name": "Callum - Husky Trickster",
     "gender": "Male",
-    "label": "Male 30s to 40s",
+    "label": "Older Male",
     "style": "American",
-    "tone": "characters_animation",
+    "tone": "Warm",
     "description": "Callum - Husky Trickster"
   },
   {
     "voice_id": "SAz9YHcvj6GT2YYXdXww",
     "name": "River - Relaxed, Neutral, Informative",
     "gender": "Male",
-    "label": "Male 30s to 40s",
+    "label": "Older Male",
     "style": "American",
-    "tone": "calm",
+    "tone": "Calm",
     "description": "River - Relaxed, Neutral, Informative"
   },
   {
@@ -68,7 +68,7 @@
     "gender": "Male",
     "label": "Male 20s to 30s",
     "style": "American",
-    "tone": "rough",
+    "tone": "Deep",
     "description": "Harry - Fierce Warrior"
   },
   {
@@ -77,25 +77,25 @@
     "gender": "Male",
     "label": "Male 20s to 30s",
     "style": "American",
-    "tone": "confident",
+    "tone": "Confident",
     "description": "Liam - Energetic, Social Media Creator"
   },
   {
     "voice_id": "Xb7hH8MSUJpSbSDYk0k2",
     "name": "Alice - Clear, Engaging Educator",
     "gender": "Female",
-    "label": "Female - 30s to 40s",
+    "label": "Older Female",
     "style": "British",
-    "tone": "professional",
+    "tone": "Professional",
     "description": "Alice - Clear, Engaging Educator"
   },
   {
     "voice_id": "XrExE9yKIg1WjnnlVkGX",
     "name": "Matilda - Knowledgable, Professional",
     "gender": "Female",
-    "label": "Female - 30s to 40s",
+    "label": "Older Female",
     "style": "American",
-    "tone": "upbeat",
+    "tone": "Energetic",
     "description": "Matilda - Knowledgable, Professional"
   },
   {
@@ -104,7 +104,7 @@
     "gender": "Male",
     "label": "Male 20s to 30s",
     "style": "American",
-    "tone": "chill",
+    "tone": "Calm",
     "description": "Will - Relaxed Optimist"
   },
   {
@@ -113,61 +113,61 @@
     "gender": "Female",
     "label": "Female - 20s to 30s",
     "style": "American",
-    "tone": "cute",
+    "tone": "Warm",
     "description": "Jessica - Playful, Bright, Warm"
   },
   {
     "voice_id": "cjVigY5qzO86Huf0OWal",
     "name": "Eric - Smooth, Trustworthy",
     "gender": "Male",
-    "label": "Male 30s to 40s",
+    "label": "Older Male",
     "style": "American",
-    "tone": "classy",
+    "tone": "Calm",
     "description": "Eric - Smooth, Trustworthy"
   },
   {
     "voice_id": "iP95p4xoKVk53GoZ742B",
     "name": "Chris - Charming, Down-to-Earth",
     "gender": "Male",
-    "label": "Male 30s to 40s",
+    "label": "Older Male",
     "style": "American",
-    "tone": "casual",
+    "tone": "Calm",
     "description": "Chris - Charming, Down-to-Earth"
   },
   {
     "voice_id": "nPczCjzI2devNBz1zQrb",
     "name": "Brian - Deep, Resonant and Comforting",
     "gender": "Male",
-    "label": "Male 30s to 40s",
+    "label": "Older Male",
     "style": "American",
-    "tone": "classy",
+    "tone": "Calm",
     "description": "Brian - Deep, Resonant and Comforting"
   },
   {
     "voice_id": "onwK4e9ZLuTAKqWW03F9",
     "name": "Daniel - Steady Broadcaster",
     "gender": "Male",
-    "label": "Male 30s to 40s",
+    "label": "Older Male",
     "style": "British",
-    "tone": "formal",
+    "tone": "Calm",
     "description": "Daniel - Steady Broadcaster"
   },
   {
     "voice_id": "pFZP5JQG7iQjIQuC4Bku",
     "name": "Lily - Velvety Actress",
     "gender": "Female",
-    "label": "Female - 30s to 40s",
+    "label": "Older Female",
     "style": "British",
-    "tone": "confident",
+    "tone": "Confident",
     "description": "Lily - Velvety Actress"
   },
   {
     "voice_id": "pNInz6obpgDQGcFmaJgB",
     "name": "Adam - Dominant, Firm",
     "gender": "Male",
-    "label": "Narrator",
+    "label": "Older Male",
     "style": "American",
-    "tone": "social_media",
+    "tone": "Warm",
     "description": "Adam - Dominant, Firm"
   },
   {
@@ -176,25 +176,25 @@
     "gender": "Male",
     "label": "Older Male",
     "style": "American",
-    "tone": "crisp",
+    "tone": "Calm",
     "description": "Bill - Wise, Mature, Balanced"
   },
   {
     "voice_id": "iiidtqDt9FBdT1vfBluA",
     "name": "Bill L. Oxley ",
     "gender": "Male",
-    "label": "Narrator",
+    "label": "Older Male",
     "style": "American",
-    "tone": "professional",
+    "tone": "Calm",
     "description": "Bill L. Oxley "
   },
   {
     "voice_id": "L0Dsvb3SLTyegXwtm47J",
     "name": "Archer",
     "gender": "Male",
-    "label": "Male 30s to 40s",
+    "label": "Narrator",
     "style": "British",
-    "tone": "calm",
+    "tone": "Calm",
     "description": "Archer"
   },
   {
@@ -203,7 +203,7 @@
     "gender": "Female",
     "label": "Female - 20s to 30s",
     "style": "American",
-    "tone": "confident",
+    "tone": "polished",
     "description": "K. Morgan \u2013 polished and neutral "
   },
   {
@@ -221,7 +221,7 @@
     "gender": "Male",
     "label": "Male Teen",
     "style": "American",
-    "tone": "Calm",
+    "tone": "chill",
     "description": "Ethan the older teen"
   },
   {
@@ -230,7 +230,7 @@
     "gender": "Female",
     "label": "Female - 20s to 30s",
     "style": "American",
-    "tone": "Calm",
+    "tone": "calm",
     "description": "Elizabeth Audiobook"
   },
   {
@@ -248,7 +248,7 @@
     "gender": "Male",
     "label": "Male Teen",
     "style": "American",
-    "tone": "Calm",
+    "tone": "Deep",
     "description": "Brayden - Conversational Older Teen"
   },
   {
@@ -257,7 +257,7 @@
     "gender": "Female",
     "label": "Female - 20s to 30s",
     "style": "American",
-    "tone": "Calm",
+    "tone": "caring",
     "description": "Hope- Your conversational bestie"
   }
 ]
