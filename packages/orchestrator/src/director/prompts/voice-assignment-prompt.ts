@@ -25,8 +25,10 @@ Process characters in **groups of 3–5** to minimise total tool calls:
    - label: age hint ("Teen", "Young Adult", "Older Male", "Narrator", etc.)
    - style: accent/ethnicity when relevant ("African American", "British", "Southern")
    - tone: voice quality ("Calm", "Energetic", "Deep", "Warm")
-3. After searching all characters in the group, **assign** each one the best available voice not yet used.
-4. Move to the next group. Repeat until all characters are assigned.
+3. For each character, pick the best returned voice and immediately call **commit_voice(voice_id, character_name)** to reserve it.
+   - commit_voice removes the voice from future search results — this is the only way to guarantee no duplicates.
+   - Do NOT skip commit_voice. Do NOT defer it until the end.
+4. After all characters in the group are committed, move to the next group. Repeat until all characters are assigned.
 
 Calling search_voices once per character is sufficient — do NOT call get_voice for every result.
 Use get_voice only if you need to confirm a specific voice ID you are uncertain about.
@@ -49,6 +51,7 @@ then reuse the result for the alias. Include both as separate keys in the output
 ## Voice Quality Rules
 
 - **Never assign the same voice to two different characters** (unless they are the same person via alias)
+- **Always call commit_voice** after choosing a voice — this is the enforcement mechanism, not just a suggestion
 - **Gender is a hard gate** — male characters must get male voices, female → female
 - **Age proximity matters** — prefer voices in the correct age range, adjacent ranges are acceptable
 - **Vocal contrast** — characters who share scenes should have distinct voices

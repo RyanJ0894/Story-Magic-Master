@@ -38,11 +38,13 @@ export function createVoiceTools() {
   const searchVoices = buildSearchVoicesTool(scopedUsedVoiceIds);
   const getVoiceById = buildGetVoiceByIdTool(scopedUsedVoiceIds);
   const listVoiceLabels = buildListVoiceLabelsTool();
+  const commitVoice = buildCommitVoiceTool(scopedUsedVoiceIds);
 
   return {
     searchVoicesTool: searchVoices,
     getVoiceByIdTool: getVoiceById,
     listVoiceLabelsTool: listVoiceLabels,
+    commitVoiceTool: commitVoice,
     resetUsedVoices: reset,
   };
 }
@@ -262,6 +264,30 @@ function buildListVoiceLabelsTool() {
         male: [...new Set(maleLabels)].sort(),
         female: [...new Set(femaleLabels)].sort(),
       },
+    };
+  },
+  });
+}
+
+function buildCommitVoiceTool(scopedUsed: Set<string>) {
+  return tool({
+  description: `Reserve a voice after assigning it to a character.
+Call this immediately after deciding on a voice — it marks the voice as used
+so it is excluded from all subsequent search_voices results for this project.
+MUST be called once per character assignment.`,
+
+  inputSchema: z.object({
+    voice_id: z.string().describe('The ElevenLabs voice ID to reserve'),
+    character_name: z.string().describe('The character this voice is being reserved for'),
+  }),
+
+  execute: async ({ voice_id, character_name }) => {
+    scopedUsed.add(voice_id);
+    log.debug('commitVoice reserved', { voice_id, character_name, total: scopedUsed.size });
+    return {
+      status: 'success',
+      message: `Voice ${voice_id} reserved for ${character_name}. Excluded from future searches.`,
+      reserved_count: scopedUsed.size,
     };
   },
   });

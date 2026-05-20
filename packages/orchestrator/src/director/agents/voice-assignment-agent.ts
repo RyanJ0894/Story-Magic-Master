@@ -62,6 +62,7 @@ export class VoiceAssignmentAgent {
       searchVoicesTool,
       getVoiceByIdTool,
       listVoiceLabelsTool,
+      commitVoiceTool,
       resetUsedVoices,
     } = createVoiceTools();
     resetUsedVoices();
@@ -70,6 +71,7 @@ export class VoiceAssignmentAgent {
       search_voices: searchVoicesTool,
       get_voice: getVoiceByIdTool,
       list_voice_labels: listVoiceLabelsTool,
+      commit_voice: commitVoiceTool,
     };
 
     const userMessage = buildVoiceAssignmentUserMessage(manifest);
