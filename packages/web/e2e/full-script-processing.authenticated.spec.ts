@@ -63,17 +63,25 @@ async function setupProcessingMocks(
 ) {
   const { totalSegments = 1, failedSegments = 0, completesAfterPolls = 3 } = opts;
 
-  // Mock generate endpoint
-  await page.route(`**/api/projects/${projectId}/generate`, async (route) => {
+  // Mock generate endpoint — actual call goes to /api/generate (not project-scoped)
+  await page.route('**/api/generate', async (route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ job_id: MOCK_JOB_ID, status: 'queued' }),
+        body: JSON.stringify({ jobId: MOCK_JOB_ID, status: 'queued' }),
       });
     } else {
       await route.continue();
     }
+  });
+  // Queue position polling
+  await page.route(`**/api/jobs/${MOCK_JOB_ID}/position`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ position: 1, estimatedWaitSeconds: 30, jobsAhead: 0, status: 'processing' }),
+    });
   });
 
   // Mock job status — progresses through segments

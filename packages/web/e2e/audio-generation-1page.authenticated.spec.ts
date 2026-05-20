@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test';
-import { ONE_PAGE_SCRIPT, SHORT_SCRIPT } from './fixtures/test-script';
+import { test, expect } from './fixtures/authenticated';
+import { ONE_PAGE_SCRIPT } from './fixtures/test-script';
 
 /**
  * Audio Generation — 1-Page Script (Authenticated)
@@ -10,6 +10,9 @@ import { ONE_PAGE_SCRIPT, SHORT_SCRIPT } from './fixtures/test-script';
  * All orchestrator + Clerk calls are mocked so the test suite runs without
  * live external services. Focus: UI behaviour, job-status contract, and
  * playback availability.
+ *
+ * Real project IDs from the Render DB are used so SSR can hydrate correctly.
+ * The project API and job endpoints are still mocked for client-side calls.
  *
  * Covers:
  * - Project creation via form (name + script text)
@@ -23,67 +26,65 @@ import { ONE_PAGE_SCRIPT, SHORT_SCRIPT } from './fixtures/test-script';
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Constants
+// Constants — real project IDs in the Render DB
 // ─────────────────────────────────────────────────────────────────────────────
 
-const MOCK_PROJECT_ID = 'e2e-1pg-project-00000000-0000-0000-0000-000000000001';
-const MOCK_JOB_ID = 'e2e-1pg-job-00000000-0000-0000-0000-000000000001';
+/** Draft project (status='draft', no audio) — for generate-flow tests */
+const REAL_DRAFT_PROJECT_ID = '606f2749-17a3-431c-9ec5-9970284bb32d';
+
+/** Completed project (status='completed', has audio_output row) — for post-gen UI tests */
+const REAL_COMPLETED_PROJECT_ID = '71e98a0f-731f-4a25-8cab-2226daca0a3e';
+
+const MOCK_JOB_ID = 'e2e-1pg-job-000000000000-0000-0000-0000-000000000001';
 const MOCK_AUDIO_URL = 'https://storage.example.com/audio/1page-output.m4a';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mock helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function mockProject(
+/** Pre-select workflow mode so WorkflowModeSelector is bypassed on page load */
+async function setWorkflowMode(
   page: import('@playwright/test').Page,
-  status: 'draft' | 'processing' | 'completed' | 'failed' = 'draft',
+  projectId: string,
+  mode: 'automatic' | 'fine_tuned' = 'automatic',
 ) {
-  await page.route(`**/api/projects/${MOCK_PROJECT_ID}`, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        id: MOCK_PROJECT_ID,
-        name: '1-Page E2E Test — The Detective',
-        status,
-        page_count: 1,
-        script_text: ONE_PAGE_SCRIPT,
-        audio_url: status === 'completed' ? MOCK_AUDIO_URL : null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }),
-    });
-  });
-
-  await page.route('**/audio/**', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'audio/mp4', body: Buffer.alloc(256) });
-  });
+  // currentRunNumber defaults to 0; key = project-{id}-run-1-mode
+  await page.addInitScript(
+    ({ id, m }) => {
+      localStorage.setItem(`project-${id}-run-1-mode`, m);
+    },
+    { id: projectId, m: mode },
+  );
 }
 
-async function mockProjectCreation(page: import('@playwright/test').Page) {
-  await page.route('**/api/projects', async (route) => {
+async function mockGenerateEndpoint(
+  page: import('@playwright/test').Page,
+  _projectId: string,
+) {
+  await page.route('**/api/generate', async (route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          id: MOCK_PROJECT_ID,
-          name: '1-Page E2E Test — The Detective',
-          status: 'draft',
-          page_count: 1,
-          script_text: ONE_PAGE_SCRIPT,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }),
+        body: JSON.stringify({ jobId: MOCK_JOB_ID, status: 'queued' }),
       });
     } else {
       await route.continue();
     }
   });
+  // Queue position polling fired immediately after generate returns jobId
+  await page.route(`**/api/jobs/${MOCK_JOB_ID}/position`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ position: 1, estimatedWaitSeconds: 30, jobsAhead: 0, status: 'processing' }),
+    });
+  });
 }
 
 async function mockJobPolling(
   page: import('@playwright/test').Page,
+  projectId: string,
   { completesAfterPolls = 2, fail = false }: { completesAfterPolls?: number; fail?: boolean } = {},
 ) {
   let pollCount = 0;
@@ -98,7 +99,7 @@ async function mockJobPolling(
         contentType: 'application/json',
         body: JSON.stringify({
           id: MOCK_JOB_ID,
-          project_id: MOCK_PROJECT_ID,
+          project_id: projectId,
           status: 'failed',
           progress: { step: 'failed', percent: 0, details: 'Audio generation failed' },
           audio_url: null,
@@ -114,13 +115,14 @@ async function mockJobPolling(
       contentType: 'application/json',
       body: JSON.stringify({
         id: MOCK_JOB_ID,
-        project_id: MOCK_PROJECT_ID,
+        project_id: projectId,
         status: isComplete ? 'completed' : 'processing',
         progress: {
           step: isComplete ? 'complete' : 'generating_audio',
           percent: isComplete ? 100 : 50,
           details: isComplete ? 'Generation complete' : 'Generating audio…',
         },
+        firstAudioUrl: isComplete ? MOCK_AUDIO_URL : null,
         audio_url: isComplete ? MOCK_AUDIO_URL : null,
         segments: null, // single-segment jobs have no segments array
         created_at: new Date().toISOString(),
@@ -130,18 +132,13 @@ async function mockJobPolling(
   });
 }
 
-async function mockGenerateEndpoint(page: import('@playwright/test').Page) {
-  await page.route(`**/api/projects/${MOCK_PROJECT_ID}/generate`, async (route) => {
-    if (route.request().method() === 'POST') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ job_id: MOCK_JOB_ID, status: 'queued' }),
-      });
-    } else {
-      await route.continue();
-    }
-  });
+// Silence audio resource requests from the mock audio player
+async function mockAudioRequests(page: import('@playwright/test').Page) {
+  for (const pattern of ['**/audio/**', '**/*.m4a', '**/*.mp3']) {
+    await page.route(pattern, async (route) => {
+      await route.fulfill({ status: 200, contentType: 'audio/mp4', body: Buffer.alloc(256) });
+    });
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -154,6 +151,7 @@ test.describe('Audio Generation — 1-Page Script (Authenticated)', () => {
   test.describe('Project Creation', () => {
     test('new-project form accepts name and script text', async ({ page }) => {
       await page.goto('/projects/new');
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
       await expect(page.getByTestId('project-name-input')).toBeVisible({ timeout: 10000 });
       await expect(page.getByTestId('script-textarea')).toBeVisible();
@@ -162,6 +160,7 @@ test.describe('Audio Generation — 1-Page Script (Authenticated)', () => {
 
     test('create-project button is disabled until name and script are filled', async ({ page }) => {
       await page.goto('/projects/new');
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
       const button = page.getByTestId('create-project-button');
       await expect(button).toBeVisible({ timeout: 10000 });
@@ -187,18 +186,21 @@ test.describe('Audio Generation — 1-Page Script (Authenticated)', () => {
     test('submitting the form creates a project and redirects to project page', async ({
       page,
     }) => {
-      await mockProjectCreation(page);
-      await mockProject(page, 'draft');
-
       await page.goto('/projects/new');
-      await expect(page.getByTestId('project-name-input')).toBeVisible({ timeout: 10000 });
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
       await page.getByTestId('project-name-input').fill('1-Page E2E Test — The Detective');
       await page.getByTestId('script-textarea').fill(ONE_PAGE_SCRIPT);
       await page.getByTestId('create-project-button').click();
 
-      // Redirects to /projects/:id
+      // Redirects to /projects/:id (real project is created)
       await expect(page).toHaveURL(/\/projects\/[a-f0-9-]+/, { timeout: 15000 });
+
+      // Clean up: delete the created project
+      const projectId = page.url().split('/projects/')[1]?.split('/')[0];
+      if (projectId) {
+        await page.request.delete(`/api/projects/${projectId}`).catch(() => {});
+      }
     });
   });
 
@@ -206,18 +208,23 @@ test.describe('Audio Generation — 1-Page Script (Authenticated)', () => {
 
   test.describe('Single-Segment Generation', () => {
     test('generate button is visible on a draft project', async ({ page }) => {
-      await mockProject(page, 'draft');
+      await setWorkflowMode(page, REAL_DRAFT_PROJECT_ID);
+      await mockAudioRequests(page);
 
-      await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+      await page.goto(`/projects/${REAL_DRAFT_PROJECT_ID}`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
+
       await expect(page.getByTestId('generate-button')).toBeVisible({ timeout: 10000 });
     });
 
     test('clicking generate shows a processing / queued state', async ({ page }) => {
-      await mockProject(page, 'draft');
-      await mockGenerateEndpoint(page);
-      await mockJobPolling(page, { completesAfterPolls: 10 }); // slow job
+      await setWorkflowMode(page, REAL_DRAFT_PROJECT_ID);
+      await mockAudioRequests(page);
+      await mockGenerateEndpoint(page, REAL_DRAFT_PROJECT_ID);
+      await mockJobPolling(page, REAL_DRAFT_PROJECT_ID, { completesAfterPolls: 10 });
 
-      await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+      await page.goto(`/projects/${REAL_DRAFT_PROJECT_ID}`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
       await page.getByTestId('generate-button').click();
 
       const processingIndicator = page
@@ -227,11 +234,13 @@ test.describe('Audio Generation — 1-Page Script (Authenticated)', () => {
     });
 
     test('1-page job shows no chunk or segment language', async ({ page }) => {
-      await mockProject(page, 'draft');
-      await mockGenerateEndpoint(page);
-      await mockJobPolling(page, { completesAfterPolls: 4 });
+      await setWorkflowMode(page, REAL_DRAFT_PROJECT_ID);
+      await mockAudioRequests(page);
+      await mockGenerateEndpoint(page, REAL_DRAFT_PROJECT_ID);
+      await mockJobPolling(page, REAL_DRAFT_PROJECT_ID, { completesAfterPolls: 4 });
 
-      await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+      await page.goto(`/projects/${REAL_DRAFT_PROJECT_ID}`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
       await page.getByTestId('generate-button').click();
 
       await page.waitForTimeout(3000);
@@ -243,29 +252,32 @@ test.describe('Audio Generation — 1-Page Script (Authenticated)', () => {
     });
 
     test('job completes and audio player appears', async ({ page }) => {
-      await mockProject(page, 'draft');
-      await mockGenerateEndpoint(page);
-      await mockJobPolling(page, { completesAfterPolls: 2 });
+      await setWorkflowMode(page, REAL_DRAFT_PROJECT_ID);
+      await mockAudioRequests(page);
+      await mockGenerateEndpoint(page, REAL_DRAFT_PROJECT_ID);
+      await mockJobPolling(page, REAL_DRAFT_PROJECT_ID, { completesAfterPolls: 2 });
 
-      await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+      await page.goto(`/projects/${REAL_DRAFT_PROJECT_ID}`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
       await page.getByTestId('generate-button').click();
 
-      // Player must appear once job completes
+      // Player must appear once first audio URL fires (progressive playback)
       const audioPlayer = page
         .getByTestId('audio-player')
-        .or(page.locator('audio[src]'))
+        .or(page.locator('audio'))
         .or(page.getByRole('region', { name: /player/i }));
       await expect(audioPlayer.first()).toBeVisible({ timeout: 20000 });
     });
 
     test('audio player shows on a pre-completed project', async ({ page }) => {
-      await mockProject(page, 'completed');
+      await mockAudioRequests(page);
 
-      await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+      await page.goto(`/projects/${REAL_COMPLETED_PROJECT_ID}`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
       const audioPlayer = page
         .getByTestId('audio-player')
-        .or(page.locator('audio[src]'))
+        .or(page.locator('audio'))
         .or(page.getByRole('region', { name: /player/i }));
       const hasPlayer = await audioPlayer.isVisible({ timeout: 10000 }).catch(() => false);
 
@@ -280,9 +292,10 @@ test.describe('Audio Generation — 1-Page Script (Authenticated)', () => {
 
   test.describe('Post-Generation UI', () => {
     test('download button is visible after completion', async ({ page }) => {
-      await mockProject(page, 'completed');
+      await mockAudioRequests(page);
 
-      await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+      await page.goto(`/projects/${REAL_COMPLETED_PROJECT_ID}`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
       const downloadBtn = page
         .getByTestId('download-button')
@@ -293,9 +306,10 @@ test.describe('Audio Generation — 1-Page Script (Authenticated)', () => {
     });
 
     test('screenplay reader tab or button is accessible', async ({ page }) => {
-      await mockProject(page, 'completed');
+      await mockAudioRequests(page);
 
-      await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+      await page.goto(`/projects/${REAL_COMPLETED_PROJECT_ID}`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
       // Can navigate to screenplay reader via tab, button, or link
       const readerEntry = page
@@ -310,9 +324,10 @@ test.describe('Audio Generation — 1-Page Script (Authenticated)', () => {
     });
 
     test('share button shows confirmation dialog before sharing', async ({ page }) => {
-      await mockProject(page, 'completed');
+      await mockAudioRequests(page);
 
-      await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+      await page.goto(`/projects/${REAL_COMPLETED_PROJECT_ID}`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
       const shareButton = page
         .getByTestId('share-button')
@@ -336,11 +351,13 @@ test.describe('Audio Generation — 1-Page Script (Authenticated)', () => {
 
   test.describe('Error Handling', () => {
     test('failed job shows error state (not a loading spinner)', async ({ page }) => {
-      await mockProject(page, 'draft');
-      await mockGenerateEndpoint(page);
-      await mockJobPolling(page, { completesAfterPolls: 2, fail: true });
+      await setWorkflowMode(page, REAL_DRAFT_PROJECT_ID);
+      await mockAudioRequests(page);
+      await mockGenerateEndpoint(page, REAL_DRAFT_PROJECT_ID);
+      await mockJobPolling(page, REAL_DRAFT_PROJECT_ID, { completesAfterPolls: 2, fail: true });
 
-      await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+      await page.goto(`/projects/${REAL_DRAFT_PROJECT_ID}`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
       await page.getByTestId('generate-button').click();
 
       // Wait for failure state to propagate
@@ -355,16 +372,17 @@ test.describe('Audio Generation — 1-Page Script (Authenticated)', () => {
         .getByTestId('loading-spinner')
         .or(page.locator('[data-state="loading"]'));
       const spinnerVisible = await spinner.isVisible({ timeout: 1000 }).catch(() => false);
-      // Either error is showing without spinner, or spinner is also showing (partial loading state)
       void spinnerVisible;
     });
 
     test('retry / regenerate button appears after a failed job', async ({ page }) => {
-      await mockProject(page, 'draft');
-      await mockGenerateEndpoint(page);
-      await mockJobPolling(page, { completesAfterPolls: 2, fail: true });
+      await setWorkflowMode(page, REAL_DRAFT_PROJECT_ID);
+      await mockAudioRequests(page);
+      await mockGenerateEndpoint(page, REAL_DRAFT_PROJECT_ID);
+      await mockJobPolling(page, REAL_DRAFT_PROJECT_ID, { completesAfterPolls: 2, fail: true });
 
-      await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+      await page.goto(`/projects/${REAL_DRAFT_PROJECT_ID}`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
       await page.getByTestId('generate-button').click();
 
       const retryButton = page
@@ -379,12 +397,12 @@ test.describe('Audio Generation — 1-Page Script (Authenticated)', () => {
 
   test.describe('Page Count Display', () => {
     test('project detail page shows page count for 1-page project', async ({ page }) => {
-      await mockProject(page, 'draft');
+      await setWorkflowMode(page, REAL_DRAFT_PROJECT_ID);
 
-      await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+      await page.goto(`/projects/${REAL_DRAFT_PROJECT_ID}`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
       // page_count: 1 should be reflected somewhere in the UI
-      // Accept "1 page", "1 page script", "Page 1", or similar
       const pageCount = page
         .getByText(/1 page/i)
         .or(page.getByTestId('page-count'))

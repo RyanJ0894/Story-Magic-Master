@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/authenticated';
 
 /**
  * Enterprise Master Account Dashboard — authenticated tests only.

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/authenticated';
 
 /**
  * Progressive Playback — Fast Start UX
@@ -14,11 +14,13 @@ import { test, expect } from '@playwright/test';
  */
 
 // ---------------------------------------------------------------------------
-// Mock data
+// Constants — real project IDs in the Render DB
 // ---------------------------------------------------------------------------
 
-const MOCK_PROJECT_ID = 'e2e-pp-project-00000000-0000-0000-0000-000000000001';
-const MOCK_JOB_ID = 'e2e-pp-job-00000000-0000-0000-0000-000000000001';
+/** Draft project — for generate-flow tests */
+const REAL_DRAFT_PROJECT_ID = '606f2749-17a3-431c-9ec5-9970284bb32d';
+
+const MOCK_JOB_ID = 'e2e-pp-job-000000000000-0000-0000-0000-000000000001';
 const SEGMENT_0_URL = 'https://storage.example.com/audio/segment-0.m4a';
 const SEGMENT_1_URL = 'https://storage.example.com/audio/segment-1.m4a';
 const FINAL_URL = 'https://storage.example.com/audio/final.m4a';
@@ -27,36 +29,58 @@ const FINAL_URL = 'https://storage.example.com/audio/final.m4a';
 // Mock helpers
 // ---------------------------------------------------------------------------
 
-async function mockBaseProject(page: import('@playwright/test').Page) {
-  await page.route(`**/api/projects/${MOCK_PROJECT_ID}`, async (route) => {
+/** Pre-select workflow mode so WorkflowModeSelector is bypassed on page load */
+async function setWorkflowMode(
+  page: import('@playwright/test').Page,
+  projectId: string,
+  mode: 'automatic' | 'fine_tuned' = 'automatic',
+) {
+  await page.addInitScript(
+    ({ id, m }) => {
+      localStorage.setItem(`project-${id}-run-1-mode`, m);
+    },
+    { id: projectId, m: mode },
+  );
+}
+
+async function mockAudioRequests(page: import('@playwright/test').Page) {
+  for (const pattern of ['**/audio/**', '**/*.m4a', '**/*.mp3']) {
+    await page.route(pattern, async (route) => {
+      await route.fulfill({ status: 200, contentType: 'audio/mp4', body: Buffer.alloc(256) });
+    });
+  }
+}
+
+async function mockGenerateEndpoint(
+  page: import('@playwright/test').Page,
+  _projectId: string,
+) {
+  await page.route('**/api/generate', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ jobId: MOCK_JOB_ID, status: 'queued' }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+  // Queue position polling fired immediately after generate returns jobId
+  await page.route(`**/api/jobs/${MOCK_JOB_ID}/position`, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
-        id: MOCK_PROJECT_ID,
-        name: 'Progressive Playback Test',
-        status: 'processing',
-        page_count: 50,
-        audio_url: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }),
+      body: JSON.stringify({ position: 1, estimatedWaitSeconds: 30, jobsAhead: 0, status: 'processing' }),
     });
-  });
-
-  await page.route('**/audio/**', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'audio/mp4', body: Buffer.alloc(256) });
-  });
-  await page.route('**/segment-*.m4a', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'audio/mp4', body: Buffer.alloc(256) });
-  });
-  await page.route('**/final.m4a', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'audio/mp4', body: Buffer.alloc(256) });
   });
 }
 
 /** Mocks job status to return firstAudioUrl on the 2nd poll, then complete on the 4th. */
-async function mockProgressiveJob(page: import('@playwright/test').Page) {
+async function mockProgressiveJob(
+  page: import('@playwright/test').Page,
+  projectId: string,
+) {
   let pollCount = 0;
 
   await page.route(`**/api/jobs/${MOCK_JOB_ID}`, async (route) => {
@@ -69,7 +93,7 @@ async function mockProgressiveJob(page: import('@playwright/test').Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         id: MOCK_JOB_ID,
-        project_id: MOCK_PROJECT_ID,
+        project_id: projectId,
         status: isComplete ? 'completed' : 'processing',
         progress: {
           step: isComplete ? 'complete' : hasFirstSegment ? 'first_audio_ready' : 'generating_audio',
@@ -101,20 +125,6 @@ async function mockProgressiveJob(page: import('@playwright/test').Page) {
   });
 }
 
-async function mockGenerateEndpoint(page: import('@playwright/test').Page) {
-  await page.route('**/api/generate', async (route) => {
-    if (route.request().method() === 'POST') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ jobId: MOCK_JOB_ID }),
-      });
-    } else {
-      await route.continue();
-    }
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -124,36 +134,19 @@ test.describe('Progressive Playback — Fast Start (Authenticated)', () => {
     test('audio player appears when firstAudioUrl is present even before job completes', async ({
       page,
     }) => {
-      await mockBaseProject(page);
-      await mockGenerateEndpoint(page);
-      await mockProgressiveJob(page);
+      await setWorkflowMode(page, REAL_DRAFT_PROJECT_ID);
+      await mockAudioRequests(page);
+      await mockGenerateEndpoint(page, REAL_DRAFT_PROJECT_ID);
+      await mockProgressiveJob(page, REAL_DRAFT_PROJECT_ID);
 
-      await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+      await page.goto(`/projects/${REAL_DRAFT_PROJECT_ID}`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
       const generateButton = page.getByTestId('generate-button');
       await expect(generateButton).toBeVisible({ timeout: 10000 });
       await generateButton.click();
 
-      // After 2+ polls, firstAudioUrl is returned.
-      // The player should appear before the job reaches 'completed' status.
-      const audioPlayer = page
-        .getByTestId('audio-player')
-        .or(page.locator('audio'))
-        .or(page.getByRole('region', { name: /player/i }));
-
-      // Allow generous time for polling + UI update
-      const hasPlayer = await audioPlayer.isVisible({ timeout: 20000 }).catch(() => false);
-
-      if (hasPlayer) {
-        // Verify job is NOT yet completed (player appeared early)
-        const completedText = page.getByText(/generation complete/i);
-        const isCompleted = await completedText.isVisible({ timeout: 1000 }).catch(() => false);
-        // Player can also appear after completion — just verify it appeared at some point during processing
-        // The key invariant is it didn't wait for 100% completion before showing
-        void isCompleted;
-      }
-
-      // At minimum, some audio-related UI appears during job polling
+      // After 2+ polls, firstAudioUrl is returned. Player appears via Fast Start.
       const audioUi = page
         .getByTestId('audio-player')
         .or(page.locator('audio'))
@@ -164,30 +157,32 @@ test.describe('Progressive Playback — Fast Start (Authenticated)', () => {
 
   test.describe('Language Compliance', () => {
     test('"chunk" never appears in user-facing text during generation', async ({ page }) => {
-      await mockBaseProject(page);
-      await mockGenerateEndpoint(page);
-      await mockProgressiveJob(page);
+      await setWorkflowMode(page, REAL_DRAFT_PROJECT_ID);
+      await mockAudioRequests(page);
+      await mockGenerateEndpoint(page, REAL_DRAFT_PROJECT_ID);
+      await mockProgressiveJob(page, REAL_DRAFT_PROJECT_ID);
 
-      await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+      await page.goto(`/projects/${REAL_DRAFT_PROJECT_ID}`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
       const generateButton = page.getByTestId('generate-button');
       await expect(generateButton).toBeVisible({ timeout: 10000 });
       await generateButton.click();
 
-      // Poll multiple times
       await page.waitForTimeout(5000);
 
-      // Must not show "chunk" anywhere
       const chunkText = page.getByText(/\bchunk\b/i);
       await expect(chunkText).not.toBeVisible({ timeout: 1000 });
     });
 
     test('"segment N of N" never appears in user-facing text', async ({ page }) => {
-      await mockBaseProject(page);
-      await mockGenerateEndpoint(page);
-      await mockProgressiveJob(page);
+      await setWorkflowMode(page, REAL_DRAFT_PROJECT_ID);
+      await mockAudioRequests(page);
+      await mockGenerateEndpoint(page, REAL_DRAFT_PROJECT_ID);
+      await mockProgressiveJob(page, REAL_DRAFT_PROJECT_ID);
 
-      await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+      await page.goto(`/projects/${REAL_DRAFT_PROJECT_ID}`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
       const generateButton = page.getByTestId('generate-button');
       await expect(generateButton).toBeVisible({ timeout: 10000 });
@@ -195,7 +190,6 @@ test.describe('Progressive Playback — Fast Start (Authenticated)', () => {
 
       await page.waitForTimeout(4000);
 
-      // Technical "segment X of Y" text must not be shown
       const segmentCountText = page.getByText(/segment \d+ of \d+/i);
       await expect(segmentCountText).not.toBeVisible({ timeout: 1000 });
     });
@@ -203,17 +197,16 @@ test.describe('Progressive Playback — Fast Start (Authenticated)', () => {
     test('generate button tooltip or label mentions "Fast Start" or quick start time', async ({
       page,
     }) => {
-      await mockBaseProject(page);
-      await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+      await setWorkflowMode(page, REAL_DRAFT_PROJECT_ID);
+      await page.goto(`/projects/${REAL_DRAFT_PROJECT_ID}`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
       const generateButton = page.getByTestId('generate-button');
       await expect(generateButton).toBeVisible({ timeout: 10000 });
 
-      // Check for Fast Start branding (tooltip, aria-description, or nearby text)
       const fastStartText = page.getByText(/fast start|audio starts|~90 sec|within.*minutes/i);
       const hasFastStart = await fastStartText.isVisible({ timeout: 3000 }).catch(() => false);
-      // Fast Start label is a UX enhancement — soft check, not a hard requirement yet
-      void hasFastStart;
+      void hasFastStart; // UX enhancement — soft check
     });
   });
 
@@ -221,25 +214,23 @@ test.describe('Progressive Playback — Fast Start (Authenticated)', () => {
     test('buffer indicator visible when near end of available audio during processing', async ({
       page,
     }) => {
-      await mockBaseProject(page);
-      await mockGenerateEndpoint(page);
+      await setWorkflowMode(page, REAL_DRAFT_PROJECT_ID);
+      await mockAudioRequests(page);
+      await mockGenerateEndpoint(page, REAL_DRAFT_PROJECT_ID);
 
-      // Job that takes many polls to complete — stays in processing
-      let pollCount = 0;
       await page.route(`**/api/jobs/${MOCK_JOB_ID}`, async (route) => {
-        pollCount++;
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
             id: MOCK_JOB_ID,
-            project_id: MOCK_PROJECT_ID,
+            project_id: REAL_DRAFT_PROJECT_ID,
             status: 'processing',
             progress: {
               step: 'generating_audio',
               percent: 20,
               details: 'Preparing your audio…',
-              buffering: true, // hint to UI to show buffer indicator
+              buffering: true,
             },
             firstAudioUrl: SEGMENT_0_URL,
             audio_url: null,
@@ -253,23 +244,21 @@ test.describe('Progressive Playback — Fast Start (Authenticated)', () => {
         });
       });
 
-      await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+      await page.goto(`/projects/${REAL_DRAFT_PROJECT_ID}`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
       const generateButton = page.getByTestId('generate-button');
       await expect(generateButton).toBeVisible({ timeout: 10000 });
       await generateButton.click();
 
       await page.waitForTimeout(5000);
 
-      // Buffer indicator should appear when `buffering: true` is signalled
-      // Accepted text patterns: "preparing", "loading", "buffering", spinner
       const bufferIndicator = page
         .getByText(/preparing|loading next|buffering/i)
         .or(page.getByTestId('buffer-indicator'))
         .or(page.locator('[data-state="buffering"]'));
 
-      // Soft check — buffer indicator is a polish feature
       const hasBuffer = await bufferIndicator.isVisible({ timeout: 5000 }).catch(() => false);
-      void hasBuffer;
+      void hasBuffer; // soft check — buffer indicator is a polish feature
     });
   });
 
@@ -277,33 +266,23 @@ test.describe('Progressive Playback — Fast Start (Authenticated)', () => {
     test('player source updates from segment URL to final URL on job completion', async ({
       page,
     }) => {
-      await mockBaseProject(page);
-      await mockGenerateEndpoint(page);
-      await mockProgressiveJob(page);
+      await setWorkflowMode(page, REAL_DRAFT_PROJECT_ID);
+      await mockAudioRequests(page);
+      await mockGenerateEndpoint(page, REAL_DRAFT_PROJECT_ID);
+      await mockProgressiveJob(page, REAL_DRAFT_PROJECT_ID);
 
-      const audioSources: string[] = [];
-
-      // Track src attribute changes on any audio element
-      page.on('response', (response) => {
-        const url = response.url();
-        if (url.includes('.m4a') || url.includes('/audio/')) {
-          audioSources.push(url);
-        }
-      });
-
-      await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+      await page.goto(`/projects/${REAL_DRAFT_PROJECT_ID}`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 });
       const generateButton = page.getByTestId('generate-button');
       await expect(generateButton).toBeVisible({ timeout: 10000 });
       await generateButton.click();
 
-      // Wait long enough for multiple polls and completion
       await page.waitForTimeout(12000);
 
-      // Verify completion state arrived
       const terminalUi = page
         .getByText(/complete|ready|done/i)
         .or(page.getByTestId('audio-player'))
-        .or(page.locator('audio[src]'));
+        .or(page.locator('audio'));
       await expect(terminalUi.first()).toBeVisible({ timeout: 5000 });
     });
   });

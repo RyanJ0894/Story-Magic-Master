@@ -30,8 +30,8 @@ const isProtectedRoute = createRouteMatcher([
 function addSecurityHeaders(response: NextResponse, nonce: string): void {
   const csp = [
     "default-src 'self'",
-    // unsafe-eval removed — Stripe redirect-only checkout and Clerk prebuilt components don't need it.
-    `script-src 'self' 'unsafe-inline' https://js.stripe.com https://clerk.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com`,
+    // unsafe-eval required by Clerk JS SDK (uses new Function during init — CSP policy, not our code).
+    `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://clerk.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com`,
     "style-src 'self' 'unsafe-inline'", // Tailwind requires unsafe-inline
     "img-src 'self' data: blob: https://img.clerk.com https://api.dicebear.com",
     "font-src 'self' data:",
