@@ -199,11 +199,65 @@
   },
   {
     "voice_id": "xZVrOjUURog02K298cjt",
-    "name": "K. Morgan – polished and neutral ",
+    "name": "K. Morgan \u2013 polished and neutral ",
     "gender": "Female",
     "label": "Female - 20s to 30s",
     "style": "American",
     "tone": "confident",
-    "description": "K. Morgan – polished and neutral "
+    "description": "K. Morgan \u2013 polished and neutral "
+  },
+  {
+    "voice_id": "hpp4J3VqNfWAUOO0d1Us",
+    "name": "Bella - Professional, Bright, Warm",
+    "gender": "Female",
+    "label": "Older Female",
+    "style": "American",
+    "tone": "Professional",
+    "description": "Bella - Professional, Bright, Warm"
+  },
+  {
+    "voice_id": "Pb8RZcHs3ga4StE7wiPM",
+    "name": "Ethan the older teen",
+    "gender": "Male",
+    "label": "Male Teen",
+    "style": "American",
+    "tone": "Calm",
+    "description": "Ethan the older teen"
+  },
+  {
+    "voice_id": "XhNlP8uwiH6XZSFnH1yL",
+    "name": "Elizabeth Audiobook",
+    "gender": "Female",
+    "label": "Female - 20s to 30s",
+    "style": "American",
+    "tone": "Calm",
+    "description": "Elizabeth Audiobook"
+  },
+  {
+    "voice_id": "AeRdCCKzvd23BpJoofzx",
+    "name": "Nathaniel C - Suspense, British calm ",
+    "gender": "Male",
+    "label": "Narrator",
+    "style": "British",
+    "tone": "Calm",
+    "description": "Nathaniel C - Suspense, British calm "
+  },
+  {
+    "voice_id": "3XOBzXhnDY98yeWQ3GdM",
+    "name": "Brayden - Conversational Older Teen",
+    "gender": "Male",
+    "label": "Male Teen",
+    "style": "American",
+    "tone": "Calm",
+    "description": "Brayden - Conversational Older Teen"
+  },
+  {
+    "voice_id": "uYXf8XasLslADfZ2MB4u",
+    "name": "Hope- Your conversational bestie",
+    "gender": "Female",
+    "label": "Female - 20s to 30s",
+    "style": "American",
+    "tone": "Calm",
+    "description": "Hope- Your conversational bestie"
   }
 ]
