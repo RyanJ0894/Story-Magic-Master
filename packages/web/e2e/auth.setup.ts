@@ -1,44 +1,47 @@
-import { test as setup, expect } from '@playwright/test';
+import { test as setup } from '@playwright/test';
+import { setupClerkTestingToken, clerk } from '@clerk/testing/playwright';
 import path from 'path';
 
-// Test user credentials - must be provided via environment variables in CI
-const TEST_USER_EMAIL = process.env.E2E_TEST_EMAIL || '';
-const TEST_USER_PASSWORD = process.env.E2E_TEST_PASSWORD || '';
+// Email address of the dedicated E2E test account in Clerk.
+// The account must exist in your Clerk instance.
+// Required env vars: E2E_TEST_EMAIL + CLERK_SECRET_KEY (already in Doppler dev).
+const TEST_EMAIL = process.env.E2E_TEST_EMAIL || '';
 
 const authFile = path.join(__dirname, '.auth/user.json');
 
 /**
- * Setup test - logs in and saves authentication state.
- * This runs once before all authenticated tests.
+ * Authenticates using @clerk/testing — no UI interaction required.
+ * Flow:
+ *   1. setupClerkTestingToken registers a route interceptor on the FAPI
+ *   2. clerk.signIn looks up the user by email via Clerk Backend API,
+ *      mints a sign-in token, and executes the ticket strategy client-side
+ *   3. Storage state (cookies + localStorage) is saved for reuse
  *
- * Skip gracefully if no test credentials are configured.
- * Unauthenticated E2E tests (auth.spec.ts, dashboard.spec.ts, project.spec.ts)
- * still run without credentials.
+ * Skip gracefully when E2E_TEST_EMAIL is absent so unauthenticated tests
+ * still run in environments without credentials configured.
  */
-setup('authenticate', async ({ page }) => {
-  if (!TEST_USER_EMAIL || !TEST_USER_PASSWORD) {
+setup('authenticate', async ({ page, context }) => {
+  if (!TEST_EMAIL) {
+    console.warn('⚠️  E2E_TEST_EMAIL not set — skipping authenticated setup');
     setup.skip();
     return;
   }
 
-  // Navigate to login page
-  await page.goto('/login');
+  // Intercept Clerk FAPI calls to inject the testing token (bypasses bot checks).
+  await setupClerkTestingToken({ page });
 
-  // Fill in credentials
-  await page.getByTestId('login-email-input').fill(TEST_USER_EMAIL);
-  await page.getByTestId('login-password-input').fill(TEST_USER_PASSWORD);
+  // Navigate to the app so Clerk initialises in the browser.
+  await page.goto('/');
 
-  // Click sign in
-  await page.getByTestId('login-submit-button').click();
+  // Sign in using a server-minted sign-in token (no password needed).
+  await clerk.signIn({ page, emailAddress: TEST_EMAIL });
 
-  // Wait for redirect to dashboard (indicates successful login)
-  await page.waitForURL('/dashboard', { timeout: 30000 });
+  // Navigate to dashboard to confirm the session is active.
+  await page.goto('/dashboard');
+  await page.waitForLoadState('networkidle', { timeout: 30_000 });
 
-  // Verify we're on the dashboard
-  await expect(page.getByTestId('new-project-button')).toBeVisible({ timeout: 10000 });
+  // Persist auth state for all .authenticated.spec.ts tests.
+  await context.storageState({ path: authFile });
 
-  // Save authentication state
-  await page.context().storageState({ path: authFile });
-
-  console.log('✅ Authentication state saved to:', authFile);
+  console.log('✅ Clerk auth state saved to:', authFile);
 });

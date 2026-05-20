@@ -10,6 +10,9 @@ const authFile = path.join(__dirname, 'e2e/.auth/user.json');
  */
 export default defineConfig({
   testDir: './e2e',
+  /* clerkSetup() is called in globalSetup so CLERK_FAPI + CLERK_TESTING_TOKEN
+     are available to all worker processes before any test runs. */
+  globalSetup: './e2e/global-setup',
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code */
