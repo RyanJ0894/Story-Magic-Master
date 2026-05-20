@@ -597,8 +597,8 @@ export function ProjectWorkflow({
                   />
                 </div>
                 {project.scriptText && (
-                  <div className="grid grid-cols-[1fr_280px] border border-border rounded-lg overflow-hidden h-[560px]">
-                    <div className="overflow-y-auto p-4">
+                  <div className="flex flex-col sm:grid sm:grid-cols-[1fr_280px] border border-border rounded-lg overflow-hidden sm:h-[560px]">
+                    <div className="overflow-y-auto p-4 max-h-72 sm:max-h-none">
                       <ScreenplayPlayer
                         projectId={project.id}
                         scriptText={project.scriptText}
@@ -1110,8 +1110,8 @@ export function ProjectWorkflow({
                         </Button>
                       </div>
                       {project.scriptText && (
-                        <div className="grid grid-cols-[1fr_280px] border border-border rounded-lg overflow-hidden h-[560px]">
-                          <div className="overflow-y-auto p-4">
+                        <div className="flex flex-col sm:grid sm:grid-cols-[1fr_280px] border border-border rounded-lg overflow-hidden sm:h-[560px]">
+                          <div className="overflow-y-auto p-4 max-h-72 sm:max-h-none">
                             <ScreenplayPlayer
                               projectId={project.id}
                               scriptText={project.scriptText}

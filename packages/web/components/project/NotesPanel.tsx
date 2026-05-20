@@ -105,7 +105,7 @@ export function NotesPanel({ projectId, currentUserId, onSeekTo, newComment }: N
   return (
     <div
       data-testid="notes-panel"
-      className="flex flex-col h-full border-l border-border bg-background"
+      className="flex flex-col sm:h-full max-h-52 sm:max-h-none border-t sm:border-t-0 sm:border-l border-border bg-background"
     >
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
@@ -132,7 +132,7 @@ export function NotesPanel({ projectId, currentUserId, onSeekTo, newComment }: N
 
         {!loading && !error && comments.length === 0 && (
           <p className="text-xs text-muted-foreground text-center px-4 py-8">
-            Hover over any line to add a note or reaction.
+            Tap or hover any line to add a note or reaction.
           </p>
         )}
 
