@@ -1,17 +1,22 @@
-// Story Magic Service Worker
+// Story Magic Service Worker v2
 // Cache strategy:
 //   - Static assets (/_next/static/*, /logo.png, /manifest.webmanifest): cache-first
 //   - API calls (/api/*): network-only (never serve stale generation data)
-//   - Audio files (Supabase storage URLs): cache-first with 7-day TTL
+//   - Audio files (Supabase storage + orchestrator /audio/*): cache-first with background refresh
+//   - Navigation failures while offline: serve /offline
 
-const CACHE_NAME = 'story-magic-v1';
+const CACHE_NAME = 'story-magic-v2';
 const STATIC_PATTERNS = [/^\/_next\/static\//, /^\/logo\.png$/, /^\/manifest\.webmanifest$/];
-const AUDIO_PATTERNS = [/supabase\.co\/storage\/v1\/object\/public\//];
+const AUDIO_PATTERNS = [
+  /supabase\.co\/storage\/v1\/object\/public\//,
+  /\/audio\/.*\.(m4a|mp3|wav|ogg)$/i,
+  /onrender\.com\/audio\//,
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
-      cache.addAll(['/manifest.webmanifest', '/logo.png'])
+      cache.addAll(['/manifest.webmanifest', '/logo.png', '/offline'])
     )
   );
   self.skipWaiting();
@@ -30,17 +35,20 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // API calls: network-only
+  // API calls: network-only (always fresh)
   if (url.pathname.startsWith('/api/')) return;
 
   // Static assets: cache-first
   if (STATIC_PATTERNS.some((p) => p.test(url.pathname))) {
     event.respondWith(
-      caches.match(request).then((cached) => cached ?? fetch(request).then((res) => {
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then((c) => c.put(request, clone));
-        return res;
-      }))
+      caches.match(request).then((cached) =>
+        cached ??
+        fetch(request).then((res) => {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((c) => c.put(request, clone));
+          return res;
+        })
+      )
     );
     return;
   }
@@ -56,6 +64,14 @@ self.addEventListener('fetch', (event) => {
         });
         return cached ?? networkFetch;
       })
+    );
+    return;
+  }
+
+  // Navigation requests: network with offline fallback
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() => caches.match('/offline').then((r) => r ?? new Response('Offline', { status: 503 })))
     );
   }
 });

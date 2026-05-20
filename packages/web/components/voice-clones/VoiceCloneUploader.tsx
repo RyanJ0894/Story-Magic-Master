@@ -20,6 +20,7 @@ interface VoiceCloneUploaderProps {
 export function VoiceCloneUploader({ onCloneCreated }: VoiceCloneUploaderProps) {
   const [clones, setClones] = useState<VoiceClone[]>([]);
   const [loadingClones, setLoadingClones] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [name, setName] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -39,6 +40,23 @@ export function VoiceCloneUploader({ onCloneCreated }: VoiceCloneUploaderProps) 
       }
     } finally {
       setLoadingClones(false);
+    }
+  };
+
+  const handleDelete = async (cloneId: string) => {
+    setDeletingId(cloneId);
+    try {
+      const res = await fetch(`/api/voices/clones/${cloneId}`, { method: 'DELETE' });
+      if (res.ok || res.status === 204) {
+        setClones((prev) => prev.filter((c) => c.id !== cloneId));
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? 'Delete failed.');
+      }
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -165,7 +183,21 @@ export function VoiceCloneUploader({ onCloneCreated }: VoiceCloneUploaderProps) 
             {clones.map((c) => (
               <li key={c.id} className="flex items-center justify-between text-xs py-1.5 px-2 rounded-md bg-muted/50">
                 <span className="font-medium truncate">{c.name}</span>
-                <span className="text-muted-foreground ml-2 font-mono shrink-0">{c.elevenLabsVoiceId.slice(0, 8)}…</span>
+                <div className="flex items-center gap-2 ml-2 shrink-0">
+                  <span className="text-muted-foreground font-mono">{c.elevenLabsVoiceId.slice(0, 8)}…</span>
+                  <button
+                    onClick={() => handleDelete(c.id)}
+                    disabled={deletingId === c.id}
+                    className="text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
+                    aria-label={`Delete ${c.name}`}
+                  >
+                    {deletingId === c.id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3 w-3" />
+                    )}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

@@ -11,8 +11,10 @@ vi.mock('@clerk/nextjs/server', () => ({ auth: () => mockAuth() }));
 const mockPrisma = {
   voiceClone: {
     findMany: vi.fn(),
+    findFirst: vi.fn(),
     count: vi.fn(),
     create: vi.fn(),
+    delete: vi.fn(),
   },
 };
 vi.mock('@/lib/db', () => ({ prisma: mockPrisma }));
@@ -31,6 +33,7 @@ const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
 const { GET, POST } = await import('@/app/api/voices/clones/route');
+const { DELETE } = await import('@/app/api/voices/clones/[id]/route');
 
 // =============================================================================
 // Helpers
@@ -174,5 +177,107 @@ describe('POST /api/voices/clones', () => {
 
     const res = await POST(makeRequest('POST', form), {} as never);
     expect(res.status).toBe(502);
+  });
+});
+
+// =============================================================================
+
+describe('DELETE /api/voices/clones/[id]', () => {
+  const CLONE_ID = 'clone-uuid-001';
+  const EL_VOICE_ID = 'el_abc123';
+
+  function makeDeleteRequest(): NextRequest {
+    return new NextRequest(`http://localhost/api/voices/clones/${CLONE_ID}`, {
+      method: 'DELETE',
+    });
+  }
+
+  function makeRouteContext() {
+    return { params: Promise.resolve({ id: CLONE_ID }) };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockReturnValue({ userId: USER_ID });
+    mockValidateCsrf.mockReturnValue(null);
+  });
+
+  it('returns 404 when clone does not belong to the user', async () => {
+    mockPrisma.voiceClone.findFirst.mockResolvedValue(null);
+
+    const res = await DELETE(makeDeleteRequest(), makeRouteContext() as never);
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    mockAuth.mockReturnValue({ userId: null });
+    const res = await DELETE(makeDeleteRequest(), makeRouteContext() as never);
+    expect(res.status).toBe(401);
+  });
+
+  it('deletes from ElevenLabs and Prisma on success', async () => {
+    mockPrisma.voiceClone.findFirst.mockResolvedValue({
+      id: CLONE_ID,
+      elevenLabsVoiceId: EL_VOICE_ID,
+    });
+    process.env.ELEVENLABS_API_KEY = 'test_key';
+    mockFetch.mockResolvedValue({ ok: true, status: 200 });
+    mockPrisma.voiceClone.delete.mockResolvedValue({});
+
+    const res = await DELETE(makeDeleteRequest(), makeRouteContext() as never);
+
+    expect(res.status).toBe(204);
+    expect(mockFetch).toHaveBeenCalledWith(
+      `https://api.elevenlabs.io/v1/voices/${EL_VOICE_ID}`,
+      expect.objectContaining({ method: 'DELETE' })
+    );
+    expect(mockPrisma.voiceClone.delete).toHaveBeenCalledWith({ where: { id: CLONE_ID } });
+  });
+
+  it('still deletes from Prisma when ElevenLabs returns 404 (voice already gone)', async () => {
+    mockPrisma.voiceClone.findFirst.mockResolvedValue({
+      id: CLONE_ID,
+      elevenLabsVoiceId: EL_VOICE_ID,
+    });
+    process.env.ELEVENLABS_API_KEY = 'test_key';
+    mockFetch.mockResolvedValue({ ok: false, status: 404 });
+    mockPrisma.voiceClone.delete.mockResolvedValue({});
+
+    const res = await DELETE(makeDeleteRequest(), makeRouteContext() as never);
+
+    // 404 from ElevenLabs is tolerated — voice was already removed
+    expect(res.status).toBe(204);
+    expect(mockPrisma.voiceClone.delete).toHaveBeenCalled();
+  });
+
+  it('returns 502 when ElevenLabs delete fails with non-404 error', async () => {
+    mockPrisma.voiceClone.findFirst.mockResolvedValue({
+      id: CLONE_ID,
+      elevenLabsVoiceId: EL_VOICE_ID,
+    });
+    process.env.ELEVENLABS_API_KEY = 'test_key';
+    mockFetch.mockResolvedValue({ ok: false, status: 500, text: async () => 'Server error' });
+
+    const res = await DELETE(makeDeleteRequest(), makeRouteContext() as never);
+
+    expect(res.status).toBe(502);
+    // Prisma delete should NOT be called — EL failed
+    expect(mockPrisma.voiceClone.delete).not.toHaveBeenCalled();
+  });
+
+  it('deletes from Prisma only when no ElevenLabs API key is configured', async () => {
+    mockPrisma.voiceClone.findFirst.mockResolvedValue({
+      id: CLONE_ID,
+      elevenLabsVoiceId: EL_VOICE_ID,
+    });
+    const orig = process.env.ELEVENLABS_API_KEY;
+    delete process.env.ELEVENLABS_API_KEY;
+    mockPrisma.voiceClone.delete.mockResolvedValue({});
+
+    const res = await DELETE(makeDeleteRequest(), makeRouteContext() as never);
+
+    expect(res.status).toBe(204);
+    expect(mockFetch).not.toHaveBeenCalled();
+    process.env.ELEVENLABS_API_KEY = orig;
   });
 });
