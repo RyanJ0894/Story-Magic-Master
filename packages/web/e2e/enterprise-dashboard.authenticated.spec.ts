@@ -1,23 +1,16 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * Enterprise Master Account Dashboard — /enterprise/dashboard and /enterprise/team
+ * Enterprise Master Account Dashboard — authenticated tests only.
+ * Unauthenticated redirect tests are in enterprise-dashboard.spec.ts.
  *
- * The enterprise dashboard is visible only to users on enterprise/studio/pro/creator
- * tiers who own a team. Non-enterprise authenticated users should be redirected or
- * see an upgrade prompt. Unauthenticated users always redirect to login.
- *
- * Tests mock the activity and team APIs to avoid requiring a seeded database.
+ * Chris's test account has no team yet, so /enterprise/dashboard redirects
+ * server-side to /enterprise/team (team setup page). Tests accept either URL.
  */
-
-// ---------------------------------------------------------------------------
-// Mock helpers
-// ---------------------------------------------------------------------------
 
 const MOCK_TEAM_ID = 'e2e-team-00000000-0000-0000-0000-000000000001';
 
 async function mockEnterpriseApis(page: import('@playwright/test').Page) {
-  // Team activity feed
   await page.route(`**/api/teams/${MOCK_TEAM_ID}/activity`, async (route) => {
     await route.fulfill({
       status: 200,
@@ -26,7 +19,6 @@ async function mockEnterpriseApis(page: import('@playwright/test').Page) {
     });
   });
 
-  // Team members
   await page.route(`**/api/teams/${MOCK_TEAM_ID}/members`, async (route) => {
     await route.fulfill({
       status: 200,
@@ -37,22 +29,6 @@ async function mockEnterpriseApis(page: import('@playwright/test').Page) {
 }
 
 // ---------------------------------------------------------------------------
-// Unauthenticated
-// ---------------------------------------------------------------------------
-
-test.describe('Enterprise Dashboard — Unauthenticated', () => {
-  test('redirects unauthenticated users to login', async ({ page }) => {
-    await page.goto('/enterprise/dashboard');
-    await expect(page).toHaveURL(/\/(login|sign-in)/, { timeout: 10000 });
-  });
-
-  test('team management page redirects unauthenticated users', async ({ page }) => {
-    await page.goto('/enterprise/team');
-    await expect(page).toHaveURL(/\/(login|sign-in)/, { timeout: 10000 });
-  });
-});
-
-// ---------------------------------------------------------------------------
 // Authenticated — /enterprise/dashboard
 // ---------------------------------------------------------------------------
 
@@ -60,25 +36,20 @@ test.describe('Enterprise Dashboard (Authenticated)', () => {
   test.beforeEach(async ({ page }) => {
     await mockEnterpriseApis(page);
     await page.goto('/enterprise/dashboard');
+    await page.waitForLoadState('networkidle', { timeout: 15_000 });
   });
 
   test('page loads without crashing', async ({ page }) => {
-    // Regardless of subscription tier, the page should render — either showing
-    // the dashboard or a "no team" / upgrade prompt. It must not 500.
     await expect(page).not.toHaveURL(/\/(login|sign-in)/);
-    await page.waitForLoadState('networkidle', { timeout: 15000 });
-    // Should show some enterprise-related heading or upgrade CTA
-    const heading = page
-      .getByRole('heading', { name: /enterprise|master account|team/i })
-      .or(page.getByText(/upgrade|no team yet/i));
-    await expect(heading).toBeVisible({ timeout: 10000 });
+    // Either the dashboard or the team-setup page — both are valid for this user
+    await expect(
+      page.getByRole('heading', { name: /enterprise|master account|team/i }).first()
+    ).toBeVisible({ timeout: 10_000 });
   });
 
   test('shows stats row when user has a team', async ({ page }) => {
-    // Stats cards are only rendered if the user owns a team.
-    // When present, verify the tab navigation exists.
     const tabList = page.getByRole('tablist');
-    const hasTabList = await tabList.isVisible({ timeout: 5000 }).catch(() => false);
+    const hasTabList = await tabList.isVisible({ timeout: 5_000 }).catch(() => false);
     if (hasTabList) {
       await expect(page.getByRole('tab', { name: /projects|decisions/i })).toBeVisible();
       await expect(page.getByRole('tab', { name: /team/i })).toBeVisible();
@@ -86,24 +57,18 @@ test.describe('Enterprise Dashboard (Authenticated)', () => {
   });
 
   test('activity feed renders or shows empty state', async ({ page }) => {
-    const activitySection = page
-      .getByText(/no activity yet|recent activity/i)
-      .or(page.getByTestId('activity-feed'));
-    const hasActivity = await activitySection.isVisible({ timeout: 5000 }).catch(() => false);
-    // Activity section is only present for users with a team — soft assertion
-    void hasActivity;
-    // Page must still be on enterprise dashboard, not errored out
-    await expect(page).toHaveURL(/\/enterprise\/dashboard/);
+    // /enterprise/dashboard redirects to /enterprise/team for users with no team
+    await expect(page).toHaveURL(/\/enterprise\/(dashboard|team)/);
   });
 
   test('back navigation returns to main dashboard', async ({ page }) => {
     const backLink = page
       .getByRole('link', { name: /back to dashboard|dashboard/i })
       .first();
-    const hasBack = await backLink.isVisible({ timeout: 5000 }).catch(() => false);
+    const hasBack = await backLink.isVisible({ timeout: 5_000 }).catch(() => false);
     if (hasBack) {
       await backLink.click();
-      await expect(page).toHaveURL(/\/dashboard/, { timeout: 5000 });
+      await expect(page).toHaveURL(/\/dashboard/, { timeout: 5_000 });
     }
   });
 });
@@ -116,23 +81,23 @@ test.describe('Enterprise Team Management (Authenticated)', () => {
   test.beforeEach(async ({ page }) => {
     await mockEnterpriseApis(page);
     await page.goto('/enterprise/team');
+    await page.waitForLoadState('networkidle', { timeout: 15_000 });
   });
 
   test('page loads without crashing', async ({ page }) => {
     await expect(page).not.toHaveURL(/\/(login|sign-in)/);
-    await page.waitForLoadState('networkidle', { timeout: 15000 });
-    const heading = page
-      .getByRole('heading', { name: /team|manage/i })
-      .or(page.getByText(/invite|no team yet/i));
-    await expect(heading).toBeVisible({ timeout: 10000 });
+    await expect(
+      page.getByRole('heading', { name: /team|manage/i }).first()
+    ).toBeVisible({ timeout: 10_000 });
   });
 
-  test('shows invite member form or upgrade prompt', async ({ page }) => {
-    // Invite form is only rendered when user owns a team
-    const inviteForm = page.getByRole('button', { name: /invite|send invite/i });
-    const upgradePrompt = page.getByText(/upgrade|no team yet/i);
-    const hasForm = await inviteForm.isVisible({ timeout: 5000 }).catch(() => false);
-    const hasUpgrade = await upgradePrompt.isVisible({ timeout: 5000 }).catch(() => false);
-    expect(hasForm || hasUpgrade).toBe(true);
+  test('shows team action form', async ({ page }) => {
+    // If user has no team → "Create Your Team" / "Create Team" button
+    // If user has a team → invite member form with "Send Invite" button
+    const createBtn = page.getByRole('button', { name: /create team/i });
+    const inviteBtn = page.getByRole('button', { name: /invite|send invite/i });
+    const hasCreate = await createBtn.isVisible({ timeout: 5_000 }).catch(() => false);
+    const hasInvite = await inviteBtn.isVisible({ timeout: 5_000 }).catch(() => false);
+    expect(hasCreate || hasInvite).toBe(true);
   });
 });
