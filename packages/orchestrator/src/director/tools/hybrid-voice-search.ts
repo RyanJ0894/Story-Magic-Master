@@ -35,6 +35,10 @@ const DEFAULT_VOICES = {
   narrator: { voice_id: 'JBFqnCBsd6RMkjVDRZzb', name: 'George - Warm, Captivating Storyteller', gender: 'Male' as const, label: 'Narrator', style: 'British' },
   male: { voice_id: 'bIHbv24MWmeRgasZH58o', name: 'Will - Relaxed Optimist', gender: 'Male' as const, label: 'Male 20s to 30s', style: 'American' },
   female: { voice_id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica - Playful, Bright, Warm', gender: 'Female' as const, label: 'Female - 20s to 30s', style: 'American' },
+  // TODO(PLACEHOLDER): replace voice_id with Ryan's actual female teen voice once he shares IDs
+  // from ElevenLabs → My Voices → Collections → Teen.
+  // See: knowledge_bases/PLACEHOLDER_VOICES.md
+  female_teen: { voice_id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica — stand-in for female teen (PLACEHOLDER)', gender: 'Female' as const, label: 'Female Teen', style: 'American' },
 };
 
 // ElevenLabs API config

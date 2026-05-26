@@ -18,15 +18,6 @@
     "description": "Sarah - Mature, Reassuring, Confident"
   },
   {
-    "voice_id": "FGY2WhTYpPnrIDTdsKH5",
-    "name": "Laura - Enthusiast, Quirky Attitude",
-    "gender": "Female",
-    "label": "Female - 20s to 30s",
-    "style": "American",
-    "tone": "Energetic",
-    "description": "Laura - Enthusiast, Quirky Attitude"
-  },
-  {
     "voice_id": "IKne3meq5aSn9XLyUdCD",
     "name": "Charlie - Deep, Confident, Energetic",
     "gender": "Male",
@@ -106,15 +97,6 @@
     "style": "American",
     "tone": "Calm",
     "description": "Will - Relaxed Optimist"
-  },
-  {
-    "voice_id": "cgSgspJ2msm6clMCkdW9",
-    "name": "Jessica - Playful, Bright, Warm",
-    "gender": "Female",
-    "label": "Female - 20s to 30s",
-    "style": "American",
-    "tone": "Warm",
-    "description": "Jessica - Playful, Bright, Warm"
   },
   {
     "voice_id": "cjVigY5qzO86Huf0OWal",
@@ -225,15 +207,6 @@
     "description": "Ethan the older teen"
   },
   {
-    "voice_id": "XhNlP8uwiH6XZSFnH1yL",
-    "name": "Elizabeth Audiobook",
-    "gender": "Female",
-    "label": "Female - 20s to 30s",
-    "style": "American",
-    "tone": "calm",
-    "description": "Elizabeth Audiobook"
-  },
-  {
     "voice_id": "AeRdCCKzvd23BpJoofzx",
     "name": "Nathaniel C - Suspense, British calm ",
     "gender": "Male",
@@ -259,5 +232,32 @@
     "style": "American",
     "tone": "caring",
     "description": "Hope- Your conversational bestie"
+  },
+  {
+    "voice_id": "cgSgspJ2msm6clMCkdW9",
+    "name": "Jessica - Playful, Bright, Warm",
+    "gender": "Female",
+    "label": "Female - 20s to 30s",
+    "style": "American",
+    "tone": "Warm",
+    "description": "Jessica - Playful, Bright, Warm"
+  },
+  {
+    "voice_id": "FGY2WhTYpPnrIDTdsKH5",
+    "name": "Female 20s Energetic",
+    "gender": "Female",
+    "label": "Female - 20s to 30s",
+    "style": "American",
+    "tone": "Energetic",
+    "description": "Female 20s Energetic"
+  },
+  {
+    "voice_id": "XhNlP8uwiH6XZSFnH1yL",
+    "name": "Female 20s Calm",
+    "gender": "Female",
+    "label": "Female - 20s to 30s",
+    "style": "American",
+    "tone": "calm",
+    "description": "Female 20s Calm"
   }
 ]

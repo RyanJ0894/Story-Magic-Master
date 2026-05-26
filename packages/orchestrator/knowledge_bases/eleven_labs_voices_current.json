@@ -201,5 +201,32 @@
     "gender": "Male",
     "tone": "chill",
     "style": "American"
+  },
+  {
+    "label": "Female Teen",
+    "voice_id": "cgSgspJ2msm6clMCkdW9",
+    "gender": "Female",
+    "tone": "Warm",
+    "style": "American",
+    "_placeholder": true,
+    "_replace_with": "Ryan ElevenLabs catalog \u2192 My Voices \u2192 Collections \u2192 Teen (warm/bright girl voice)"
+  },
+  {
+    "label": "Female Teen",
+    "voice_id": "FGY2WhTYpPnrIDTdsKH5",
+    "gender": "Female",
+    "tone": "Energetic",
+    "style": "American",
+    "_placeholder": true,
+    "_replace_with": "Ryan ElevenLabs catalog \u2192 My Voices \u2192 Collections \u2192 Teen (energetic/lively girl voice)"
+  },
+  {
+    "label": "Female Teen",
+    "voice_id": "XhNlP8uwiH6XZSFnH1yL",
+    "gender": "Female",
+    "tone": "calm",
+    "style": "American",
+    "_placeholder": true,
+    "_replace_with": "Ryan ElevenLabs catalog \u2192 My Voices \u2192 Collections \u2192 Teen (calm/introspective girl voice)"
   }
 ]
