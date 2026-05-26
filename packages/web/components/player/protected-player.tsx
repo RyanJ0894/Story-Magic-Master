@@ -185,18 +185,18 @@ export function ProtectedPlayer({
     e.preventDefault(); // prevent page scroll while seeking
     setIsDragging(true);
 
-    const applyTouch = (touch: Touch) => {
+    const applyClientX = (clientX: number) => {
       if (!progressRef.current) return;
       const rect = progressRef.current.getBoundingClientRect();
-      const percent = (touch.clientX - rect.left) / rect.width;
+      const percent = (clientX - rect.left) / rect.width;
       seekToPercent(percent);
     };
 
-    applyTouch(e.touches[0]);
+    applyClientX(e.touches[0].clientX);
 
     const handleTouchMove = (moveEvent: TouchEvent) => {
       moveEvent.preventDefault();
-      applyTouch(moveEvent.touches[0]);
+      applyClientX(moveEvent.touches[0].clientX);
     };
 
     const handleTouchEnd = () => {
