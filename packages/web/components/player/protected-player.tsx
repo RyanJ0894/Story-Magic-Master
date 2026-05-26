@@ -158,7 +158,7 @@ export function ProtectedPlayer({
     seekToPercent(percent);
   }, [seekToPercent]);
 
-  // Drag-to-seek on progress bar
+  // Drag-to-seek on progress bar (mouse)
   const handleProgressMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     setIsDragging(true);
     handleProgressClick(e);
@@ -179,6 +179,35 @@ export function ProtectedPlayer({
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   }, [handleProgressClick, seekToPercent]);
+
+  // Drag-to-seek on progress bar (touch — for iPad/iPhone share recipients)
+  const handleProgressTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    e.preventDefault(); // prevent page scroll while seeking
+    setIsDragging(true);
+
+    const applyTouch = (touch: Touch) => {
+      if (!progressRef.current) return;
+      const rect = progressRef.current.getBoundingClientRect();
+      const percent = (touch.clientX - rect.left) / rect.width;
+      seekToPercent(percent);
+    };
+
+    applyTouch(e.touches[0]);
+
+    const handleTouchMove = (moveEvent: TouchEvent) => {
+      moveEvent.preventDefault();
+      applyTouch(moveEvent.touches[0]);
+    };
+
+    const handleTouchEnd = () => {
+      setIsDragging(false);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
+  }, [seekToPercent]);
 
   // Progress bar keyboard navigation
   const handleProgressKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -427,6 +456,7 @@ export function ProtectedPlayer({
           aria-valuenow={Math.round(currentTime)}
           aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
           onMouseDown={handleProgressMouseDown}
+          onTouchStart={handleProgressTouchStart}
           onKeyDown={handleProgressKeyDown}
           className="h-2 bg-muted cursor-pointer relative group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
         >

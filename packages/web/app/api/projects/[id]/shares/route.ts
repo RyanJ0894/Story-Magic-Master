@@ -41,6 +41,7 @@ export const GET = withAuth(async (_request, { userId, prisma, params }) => {
     const shares = await prisma.scriptShare.findMany({
       where: { projectId },
       orderBy: { createdAt: 'desc' },
+      take: 100,
       select: {
         id: true,
         shareCode: true,

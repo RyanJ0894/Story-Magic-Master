@@ -44,7 +44,8 @@ interface ShareModalProps {
   onOpenChange: (open: boolean) => void;
   projectId: string;
   projectName: string;
-  writerCode: string;
+  /** @deprecated QR tab removed — prop kept for call-site compatibility, not used internally */
+  writerCode?: string;
   existingShares?: ScriptShare[];
   onCreateShare?: (options: {
     access_level: AccessLevel;
@@ -58,7 +59,6 @@ export function ShareModal({
   onOpenChange,
   projectId,
   projectName,
-  writerCode,
   existingShares = [],
   onCreateShare,
 }: ShareModalProps) {
