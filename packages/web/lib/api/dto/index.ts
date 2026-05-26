@@ -59,6 +59,20 @@ export const UpdateShareRequestSchema = z.object({
 
 export type UpdateShareRequest = z.infer<typeof UpdateShareRequestSchema>;
 
+export const BulkShareRecipientSchema = z.object({
+  email: z.string().email(),
+  name: z.string().max(100).optional(),
+});
+
+export const BulkShareRequestSchema = z.object({
+  recipients: z.array(BulkShareRecipientSchema).min(1).max(20),
+  access_level: AccessLevelSchema.default('stream'),
+  expires_in_days: z.number().int().min(1).max(365).optional(),
+  message: z.string().max(1000).optional(),
+});
+
+export type BulkShareRequest = z.infer<typeof BulkShareRequestSchema>;
+
 export const ShareResponseSchema = z.object({
   id: z.string().uuid(),
   project_id: z.string().uuid(),

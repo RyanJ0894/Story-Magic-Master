@@ -44,6 +44,7 @@ interface ProtectedPlayerProps {
   scenes?: Scene[];
   initialPosition?: number;
   onPositionChange?: (position: number) => void;
+  onPlay?: () => void;
   onComplete?: () => void;
   allowDownload?: boolean;
 }
@@ -58,6 +59,7 @@ export function ProtectedPlayer({
   scenes = [],
   initialPosition = 0,
   onPositionChange,
+  onPlay,
   onComplete,
   allowDownload = false,
 }: ProtectedPlayerProps) {
@@ -229,7 +231,10 @@ export function ProtectedPlayer({
       }
     };
 
-    const handlePlay = () => setIsPlaying(true);
+    const handlePlay = () => {
+      setIsPlaying(true);
+      if (onPlay) onPlay();
+    };
     const handlePause = () => setIsPlaying(false);
     const handleEnded = () => {
       setIsPlaying(false);
@@ -257,7 +262,7 @@ export function ProtectedPlayer({
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('error', handleError);
     };
-  }, [duration, initialPosition, onComplete, isDragging]);
+  }, [duration, initialPosition, onPlay, onComplete, isDragging]);
 
   // Save position periodically
   useEffect(() => {

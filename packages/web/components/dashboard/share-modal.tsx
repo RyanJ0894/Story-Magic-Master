@@ -27,12 +27,16 @@ import {
   Mail,
   Link2,
   CheckCircle,
-  Users,
   Eye,
   Download,
   ChevronDown,
   ChevronUp,
+  Plus,
+  Trash2,
+  Send,
+  BarChart2,
 } from 'lucide-react';
+import { apiFetch } from '@/lib/api/fetch';
 import type { ScriptShare, AccessLevel } from '@/lib/types/marketplace';
 
 interface ShareModalProps {
@@ -64,9 +68,16 @@ export function ShareModal({
   const [recipientEmail, setRecipientEmail] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [showAllShares, setShowAllShares] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const { toast } = useToast();
+
+  // Bulk share state
+  const [bulkRecipients, setBulkRecipients] = useState<Array<{ email: string; name: string }>>([
+    { email: '', name: '' },
+  ]);
+  const [bulkMessage, setBulkMessage] = useState('');
+  const [bulkExpiry, setBulkExpiry] = useState<string>('30');
+  const [isSendingBulk, setIsSendingBulk] = useState(false);
 
   const handleCopy = async (url: string) => {
     await navigator.clipboard.writeText(url);
@@ -107,6 +118,68 @@ export function ShareModal({
     window.open(`mailto:${recipientEmail}?subject=${subject}&body=${body}`);
   };
 
+  const addBulkRecipient = () => {
+    if (bulkRecipients.length >= 20) return;
+    setBulkRecipients((prev) => [...prev, { email: '', name: '' }]);
+  };
+
+  const removeBulkRecipient = (idx: number) => {
+    setBulkRecipients((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const updateBulkRecipient = (idx: number, field: 'email' | 'name', value: string) => {
+    setBulkRecipients((prev) =>
+      prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r))
+    );
+  };
+
+  const handleBulkShare = async () => {
+    const valid = bulkRecipients.filter((r) => r.email.trim());
+    if (valid.length === 0) {
+      toast({ variant: 'destructive', title: 'Add at least one recipient email' });
+      return;
+    }
+
+    setIsSendingBulk(true);
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/share/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipients: valid.map((r) => ({
+            email: r.email.trim(),
+            name: r.name.trim() || undefined,
+          })),
+          access_level: 'stream',
+          expires_in_days: parseInt(bulkExpiry, 10),
+          message: bulkMessage.trim() || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        toast({ variant: 'destructive', title: 'Failed to send invites' });
+        return;
+      }
+
+      const data = await res.json();
+      const { summary } = data;
+      toast({
+        title: `Invites sent`,
+        description: `${summary.emailsSent} of ${summary.total} emails sent successfully`,
+      });
+
+      // Reset and close
+      setBulkRecipients([{ email: '', name: '' }]);
+      setBulkMessage('');
+      onOpenChange(false);
+    } catch (err) {
+      log.error('Bulk share failed', err);
+      toast({ variant: 'destructive', title: 'Something went wrong' });
+    } finally {
+      setIsSendingBulk(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -118,10 +191,14 @@ export function ShareModal({
         </DialogHeader>
 
         <Tabs defaultValue="share" className="mt-4">
-          <TabsList className="grid w-full grid-cols-1">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="share">
               <Link2 className="w-4 h-4 mr-2" />
-              Share
+              Link
+            </TabsTrigger>
+            <TabsTrigger value="bulk">
+              <Send className="w-4 h-4 mr-2" />
+              Send to agents
             </TabsTrigger>
           </TabsList>
 
@@ -235,52 +312,120 @@ export function ShareModal({
             </p>
           </TabsContent>
 
-        </Tabs>
+          {/* Bulk Share Tab */}
+          <TabsContent value="bulk" className="space-y-4 mt-4">
+            <p className="text-sm text-muted-foreground">
+              Send personalised email invites to up to 20 agents at once. Each gets their own
+              unique link so you can track who listened.
+            </p>
 
-        {/* Existing Shares */}
-        {existingShares.length > 0 && (
-          <div className="mt-6 pt-4 border-t">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-medium">Active Shares</h4>
-              <Badge variant="secondary">{existingShares.length}</Badge>
-            </div>
-            <div className="space-y-2 max-h-32 overflow-y-auto">
-              {(showAllShares ? existingShares : existingShares.slice(0, 5)).map((share) => (
-                <div
-                  key={share.id}
-                  className="flex items-center justify-between text-sm p-2 rounded-lg bg-muted"
-                >
-                  <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">
-                      {share.view_count} views
-                    </span>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {share.expires_at
-                      ? `Expires ${new Date(share.expires_at).toLocaleDateString()}`
-                      : 'No expiry'}
-                  </span>
+            {/* Recipients */}
+            <div className="space-y-2">
+              <Label>Recipients</Label>
+              {bulkRecipients.map((r, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <Input
+                    type="email"
+                    placeholder="agent@agency.com"
+                    value={r.email}
+                    onChange={(e) => updateBulkRecipient(idx, 'email', e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="Name (optional)"
+                    value={r.name}
+                    onChange={(e) => updateBulkRecipient(idx, 'name', e.target.value)}
+                    className="w-36"
+                  />
+                  {bulkRecipients.length > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 shrink-0"
+                      onClick={() => removeBulkRecipient(idx)}
+                    >
+                      <Trash2 className="w-4 h-4 text-muted-foreground" />
+                    </Button>
+                  )}
                 </div>
               ))}
+              {bulkRecipients.length < 20 && (
+                <Button variant="outline" size="sm" onClick={addBulkRecipient} className="w-full">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add recipient
+                </Button>
+              )}
             </div>
-            {existingShares.length > 5 && (
-              <button
-                onClick={() => setShowAllShares((v) => !v)}
-                className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {showAllShares ? (
-                  <>
-                    <ChevronUp className="w-3 h-3" />
-                    Show less
-                  </>
-                ) : (
-                  `View all (${existingShares.length})`
-                )}
-              </button>
-            )}
-          </div>
-        )}
+
+            {/* Message */}
+            <div className="space-y-2">
+              <Label>
+                Personal message{' '}
+                <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
+              <textarea
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none min-h-[80px] focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder={'Hi {name},\n\nHere\'s the audio for my screenplay...'}
+                value={bulkMessage}
+                onChange={(e) => setBulkMessage(e.target.value)}
+                maxLength={1000}
+              />
+              <p className="text-xs text-muted-foreground">
+                Use <code className="bg-muted px-1 rounded">{'{name}'}</code> to personalise per recipient.
+              </p>
+            </div>
+
+            {/* Expiry */}
+            <div className="space-y-2">
+              <Label>Link expires in</Label>
+              <Select value={bulkExpiry} onValueChange={setBulkExpiry}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">7 days</SelectItem>
+                  <SelectItem value="30">30 days</SelectItem>
+                  <SelectItem value="90">90 days</SelectItem>
+                  <SelectItem value="365">1 year</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              className="w-full"
+              onClick={handleBulkShare}
+              disabled={isSendingBulk || bulkRecipients.every((r) => !r.email.trim())}
+            >
+              {isSendingBulk ? (
+                'Sending…'
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Send {bulkRecipients.filter((r) => r.email.trim()).length} invite
+                  {bulkRecipients.filter((r) => r.email.trim()).length === 1 ? '' : 's'}
+                </>
+              )}
+            </Button>
+          </TabsContent>
+
+        </Tabs>
+
+        {/* Dashboard Link */}
+        <div className="mt-4 pt-3 border-t flex items-center justify-between">
+          <a
+            href={`/projects/${projectId}/shares`}
+            className="text-xs text-muted-foreground hover:text-violet-500 transition-colors flex items-center gap-1"
+          >
+            <BarChart2 className="w-3 h-3" />
+            View share tracking dashboard
+          </a>
+          {existingShares.length > 0 && (
+            <Badge variant="secondary" className="text-xs">
+              {existingShares.length} share{existingShares.length === 1 ? '' : 's'}
+            </Badge>
+          )}
+        </div>
+
       </DialogContent>
     </Dialog>
   );

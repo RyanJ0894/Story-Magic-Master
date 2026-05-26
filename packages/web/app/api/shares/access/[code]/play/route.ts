@@ -1,13 +1,21 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { errorResponse } from '@/lib/api/error-response';
 
 /**
  * POST /api/shares/access/[code]/play
- * Track a play event for a shared script (public endpoint, no auth required)
+ *
+ * Tracks a play or complete event for a shared script.
+ * Public endpoint — no auth required.
+ *
+ * Body (optional):
+ *   { action: 'play' | 'complete', progressPct?: number }
+ *
+ * Increments playCount on ScriptShare and writes a ContentAccessLog row
+ * for analytics. Only increments playCount on 'play' action (not 'complete').
  */
 export async function POST(
-  _request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ code: string }> }
 ) {
   const { code } = await params;
@@ -16,8 +24,18 @@ export async function POST(
     return errorResponse('Invalid share code', 400, { code: 'INVALID_CODE' });
   }
 
+  let action: 'play' | 'complete' = 'play';
+  let progressPct: number | undefined;
+
   try {
-    // Find the share by code and increment play count
+    const body = await request.json().catch(() => ({}));
+    if (body.action === 'complete') action = 'complete';
+    if (typeof body.progressPct === 'number') progressPct = body.progressPct;
+  } catch {
+    // body is optional — continue with defaults
+  }
+
+  try {
     const share = await prisma.scriptShare.findFirst({
       where: { shareCode: code, isActive: true },
       select: { id: true, projectId: true, playCount: true },
@@ -27,12 +45,36 @@ export async function POST(
       return errorResponse('Share not found', 404, { code: 'NOT_FOUND' });
     }
 
-    await prisma.scriptShare.update({
-      where: { id: share.id },
-      data: { playCount: (share.playCount || 0) + 1 },
+    // Increment playCount only on the initial 'play' action
+    if (action === 'play') {
+      await prisma.scriptShare.update({
+        where: { id: share.id },
+        data: { playCount: (share.playCount ?? 0) + 1 },
+      });
+    }
+
+    // Write ContentAccessLog row for analytics dashboard
+    const userAgent = request.headers.get('user-agent') ?? undefined;
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      ?? request.headers.get('x-real-ip')
+      ?? undefined;
+
+    await prisma.contentAccessLog.create({
+      data: {
+        projectId: share.projectId,
+        shareId: share.id,
+        accessType: action,
+        ipAddress: ip ?? null,
+        userAgent: userAgent ?? null,
+        // progressPct not in current schema — stored in endPositionSeconds as a proxy
+        // when action=complete and progressPct provided
+        endPositionSeconds: action === 'complete' && progressPct != null
+          ? Math.round(progressPct)
+          : null,
+      },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, action });
   } catch {
     return errorResponse('Failed to track play', 500);
   }

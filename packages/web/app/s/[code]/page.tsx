@@ -161,16 +161,31 @@ export default function PublicSharePage() {
     }
   }
 
-  // Track play count on first play
+  // Track play-started event
   async function handlePlay() {
     if (!shareData) return;
-
     try {
       await apiFetch(`/api/shares/access/${code}/play`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'play' }),
       });
-    } catch (err) {
-      // Silently fail - don't interrupt playback
+    } catch {
+      // Silently fail — don't interrupt playback
+    }
+  }
+
+  // Track play-completed event
+  async function handleComplete() {
+    if (!shareData) return;
+    try {
+      await apiFetch(`/api/shares/access/${code}/play`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'complete', progressPct: 100 }),
+      });
+    } catch {
+      // Silently fail — don't interrupt playback
     }
   }
 
@@ -312,7 +327,8 @@ export default function PublicSharePage() {
                   title: s.title || s.scene_id,
                 }))}
                 allowDownload={canDownload}
-                onComplete={handlePlay}
+                onPlay={handlePlay}
+                onComplete={handleComplete}
               />
 
               {/* Meta Info */}
