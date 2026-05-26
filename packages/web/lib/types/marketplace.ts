@@ -175,7 +175,15 @@ export const PURCHASE_PRICES: Record<PurchaseType, number> = {
 // Content Access Types
 // =============================================================================
 
-export type AccessType = 'stream_start' | 'stream_end' | 'download' | 'share_create' | 'share_click';
+export type AccessType =
+  | 'stream_start'
+  | 'stream_end'
+  | 'download'
+  | 'share_create'
+  | 'share_click'
+  | 'play'
+  | 'complete'
+  | 'stream';
 
 export interface ContentAccessLog {
   id: string;
@@ -187,6 +195,8 @@ export interface ContentAccessLog {
   end_position_seconds: number | null;
   duration_seconds: number | null;
   device_type: 'mobile' | 'tablet' | 'desktop' | null;
+  ip_address: string | null;
+  user_agent: string | null;
   created_at: string;
 }
 

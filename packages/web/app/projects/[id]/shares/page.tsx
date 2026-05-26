@@ -130,20 +130,25 @@ export default function ShareDashboardPage() {
 
   const [data, setData] = useState<ShareDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null);
   const [deactivatingAll, setDeactivatingAll] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setFetchError(false);
     try {
       const res = await apiFetch(`/api/projects/${projectId}/shares`);
       if (!res.ok) {
+        setFetchError(true);
         toast({ variant: 'destructive', title: 'Failed to load shares' });
         return;
       }
       const json = await res.json();
       setData(json);
+    } catch {
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -154,6 +159,7 @@ export default function ShareDashboardPage() {
   }, [fetchData]);
 
   async function deactivateShare(shareId: string) {
+    if (!window.confirm('Deactivate this share link? The recipient will no longer be able to access the audio.')) return;
     setDeactivatingId(shareId);
     try {
       const res = await apiFetch(`/api/shares/${shareId}`, {
@@ -173,6 +179,8 @@ export default function ShareDashboardPage() {
   }
 
   async function deactivateAll() {
+    const count = data?.shares.filter((s) => s.isActive).length ?? 0;
+    if (!window.confirm(`Deactivate all ${count} active share link${count === 1 ? '' : 's'}? Recipients will immediately lose access to the audio.`)) return;
     setDeactivatingAll(true);
     try {
       const res = await apiFetch(`/api/projects/${projectId}/shares`, {
@@ -206,6 +214,17 @@ export default function ShareDashboardPage() {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="w-6 h-6 animate-spin text-violet-500" />
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4 text-muted-foreground">
+        <p className="text-sm">Failed to load share data.</p>
+        <Button variant="outline" size="sm" onClick={fetchData}>
+          Retry
+        </Button>
       </div>
     );
   }

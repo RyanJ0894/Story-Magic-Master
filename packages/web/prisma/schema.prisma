@@ -433,6 +433,7 @@ model ContentAccessLog {
 
   @@index([projectId, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
+  @@index([shareId, createdAt(sort: Desc)])
   @@map("content_access_log")
 }
 

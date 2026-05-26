@@ -11,8 +11,9 @@ import { errorResponse } from '@/lib/api/error-response';
  * Body (optional):
  *   { action: 'play' | 'complete', progressPct?: number }
  *
- * Increments playCount on ScriptShare and writes a ContentAccessLog row
- * for analytics. Only increments playCount on 'play' action (not 'complete').
+ * Increments playCount atomically on 'play' action (not 'complete').
+ * Rejects expired or play-limit-exhausted shares even if still isActive.
+ * Writes a ContentAccessLog row for every accepted event.
  */
 export async function POST(
   request: NextRequest,
@@ -38,26 +39,46 @@ export async function POST(
   try {
     const share = await prisma.scriptShare.findFirst({
       where: { shareCode: code, isActive: true },
-      select: { id: true, projectId: true, playCount: true },
+      select: {
+        id: true,
+        projectId: true,
+        playCount: true,
+        expiresAt: true,
+        maxPlays: true,
+      },
     });
 
     if (!share) {
       return errorResponse('Share not found', 404, { code: 'NOT_FOUND' });
     }
 
-    // Increment playCount only on the initial 'play' action
+    // Validate expiry (even if isActive is still true)
+    if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
+      return errorResponse('Share link has expired', 410, { code: 'EXPIRED' });
+    }
+
+    // Validate play limit
+    if (share.maxPlays && (share.playCount ?? 0) >= share.maxPlays) {
+      return errorResponse('Share play limit reached', 410, { code: 'PLAY_LIMIT_REACHED' });
+    }
+
+    // Atomically increment playCount only on the initial 'play' action
     if (action === 'play') {
       await prisma.scriptShare.update({
         where: { id: share.id },
-        data: { playCount: (share.playCount ?? 0) + 1 },
+        data: {
+          playCount: { increment: 1 },
+          lastAccessedAt: new Date(),
+        },
       });
     }
 
     // Write ContentAccessLog row for analytics dashboard
     const userAgent = request.headers.get('user-agent') ?? undefined;
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-      ?? request.headers.get('x-real-ip')
-      ?? undefined;
+    const ip =
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+      request.headers.get('x-real-ip') ??
+      undefined;
 
     await prisma.contentAccessLog.create({
       data: {
@@ -66,11 +87,8 @@ export async function POST(
         accessType: action,
         ipAddress: ip ?? null,
         userAgent: userAgent ?? null,
-        // progressPct not in current schema — stored in endPositionSeconds as a proxy
-        // when action=complete and progressPct provided
-        endPositionSeconds: action === 'complete' && progressPct != null
-          ? Math.round(progressPct)
-          : null,
+        endPositionSeconds:
+          action === 'complete' && progressPct != null ? Math.round(progressPct) : null,
       },
     });
 

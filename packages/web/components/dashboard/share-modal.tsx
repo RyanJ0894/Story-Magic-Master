@@ -134,11 +134,22 @@ export function ShareModal({
   };
 
   const handleBulkShare = async () => {
-    const valid = bulkRecipients.filter((r) => r.email.trim());
-    if (valid.length === 0) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const filled = bulkRecipients.filter((r) => r.email.trim());
+    if (filled.length === 0) {
       toast({ variant: 'destructive', title: 'Add at least one recipient email' });
       return;
     }
+    const invalid = filled.filter((r) => !emailRegex.test(r.email.trim()));
+    if (invalid.length > 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Invalid email address',
+        description: `Check: ${invalid.map((r) => r.email).join(', ')}`,
+      });
+      return;
+    }
+    const valid = filled;
 
     setIsSendingBulk(true);
     try {
@@ -322,6 +333,7 @@ export function ShareModal({
             {/* Recipients */}
             <div className="space-y-2">
               <Label>Recipients</Label>
+              <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
               {bulkRecipients.map((r, idx) => (
                 <div key={idx} className="flex items-center gap-2">
                   <Input
@@ -349,6 +361,7 @@ export function ShareModal({
                   )}
                 </div>
               ))}
+              </div>
               {bulkRecipients.length < 20 && (
                 <Button variant="outline" size="sm" onClick={addBulkRecipient} className="w-full">
                   <Plus className="w-4 h-4 mr-2" />

@@ -279,6 +279,7 @@ export function PreviewButton({
       size="sm"
       onClick={handleClick}
       disabled={isDisabled}
+      title={state === 'error' && errorMessage ? errorMessage : undefined}
       className={cn(
         'h-7 gap-1.5',
         state === 'playing' && 'text-blue-600 dark:text-blue-400',
