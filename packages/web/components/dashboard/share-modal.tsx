@@ -198,7 +198,7 @@ export function ShareModal({
             </TabsTrigger>
             <TabsTrigger value="bulk">
               <Send className="w-4 h-4 mr-2" />
-              Send to agents
+              Send to...
             </TabsTrigger>
           </TabsList>
 
@@ -265,7 +265,7 @@ export function ShareModal({
                   </Label>
                   <Input
                     type="email"
-                    placeholder="agent@talent-agency.com"
+                    placeholder="email@example.com"
                     value={recipientEmail}
                     onChange={(e) => setRecipientEmail(e.target.value)}
                   />
@@ -315,7 +315,7 @@ export function ShareModal({
           {/* Bulk Share Tab */}
           <TabsContent value="bulk" className="space-y-4 mt-4">
             <p className="text-sm text-muted-foreground">
-              Send personalised email invites to up to 20 agents at once. Each gets their own
+              Send personalised email invites to up to 20 people at once. Each gets their own
               unique link so you can track who listened.
             </p>
 
@@ -326,7 +326,7 @@ export function ShareModal({
                 <div key={idx} className="flex items-center gap-2">
                   <Input
                     type="email"
-                    placeholder="agent@agency.com"
+                    placeholder="email@example.com"
                     value={r.email}
                     onChange={(e) => updateBulkRecipient(idx, 'email', e.target.value)}
                     className="flex-1"
