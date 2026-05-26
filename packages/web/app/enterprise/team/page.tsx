@@ -231,51 +231,84 @@ export default function EnterpriseTeamPage() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <Users className="w-4 h-4" />
-                  Members ({selectedTeam?.members.length ?? 0})
+                  Members ({selectedTeam?.members.filter(m => m.status === 'accepted').length ?? 0})
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                {!selectedTeam || selectedTeam.members.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-6">
-                    No members yet. Invite your first team member.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {selectedTeam.members.map(m => (
-                      <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
-                        <div className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center text-sm font-medium text-violet-600 dark:text-violet-400 shrink-0">
-                          {(m.user?.fullName ?? m.invitedEmail ?? '?')[0].toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {m.user?.fullName ?? m.invitedEmail}
-                          </p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <Badge variant="secondary" className="text-xs capitalize">{m.role}</Badge>
-                            <Badge
-                              variant={m.status === 'accepted' ? 'default' : 'secondary'}
-                              className="text-xs"
-                            >
-                              {m.status}
-                            </Badge>
+              <CardContent className="space-y-4">
+                {/* Active members */}
+                {(() => {
+                  const active = selectedTeam?.members.filter(m => m.status === 'accepted') ?? [];
+                  return active.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No active members yet. Invite your first team member.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {active.map(m => (
+                        <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
+                          <div className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center text-sm font-medium text-violet-600 dark:text-violet-400 shrink-0">
+                            {(m.user?.fullName ?? m.invitedEmail ?? '?')[0].toUpperCase()}
                           </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {m.user?.fullName ?? m.invitedEmail}
+                            </p>
+                            <Badge variant="secondary" className="text-xs capitalize mt-0.5">{m.role}</Badge>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => {
+                              const name = m.user?.fullName ?? m.invitedEmail ?? 'this member';
+                              if (!window.confirm(`Remove ${name} from the team? Their account will be disabled.`)) return;
+                              void removeMember(m.id);
+                            }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => {
-                            const name = m.user?.fullName ?? m.invitedEmail ?? 'this member';
-                            if (!window.confirm(`Remove ${name} from the team?`)) return;
-                            void removeMember(m.id);
-                          }}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {/* Pending invitations */}
+                {(() => {
+                  const pending = selectedTeam?.members.filter(m => m.status === 'pending') ?? [];
+                  if (pending.length === 0) return null;
+                  return (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                        Pending Invitations ({pending.length})
+                      </p>
+                      <div className="space-y-2">
+                        {pending.map(m => (
+                          <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/30 border border-dashed border-border">
+                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium text-muted-foreground shrink-0">
+                              {(m.invitedEmail ?? '?')[0].toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-muted-foreground truncate">{m.invitedEmail}</p>
+                              <p className="text-xs text-muted-foreground/60">Invite pending</p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => {
+                                if (!window.confirm(`Cancel invite for ${m.invitedEmail}?`)) return;
+                                void removeMember(m.id);
+                              }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </div>

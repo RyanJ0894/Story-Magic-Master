@@ -54,6 +54,7 @@ export async function listTeams(prisma: PrismaClient, userId: string) {
     where: { ownerId: userId },
     include: {
       members: {
+        where: { status: { not: 'removed' } },
         select: {
           id: true,
           userId: true,
@@ -145,6 +146,7 @@ export async function getTeam(
     where: { id: teamId },
     include: {
       members: {
+        where: { status: { not: 'removed' } },
         select: {
           id: true,
           userId: true,
@@ -280,7 +282,7 @@ export async function listMembers(
   }
 
   const members = await prisma.teamMember.findMany({
-    where: { teamId },
+    where: { teamId, status: { not: 'removed' } },
     select: {
       id: true,
       userId: true,

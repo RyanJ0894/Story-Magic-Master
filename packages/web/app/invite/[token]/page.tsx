@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useUser } from '@clerk/nextjs';
 import { apiFetch } from '@/lib/api/fetch';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -31,6 +32,7 @@ export default function InvitePage() {
   const params = useParams();
   const router = useRouter();
   const token = params.token as string;
+  const { isSignedIn, isLoaded: clerkLoaded } = useUser();
 
   const [invite, setInvite] = useState<InviteDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,6 +40,8 @@ export default function InvitePage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [needsAuth, setNeedsAuth] = useState(false);
+  // Prevent double-accept on re-render
+  const autoAcceptAttempted = useRef(false);
 
   // Fetch invite details
   useEffect(() => {
@@ -61,6 +65,26 @@ export default function InvitePage() {
 
     fetchInvite();
   }, [token]);
+
+  // Auto-accept once Clerk confirms the user is signed in and the invite is loaded.
+  // Covers the return-from-sign-up flow: user clicks "Create Account", signs up,
+  // Clerk redirects back here — we accept automatically without a second click.
+  useEffect(() => {
+    if (
+      clerkLoaded &&
+      isSignedIn &&
+      invite &&
+      !success &&
+      !accepting &&
+      !error &&
+      !autoAcceptAttempted.current
+    ) {
+      autoAcceptAttempted.current = true;
+      void handleAccept();
+    }
+    // handleAccept is stable (only depends on token + router via closure)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clerkLoaded, isSignedIn, invite]);
 
   const handleAccept = async () => {
     setAccepting(true);
@@ -142,7 +166,7 @@ export default function InvitePage() {
     );
   }
 
-  // Needs auth state
+  // Needs auth state — new user must create an account before accepting
   if (needsAuth) {
     return (
       <div className="min-h-screen bg-muted flex items-center justify-center p-4">
@@ -151,17 +175,17 @@ export default function InvitePage() {
             <div className="w-12 h-12 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center mx-auto mb-4">
               <LogIn className="w-6 h-6 text-violet-600" />
             </div>
-            <CardTitle>Sign in to continue</CardTitle>
+            <CardTitle>Create your account</CardTitle>
             <CardDescription>
-              Please sign in or create an account to accept this team invitation.
+              Create a free Story Magic account to accept this team invitation.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground text-center">
-              New to Story Magic? Create a free account to join the team.
+              Once your account is created you'll be added to the team automatically.
             </p>
             <Link href={`/login?redirect=/invite/${token}`} className="block">
-              <Button className="w-full brand-gradient brand-gradient-hover">Create Account or Sign In</Button>
+              <Button className="w-full brand-gradient brand-gradient-hover">Create Account</Button>
             </Link>
           </CardContent>
         </Card>

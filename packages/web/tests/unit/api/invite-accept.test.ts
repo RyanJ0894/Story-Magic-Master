@@ -58,6 +58,7 @@ vi.mock('@/lib/db', () => ({
     },
     profile: {
       findUnique: (...args: unknown[]) => mockProfileFindUnique(...args),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     alert: {
       create: (...args: unknown[]) => mockAlertCreate(...args),

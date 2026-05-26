@@ -156,6 +156,14 @@ export async function POST(
       },
     });
 
+    // Upgrade sub-account from free → creator (Starter plan) on first acceptance.
+    // Only applies when the user is currently on the free tier — preserves any
+    // existing paid subscription.
+    await prisma.profile.updateMany({
+      where: { id: userId, subscriptionTier: 'free' },
+      data: { subscriptionTier: 'creator' },
+    });
+
     // Get user's name for alert
     const profile = await prisma.profile.findUnique({
       where: { id: userId },

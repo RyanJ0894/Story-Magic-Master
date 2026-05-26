@@ -49,15 +49,21 @@ export default async function DashboardPage() {
   const tierLimit = TIER_LIMITS[tier] ?? 3;
   const tierDisplayName = TIER_NAMES[tier] ?? 'Individual';
 
-  // Enterprise-tier users go straight to the enterprise dashboard.
-  // If they have no team yet, send them to the team-creation page first.
+  // Enterprise-tier users go straight to the enterprise dashboard — but only if
+  // they OWN a team (master accounts). Sub-account members have enterprise tier
+  // too (set on invite acceptance) but should land on the regular dashboard.
   const ENTERPRISE_TIERS = ['creator', 'pro', 'studio', 'enterprise'];
+  let isSubAccount = false;
   if (ENTERPRISE_TIERS.includes(tier)) {
-    const team = await prisma.team.findFirst({
+    const ownedTeam = await prisma.team.findFirst({
       where: { ownerId: userId },
       select: { id: true },
     });
-    redirect(team ? '/enterprise/dashboard' : '/enterprise/team');
+    if (ownedTeam) {
+      redirect('/enterprise/dashboard');
+    }
+    // No owned team → sub-account (joined via invite); stay on regular dashboard
+    isSubAccount = true;
   }
 
   const remainingResult = await prisma.$queryRaw<[{ remaining: number }]>`
@@ -122,8 +128,14 @@ export default async function DashboardPage() {
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-8">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
-            <p className="mt-1 text-muted-foreground text-sm">Manage your audio productions and account.</p>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              {isSubAccount ? 'Sub Account Dashboard' : 'Dashboard'}
+            </h1>
+            <p className="mt-1 text-muted-foreground text-sm">
+              {isSubAccount
+                ? 'Access your team projects and audio productions.'
+                : 'Manage your audio productions and account.'}
+            </p>
           </div>
         </div>
 
