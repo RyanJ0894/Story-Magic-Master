@@ -147,6 +147,8 @@ export default function GenerateButton({
       // before the full job completes.
       if (!firstAudioFiredRef.current && data.firstAudioUrl && onFirstAudioReady) {
         firstAudioFiredRef.current = true;
+        // eslint-disable-next-line no-console
+        console.log('[Audio] First segment ready', data.firstAudioUrl);
         onFirstAudioReady(data.firstAudioUrl);
       }
 
@@ -157,6 +159,8 @@ export default function GenerateButton({
           .map((s) => s.audioUrl as string);
         if (readyUrls.length > lastSegmentCountRef.current) {
           lastSegmentCountRef.current = readyUrls.length;
+          // eslint-disable-next-line no-console
+          console.log('[Audio] Segments ready', readyUrls.length, readyUrls[0]);
           onSegmentsUpdate(readyUrls);
         }
       }
@@ -166,6 +170,13 @@ export default function GenerateButton({
         if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
         if (queuePollRef.current) clearInterval(queuePollRef.current);
+        // eslint-disable-next-line no-console
+        console.log('[Audio] Job complete', {
+          jobId: currentJobId,
+          audioUrl: data.audio_url ?? null,
+          segments: data.segments?.length ?? 0,
+          firstAudioUrl: data.firstAudioUrl ?? null,
+        });
         toast.success('Audio generation complete!');
         setLoading(false);
         setCurrentJobId(null);

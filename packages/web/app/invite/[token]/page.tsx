@@ -89,6 +89,8 @@ export default function InvitePage() {
   const handleAccept = async () => {
     setAccepting(true);
     setError(null);
+    // eslint-disable-next-line no-console
+    console.log('[Invite] Accepting token', token.slice(0, 8) + '...');
 
     try {
       const res = await apiFetch(`/api/invite/${token}`, {
@@ -96,10 +98,19 @@ export default function InvitePage() {
       });
 
       const data = await res.json();
+      // eslint-disable-next-line no-console
+      console.log('[Invite] Response', res.status, data.code ?? 'ok');
 
       if (!res.ok) {
         if (data.code === 'AUTH_REQUIRED') {
           setNeedsAuth(true);
+          return;
+        }
+        // Invite was already accepted (e.g. user clicked link twice, or previously
+        // accepted) — treat as success and send them to the dashboard.
+        if (data.code === 'INVALID_STATUS' && data.details?.status === 'accepted') {
+          setSuccess(true);
+          setTimeout(() => router.push('/enterprise/dashboard'), 1500);
           return;
         }
         throw new Error(data.error || 'Failed to accept invite');
@@ -107,10 +118,10 @@ export default function InvitePage() {
 
       setSuccess(true);
 
-      // Redirect to dashboard after a moment
+      // Redirect to enterprise dashboard after a moment
       setTimeout(() => {
-        router.push('/dashboard');
-      }, 2000);
+        router.push('/enterprise/dashboard');
+      }, 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to accept invite');
     } finally {
