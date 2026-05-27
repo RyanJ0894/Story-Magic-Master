@@ -35,7 +35,10 @@ function addSecurityHeaders(response: NextResponse, nonce: string): void {
     "style-src 'self' 'unsafe-inline'", // Tailwind requires unsafe-inline
     "img-src 'self' data: blob: https://img.clerk.com https://api.dicebear.com",
     "font-src 'self' data:",
-    "connect-src 'self' https://api.stripe.com https://api.elevenlabs.io https://api.openai.com https://*.sentry.io https://clerk.storymagicapp.net https://accounts.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://*.clerk.dev https://clerk-telemetry.com",
+    // story-magic-orchestrator.onrender.com required in connect-src so the
+    // service worker can fetch() audio files (fetch is governed by connect-src,
+    // not media-src — both are needed).
+    "connect-src 'self' https://api.stripe.com https://api.elevenlabs.io https://api.openai.com https://*.sentry.io https://clerk.storymagicapp.net https://accounts.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://*.clerk.dev https://clerk-telemetry.com https://story-magic-orchestrator.onrender.com",
     "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://accounts.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com",
     "media-src 'self' blob: https://story-magic-orchestrator.onrender.com",
     "worker-src 'self' blob:",
@@ -48,7 +51,7 @@ function addSecurityHeaders(response: NextResponse, nonce: string): void {
 
   response.headers.set('Content-Security-Policy', csp);
   response.headers.set('X-Content-Type-Options', 'nosniff');
-  response.headers.set('X-Frame-Options', 'SAMEORIGIN');
+  response.headers.set('X-Frame-Options', 'SAMEORIGIN'); // nosemgrep: x-frame-options-misconfiguration — value is a hardcoded literal, not user input; rule mis-tagged as express (this is Next.js)
   response.headers.set('X-XSS-Protection', '1; mode=block');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
