@@ -7,6 +7,7 @@ import { Toaster } from 'sonner';
 import { ThemeProvider } from '@/components/theme-provider';
 import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration';
 import { PwaInstallPrompt } from '@/components/pwa/PwaInstallPrompt';
+import { BuildStamp } from '@/components/BuildStamp';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -54,6 +55,9 @@ export default async function RootLayout({
             <main id="main-content">
               {children}
             </main>
+            <footer className="flex justify-end px-4 py-1 pointer-events-none">
+              <BuildStamp />
+            </footer>
             <Toaster position="top-right" richColors />
           </ThemeProvider>
         </body>

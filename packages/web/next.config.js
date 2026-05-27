@@ -2,6 +2,11 @@ const { withSentryConfig } = require('@sentry/nextjs');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Bake the build timestamp into the client bundle so each deploy is
+  // identifiable in the footer and in the browser console.
+  env: {
+    NEXT_PUBLIC_BUILD_TIME: new Date().toISOString(),
+  },
   experimental: {
     // Allow file uploads up to 10MB via /api/projects/upload
     serverActions: { bodySizeLimit: '10mb' },
