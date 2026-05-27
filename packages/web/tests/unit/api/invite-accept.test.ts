@@ -63,6 +63,8 @@ vi.mock('@/lib/db', () => ({
     alert: {
       create: (...args: unknown[]) => mockAlertCreate(...args),
     },
+    // $transaction(ops[]) executes each op and returns their results
+    $transaction: vi.fn().mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops)),
   },
 }));
 
@@ -192,6 +194,47 @@ describe('POST /api/invite/[token]', () => {
     expect(res.status).toBe(400);
     expect(data.code).toBe('INVALID_STATUS');
     expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  // ── Regression: re-accept after removal (unique constraint) ───────────────
+  //
+  // Root cause: a user removed from a team has a team_member row with
+  // status='removed'. Accepting a new invite sets userId on the invite row,
+  // creating a duplicate (teamId, userId) pair → PostgreSQL unique constraint
+  // violation → 500. Fix: detect the existing row and reactivate it instead.
+
+  it('reactivates an existing membership when user was previously removed', async () => {
+    const EXISTING_MEMBER_ID = 'existing_member_row_id';
+    mockFindFirst.mockImplementation((args: { where?: Record<string, unknown> }) => {
+      if (args?.where?.inviteToken !== undefined) return Promise.resolve(MOCK_INVITE);
+      // Second findFirst: membership check — return a 'removed' row
+      return Promise.resolve({ id: EXISTING_MEMBER_ID });
+    });
+
+    const res = await POST(makeRequest(), makeParams());
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.success).toBe(true);
+
+    // $transaction must have been used (not a plain update)
+    const { prisma } = await import('@/lib/db');
+    expect(prisma.$transaction).toHaveBeenCalled();
+
+    // The existing membership record must be reactivated to 'accepted'
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: EXISTING_MEMBER_ID },
+        data: expect.objectContaining({ status: 'accepted' }),
+      })
+    );
+
+    // The invite row must NOT have userId set (would cause unique constraint)
+    const inviteUpdateCall = (mockUpdate.mock.calls as Array<Array<{ where?: { id?: string }; data?: { userId?: string } }>>).find(
+      ([args]) => args?.where?.id === MOCK_INVITE.id
+    );
+    expect(inviteUpdateCall).toBeDefined();
+    expect(inviteUpdateCall?.[0]?.data?.userId).toBeUndefined();
   });
 
   // ── Error handling ─────────────────────────────────────────────────────────

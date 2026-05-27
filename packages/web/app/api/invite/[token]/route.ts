@@ -148,15 +148,36 @@ export async function POST(
     }
 
     // Accept the invite.
-    // Guard against the unique constraint on (teamId, userId): if the user
-    // already has a team member record for this team (e.g. from a prior partial
-    // accept or a duplicate invite), treat it as already-accepted rather than failing.
+    // Guard against the UNIQUE(teamId, userId) constraint: a user may already
+    // have a team_member row for this team with any status (accepted, removed,
+    // etc.). Setting userId on the invite row would create a duplicate pair and
+    // trigger a constraint violation.
+    //
+    // Strategy:
+    //   • If an existing row exists (any status): reactivate that row to
+    //     'accepted' and consume the invite token by marking it 'accepted'
+    //     WITHOUT touching userId (invite row already lacks userId — safe).
+    //   • If no existing row: standard path — set userId + accepted on the
+    //     invite row itself (invite row becomes the membership record).
     const existingMembership = await prisma.teamMember.findFirst({
-      where: { teamId: invite.teamId, userId, status: 'accepted' },
+      where: { teamId: invite.teamId, userId },
       select: { id: true },
     });
 
-    if (!existingMembership) {
+    if (existingMembership) {
+      // Reactivate the existing membership record and consume the invite token.
+      await prisma.$transaction([
+        prisma.teamMember.update({
+          where: { id: existingMembership.id },
+          data: { status: 'accepted', acceptedAt: new Date() },
+        }),
+        prisma.teamMember.update({
+          where: { id: invite.id },
+          data: { status: 'accepted', acceptedAt: new Date() },
+        }),
+      ]);
+    } else {
+      // First-time join — promote the pending invite row to the membership record.
       await prisma.teamMember.update({
         where: { id: invite.id },
         data: {
