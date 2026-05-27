@@ -75,6 +75,7 @@ export default function GenerateButton({
   const [elapsedTime, setElapsedTime] = useState(0);
   const [timerProgress, setTimerProgress] = useState(0);
   const startTimeRef = useRef<number | null>(null);
+  const consecutiveAuthFailures = useRef(0);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const queuePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -118,9 +119,27 @@ export default function GenerateButton({
     try {
       const response = await apiFetch(`/api/jobs/${jobId}`);
       if (!response.ok) {
+        // 401 = session expired (e.g. device slept during long generation and
+        // Clerk JWT wasn't refreshed in time). Surface after 3 consecutive
+        // failures so the user knows to reload rather than waiting indefinitely.
+        if (response.status === 401) {
+          consecutiveAuthFailures.current += 1;
+          if (consecutiveAuthFailures.current >= 3) {
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+            if (queuePollRef.current) clearInterval(queuePollRef.current);
+            setLoading(false);
+            toast.error('Session expired — please reload the page to check your audio.', {
+              duration: 10000,
+            });
+          }
+          return;
+        }
+        consecutiveAuthFailures.current = 0;
         log.error('Failed to fetch job status');
         return;
       }
+      consecutiveAuthFailures.current = 0;
       const data: JobStatus = await response.json();
       setJobStatus(data);
 
@@ -177,6 +196,7 @@ export default function GenerateButton({
     startTimeRef.current = Date.now();
     firstAudioFiredRef.current = false;
     lastSegmentCountRef.current = 0;
+    consecutiveAuthFailures.current = 0;
     setElapsedTime(0);
     setTimerProgress(0);
     setCurrentJobId(jobId);
