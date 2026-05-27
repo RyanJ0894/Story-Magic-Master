@@ -112,7 +112,13 @@ describe('POST /api/invite/[token]', () => {
     vi.clearAllMocks();
     callOrder.length = 0;
     mockAuth.mockReturnValue({ userId: USER_ID });
-    mockFindFirst.mockResolvedValue(MOCK_INVITE);
+    // Distinguish the two findFirst calls by their where clause:
+    //   - invite lookup   (where.inviteToken present) → MOCK_INVITE
+    //   - membership check (where.status present)     → null (no duplicate membership)
+    mockFindFirst.mockImplementation((args: { where?: Record<string, unknown> }) => {
+      if (args?.where?.inviteToken !== undefined) return Promise.resolve(MOCK_INVITE);
+      return Promise.resolve(null);
+    });
     mockValidateCsrf.mockReturnValue(null);
   });
 

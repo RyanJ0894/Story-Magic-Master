@@ -108,12 +108,13 @@ export async function POST(
     return errorResponse('Please sign in to accept this invite', 401, { code: 'AUTH_REQUIRED', details: { redirectTo: `/login?redirect=/invite/${token}` } });
   }
 
-  // Ensure a Profile row exists — teamMember.userId is a FK to profiles.id,
-  // so new Clerk users who haven't visited the dashboard yet would trigger a
-  // FK violation without this call.
-  await ensureProfile(userId);
-
   try {
+    // Ensure a Profile row exists — teamMember.userId is a FK to profiles.id,
+    // so new Clerk users who haven't visited the dashboard yet would trigger a
+    // FK violation without this call. Inside try/catch so any Clerk API failure
+    // returns a clean 500 JSON response instead of an unhandled exception.
+    await ensureProfile(userId);
+
     // Get invite
     const invite = await prisma.teamMember.findFirst({
       where: { inviteToken: token },
@@ -146,15 +147,25 @@ export async function POST(
       );
     }
 
-    // Accept the invite
-    await prisma.teamMember.update({
-      where: { id: invite.id },
-      data: {
-        userId,
-        status: 'accepted',
-        acceptedAt: new Date(),
-      },
+    // Accept the invite.
+    // Guard against the unique constraint on (teamId, userId): if the user
+    // already has a team member record for this team (e.g. from a prior partial
+    // accept or a duplicate invite), treat it as already-accepted rather than failing.
+    const existingMembership = await prisma.teamMember.findFirst({
+      where: { teamId: invite.teamId, userId, status: 'accepted' },
+      select: { id: true },
     });
+
+    if (!existingMembership) {
+      await prisma.teamMember.update({
+        where: { id: invite.id },
+        data: {
+          userId,
+          status: 'accepted',
+          acceptedAt: new Date(),
+        },
+      });
+    }
 
     // Upgrade sub-account from free → creator (Starter plan) on first acceptance.
     // Only applies when the user is currently on the free tier — preserves any
