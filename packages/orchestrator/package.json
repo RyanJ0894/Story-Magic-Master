@@ -16,7 +16,8 @@
     "test:legacy": "node tests/test-orchestrator.js",
     "lint": "eslint . --ext .ts",
     "typecheck": "tsc --noEmit",
-    "refresh:voices": "tsx scripts/refresh-voice-catalog.ts"
+    "refresh:voices": "tsx scripts/refresh-voice-catalog.ts",
+    "clean:stems": "rm -rf data/stems && echo 'Stems cache cleared — next run will regenerate all TTS audio'"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.71",
