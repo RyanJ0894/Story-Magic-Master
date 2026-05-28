@@ -14,6 +14,11 @@
  *   - "anthropic/claude-3-5-sonnet-20241022"
  *   - "google/gemini-1.5-pro"
  *   - "groq/llama-3.3-70b-versatile"
+ *
+ * Auto-failover: runAgentLoop and generateStructuredOutput will automatically
+ * retry with a fallback provider if the primary fails due to billing exhaustion,
+ * rate-limiting, or provider overload. Claude is always preferred; OpenAI is
+ * the fallback. No manual Render env var changes needed.
  */
 
 import { generateText, generateObject, tool, type ModelMessage, type Tool, type ToolResultPart } from 'ai';
@@ -57,6 +62,52 @@ function parseModelString(modelString: string): { provider: LLMProvider; modelNa
 }
 
 /**
+ * Returns the fallback model to use when the primary provider fails.
+ * Anthropic → OpenAI. Other providers have no automatic fallback.
+ */
+function getFailoverModel(primaryModel: string): string | null {
+  const { provider } = parseModelString(primaryModel);
+  if (provider === 'anthropic') return 'openai/gpt-4.1';
+  return null;
+}
+
+/**
+ * Returns true for provider-side failures we can recover from by switching
+ * providers: billing exhaustion, rate limits, and transient overload.
+ *
+ * Returns false for client errors (400 bad request, 401 auth, context-length
+ * exceeded) that would fail on any provider — those should propagate.
+ */
+function isFailoverableError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+
+  const msg = err.message.toLowerCase();
+
+  // Anthropic billing / credit exhaustion
+  if (msg.includes('credit balance') || msg.includes('insufficient_credits') || msg.includes('billing')) {
+    return true;
+  }
+
+  // Rate limiting or transient overload (provider-agnostic phrasing)
+  if (msg.includes('rate limit') || msg.includes('too many requests') || msg.includes('overloaded')) {
+    return true;
+  }
+
+  // AI SDK surfaces HTTP status codes in the error message
+  if (msg.includes('429') || msg.includes('529') || msg.includes('402')) {
+    return true;
+  }
+
+  // AI SDK APICallError exposes statusCode as a property
+  const withStatus = err as { statusCode?: number };
+  if (withStatus.statusCode === 402 || withStatus.statusCode === 429 || withStatus.statusCode === 529) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Get the appropriate model instance for Vercel AI SDK v6.
  *
  * Supported providers and environment variables:
@@ -94,10 +145,39 @@ function getModel(modelString: string) {
  * 2. If LLM returns tool calls, execute them
  * 3. Send tool results back to LLM
  * 4. Repeat until LLM returns text without tool calls
+ *
+ * Automatically fails over to the fallback provider (OpenAI) if the primary
+ * (Anthropic) rejects the request due to billing exhaustion, rate-limiting,
+ * or transient overload. The full loop restarts from scratch — safe because
+ * billing errors fire before any real LLM work is done (processing_time < 1s).
  */
 export async function runAgentLoop(
   userInput: string,
-  options: AgentOptions
+  options: AgentOptions,
+): Promise<string> {
+  const failoverModel = getFailoverModel(options.model);
+  try {
+    return await runAgentLoopCore(userInput, options);
+  } catch (err) {
+    if (failoverModel && isFailoverableError(err)) {
+      log.warn('[LLM] primary provider failed — failing over', {
+        primary: options.model,
+        failover: failoverModel,
+        reason: err instanceof Error ? err.message.slice(0, 120) : String(err),
+      });
+      return await runAgentLoopCore(userInput, { ...options, model: failoverModel });
+    }
+    throw err;
+  }
+}
+
+/**
+ * Core agent loop implementation — single provider, no failover.
+ * Called by runAgentLoop (with failover) and should not be exported.
+ */
+async function runAgentLoopCore(
+  userInput: string,
+  options: AgentOptions,
 ): Promise<string> {
   const {
     model,
@@ -280,6 +360,9 @@ export async function runAgentLoop(
  *
  * Uses the AI SDK's native structured output feature which guarantees
  * valid JSON output matching the provided schema.
+ *
+ * Auto-fails over to OpenAI if the primary (Anthropic) provider rejects
+ * due to billing exhaustion, rate-limiting, or transient overload.
  */
 export async function generateStructuredOutput<T>(
   prompt: string,
@@ -289,18 +372,32 @@ export async function generateStructuredOutput<T>(
     systemPrompt?: string;
     maxTokens?: number;
     temperature?: number;
-  }
+  },
 ): Promise<T> {
-  const result = await generateObject({
-    model: getModel(options.model),
-    schema: options.schema,
-    system: options.systemPrompt,
-    prompt,
-    maxOutputTokens: options.maxTokens || 8192,
-    temperature: options.temperature || 0.7,
-  });
+  const run = async (model: string) =>
+    generateObject({
+      model: getModel(model),
+      schema: options.schema,
+      system: options.systemPrompt,
+      prompt,
+      maxOutputTokens: options.maxTokens || 8192,
+      temperature: options.temperature || 0.7,
+    });
 
-  return result.object;
+  try {
+    return (await run(options.model)).object;
+  } catch (err) {
+    const failoverModel = getFailoverModel(options.model);
+    if (failoverModel && isFailoverableError(err)) {
+      log.warn('[LLM] generateStructuredOutput — failing over', {
+        primary: options.model,
+        failover: failoverModel,
+        reason: err instanceof Error ? err.message.slice(0, 120) : String(err),
+      });
+      return (await run(failoverModel)).object;
+    }
+    throw err;
+  }
 }
 
 /**
