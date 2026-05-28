@@ -5,6 +5,13 @@ import { getOutputDir } from './env.js';
 
 const PREVIEW_TTL_DAYS = 7;
 const FULL_AUDIO_TTL_DAYS = 30;
+// Stems are scratch files (PCM→WAV per dialogue line, used only during mixing).
+// 2 days is generous — any job running longer than that has bigger problems.
+const STEMS_TTL_DAYS = 2;
+
+export function getStemsDir(): string {
+  return path.join(process.cwd(), 'data', 'stems');
+}
 
 /**
  * Remove files older than the given TTL (in days)
@@ -18,7 +25,9 @@ function removeOldFiles(dir: string, ttlDays: number): { removed: number; errors
 
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
+    // dir is always a server-controlled absolute path (getOutputDir/getStemsDir), never from HTTP input.
+    // path.basename guards entry.name against any hypothetical traversal component.
+    const fullPath = path.join(dir, path.basename(entry.name)); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
     try {
       if (entry.isDirectory()) {
         // Recurse into project directories
@@ -59,7 +68,7 @@ export function getDiskUsage(): { totalFiles: number; totalBytes: number; totalM
     if (!fs.existsSync(dir)) return;
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
+      const fullPath = path.join(dir, path.basename(entry.name)); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
       if (entry.isDirectory()) {
         walk(fullPath);
       } else if (entry.isFile()) {
@@ -79,13 +88,14 @@ export function getDiskUsage(): { totalFiles: number; totalBytes: number; totalM
  * - Preview files: removed after 7 days
  * - Full audio files: removed after 30 days
  */
-export function runCleanup(): { previewsRemoved: number; audioRemoved: number; errors: number } {
+export function runCleanup(): { previewsRemoved: number; audioRemoved: number; stemsRemoved: number; errors: number } {
   const outputDir = getOutputDir();
 
   log.info('Starting audio storage cleanup', {
     outputDir,
     previewTTLDays: PREVIEW_TTL_DAYS,
     audioTTLDays: FULL_AUDIO_TTL_DAYS,
+    stemsTTLDays: STEMS_TTL_DAYS,
   });
 
   const previewDir = path.join(outputDir, 'previews');
@@ -94,10 +104,14 @@ export function runCleanup(): { previewsRemoved: number; audioRemoved: number; e
   // For project audio dirs, use the longer TTL
   const audioResult = removeOldFiles(outputDir, FULL_AUDIO_TTL_DAYS);
 
+  // Stems are ephemeral scratch files — purge aggressively
+  const stemsResult = removeOldFiles(getStemsDir(), STEMS_TTL_DAYS);
+
   const result = {
     previewsRemoved: previewResult.removed,
     audioRemoved: audioResult.removed,
-    errors: previewResult.errors + audioResult.errors,
+    stemsRemoved: stemsResult.removed,
+    errors: previewResult.errors + audioResult.errors + stemsResult.errors,
   };
 
   const usage = getDiskUsage();
