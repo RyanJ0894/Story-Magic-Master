@@ -3,18 +3,21 @@ import * as Sentry from '@sentry/nextjs';
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
-  // Performance Monitoring
-  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+  // 10% of transactions by default; override with NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE.
+  tracesSampleRate: process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE
+    ? Number(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE)
+    : 0.1,
 
   // Session Replay
   replaysSessionSampleRate: 0.1,
   replaysOnErrorSampleRate: 1.0,
 
   // Environment
-  environment: process.env.NODE_ENV || 'development',
+  environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'production',
 
-  // Don't send errors in development by default
-  enabled: process.env.NODE_ENV === 'production' || process.env.SENTRY_ENABLED === 'true',
+  // Enabled whenever a DSN is configured, unless explicitly disabled.
+  // Does NOT depend on NODE_ENV (Render leaves it unset).
+  enabled: !!process.env.NEXT_PUBLIC_SENTRY_DSN && process.env.NEXT_PUBLIC_SENTRY_ENABLED !== 'false',
 
   // Integrations
   integrations: [
@@ -44,13 +47,4 @@ Sentry.init({
     // User-caused errors
     'ResizeObserver loop limit exceeded',
   ],
-
-  // Add user context
-  beforeSend(event) {
-    // Don't send events in development unless explicitly enabled
-    if (process.env.NODE_ENV !== 'production' && process.env.SENTRY_ENABLED !== 'true') {
-      return null;
-    }
-    return event;
-  },
 });

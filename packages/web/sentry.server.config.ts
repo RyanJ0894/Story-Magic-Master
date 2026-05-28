@@ -3,14 +3,17 @@ import * as Sentry from '@sentry/nextjs';
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
 
-  // Performance Monitoring
-  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+  // 10% of transactions by default; override with SENTRY_TRACES_SAMPLE_RATE.
+  tracesSampleRate: process.env.SENTRY_TRACES_SAMPLE_RATE
+    ? Number(process.env.SENTRY_TRACES_SAMPLE_RATE)
+    : 0.1,
 
   // Environment
-  environment: process.env.NODE_ENV || 'development',
+  environment: process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'production',
 
-  // Don't send errors in development by default
-  enabled: process.env.NODE_ENV === 'production' || process.env.SENTRY_ENABLED === 'true',
+  // Enabled whenever a DSN is configured, unless explicitly disabled.
+  // Does NOT depend on NODE_ENV (Render leaves it unset).
+  enabled: !!process.env.SENTRY_DSN && process.env.SENTRY_ENABLED !== 'false',
 
   // Filter out noisy errors
   ignoreErrors: [
