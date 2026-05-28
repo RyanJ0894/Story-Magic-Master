@@ -165,9 +165,6 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
           similarity_boost: 0.7,
           use_speaker_boost: false,
         },
-    // Raw PCM at 24 kHz mono — no MP3 decode overhead.
-    // Transcoded to WAV 48 kHz stereo after receipt.
-    output_format: 'pcm_24000',
   };
 
   // Try with the requested voice, fall back to default if voice not found
@@ -186,13 +183,13 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
         let res: Response;
         try {
           res = await fetch(
-            `https://api.elevenlabs.io/v1/text-to-speech/${vid}`,
+            // output_format is a query parameter — ElevenLabs ignores it in the body
+            `https://api.elevenlabs.io/v1/text-to-speech/${vid}?output_format=pcm_24000`,
             {
               method: 'POST',
               headers: {
                 'xi-api-key': apiKey,
                 'Content-Type': 'application/json',
-                // PCM output — no Accept: audio/mpeg needed
                 'Accept': 'audio/pcm',
               },
               body: JSON.stringify(request_body),
