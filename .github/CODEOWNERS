@@ -1,0 +1,8 @@
+# Code owners for Story Magic
+# Either owner's approval satisfies the required-review gate on main.
+# Both are auto-requested as reviewers on every PR.
+#
+# Note: GitHub does not let an author approve their own PR — so in practice
+# a PR opened by @dbbuilder needs @octavianorg's approval, and vice versa.
+
+* @dbbuilder @octavianorg
