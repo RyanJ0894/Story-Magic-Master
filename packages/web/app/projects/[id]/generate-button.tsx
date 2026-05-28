@@ -406,20 +406,22 @@ export default function GenerateButton({
           </span>
         </div>
 
-        {/* Dev Log Panel */}
-        <div className="mt-4 p-3 bg-slate-900 rounded-lg text-xs font-mono text-slate-300 max-h-32 overflow-y-auto">
-          <div className="text-blue-400 mb-1">// Generation Log (dev mode)</div>
-          <div className="text-slate-500">Job ID: {currentJobId.slice(0, 8)}...</div>
-          <div className="text-slate-500">Status: {jobStatus?.status || 'starting'}</div>
-          <div className="text-slate-500">Step: {jobStatus?.progress?.step || 'queued'}</div>
-          <div className="text-slate-500">Progress: {actualProgress}%</div>
-          {jobStatus?.progress?.details && (
-            <div className="text-green-400 mt-1">{jobStatus.progress.details}</div>
-          )}
-          {jobStatus?.started_at && (
-            <div className="text-slate-500">Started: {new Date(jobStatus.started_at).toLocaleTimeString()}</div>
-          )}
-        </div>
+        {/* Dev Log Panel — dev builds only; never shown to production users */}
+        {process.env.NODE_ENV !== 'production' && (
+          <div className="mt-4 p-3 bg-slate-900 rounded-lg text-xs font-mono text-slate-300 max-h-32 overflow-y-auto">
+            <div className="text-blue-400 mb-1">// Generation Log (dev mode)</div>
+            <div className="text-slate-500">Job ID: {currentJobId.slice(0, 8)}...</div>
+            <div className="text-slate-500">Status: {jobStatus?.status || 'starting'}</div>
+            <div className="text-slate-500">Step: {jobStatus?.progress?.step || 'queued'}</div>
+            <div className="text-slate-500">Progress: {actualProgress}%</div>
+            {jobStatus?.progress?.details && (
+              <div className="text-green-400 mt-1">{jobStatus.progress.details}</div>
+            )}
+            {jobStatus?.started_at && (
+              <div className="text-slate-500">Started: {new Date(jobStatus.started_at).toLocaleTimeString()}</div>
+            )}
+          </div>
+        )}
 
         {/* Safe to leave notice */}
         <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 rounded-lg">
