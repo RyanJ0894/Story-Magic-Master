@@ -105,7 +105,7 @@ async function transcodePcmToWav(pcm: Buffer): Promise<Buffer> {
       '-f', 's16le', '-ar', '24000', '-ac', '1',
       '-i', 'pipe:0',
       // Output: WAV 48 kHz stereo (mixer requirement)
-      '-f', 'wav', '-ar', '48000', '-ac', '2',
+      '-c:a', 'pcm_s16le', '-f', 'wav', '-ar', '48000', '-ac', '2',
       'pipe:1',
     ],
     { input: pcm, encoding: 'buffer' }
@@ -232,7 +232,8 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
           );
         }
 
-        return transcodePcmToWav(Buffer.from(await res.arrayBuffer()));
+        const rawBuffer = Buffer.from(await res.arrayBuffer());
+        return transcodePcmToWav(rawBuffer);
       },
       {
         maxRetries: 3,

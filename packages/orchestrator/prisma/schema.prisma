@@ -64,3 +64,77 @@ model Purchase {
   @@index([projectId, purchaseType, status])
   @@map("purchases")
 }
+
+// =============================================================================
+// MIX MANIFEST (written by mixer after each scene mix)
+// =============================================================================
+
+model MixManifest {
+  projectId       String   @map("project_id")
+  sceneId         String   @map("scene_id")
+  mixManifestJson Json     @map("mix_manifest_json")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@id([projectId, sceneId])
+  @@map("mix_manifests")
+}
+
+// =============================================================================
+// TIMELINE (written by timeline worker after each scene)
+// =============================================================================
+
+model Timeline {
+  projectId    String   @map("project_id")
+  sceneId      String   @map("scene_id")
+  timelineJson Json     @map("timeline_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@id([projectId, sceneId])
+  @@map("timelines")
+}
+
+// =============================================================================
+// ALIGNMENT (written by align worker after each scene)
+// =============================================================================
+
+model Alignment {
+  projectId     String   @map("project_id")
+  sceneId       String   @map("scene_id")
+  alignmentJson Json     @map("alignment_json")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@id([projectId, sceneId])
+  @@map("alignments")
+}
+
+// =============================================================================
+// TTS STEMS (cache of generated TTS audio per line)
+// =============================================================================
+
+model TtsStem {
+  projectId String  @map("project_id")
+  sceneId   String  @map("scene_id")
+  lineId    String  @map("line_id")
+  textHash  String? @map("text_hash")
+  voiceHash String? @map("voice_hash")
+  path      String?
+  durationS Float?  @map("duration_s")
+
+  @@id([projectId, sceneId, lineId])
+  @@map("tts_stems")
+}
+
+// =============================================================================
+// VOICE MAP (character → ElevenLabs voice assignments per project)
+// =============================================================================
+
+model VoiceMap {
+  projectId  String @map("project_id")
+  character  String
+  voiceId    String @map("voice_id")
+  provider   String @default("elevenlabs")
+  paramsJson Json   @default("{}") @map("params_json")
+
+  @@id([projectId, character])
+  @@map("voice_map")
+}

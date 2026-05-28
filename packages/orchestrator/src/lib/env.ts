@@ -75,6 +75,9 @@ const envSchema = z.object({
   AUTH_DISABLED: optionalTrueFalse,
   RATE_LIMIT_DISABLED: optionalTrueFalse,
 
+  // Auth
+  CLERK_SECRET_KEY: optionalString,
+
   // Internal Services
   SERVICE_SECRET_KEY: optionalString,
   // Public base URL for this orchestrator (used to construct audio download URLs)
@@ -165,6 +168,8 @@ export function printEnvSummary(): void {
   console.log(`   Node Environment: ${env.NODE_ENV}`);
   console.log(`   Port: ${env.PORT}`);
   console.log(`   Database: ${isServiceConfigured('database') ? '✅' : '❌'}`);
+  console.log(`   Clerk Auth: ${env.CLERK_SECRET_KEY ? '✅' : '❌'}`);
+
   console.log(`   ElevenLabs: ${isServiceConfigured('elevenlabs') ? '✅' : '❌'}`);
   console.log(`   OpenAI: ${isServiceConfigured('openai') ? '✅' : '❌'}`);
   console.log(`   Rate Limiting: ${isServiceConfigured('redis') ? '✅ (Redis)' : '⚠️ (In-memory)'}`);

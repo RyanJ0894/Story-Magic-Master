@@ -477,11 +477,21 @@ export async function processGenerationJob(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const errorStack = error instanceof Error ? error.stack : undefined;
+    const errorCause = (() => {
+      if (!(error instanceof Error) || error.cause === undefined) return undefined;
+      const cause = error.cause;
+      if (cause instanceof AggregateError) {
+        return cause.errors.map((e: unknown) => (e instanceof Error ? e.message : String(e))).join('; ');
+      }
+      if (cause instanceof Error) return cause.message;
+      try { return JSON.stringify(cause); } catch { return String(cause); }
+    })();
     const totalSec = elapsed();
     log.error('[PIPELINE] failed', error instanceof Error ? error : undefined, {
       jobId: jobId.slice(0, 8),
       totalSec,
       errorMessage,
+      ...(errorCause ? { errorCause } : {}),
     });
     logProgress(jobId, 'error', `[${totalSec}s] Generation failed: ${errorMessage}`);
 

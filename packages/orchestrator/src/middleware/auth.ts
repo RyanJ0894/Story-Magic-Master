@@ -16,10 +16,8 @@ declare global {
   }
 }
 
-const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-
-if (!clerkSecretKey) {
-  log.warn('CLERK_SECRET_KEY not configured - auth middleware will reject all requests');
+function getClerkSecretKey(): string | undefined {
+  return process.env.CLERK_SECRET_KEY;
 }
 
 /**
@@ -55,7 +53,9 @@ export async function authMiddleware(
   }
 
   // Check if Clerk is configured
+  const clerkSecretKey = getClerkSecretKey();
   if (!clerkSecretKey) {
+    log.warn('CLERK_SECRET_KEY not configured - auth middleware will reject all requests');
     res.status(503).json({
       error: 'Service unavailable',
       message: 'Authentication service not configured',
@@ -112,6 +112,7 @@ export async function optionalAuthMiddleware(
 ): Promise<void> {
   const authHeader = req.headers.authorization;
 
+  const clerkSecretKey = getClerkSecretKey();
   if (!authHeader || !authHeader.startsWith('Bearer ') || !clerkSecretKey) {
     return next();
   }

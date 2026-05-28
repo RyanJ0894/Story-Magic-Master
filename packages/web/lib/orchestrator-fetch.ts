@@ -9,6 +9,16 @@
 
 import { log } from '@/lib/logger';
 
+function describeCause(error: unknown): string | undefined {
+  if (!(error instanceof Error) || error.cause === undefined) return undefined;
+  const cause = error.cause;
+  if (cause instanceof AggregateError) {
+    return cause.errors.map((e: unknown) => (e instanceof Error ? e.message : String(e))).join('; ');
+  }
+  if (cause instanceof Error) return cause.message;
+  try { return JSON.stringify(cause); } catch { return String(cause); }
+}
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -157,6 +167,13 @@ export async function orchestratorFetch(
       }
 
       // Non-retryable or final attempt
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      const causeMsg = describeCause(error);
+      log.error(`[orchestratorFetch] Failed to reach ${path}`, {
+        attempt,
+        error: errorMsg,
+        ...(causeMsg ? { cause: causeMsg } : {}),
+      });
       throw error;
     }
   }
