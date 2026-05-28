@@ -6,9 +6,20 @@
  * and translate results into HTTP responses.
  */
 
+import { randomBytes } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { sendTeamInviteEmail } from '@/lib/email';
 import { log } from '@/lib/logger';
+
+/**
+ * Mint an invite token matching the DB trigger's format
+ * (LOWER(ENCODE(gen_random_bytes(16), 'hex')) = 32 lowercase hex chars).
+ * Needed because the token trigger only fires BEFORE INSERT, not on UPDATE —
+ * so reactivating a removed member must generate a fresh token in app code.
+ */
+function generateInviteToken(): string {
+  return randomBytes(16).toString('hex');
+}
 
 // =============================================================================
 // Types
@@ -332,9 +343,25 @@ export async function addMember(
 
   const email = input.email.toLowerCase();
 
-  // Check if already invited
+  // Resolve the invitee's account (if any) up front — needed both to detect a
+  // prior membership row keyed by userId and to relink it on reactivation.
+  const existingUser = await prisma.profile.findFirst({
+    where: { email },
+    select: { id: true, fullName: true },
+  });
+
+  // Find any prior membership row for this person, by invited email OR by their
+  // account id. Matching both is what prevents the unique-constraint 500: a row
+  // left behind by removeMember keeps its userId, so re-inviting a previously
+  // removed registered user would otherwise collide on (teamId, userId).
   const existing = await prisma.teamMember.findFirst({
-    where: { teamId, invitedEmail: email },
+    where: {
+      teamId,
+      OR: [
+        { invitedEmail: email },
+        ...(existingUser ? [{ userId: existingUser.id }] : []),
+      ],
+    },
     select: { id: true, status: true },
   });
 
@@ -347,29 +374,40 @@ export async function addMember(
     }
   }
 
-  // Check if user exists
-  const existingUser = await prisma.profile.findFirst({
-    where: { email },
-    select: { id: true, fullName: true },
-  });
-
   // Get inviter's name
   const inviterProfile = await prisma.profile.findUnique({
     where: { id: userId },
     select: { fullName: true },
   });
 
-  // Create the invite
-  const member = await prisma.teamMember.create({
-    data: {
-      teamId,
-      userId: existingUser?.id || null,
-      invitedEmail: email,
-      role: input.role || 'member',
-      status: 'pending',
-      invitedBy: userId,
-    },
-  });
+  // Reactivate a prior (removed) row in place, or create a fresh invite.
+  // Reactivation updates the existing (teamId, userId) row rather than inserting
+  // a duplicate; the INSERT-only token trigger won't fire on UPDATE, so we mint
+  // a fresh token here.
+  const member = existing
+    ? await prisma.teamMember.update({
+        where: { id: existing.id },
+        data: {
+          userId: existingUser?.id || null,
+          invitedEmail: email,
+          role: input.role || 'member',
+          status: 'pending',
+          invitedBy: userId,
+          inviteToken: generateInviteToken(),
+          invitedAt: new Date(),
+          acceptedAt: null,
+        },
+      })
+    : await prisma.teamMember.create({
+        data: {
+          teamId,
+          userId: existingUser?.id || null,
+          invitedEmail: email,
+          role: input.role || 'member',
+          status: 'pending',
+          invitedBy: userId,
+        },
+      });
 
   // Send invite email
   const emailResult = await sendTeamInviteEmail({
