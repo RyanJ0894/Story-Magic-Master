@@ -51,14 +51,22 @@ export interface AgentOptions {
 }
 
 /**
- * Parse a model string like "openai/gpt-4.1" or "groq/llama-3.3-70b-versatile"
+ * Parse a model string like "openai/gpt-4.1" or "groq/llama-3.3-70b-versatile".
+ *
+ * Splits on the FIRST slash only, so multi-segment model ids survive intact —
+ * e.g. "openrouter/openai/gpt-4.1" → { provider: "openrouter", modelName:
+ * "openai/gpt-4.1" }, which is exactly the model id OpenRouter expects. A bare
+ * string with no slash defaults to the openai provider.
  */
 function parseModelString(modelString: string): { provider: LLMProvider; modelName: string } {
-  const parts = modelString.split('/');
-  if (parts.length !== 2) {
+  const slash = modelString.indexOf('/');
+  if (slash === -1) {
     return { provider: 'openai', modelName: modelString };
   }
-  return { provider: parts[0].toLowerCase() as LLMProvider, modelName: parts[1] };
+  return {
+    provider: modelString.slice(0, slash).toLowerCase() as LLMProvider,
+    modelName: modelString.slice(slash + 1),
+  };
 }
 
 /**
@@ -72,7 +80,7 @@ function parseModelString(modelString: string): { provider: LLMProvider; modelNa
  * OpenRouter sits between Anthropic and direct OpenAI — it uses a separate
  * billing account, so Anthropic credit exhaustion doesn't block it.
  */
-function buildFailoverChain(primaryModel: string): string[] {
+export function buildFailoverChain(primaryModel: string): string[] {
   const { provider } = parseModelString(primaryModel);
   switch (provider) {
     case 'anthropic':
@@ -94,7 +102,7 @@ function buildFailoverChain(primaryModel: string): string[] {
  * Returns false for client errors (400 bad request, 401 auth, context-length
  * exceeded) that would fail on any provider — those should propagate.
  */
-function isFailoverableError(err: unknown): boolean {
+export function isFailoverableError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
 
   const msg = err.message.toLowerCase();
