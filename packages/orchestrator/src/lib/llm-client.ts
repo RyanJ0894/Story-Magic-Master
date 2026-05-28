@@ -22,14 +22,14 @@
  */
 
 import { generateText, generateObject, tool, type ModelMessage, type Tool, type ToolResultPart } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { openai, createOpenAI } from '@ai-sdk/openai';
 import { createGroq } from '@ai-sdk/groq';
 import { anthropic } from '@ai-sdk/anthropic';
 import { google } from '@ai-sdk/google';
 import { z } from 'zod';
 import { log } from './logger.js';
 
-export type LLMProvider = 'openai' | 'anthropic' | 'google' | 'groq';
+export type LLMProvider = 'openai' | 'anthropic' | 'google' | 'groq' | 'openrouter';
 
 export interface ToolDefinition {
   description: string;
@@ -62,13 +62,29 @@ function parseModelString(modelString: string): { provider: LLMProvider; modelNa
 }
 
 /**
- * Returns the fallback model to use when the primary provider fails.
- * Anthropic → OpenAI. Other providers have no automatic fallback.
+ * Returns the ordered failover chain for a given primary model.
+ * Chain is tried left-to-right after the primary fails.
+ *
+ *   anthropic/* → openrouter/openai/gpt-4.1 (if key present) → openai/gpt-4.1
+ *   openrouter/* → openai/gpt-4.1
+ *   others       → [] (no fallback)
+ *
+ * OpenRouter sits between Anthropic and direct OpenAI — it uses a separate
+ * billing account, so Anthropic credit exhaustion doesn't block it.
  */
-function getFailoverModel(primaryModel: string): string | null {
+function buildFailoverChain(primaryModel: string): string[] {
   const { provider } = parseModelString(primaryModel);
-  if (provider === 'anthropic') return 'openai/gpt-4.1';
-  return null;
+  switch (provider) {
+    case 'anthropic':
+      return [
+        ...(process.env.OPENROUTER_API_KEY ? ['openrouter/openai/gpt-4.1'] : []),
+        'openai/gpt-4.1',
+      ];
+    case 'openrouter':
+      return process.env.OPENAI_API_KEY ? ['openai/gpt-4.1'] : [];
+    default:
+      return [];
+  }
 }
 
 /**
@@ -131,6 +147,20 @@ function getModel(modelString: string) {
       return groqClient(modelName);
     }
 
+    case 'openrouter': {
+      // OpenAI-compatible endpoint — uses OpenRouter's unified billing.
+      // HTTP-Referer is required by OpenRouter for attribution/rate-limit tiers.
+      const openrouterClient = createOpenAI({
+        baseURL: 'https://openrouter.ai/api/v1',
+        apiKey: process.env.OPENROUTER_API_KEY,
+        headers: {
+          'HTTP-Referer': 'https://app.storymagicapp.net',
+          'X-Title': 'Story Magic',
+        },
+      });
+      return openrouterClient(modelName);
+    }
+
     case 'openai':
     default:
       return openai(modelName);
@@ -155,20 +185,38 @@ export async function runAgentLoop(
   userInput: string,
   options: AgentOptions,
 ): Promise<string> {
-  const failoverModel = getFailoverModel(options.model);
-  try {
-    return await runAgentLoopCore(userInput, options);
-  } catch (err) {
-    if (failoverModel && isFailoverableError(err)) {
-      log.warn('[LLM] primary provider failed — failing over', {
-        primary: options.model,
-        failover: failoverModel,
-        reason: err instanceof Error ? err.message.slice(0, 120) : String(err),
+  const chain = [options.model, ...buildFailoverChain(options.model)];
+
+  for (let i = 0; i < chain.length; i++) {
+    const model = chain[i];
+    const isRetry = i > 0;
+    const isLast = i === chain.length - 1;
+
+    if (isRetry) {
+      log.warn('[LLM] runAgentLoop — failing over', {
+        from: chain[i - 1],
+        to: model,
+        attempt: i + 1,
+        chainLength: chain.length,
       });
-      return await runAgentLoopCore(userInput, { ...options, model: failoverModel });
     }
-    throw err;
+
+    try {
+      return await runAgentLoopCore(userInput, { ...options, model });
+    } catch (err) {
+      if (isLast || !isFailoverableError(err)) {
+        throw err;
+      }
+      log.warn('[LLM] runAgentLoop — provider rejected, trying next in chain', {
+        model,
+        reason: err instanceof Error ? err.message.slice(0, 120) : String(err),
+        next: chain[i + 1],
+      });
+    }
   }
+
+  // Unreachable — chain always has at least one element, and last always rethrows
+  throw new Error('[LLM] Failover chain exhausted without result');
 }
 
 /**
@@ -384,20 +432,38 @@ export async function generateStructuredOutput<T>(
       temperature: options.temperature || 0.7,
     });
 
-  try {
-    return (await run(options.model)).object;
-  } catch (err) {
-    const failoverModel = getFailoverModel(options.model);
-    if (failoverModel && isFailoverableError(err)) {
+  const chain = [options.model, ...buildFailoverChain(options.model)];
+
+  for (let i = 0; i < chain.length; i++) {
+    const model = chain[i];
+    const isRetry = i > 0;
+    const isLast = i === chain.length - 1;
+
+    if (isRetry) {
       log.warn('[LLM] generateStructuredOutput — failing over', {
-        primary: options.model,
-        failover: failoverModel,
-        reason: err instanceof Error ? err.message.slice(0, 120) : String(err),
+        from: chain[i - 1],
+        to: model,
+        attempt: i + 1,
+        chainLength: chain.length,
       });
-      return (await run(failoverModel)).object;
     }
-    throw err;
+
+    try {
+      return (await run(model)).object;
+    } catch (err) {
+      if (isLast || !isFailoverableError(err)) {
+        throw err;
+      }
+      log.warn('[LLM] generateStructuredOutput — provider rejected, trying next in chain', {
+        model,
+        reason: err instanceof Error ? err.message.slice(0, 120) : String(err),
+        next: chain[i + 1],
+      });
+    }
   }
+
+  // Unreachable — chain always has at least one element, and last always rethrows
+  throw new Error('[LLM] Failover chain exhausted without result');
 }
 
 /**

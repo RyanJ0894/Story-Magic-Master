@@ -24,6 +24,13 @@ export async function ensureProfile(userId: string): Promise<Profile> {
       fullName: fullName ?? null,
       avatarUrl: clerkUser?.imageUrl ?? null,
     },
-    update: {},
+    update: {
+      // Backfill fields that may have been null on first upsert (e.g. brand-new
+      // Clerk users whose webhook hasn't fired yet). Only overwrite when the
+      // Clerk value is non-empty so we don't clobber user-edited profile data.
+      ...(email ? { email } : {}),
+      ...(fullName ? { fullName } : {}),
+      ...(clerkUser?.imageUrl ? { avatarUrl: clerkUser.imageUrl } : {}),
+    },
   });
 }
