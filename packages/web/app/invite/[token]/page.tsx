@@ -195,7 +195,7 @@ export default function InvitePage() {
             <p className="text-sm text-muted-foreground text-center">
               Once your account is created you'll be added to the team automatically.
             </p>
-            <Link href={`/login?redirect=/invite/${token}`} className="block">
+            <Link href={`/sign-up?redirect_url=/invite/${token}`} className="block">
               <Button className="w-full brand-gradient brand-gradient-hover">Create Account</Button>
             </Link>
           </CardContent>

@@ -50,13 +50,18 @@ export default function EnterpriseTeamPage() {
       const data = await res.json();
       const owned: Team[] = data.owned ?? [];
       setTeams(owned);
-      if (owned.length > 0 && !selectedTeam) setSelectedTeam(owned[0]);
+      // Always sync selectedTeam from fresh data so member list reflects changes
+      // (delete/invite) without requiring a page reload.
+      setSelectedTeam(prev => {
+        if (!prev) return owned[0] ?? null;
+        return owned.find(t => t.id === prev.id) ?? owned[0] ?? null;
+      });
     } catch {
       // ignore
     } finally {
       setLoading(false);
     }
-  }, [selectedTeam]);
+  }, []);
 
   useEffect(() => { loadTeams(); }, [loadTeams]);
 
