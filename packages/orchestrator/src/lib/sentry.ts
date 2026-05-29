@@ -6,13 +6,17 @@ const SENTRY_DSN = process.env.SENTRY_DSN;
 export function initSentry() {
   Sentry.init({
     dsn: SENTRY_DSN,
-    environment: process.env.NODE_ENV || 'development',
+    environment: process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'production',
 
-    // Performance Monitoring
-    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+    // 10% of transactions by default; override with SENTRY_TRACES_SAMPLE_RATE.
+    tracesSampleRate: process.env.SENTRY_TRACES_SAMPLE_RATE
+      ? Number(process.env.SENTRY_TRACES_SAMPLE_RATE)
+      : 0.1,
 
-    // Only enable in production or when explicitly enabled
-    enabled: process.env.NODE_ENV === 'production' || process.env.SENTRY_ENABLED === 'true',
+    // Enabled whenever a DSN is configured, unless explicitly disabled.
+    // Deliberately does NOT depend on NODE_ENV: Render doesn't set it, and
+    // forcing NODE_ENV=production drops devDependencies at build time.
+    enabled: !!SENTRY_DSN && process.env.SENTRY_ENABLED !== 'false',
 
     // Integrations
     integrations: [
