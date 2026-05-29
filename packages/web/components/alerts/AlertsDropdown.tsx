@@ -64,28 +64,32 @@ export function AlertsDropdown() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
 
-  const fetchAlerts = useCallback(async () => {
+  const fetchAlerts = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await apiFetch('/api/alerts?limit=20');
+      const res = await apiFetch('/api/alerts?limit=20', { signal });
       if (!res.ok) return;
 
       const data = await res.json();
       setAlerts(data.alerts || []);
       setUnreadCount(data.unreadCount || 0);
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
       log.error('Failed to fetch alerts', error);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Fetch alerts on mount and periodically
+  // Fetch alerts on mount and periodically; cancel in-flight requests on unmount
   useEffect(() => {
-    fetchAlerts();
+    const controller = new AbortController();
+    fetchAlerts(controller.signal);
 
-    // Poll for new alerts every 30 seconds
-    const interval = setInterval(fetchAlerts, 30000);
-    return () => clearInterval(interval);
+    const interval = setInterval(() => fetchAlerts(controller.signal), 30000);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
   }, [fetchAlerts]);
 
   const markAsRead = async (alertIds: string[]) => {
