@@ -77,8 +77,9 @@ export default function EnterpriseTeamPage() {
       });
       if (!res.ok) throw new Error('Failed to create team');
       const team = await res.json();
-      setTeams(prev => [team, ...prev]);
-      setSelectedTeam(team);
+      const teamWithMembers = { ...team, members: team.members ?? [] };
+      setTeams(prev => [teamWithMembers, ...prev]);
+      setSelectedTeam(teamWithMembers);
       setTeamName('');
       toast.success('Team created!');
     } catch {

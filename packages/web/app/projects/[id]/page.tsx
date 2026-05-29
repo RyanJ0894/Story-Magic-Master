@@ -34,6 +34,12 @@ export default async function ProjectPage(
     redirect('/login');
   }
 
+  // Reject non-UUID IDs before hitting Prisma (prevents P2023 invalid UUID errors)
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(params.id)) {
+    notFound();
+  }
+
   // Fetch project
   const project = await prisma.project.findUnique({
     where: { id: params.id },
