@@ -121,7 +121,7 @@ export default async function AdminAnalyticsPage() {
               <p className="text-sm text-muted-foreground">MRR (Est)</p>
               <DollarSign className="w-4 h-4 text-green-600" />
             </div>
-            <p className="text-2xl font-bold">${mrrEstimate.toLocaleString()}</p>
+            <p className="text-2xl font-bold">${mrrEstimate.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
             <div className="flex items-center gap-1 mt-1">
               {subGrowth >= 0 ? (
                 <ArrowUp className="w-3 h-3 text-green-600" />

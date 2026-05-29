@@ -99,7 +99,7 @@ export default async function AdminDashboardPage() {
     },
     {
       label: 'MRR (Est)',
-      value: `$${mrrEstimate.toLocaleString()}`,
+      value: `$${mrrEstimate.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
       icon: DollarSign,
       color: 'bg-green-500',
       change: '+10%',

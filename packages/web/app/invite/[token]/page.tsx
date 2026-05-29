@@ -89,8 +89,6 @@ export default function InvitePage() {
   const handleAccept = async () => {
     setAccepting(true);
     setError(null);
-    // eslint-disable-next-line no-console
-    console.log('[Invite] Accepting token', token.slice(0, 8) + '...');
 
     try {
       const res = await apiFetch(`/api/invite/${token}`, {
@@ -98,8 +96,6 @@ export default function InvitePage() {
       });
 
       const data = await res.json();
-      // eslint-disable-next-line no-console
-      console.log('[Invite] Response', res.status, data.code ?? 'ok');
 
       if (!res.ok) {
         if (data.code === 'AUTH_REQUIRED') {
