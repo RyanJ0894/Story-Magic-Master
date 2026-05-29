@@ -303,7 +303,6 @@ export function WriterDashboardClient({
           onOpenChange={setShareModalOpen}
           projectId={selectedScript.project_id}
           projectName={selectedScript.name}
-          writerCode={writerCode}
         />
       )}
     </>
