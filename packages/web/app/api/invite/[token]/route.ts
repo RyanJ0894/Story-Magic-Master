@@ -6,6 +6,7 @@
  */
 
 import { auth } from '@clerk/nextjs/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/csrf';
@@ -119,29 +120,97 @@ export async function POST(
     await ensureProfile(userId);
     log.info('[Invite] Profile ensured', { userId });
 
-    // Get invite
-    const invite = await prisma.teamMember.findFirst({
-      where: { inviteToken: token },
-      select: {
-        id: true,
-        teamId: true,
-        status: true,
-        invitedEmail: true,
-        team: {
-          select: {
-            id: true,
-            name: true,
-            ownerId: true,
+    // Wrap the invite read + membership check + updates in a serializable transaction.
+    // This prevents the TOCTOU race where two concurrent requests both see the invite
+    // as 'pending', both pass the status check, and both attempt to accept it.
+    // PostgreSQL will abort one of them with a serialization_failure (40001) if their
+    // reads and writes conflict — the outer catch block returns a 500 for that case.
+    const txResult = await prisma.$transaction(async (tx) => {
+      // Get invite
+      const invite = await tx.teamMember.findFirst({
+        where: { inviteToken: token },
+        select: {
+          id: true,
+          teamId: true,
+          status: true,
+          invitedEmail: true,
+          team: {
+            select: {
+              id: true,
+              name: true,
+              ownerId: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    if (!invite) {
+      if (!invite) {
+        return { error: 'NOT_FOUND' as const };
+      }
+
+      if (invite.status !== 'pending') {
+        return { error: 'INVALID_STATUS' as const, status: invite.status, teamId: invite.teamId, teamName: invite.team?.name };
+      }
+
+      // Accept the invite.
+      // Guard against the UNIQUE(teamId, userId) constraint: a user may already
+      // have a team_member row for this team with any status (accepted, removed,
+      // etc.). Setting userId on the invite row would create a duplicate pair and
+      // trigger a constraint violation.
+      //
+      // Strategy:
+      //   • If an existing row exists (any status): reactivate that row to
+      //     'accepted' and consume the invite token by marking it 'accepted'
+      //     WITHOUT touching userId (invite row already lacks userId — safe).
+      //   • If no existing row: standard path — set userId + accepted on the
+      //     invite row itself (invite row becomes the membership record).
+      const existingMembership = await tx.teamMember.findFirst({
+        where: { teamId: invite.teamId, userId },
+        select: { id: true, status: true },
+      });
+
+      if (existingMembership) {
+        // Reactivate the existing membership record and consume the invite token.
+        await tx.teamMember.update({
+          where: { id: existingMembership.id },
+          data: { status: 'accepted', acceptedAt: new Date() },
+        });
+        await tx.teamMember.update({
+          where: { id: invite.id },
+          data: { status: 'accepted', acceptedAt: new Date() },
+        });
+        return { branch: 'reactivate' as const, membershipId: existingMembership.id, invite };
+      } else {
+        // First-time join — promote the pending invite row to the membership record.
+        await tx.teamMember.update({
+          where: { id: invite.id },
+          data: { userId, status: 'accepted', acceptedAt: new Date() },
+        });
+        return { branch: 'new' as const, inviteId: invite.id, invite };
+      }
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+    if (txResult.error === 'NOT_FOUND') {
       log.warn('[Invite] Token not found', { userId, token: token.slice(0, 8) });
       return errorResponse('Invite not found or expired', 404, { code: 'NOT_FOUND' });
     }
 
+    if (txResult.error === 'INVALID_STATUS') {
+      log.info('[Invite] Non-pending status, returning INVALID_STATUS', {
+        userId,
+        status: txResult.status,
+        teamId: txResult.teamId,
+      });
+      return errorResponse(
+        txResult.status === 'accepted'
+          ? 'This invite has already been accepted'
+          : 'This invite is no longer valid',
+        400,
+        { code: 'INVALID_STATUS', details: { status: txResult.status, teamId: txResult.teamId, teamName: txResult.teamName } },
+      );
+    }
+
+    const { branch, invite } = txResult;
     log.info('[Invite] Invite found', {
       userId,
       inviteId: invite.id,
@@ -150,70 +219,9 @@ export async function POST(
       teamName: invite.team?.name,
     });
 
-    if (invite.status !== 'pending') {
-      log.info('[Invite] Non-pending status, returning INVALID_STATUS', {
-        userId,
-        status: invite.status,
-        teamId: invite.teamId,
-      });
-      // Return the team info so the frontend can redirect to the dashboard
-      // even if the invite was already consumed (e.g. user clicked link twice).
-      return errorResponse(
-        invite.status === 'accepted'
-          ? 'This invite has already been accepted'
-          : 'This invite is no longer valid',
-        400,
-        { code: 'INVALID_STATUS', details: { status: invite.status, teamId: invite.teamId, teamName: invite.team?.name } },
-      );
-    }
-
-    // Accept the invite.
-    // Guard against the UNIQUE(teamId, userId) constraint: a user may already
-    // have a team_member row for this team with any status (accepted, removed,
-    // etc.). Setting userId on the invite row would create a duplicate pair and
-    // trigger a constraint violation.
-    //
-    // Strategy:
-    //   • If an existing row exists (any status): reactivate that row to
-    //     'accepted' and consume the invite token by marking it 'accepted'
-    //     WITHOUT touching userId (invite row already lacks userId — safe).
-    //   • If no existing row: standard path — set userId + accepted on the
-    //     invite row itself (invite row becomes the membership record).
-    const existingMembership = await prisma.teamMember.findFirst({
-      where: { teamId: invite.teamId, userId },
-      select: { id: true, status: true },
-    });
-
-    log.info('[Invite] Membership check', {
-      userId,
-      existingMembershipId: existingMembership?.id ?? null,
-      existingStatus: existingMembership?.status ?? null,
-      branch: existingMembership ? 'reactivate' : 'new',
-    });
-
-    if (existingMembership) {
-      // Reactivate the existing membership record and consume the invite token.
-      await prisma.$transaction([
-        prisma.teamMember.update({
-          where: { id: existingMembership.id },
-          data: { status: 'accepted', acceptedAt: new Date() },
-        }),
-        prisma.teamMember.update({
-          where: { id: invite.id },
-          data: { status: 'accepted', acceptedAt: new Date() },
-        }),
-      ]);
-      log.info('[Invite] Reactivated existing membership', { userId, membershipId: existingMembership.id });
+    if (branch === 'reactivate') {
+      log.info('[Invite] Reactivated existing membership', { userId, membershipId: (txResult as { membershipId: string }).membershipId });
     } else {
-      // First-time join — promote the pending invite row to the membership record.
-      await prisma.teamMember.update({
-        where: { id: invite.id },
-        data: {
-          userId,
-          status: 'accepted',
-          acceptedAt: new Date(),
-        },
-      });
       log.info('[Invite] New membership created via invite row', { userId, inviteId: invite.id });
     }
 

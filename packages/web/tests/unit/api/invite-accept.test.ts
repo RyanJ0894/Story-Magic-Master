@@ -50,6 +50,14 @@ const mockUpdate = vi.fn().mockImplementation(() => {
 const mockProfileFindUnique = vi.fn().mockResolvedValue({ fullName: 'New User' });
 const mockAlertCreate = vi.fn().mockResolvedValue({});
 
+// Shared tx proxy — both the outer prisma and the tx callback arg use the same mocks.
+const makeTxProxy = () => ({
+  teamMember: {
+    findFirst: (...args: unknown[]) => mockFindFirst(...args),
+    update: (...args: unknown[]) => mockUpdate(...args),
+  },
+});
+
 vi.mock('@/lib/db', () => ({
   prisma: {
     teamMember: {
@@ -63,8 +71,17 @@ vi.mock('@/lib/db', () => ({
     alert: {
       create: (...args: unknown[]) => mockAlertCreate(...args),
     },
-    // $transaction(ops[]) executes each op and returns their results
-    $transaction: vi.fn().mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops)),
+    // Handles both forms:
+    //   $transaction(callback, opts) — interactive (serializable) — used by accept route
+    //   $transaction(ops[])          — sequential — retained for any other callers
+    $transaction: vi.fn().mockImplementation(
+      (callbackOrOps: ((tx: ReturnType<typeof makeTxProxy>) => Promise<unknown>) | Promise<unknown>[], _opts?: unknown) => {
+        if (typeof callbackOrOps === 'function') {
+          return callbackOrOps(makeTxProxy());
+        }
+        return Promise.all(callbackOrOps);
+      }
+    ),
   },
 }));
 
