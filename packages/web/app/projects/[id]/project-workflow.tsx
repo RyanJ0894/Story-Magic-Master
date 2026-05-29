@@ -200,7 +200,7 @@ function WorkflowProgress({ steps }: { steps: WorkflowStep[] }) {
               )}
             </div>
             <span className={cn(
-              'text-[10px] mt-1 text-center max-w-[60px]',
+              'hidden sm:block text-[10px] mt-1 text-center max-w-[60px]',
               step.status === 'complete' && 'text-green-600 dark:text-green-400',
               step.status === 'in-progress' && 'text-blue-600 dark:text-blue-400 font-medium',
               step.status === 'available' && 'text-muted-foreground',

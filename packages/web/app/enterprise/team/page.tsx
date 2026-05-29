@@ -248,7 +248,7 @@ export default function EnterpriseTeamPage() {
                       No active members yet. Invite your first team member.
                     </p>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="max-h-[360px] overflow-y-auto space-y-2 pr-1">
                       {active.map(m => (
                         <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
                           <div className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center text-sm font-medium text-violet-600 dark:text-violet-400 shrink-0">
@@ -287,7 +287,7 @@ export default function EnterpriseTeamPage() {
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
                         Pending Invitations ({pending.length})
                       </p>
-                      <div className="space-y-2">
+                      <div className="max-h-[280px] overflow-y-auto space-y-2 pr-1">
                         {pending.map(m => (
                           <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/30 border border-dashed border-border">
                             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium text-muted-foreground shrink-0">
