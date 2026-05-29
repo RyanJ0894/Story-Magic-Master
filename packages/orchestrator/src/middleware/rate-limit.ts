@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
-import { captureError } from '../lib/sentry.js';
 import { log } from '../lib/logger.js';
 
 // =============================================================================
@@ -147,9 +146,8 @@ export async function rateLimitMiddleware(
 
     next();
   } catch (error) {
-    // Log error and use in-memory fallback
-    log.error('Redis rate limit failed, using in-memory fallback', error instanceof Error ? error : undefined, { identifier, path: req.path });
-    captureError(error as Error, { identifier, path: req.path });
+    // Redis unreachable — fall through to in-memory limiter silently (expected when Upstash is misconfigured)
+    log.warn('Redis rate limit unavailable, using in-memory fallback', { identifier, path: req.path, error: (error as Error).message });
 
     // Use in-memory fallback instead of failing open
     const fallbackResult = fallbackLimiter.limit(identifier);
@@ -235,8 +233,7 @@ export async function strictRateLimitMiddleware(
 
     next();
   } catch (error) {
-    log.error('Redis strict rate limit failed, using in-memory fallback', error instanceof Error ? error : undefined, { identifier, path: req.path });
-    captureError(error as Error, { identifier, path: req.path });
+    log.warn('Redis strict rate limit unavailable, using in-memory fallback', { identifier, path: req.path, error: (error as Error).message });
 
     // Use strict in-memory fallback instead of failing open
     const fallbackResult = fallbackStrictLimiter.limit(identifier);
