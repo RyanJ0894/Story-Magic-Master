@@ -177,7 +177,40 @@ export default function InvitePage() {
     );
   }
 
-  // Needs auth state — new user must create an account before accepting
+  // Proactive sign-up CTA: Clerk confirms user is signed out and invite is loaded —
+  // show account creation immediately instead of letting the POST fail with AUTH_REQUIRED.
+  if (clerkLoaded && !isSignedIn && invite) {
+    return (
+      <div className="min-h-screen bg-muted flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center">
+            <div className="w-12 h-12 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center mx-auto mb-4">
+              <LogIn className="w-6 h-6 text-violet-600" />
+            </div>
+            <CardTitle>Create your account</CardTitle>
+            <CardDescription>
+              Create a free Story Magic account to accept your invitation to{' '}
+              <strong>{invite.team.name}</strong>.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground text-center">
+              Once your account is created you&apos;ll be added to the team automatically.
+            </p>
+            <Link href={`/sign-up?redirect_url=/invite/${token}`} className="block">
+              <Button className="w-full brand-gradient brand-gradient-hover">Create Account</Button>
+            </Link>
+            <p className="text-xs text-muted-foreground text-center">
+              Already have an account?{' '}
+              <Link href={`/sign-in?redirect_url=/invite/${token}`} className="underline">Sign in</Link>
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Needs auth state — fallback when Clerk state is unavailable (e.g. POST returned AUTH_REQUIRED)
   if (needsAuth) {
     return (
       <div className="min-h-screen bg-muted flex items-center justify-center p-4">
