@@ -83,7 +83,7 @@ export default function PartnersPage() {
                     {tier.name}
                   </div>
                   <div className="text-2xl font-bold text-white">
-                    ${tier.annualAmount.toLocaleString()}
+                    ${tier.annualAmount.toLocaleString('en-US')}
                     <span className="text-sm font-normal text-zinc-400">/year</span>
                   </div>
                   <p className="text-zinc-400 text-xs mt-1">{tier.tagline}</p>

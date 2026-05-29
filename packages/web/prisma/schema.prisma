@@ -251,7 +251,6 @@ model Usage {
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, period])
-  @@index([userId, period])
   @@map("usage")
 }
 
@@ -276,7 +275,7 @@ model Subscription {
   // Relations
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([stripeSubscriptionId])
+  @@index([userId])
   @@map("subscriptions")
 }
 
@@ -485,7 +484,7 @@ model StoryScore {
   strengths    String[] @default([])
   weaknesses   String[] @default([])
   confidence   Decimal  @db.Decimal(3, 2)
-  modelVersion String   @default("gpt-4o") @map("model_version")
+  modelVersion String   @default("claude-sonnet-4-6") @map("model_version")
   createdAt    DateTime @default(now()) @map("created_at")
 
   // Relations
