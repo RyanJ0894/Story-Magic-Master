@@ -89,18 +89,26 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
     setFile(selectedFile);
     setScriptName(selectedFile.name.replace('.pdf', ''));
     setError(null);
+    setStep('preview'); // show preview card with loading state immediately
 
-    // In production, we'd analyze the PDF here
-    // For now, simulate analysis
-    const mockPreview: PDFPreview = {
-      name: selectedFile.name,
-      size: selectedFile.size,
-      pageCount: Math.floor(selectedFile.size / 5000), // Rough estimate
-      needsOCR: false, // Would detect scanned pages
-    };
+    try {
+      const form = new FormData();
+      form.append('file', selectedFile);
 
-    setPreview(mockPreview);
-    setStep('preview');
+      const res = await apiFetch('/api/reader/pdf-preview', { method: 'POST', body: form });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Failed to analyze PDF');
+        setStep('select');
+        return;
+      }
+
+      setPreview(data as PDFPreview);
+    } catch {
+      setError('Failed to analyze PDF. Please try again.');
+      setStep('select');
+    }
   };
 
   const handleClearFile = () => {
@@ -334,6 +342,16 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
                 </div>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step: Preview — analyzing */}
+      {step === 'preview' && !preview && (
+        <Card>
+          <CardContent className="pt-10 pb-10 flex flex-col items-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
+            <p className="text-sm text-muted-foreground">Analyzing PDF...</p>
           </CardContent>
         </Card>
       )}
