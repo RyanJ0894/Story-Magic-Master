@@ -21,7 +21,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { ArrowLeft, FileText, CheckCircle, AlertCircle, Clock, Loader2, Trash2, ChevronDown } from 'lucide-react';
+import { ArrowLeft, FileText, CheckCircle, AlertCircle, Clock, Loader2, Trash2, ChevronDown, Headphones, Share2 } from 'lucide-react';
 
 export default async function ProjectPage(
   props: {
@@ -191,10 +191,25 @@ export default async function ProjectPage(
                 </div>
               </div>
             </div>
-            <Badge variant={status.variant} className={`flex items-center gap-1 ${status.className || ''}`} data-testid="project-status-badge">
-              <StatusIcon className={`w-3 h-3 ${project.status === 'processing' ? 'animate-spin' : ''}`} />
-              {status.label}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Link href={`/projects/${project.id}/listen`}>
+                <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground">
+                  <Headphones className="w-4 h-4" />
+                  <span className="hidden sm:inline">Listen</span>
+                </Button>
+              </Link>
+              <Link href={`/projects/${project.id}/shares`}>
+                <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground">
+                  <Share2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Shares</span>
+                </Button>
+              </Link>
+              <div className="h-4 w-px bg-muted" />
+              <Badge variant={status.variant} className={`flex items-center gap-1 ${status.className || ''}`} data-testid="project-status-badge">
+                <StatusIcon className={`w-3 h-3 ${project.status === 'processing' ? 'animate-spin' : ''}`} />
+                {status.label}
+              </Badge>
+            </div>
           </div>
         </div>
       </header>

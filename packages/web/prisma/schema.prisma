@@ -275,7 +275,9 @@ model Subscription {
   // Relations
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([stripeSubscriptionId])
   @@index([userId])
+  @@index([userId, status])
   @@map("subscriptions")
 }
 
