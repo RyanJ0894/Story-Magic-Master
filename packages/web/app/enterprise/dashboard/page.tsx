@@ -13,6 +13,7 @@ import { Users, FolderOpen, Activity, ThumbsUp, ThumbsDown, MessageSquare, Play,
 import { SignOutButton } from '@/components/auth/sign-out-button';
 import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
 import { TeamNotesTab } from '@/components/enterprise/TeamNotesTab';
+import { ShareWithTeamButton } from '@/components/enterprise/ShareWithTeamButton';
 
 const EVENT_LABELS: Record<string, { label: string; icon: string; color: string }> = {
   listen_complete: { label: 'Listened to completion', icon: '🎧', color: 'text-green-500' },
@@ -86,6 +87,16 @@ export default async function EnterpriseDashboardPage() {
   if (!team) {
     redirect('/enterprise/team');
   }
+
+  // Owner's own projects that haven't been shared with this team yet
+  const sharedProjectIds = new Set(team.teamShares.map((s) => s.project.id));
+  const ownProjects = await prisma.project.findMany({
+    where: { userId },
+    select: { id: true, name: true, createdAt: true, updatedAt: true },
+    orderBy: { updatedAt: 'desc' },
+    take: 50,
+  });
+  const unsharedProjects = ownProjects.filter((p) => !sharedProjectIds.has(p.id));
 
   const memberCount = team.members.length;
   const projectCount = team.teamShares.length;
@@ -323,55 +334,93 @@ export default async function EnterpriseDashboardPage() {
 
           {/* Projects Tab */}
           <TabsContent value="projects">
-            {projectDecisions.length === 0 ? (
+            {/* Team-shared projects */}
+            {projectDecisions.length > 0 && (
+              <div className="mb-8">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                  Shared with Team ({projectDecisions.length})
+                </h3>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {projectDecisions.map(({ project, liked, passed, undecided, notes, completed }) => (
+                    <Card key={project.id} className="hover:border-violet-500/50 transition-colors">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-semibold truncate">{project.name}</CardTitle>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(project.createdAt).toLocaleDateString()}
+                        </p>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center gap-3 text-sm mb-4">
+                          <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                            <ThumbsUp className="w-3.5 h-3.5" />
+                            {liked}
+                          </span>
+                          <span className="flex items-center gap-1 text-red-500">
+                            <ThumbsDown className="w-3.5 h-3.5" />
+                            {passed}
+                          </span>
+                          <span className="flex items-center gap-1 text-muted-foreground">
+                            <Clock className="w-3.5 h-3.5" />
+                            {undecided}
+                          </span>
+                          <span className="flex items-center gap-1 text-amber-500">
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            {notes}
+                          </span>
+                          <span className="flex items-center gap-1 text-blue-500">
+                            <Play className="w-3.5 h-3.5" />
+                            {completed}
+                          </span>
+                        </div>
+                        <Link href={`/projects/${project.id}/listen`}>
+                          <Button size="sm" className="w-full text-xs brand-gradient brand-gradient-hover">Listen</Button>
+                        </Link>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Owner's own unshared projects */}
+            {unsharedProjects.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                  My Projects — Not Yet Shared ({unsharedProjects.length})
+                </h3>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {unsharedProjects.map((project) => (
+                    <Card key={project.id} className="border-dashed hover:border-violet-400 transition-colors">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-semibold truncate">{project.name}</CardTitle>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(project.updatedAt).toLocaleDateString()}
+                        </p>
+                      </CardHeader>
+                      <CardContent className="flex flex-col gap-2">
+                        <ShareWithTeamButton projectId={project.id} teamId={team.id} />
+                        <Link href={`/projects/${project.id}`}>
+                          <Button size="sm" variant="outline" className="w-full text-xs">Open Project</Button>
+                        </Link>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {projectDecisions.length === 0 && unsharedProjects.length === 0 && (
               <Card>
                 <CardContent className="py-12 text-center">
-                  <p className="text-muted-foreground text-sm">No projects shared yet.</p>
-                  <Link href="/dashboard" className="mt-4 inline-block">
-                    <Button variant="outline" size="sm">Go to Dashboard to Share Projects</Button>
+                  <p className="text-muted-foreground text-sm mb-4">No projects yet.</p>
+                  <Link href="/projects/new">
+                    <Button variant="outline" size="sm">
+                      <Plus className="w-3.5 h-3.5 mr-1.5" />
+                      Create a Project
+                    </Button>
                   </Link>
                 </CardContent>
               </Card>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {projectDecisions.map(({ project, liked, passed, undecided, notes, completed }) => (
-                  <Card key={project.id} className="hover:border-violet-500/50 transition-colors">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-semibold truncate">{project.name}</CardTitle>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(project.createdAt).toLocaleDateString()}
-                      </p>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-3 text-sm mb-4">
-                        <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                          <ThumbsUp className="w-3.5 h-3.5" />
-                          {liked}
-                        </span>
-                        <span className="flex items-center gap-1 text-red-500">
-                          <ThumbsDown className="w-3.5 h-3.5" />
-                          {passed}
-                        </span>
-                        <span className="flex items-center gap-1 text-muted-foreground">
-                          <Clock className="w-3.5 h-3.5" />
-                          {undecided}
-                        </span>
-                        <span className="flex items-center gap-1 text-amber-500">
-                          <MessageSquare className="w-3.5 h-3.5" />
-                          {notes}
-                        </span>
-                        <span className="flex items-center gap-1 text-blue-500">
-                          <Play className="w-3.5 h-3.5" />
-                          {completed}
-                        </span>
-                      </div>
-                      <Link href={`/projects/${project.id}/listen`}>
-                        <Button size="sm" className="w-full text-xs brand-gradient brand-gradient-hover">Listen</Button>
-                      </Link>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
             )}
           </TabsContent>
 
