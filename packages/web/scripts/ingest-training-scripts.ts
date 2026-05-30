@@ -14,7 +14,7 @@ import path from 'path';
 import fs from 'fs';
 import * as XLSX from 'xlsx';
 import pdfParse from 'pdf-parse';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@story-magic/shared';
 
 const prisma = new PrismaClient();
 

@@ -7,7 +7,7 @@
     "dev": "pnpm run --parallel dev",
     "dev:web": "pnpm --filter @story-magic/web dev",
     "dev:orchestrator": "pnpm --filter @story-magic/orchestrator dev",
-    "build": "pnpm run --parallel build",
+    "build": "pnpm -r build",
     "build:web": "pnpm --filter @story-magic/web build",
     "lint": "pnpm run --parallel lint",
     "test": "pnpm run --parallel test",

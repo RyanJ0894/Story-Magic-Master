@@ -15,7 +15,7 @@ import { auth } from '@clerk/nextjs/server';
 import { validateCsrf } from '@/lib/csrf';
 import { rateLimit, getClientIp, type RateLimitTier } from '@/lib/api/rate-limit';
 import { prisma } from '@/lib/db';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@story-magic/shared';
 import { errorResponse } from '@/lib/api/error-response';
 export { errorResponse } from '@/lib/api/error-response';
 

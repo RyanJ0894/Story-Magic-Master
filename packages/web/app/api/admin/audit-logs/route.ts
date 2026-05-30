@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withAdminAuth, errorResponse } from '@/lib/api/middleware';
 import { z } from 'zod';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@story-magic/shared';
 import { log } from '@/lib/logger';
 
 // Query params schema

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withAdminAuth, parseBody, errorResponse } from '@/lib/api/middleware';
 import { z } from 'zod';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@story-magic/shared';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
 import { log } from '@/lib/logger';
 

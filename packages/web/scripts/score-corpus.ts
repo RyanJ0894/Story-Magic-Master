@@ -12,7 +12,7 @@
  *   pnpm --filter @story-magic/web tsx scripts/score-corpus.ts --dry-run
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@story-magic/shared';
 import { callScoringLLM } from '@/lib/scoring/service';
 import { MODELS } from '@/lib/ai/providers';
 import {

@@ -6,7 +6,7 @@
  * and translate results into HTTP responses.
  */
 
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@story-magic/shared';
 import { nanoid } from 'nanoid';
 import { hashPassword } from '@/lib/password';
 

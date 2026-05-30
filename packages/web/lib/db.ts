@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@story-magic/shared';
 import { encrypt, decrypt } from '@/lib/crypto/field-encryption';
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };

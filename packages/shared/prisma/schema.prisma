@@ -1,9 +1,11 @@
-// Story Magic - Prisma Schema
-// Migrated from Supabase PostgreSQL
-// User IDs are String (Clerk IDs) instead of UUID
+// Story Magic — Shared Prisma Schema
+// Single source of truth for all DB models and migrations.
+// Used by both packages/web and packages/orchestrator.
+// User IDs are String (Clerk IDs) not UUID.
 
 generator client {
   provider        = "prisma-client-js"
+  output          = "../src/generated/prisma"
   previewFeatures = ["postgresqlExtensions"]
 }
 
@@ -1142,4 +1144,65 @@ model HumanReview {
   @@index([userId])
   @@index([projectId])
   @@map("human_reviews")
+}
+
+
+// =============================================================================
+// ORCHESTRATOR PIPELINE TABLES
+// Owned by packages/orchestrator, accessed via raw SQL in production.
+// Schema defined here for migration tracking and type generation.
+// =============================================================================
+
+model MixManifest {
+  projectId       String   @map("project_id")
+  sceneId         String   @map("scene_id")
+  mixManifestJson Json     @map("mix_manifest_json")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@id([projectId, sceneId])
+  @@map("mix_manifests")
+}
+
+model Timeline {
+  projectId    String   @map("project_id")
+  sceneId      String   @map("scene_id")
+  timelineJson Json     @map("timeline_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@id([projectId, sceneId])
+  @@map("timelines")
+}
+
+model Alignment {
+  projectId     String   @map("project_id")
+  sceneId       String   @map("scene_id")
+  alignmentJson Json     @map("alignment_json")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@id([projectId, sceneId])
+  @@map("alignments")
+}
+
+model TtsStem {
+  projectId String  @map("project_id")
+  sceneId   String  @map("scene_id")
+  lineId    String  @map("line_id")
+  textHash  String? @map("text_hash")
+  voiceHash String? @map("voice_hash")
+  path      String?
+  durationS Float?  @map("duration_s")
+
+  @@id([projectId, sceneId, lineId])
+  @@map("tts_stems")
+}
+
+model VoiceMap {
+  projectId  String @map("project_id")
+  character  String
+  voiceId    String @map("voice_id")
+  provider   String @default("elevenlabs")
+  paramsJson Json   @default("{}") @map("params_json")
+
+  @@id([projectId, character])
+  @@map("voice_map")
 }
