@@ -1,6 +1,6 @@
 import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@story-magic/shared';
 
 // GET /api/reader/library - Get reader's library
 export const GET = withAuth(async (request, { userId, prisma }) => {

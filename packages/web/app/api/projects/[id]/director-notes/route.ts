@@ -7,7 +7,7 @@
 
 import { withProjectAuth, errorResponse } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@story-magic/shared';
 import { z } from 'zod';
 
 const CharacterNotesSchema = z.record(z.string(), z.string().max(2000));

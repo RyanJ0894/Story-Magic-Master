@@ -4,7 +4,7 @@
  * All IDs are stable so this script is idempotent.
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@story-magic/shared';
 
 const prisma = new PrismaClient();
 

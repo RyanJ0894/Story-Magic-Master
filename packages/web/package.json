@@ -25,7 +25,8 @@
     "ingest:training": "tsx scripts/ingest-training-scripts.ts",
     "score:corpus": "tsx scripts/score-corpus.ts",
     "db:seed": "prisma db seed",
-    "postinstall": "prisma generate"
+    "postinstall": "cd ../shared && prisma generate",
+    "prisma:generate": "cd ../shared && prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -104,7 +105,8 @@
     "tailwindcss": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.3.3",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@story-magic/shared": "workspace:*"
   },
   "devDependencies": {
     "@clerk/testing": "^2.0.31",

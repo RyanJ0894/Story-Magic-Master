@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withAdminAuth } from '@/lib/api/middleware';
 import { mapDbStatsToAdminStats } from '@/lib/api/mappers';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@story-magic/shared';
 
 /**
  * GET /api/admin/stats

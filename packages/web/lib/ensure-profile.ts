@@ -6,7 +6,7 @@
 
 import { currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
-import type { Profile } from '@prisma/client';
+import type { Profile } from '@story-magic/shared';
 
 export async function ensureProfile(userId: string): Promise<Profile> {
   const clerkUser = await currentUser();

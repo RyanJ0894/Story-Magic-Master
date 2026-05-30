@@ -28,10 +28,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generate Prisma clients
-        run: |
-          pnpm --filter @story-magic/web exec prisma generate
-          pnpm --filter @story-magic/orchestrator exec prisma generate
+      - name: Generate Prisma client
+        run: pnpm --filter @story-magic/shared exec prisma generate
 
       - name: Type check web
         run: pnpm --filter @story-magic/web typecheck
@@ -66,10 +64,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generate Prisma clients
-        run: |
-          pnpm --filter @story-magic/web exec prisma generate
-          pnpm --filter @story-magic/orchestrator exec prisma generate
+      - name: Generate Prisma client
+        run: pnpm --filter @story-magic/shared exec prisma generate
+
+      - name: Run shared tests
+        run: pnpm --filter @story-magic/shared test
+        env:
+          CI: true
 
       - name: Run orchestrator tests
         run: pnpm --filter @story-magic/orchestrator test
@@ -113,7 +114,7 @@ jobs:
             nextjs-${{ runner.os }}-
 
       - name: Generate Prisma client
-        run: pnpm --filter @story-magic/web exec prisma generate
+        run: pnpm --filter @story-magic/shared exec prisma generate
 
       - name: Build orchestrator
         run: pnpm --filter @story-magic/orchestrator build

@@ -17,7 +17,7 @@
  *   - script_corpus table exists (via Prisma migrations)
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@story-magic/shared';
 
 interface SeedEntry {
   title: string;

@@ -69,7 +69,7 @@ export const POST = withAdminAuth(async (request, { userId, prisma, params }) =>
 // =============================================================================
 
 async function handleCancel(
-  prisma: import('@prisma/client').PrismaClient,
+  prisma: import('@story-magic/shared').PrismaClient,
   subscription: Record<string, unknown>,
   subscriptionId: string,
   user: { id: string },
@@ -114,7 +114,7 @@ async function handleCancel(
 // =============================================================================
 
 async function handleSync(
-  prisma: import('@prisma/client').PrismaClient,
+  prisma: import('@story-magic/shared').PrismaClient,
   subscription: Record<string, unknown>,
   subscriptionId: string,
   user: { id: string },

@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@story-magic/shared';
 import { NextRequest } from 'next/server';
 
 // =============================================================================

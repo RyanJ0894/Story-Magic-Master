@@ -7,7 +7,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@story-magic/shared';
 import { sendTeamInviteEmail } from '@/lib/email';
 import { log } from '@/lib/logger';
 
