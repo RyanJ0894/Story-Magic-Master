@@ -37,7 +37,7 @@ export default async function BillingPage(
       ${pageLimit}
     ) AS remaining
   `;
-  const remainingPages = remainingResult[0]?.remaining ?? pageLimit;
+  const remainingPages = Number(remainingResult[0]?.remaining ?? pageLimit);
 
   const tierConfig = getTierByName(tier);
   const remaining = remainingPages ?? pageLimit;
