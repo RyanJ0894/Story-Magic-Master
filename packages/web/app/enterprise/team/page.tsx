@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Users, Mail, Trash2, Plus, ArrowLeft } from 'lucide-react';
+import { apiFetch } from '@/lib/api/fetch';
 
 interface TeamMember {
   id: string;
@@ -70,17 +71,15 @@ export default function EnterpriseTeamPage() {
     if (!teamName.trim()) return;
     setCreatingTeam(true);
     try {
-      const res = await fetch('/api/teams', {
+      const res = await apiFetch('/api/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: teamName.trim() }),
       });
       if (!res.ok) throw new Error('Failed to create team');
-      const team = await res.json();
-      const teamWithMembers = { ...team, members: team.members ?? [] };
-      setTeams(prev => [teamWithMembers, ...prev]);
-      setSelectedTeam(teamWithMembers);
       setTeamName('');
+      // Reload to get full Team shape including members array
+      await loadTeams();
       toast.success('Team created!');
     } catch {
       toast.error('Failed to create team');
