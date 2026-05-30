@@ -62,8 +62,21 @@ export const POST = withAuth(
           ? nameField.trim()
           : getProjectNameFromFilename(file.name);
 
+      const descriptionField = formData.get('description');
+      if (typeof descriptionField === 'string' && descriptionField.length > 500) {
+        return NextResponse.json(
+          { error: 'Description too long (max 500 characters)', code: 'DESCRIPTION_TOO_LONG' },
+          { status: 400 }
+        );
+      }
+      const description =
+        typeof descriptionField === 'string' && descriptionField.trim()
+          ? descriptionField.trim()
+          : null;
+
       const project = await createProject(prisma, userId, {
         name: projectName,
+        description,
         scriptText: text || null,
         pageCount,
       });
