@@ -1,0 +1,5 @@
+# Allow audio asset files in this directory (overrides root *.wav rule)
+!*.wav
+!*.aac
+!*.mp3
+!*.m4a

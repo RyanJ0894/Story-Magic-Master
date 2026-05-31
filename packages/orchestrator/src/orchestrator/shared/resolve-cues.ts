@@ -7,6 +7,7 @@
 
 import fs from 'fs';
 import { getTrackPath } from '../../lib/catalog-loader.js';
+import { log } from '../../lib/logger.js';
 import type { MixInputs, SFXInput } from '../workers/mixer.js';
 import type { SceneCues } from '../workers/cues.js';
 import type { LineAlignment } from '../workers/align.js';
@@ -32,6 +33,8 @@ export function resolveCuesToMixInputs(opts: ResolveCuesOptions): MixInputs {
       const musicPath = getTrackPath(trackId);
       if (musicPath && fs.existsSync(musicPath)) {
         mixInputs.music = musicPath;
+      } else {
+        log.warn('[ResolveCues] music track not found in catalog (#96)', { trackId });
       }
     }
   }
@@ -43,6 +46,8 @@ export function resolveCuesToMixInputs(opts: ResolveCuesOptions): MixInputs {
       const ambiencePath = getTrackPath(trackId);
       if (ambiencePath && fs.existsSync(ambiencePath)) {
         mixInputs.ambience = ambiencePath;
+      } else {
+        log.warn('[ResolveCues] ambience track not found in catalog (#96)', { trackId });
       }
     }
   }
@@ -55,7 +60,10 @@ export function resolveCuesToMixInputs(opts: ResolveCuesOptions): MixInputs {
       if (!sfxCue.file) continue;
 
       const sfxPath = getTrackPath(sfxCue.file);
-      if (!sfxPath || !fs.existsSync(sfxPath)) continue;
+      if (!sfxPath || !fs.existsSync(sfxPath)) {
+        log.warn('[ResolveCues] SFX track not found in catalog (#96)', { file: sfxCue.file });
+        continue;
+      }
 
       let startAtSeconds = 0;
 
@@ -84,11 +92,14 @@ export function resolveCuesToMixInputs(opts: ResolveCuesOptions): MixInputs {
 /**
  * Default mix parameters for professional audio output.
  * Scene-level overrides via scene.mix are spread on top.
+ *
+ * Gain levels (#96): ambience raised from -26 to -18 dB so room tone is
+ * clearly audible without competing with dialogue.
  */
 export function getDefaultMixParams(sceneOverrides?: Record<string, unknown>) {
   return {
     music_gain_db: -22,
-    ambience_gain_db: -26,
+    ambience_gain_db: -18,
     sfx_gain_db: -12,
     target_lufs: -16,
     true_peak_db: -1.5,
