@@ -33,6 +33,11 @@ vi.mock('@/lib/comments/notify', () => ({
   notifyNewComment: vi.fn().mockResolvedValue(undefined),
 }));
 
+const mockEnsureProfile = vi.fn().mockResolvedValue({ id: 'user_clerk123' });
+vi.mock('@/lib/ensure-profile', () => ({
+  ensureProfile: (...args: unknown[]) => mockEnsureProfile(...args),
+}));
+
 // ── Imports after mocks ───────────────────────────────────────────────────────
 
 const { GET, POST } = await import('@/app/api/projects/[id]/comments/route');
@@ -144,6 +149,7 @@ describe('POST /api/projects/[id]/comments', () => {
     mockPrisma.teamShare.findFirst.mockResolvedValue(null);
     mockPrisma.scriptShare.findFirst.mockResolvedValue(null);
     mockPrisma.projectComment.create.mockResolvedValue(MOCK_COMMENT);
+    mockEnsureProfile.mockResolvedValue({ id: USER_ID });
   });
 
   it('creates a comment and returns 201', async () => {
@@ -185,6 +191,24 @@ describe('POST /api/projects/[id]/comments', () => {
       { params: Promise.resolve({ id: PROJECT_ID }) },
     );
     expect(res.status).toBe(401);
+  });
+
+  it('returns 503 when ensureProfile fails (profile not ready)', async () => {
+    mockEnsureProfile.mockRejectedValueOnce(new Error('Clerk unavailable'));
+    const res = await POST(
+      makeReq('POST', `https://app.com/api/projects/${PROJECT_ID}/comments`, { body: 'hi' }),
+      { params: Promise.resolve({ id: PROJECT_ID }) },
+    );
+    expect(res.status).toBe(503);
+  });
+
+  it('calls ensureProfile with the authenticated userId', async () => {
+    mockPrisma.projectComment.create.mockResolvedValue(MOCK_COMMENT);
+    await POST(
+      makeReq('POST', `https://app.com/api/projects/${PROJECT_ID}/comments`, { body: 'hi' }),
+      { params: Promise.resolve({ id: PROJECT_ID }) },
+    );
+    expect(mockEnsureProfile).toHaveBeenCalledWith(USER_ID);
   });
 });
 
