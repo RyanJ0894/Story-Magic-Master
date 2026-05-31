@@ -366,7 +366,12 @@ export default async function EnterpriseDashboardPage({
                           </p>
                           <p className="text-xs text-muted-foreground">{member.user?.email ?? 'Sub Account'}</p>
                         </div>
-                        <Badge variant="secondary" className="text-xs capitalize">{member.role}</Badge>
+                        <Badge variant="secondary" className="text-xs">
+                          {(member as { memberType?: string | null }).memberType === 'talent_actor' ? 'Talent / Actor'
+                            : (member as { memberType?: string | null }).memberType === 'staff' ? 'Staff'
+                            : (member as { memberType?: string | null }).memberType === 'representation' ? 'Representation'
+                            : 'Member'}
+                        </Badge>
                       </div>
                     ))}
                   </div>

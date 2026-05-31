@@ -11,12 +11,14 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Users, Mail, Trash2, Plus, ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react';
+import { apiFetch } from '@/lib/api/fetch';
 
 interface TeamMember {
   id: string;
   userId: string | null;
   invitedEmail: string | null;
   role: string;
+  memberType?: string | null;
   status: string;
   user?: { id: string; fullName: string | null; email: string | null } | null;
 }
@@ -27,18 +29,27 @@ interface Team {
   members: TeamMember[];
 }
 
-const ROLES = [
-  { value: 'member', label: 'Member' },
-  { value: 'admin', label: 'Admin' },
-  { value: 'viewer', label: 'Viewer (read-only)' },
+const MEMBER_TYPES = [
+  { value: 'talent_actor', label: 'Talent / Actor' },
+  { value: 'staff', label: 'Staff' },
+  { value: 'representation', label: 'Representation' },
+  { value: 'production', label: 'Production' },
 ];
+
+const MEMBER_TYPE_LABELS: Record<string, string> = {
+  talent_actor: 'Talent / Actor',
+  staff: 'Staff',
+  representation: 'Representation',
+  production: 'Production',
+};
 
 export default function EnterpriseTeamPage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState('member');
+  const [inviteName, setInviteName] = useState('');
+  const [inviteMemberType, setInviteMemberType] = useState<string>('talent_actor');
   const [inviting, setInviting] = useState(false);
   const [teamName, setTeamName] = useState('');
   const [creatingTeam, setCreatingTeam] = useState(false);
@@ -69,7 +80,7 @@ export default function EnterpriseTeamPage() {
     if (!teamName.trim()) return;
     setCreatingTeam(true);
     try {
-      const res = await fetch('/api/teams', {
+      const res = await apiFetch('/api/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: teamName.trim() }),
@@ -95,13 +106,18 @@ export default function EnterpriseTeamPage() {
       const res = await fetch(`/api/teams/${selectedTeam.id}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+        body: JSON.stringify({
+          email: inviteEmail.trim(),
+          name: inviteName.trim() || undefined,
+          memberType: inviteMemberType,
+        }),
       });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error ?? 'Failed to invite');
       }
       setInviteEmail('');
+      setInviteName('');
       toast.success(`Invite sent to ${inviteEmail}`);
       await loadTeams();
     } catch (err) {
@@ -260,9 +276,20 @@ export default function EnterpriseTeamPage() {
                   <CardContent>
                     <form onSubmit={inviteMember} className="space-y-4">
                       <div>
-                        <Label htmlFor="email">Email Address</Label>
+                        <Label htmlFor="invite-name">Name</Label>
                         <Input
-                          id="email"
+                          id="invite-name"
+                          type="text"
+                          value={inviteName}
+                          onChange={e => setInviteName(e.target.value)}
+                          placeholder="Sarah Johnson"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="invite-email">Email Address</Label>
+                        <Input
+                          id="invite-email"
                           type="email"
                           value={inviteEmail}
                           onChange={e => setInviteEmail(e.target.value)}
@@ -271,14 +298,14 @@ export default function EnterpriseTeamPage() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="role">Role</Label>
-                        <Select value={inviteRole} onValueChange={setInviteRole}>
-                          <SelectTrigger className="mt-1">
+                        <Label htmlFor="invite-type">Member Type</Label>
+                        <Select value={inviteMemberType} onValueChange={setInviteMemberType}>
+                          <SelectTrigger id="invite-type" className="mt-1">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {ROLES.map(r => (
-                              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                            {MEMBER_TYPES.map(t => (
+                              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -322,7 +349,9 @@ export default function EnterpriseTeamPage() {
                                 <p className="text-sm font-medium truncate">
                                   {m.user?.fullName ?? m.invitedEmail}
                                 </p>
-                                <Badge variant="secondary" className="text-xs capitalize mt-0.5">{m.role}</Badge>
+                                <Badge variant="secondary" className="text-xs mt-0.5">
+                                  {m.memberType ? MEMBER_TYPE_LABELS[m.memberType] ?? m.memberType : 'Member'}
+                                </Badge>
                               </div>
                               <Button
                                 variant="ghost"

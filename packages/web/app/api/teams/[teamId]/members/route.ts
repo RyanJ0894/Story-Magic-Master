@@ -23,7 +23,9 @@ import {
 
 const InviteMemberSchema = z.object({
   email: z.string().email('Valid email is required'),
+  name: z.string().max(100).optional(),
   role: z.enum(['admin', 'member', 'viewer']).optional(),
+  memberType: z.enum(['talent_actor', 'staff', 'representation']).optional(),
 });
 
 const RemoveMemberSchema = z.object({
@@ -59,10 +61,10 @@ export const POST = withAuth(async (request, { userId, prisma, params }) => {
   const parsed = await parseBody(request, InviteMemberSchema);
   if ('error' in parsed) return parsed.error;
 
-  const { email, role } = parsed.data;
+  const { email, name, role, memberType } = parsed.data;
 
   try {
-    const result = await addMember(prisma, teamId, userId, { email, role });
+    const result = await addMember(prisma, teamId, userId, { email, name, role, memberType });
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
