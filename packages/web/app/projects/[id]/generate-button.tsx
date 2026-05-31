@@ -65,7 +65,7 @@ export default function GenerateButton({
   onFirstAudioReady,
   onSegmentsUpdate,
 }: GenerateButtonProps) {
-  const { userId, isSignedIn } = useAuth();
+  const { userId, isSignedIn, getToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
@@ -114,23 +114,28 @@ export default function GenerateButton({
     }
   }, []);
 
-  // Poll for job status
+  // Poll for job status — injects a fresh Clerk JWT on every call so the poll
+  // survives device sleep or background tab (Clerk client-side refresh may stall).
   const pollJobStatus = useCallback(async (jobId: string) => {
     try {
-      const response = await apiFetch(`/api/jobs/${jobId}`);
+      const token = await getToken();
+      const headers: Record<string, string> = { 'X-Requested-With': 'story-magic' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch(`/api/jobs/${jobId}`, { headers });
       if (!response.ok) {
-        // 401 = session expired (e.g. device slept during long generation and
-        // Clerk JWT wasn't refreshed in time). Surface after 3 consecutive
-        // failures so the user knows to reload rather than waiting indefinitely.
         if (response.status === 401) {
           consecutiveAuthFailures.current += 1;
           if (consecutiveAuthFailures.current >= 3) {
-            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-            if (queuePollRef.current) clearInterval(queuePollRef.current);
-            setLoading(false);
-            toast.error('Session expired — please reload the page to check your audio.', {
-              duration: 10000,
+            // Don't kill polling — auth may recover on next tick.
+            // Show a recoverable toast so the user can manually check.
+            consecutiveAuthFailures.current = 0;
+            toast.error('Connection lost — your audio may be ready.', {
+              duration: 30000,
+              action: {
+                label: 'Check status →',
+                onClick: () => router.refresh(),
+              },
             });
           }
           return;
@@ -189,7 +194,7 @@ export default function GenerateButton({
     } catch (error) {
       log.error('Error polling job status', error);
     }
-  }, [router]);
+  }, [router, getToken]);
 
   // Start timer and polling
   const startTracking = useCallback((jobId: string) => {
