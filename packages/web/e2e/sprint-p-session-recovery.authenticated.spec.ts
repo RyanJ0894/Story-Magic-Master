@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/authenticated';
+import { SHORT_SCRIPT } from './fixtures/test-script';
 
 /**
  * Session Recovery & SW Guard — Sprint P (#92, STORY-MAGIC-6)
@@ -15,12 +16,6 @@ import { test, expect } from './fixtures/authenticated';
  */
 
 // ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
-const MOCK_PROJECT_ID = '71e98a0f-731f-4a25-8cab-2226daca0a3e';
-
-// ---------------------------------------------------------------------------
 // Route interceptors
 // ---------------------------------------------------------------------------
 
@@ -34,6 +29,22 @@ async function mockJobPolling(
 ) {
   let callCount = 0;
   await page.route('**/api/jobs/**', async (route) => {
+    // Position-polling calls must not consume status-response slots — they
+    // are handled independently so the consecutive-401 counter in the status
+    // poller sees an uninterrupted stream of the provided responses.
+    if (route.request().url().includes('/position')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          position: null,
+          estimatedWaitSeconds: null,
+          jobsAhead: null,
+          status: 'processing',
+        }),
+      });
+      return;
+    }
     const entry = responses[Math.min(callCount, responses.length - 1)];
     callCount += 1;
     await route.fulfill({
@@ -47,7 +58,7 @@ async function mockJobPolling(
 
 async function mockGenerateButton(page: import('@playwright/test').Page) {
   // Stub the generate endpoint so the button is clickable but never triggers real work
-  await page.route('**/api/projects/*/generate', async (route) => {
+  await page.route('**/api/generate', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -56,13 +67,66 @@ async function mockGenerateButton(page: import('@playwright/test').Page) {
   });
 }
 
+/**
+ * Bypass the workflow-mode selector (which blocks fresh projects) by pre-setting
+ * the mode in localStorage, then reload so the component re-initializes with it.
+ * The key format mirrors what ProjectWorkflow reads on init:
+ *   `project-${id}-run-${currentRunNumber + 1}-mode`   (currentRunNumber = 0 for new projects)
+ *
+ * After the reload, click the "Generate Now" button to start job polling.
+ * Route mocks survive navigations on the same page object, so they remain active.
+ */
+async function clickGenerateButton(
+  page: import('@playwright/test').Page,
+  projectId: string,
+) {
+  await page.evaluate((id) => {
+    localStorage.setItem(`project-${id}-run-1-mode`, 'automatic');
+  }, projectId);
+
+  await page.reload();
+  await page.waitForLoadState('networkidle', { timeout: 15_000 });
+
+  const generateBtn = page
+    .getByTestId('generate-button')
+    .or(page.getByRole('button', { name: /generate|start/i }).first());
+
+  if (await generateBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await generateBtn.click();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Test suite — session polling
 // ---------------------------------------------------------------------------
 
 test.describe('Session polling recovery (#92)', () => {
+  let projectId: string;
+
   test.beforeEach(async ({ page }) => {
+    // Create a real project so the server-rendered page can load.
+    // X-Requested-With bypasses the CSRF origin check for same-site API calls
+    // made outside a browser navigation context (e.g. page.request).
+    const res = await page.request.post('/api/projects', {
+      headers: { 'X-Requested-With': 'story-magic' },
+      data: {
+        name: 'E2E Session Recovery Test',
+        scriptText: SHORT_SCRIPT,
+        pageCount: 1,
+      },
+    });
+    const data = await res.json();
+    projectId = data.id;
+
     await mockGenerateButton(page);
+  });
+
+  test.afterEach(async ({ page }) => {
+    if (projectId) {
+      await page.request.delete(`/api/projects/${projectId}`, {
+        headers: { 'X-Requested-With': 'story-magic' },
+      }).catch(() => {});
+    }
   });
 
   test('shows "Connection lost" toast on 3rd consecutive 401', async ({ page }) => {
@@ -74,17 +138,9 @@ test.describe('Session polling recovery (#92)', () => {
       { status: 200, body: { status: 'pending' } },
     ]);
 
-    await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+    await page.goto(`/projects/${projectId}`);
     await page.waitForLoadState('networkidle', { timeout: 15_000 });
-
-    // Trigger polling by clicking Generate (button may be in any state; find it)
-    const generateBtn = page.getByTestId('generate-button').or(
-      page.getByRole('button', { name: /generate|start/i }).first()
-    );
-
-    if (await generateBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await generateBtn.click();
-    }
+    await clickGenerateButton(page, projectId);
 
     // The toast should appear after 3 consecutive 401s
     await expect(
@@ -100,15 +156,9 @@ test.describe('Session polling recovery (#92)', () => {
       { status: 200, body: { status: 'pending' } },
     ]);
 
-    await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+    await page.goto(`/projects/${projectId}`);
     await page.waitForLoadState('networkidle', { timeout: 15_000 });
-
-    const generateBtn = page.getByTestId('generate-button').or(
-      page.getByRole('button', { name: /generate|start/i }).first()
-    );
-    if (await generateBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await generateBtn.click();
-    }
+    await clickGenerateButton(page, projectId);
 
     await expect(
       page.getByText('Connection lost — your audio may be ready.')
@@ -126,15 +176,9 @@ test.describe('Session polling recovery (#92)', () => {
       { status: 200, body: { status: 'pending' } },
     ]);
 
-    await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+    await page.goto(`/projects/${projectId}`);
     await page.waitForLoadState('networkidle', { timeout: 15_000 });
-
-    const generateBtn = page.getByTestId('generate-button').or(
-      page.getByRole('button', { name: /generate|start/i }).first()
-    );
-    if (await generateBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await generateBtn.click();
-    }
+    await clickGenerateButton(page, projectId);
 
     await expect(
       page.getByText('Connection lost — your audio may be ready.')
@@ -147,7 +191,7 @@ test.describe('Session polling recovery (#92)', () => {
     // Either a navigation fired or the URL stayed the same but a reload occurred.
     // Either way the page should still be on the project page.
     await navigationPromise;
-    await expect(page).toHaveURL(new RegExp(MOCK_PROJECT_ID));
+    await expect(page).toHaveURL(new RegExp(projectId));
   });
 
   test('no toast shown for 1 or 2 consecutive 401s', async ({ page }) => {
@@ -159,15 +203,9 @@ test.describe('Session polling recovery (#92)', () => {
       { status: 200, body: { status: 'pending' } },
     ]);
 
-    await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+    await page.goto(`/projects/${projectId}`);
     await page.waitForLoadState('networkidle', { timeout: 15_000 });
-
-    const generateBtn = page.getByTestId('generate-button').or(
-      page.getByRole('button', { name: /generate|start/i }).first()
-    );
-    if (await generateBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await generateBtn.click();
-    }
+    await clickGenerateButton(page, projectId);
 
     // Wait 8s — enough for 2 poll cycles (polls every 3s); toast should NOT appear
     await page.waitForTimeout(8_000);
@@ -176,7 +214,7 @@ test.describe('Session polling recovery (#92)', () => {
     ).not.toBeVisible();
   });
 
-  test('polling recovers after 401s — audio player appears on completed job', async ({ page }) => {
+  test('polling recovers after 401s — success toast fires on completed job', async ({ page }) => {
     // Simulate: 3 x 401 (connection lost), then 2 x pending, then completed
     await mockJobPolling(page, [
       { status: 401 },
@@ -184,41 +222,24 @@ test.describe('Session polling recovery (#92)', () => {
       { status: 401 },
       { status: 200, body: { status: 'pending' } },
       { status: 200, body: { status: 'pending' } },
-      {
-        status: 200,
-        body: {
-          status: 'completed',
-          outputUrl: 'https://example.com/audio/mock.m4a',
-          segmentUrls: ['https://example.com/audio/seg1.m4a'],
-        },
-      },
+      { status: 200, body: { status: 'completed' } },
     ]);
 
-    // Stub audio file requests so the player doesn't stall waiting for real media
-    await page.route('**/*.m4a', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'audio/mp4', body: Buffer.alloc(512) });
-    });
-
-    await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+    await page.goto(`/projects/${projectId}`);
     await page.waitForLoadState('networkidle', { timeout: 15_000 });
+    await clickGenerateButton(page, projectId);
 
-    const generateBtn = page.getByTestId('generate-button').or(
-      page.getByRole('button', { name: /generate|start/i }).first()
-    );
-    if (await generateBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await generateBtn.click();
-    }
-
-    // Wait for the "Connection lost" toast (confirms counter hit 3)
+    // "Connection lost" toast confirms the counter hit 3
     await expect(
       page.getByText('Connection lost — your audio may be ready.')
     ).toBeVisible({ timeout: 30_000 });
 
-    // Polling continues after the toast — eventually the job completes and player shows
-    const audioPlayer = page.getByTestId('audio-player').or(
-      page.getByRole('region', { name: /audio|player/i }).first()
-    );
-    await expect(audioPlayer).toBeVisible({ timeout: 60_000 });
+    // Polling continues; when the completed status arrives the success toast fires.
+    // (router.refresh() is also called, but the server re-renders from DB state — no
+    // real audio output was written — so we assert the toast rather than the player.)
+    await expect(
+      page.getByText('Audio generation complete!')
+    ).toBeVisible({ timeout: 30_000 });
   });
 });
 
@@ -259,7 +280,9 @@ test.describe('ServiceWorkerRegistration webdriver guard (STORY-MAGIC-6)', () =>
     const pageErrors: string[] = [];
     page.on('pageerror', (err) => pageErrors.push(err.message));
 
-    await page.goto(`/projects/${MOCK_PROJECT_ID}`);
+    // Navigate to a non-existent project URL — the 404 page is sufficient to confirm
+    // the SW guard doesn't inject errors during any project-route load.
+    await page.goto('/projects/00000000-0000-0000-0000-000000000000');
     await page.waitForLoadState('networkidle', { timeout: 15_000 });
     await page.waitForTimeout(2_000);
 
