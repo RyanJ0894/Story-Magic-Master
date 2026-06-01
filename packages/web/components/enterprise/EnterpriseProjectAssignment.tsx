@@ -24,10 +24,14 @@ export function EnterpriseProjectAssignment({ teamId, allProjects, assignedProje
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [assigned, setAssigned] = useState<Set<string>>(() => new Set(assignedProjectIds));
-  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [loadingIds, setLoadingIds] = useState<Set<string>>(() => new Set());
+
+  const setLoading = (id: string, on: boolean) =>
+    setLoadingIds(prev => { const s = new Set(prev); on ? s.add(id) : s.delete(id); return s; });
 
   const assign = async (projectId: string) => {
-    setLoadingId(projectId);
+    if (loadingIds.has(projectId)) return;
+    setLoading(projectId, true);
     try {
       const res = await fetch('/api/teams/share', {
         method: 'POST',
@@ -44,12 +48,13 @@ export function EnterpriseProjectAssignment({ teamId, allProjects, assignedProje
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to assign project');
     } finally {
-      setLoadingId(null);
+      setLoading(projectId, false);
     }
   };
 
   const unassign = async (projectId: string) => {
-    setLoadingId(projectId);
+    if (loadingIds.has(projectId)) return;
+    setLoading(projectId, true);
     try {
       const res = await fetch('/api/teams/share', {
         method: 'DELETE',
@@ -63,7 +68,7 @@ export function EnterpriseProjectAssignment({ teamId, allProjects, assignedProje
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to remove project');
     } finally {
-      setLoadingId(null);
+      setLoading(projectId, false);
     }
   };
 
@@ -101,7 +106,7 @@ export function EnterpriseProjectAssignment({ teamId, allProjects, assignedProje
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium truncate">{project.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(project.createdAt).toLocaleDateString()}
+                    {new Date(project.createdAt).toLocaleDateString('en-US')}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -109,7 +114,7 @@ export function EnterpriseProjectAssignment({ teamId, allProjects, assignedProje
                   <Button
                     variant="ghost"
                     size="sm"
-                    disabled={loadingId === project.id || pending}
+                    disabled={loadingIds.has(project.id) || pending}
                     onClick={() => void unassign(project.id)}
                     className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0"
                     title="Remove from team"
@@ -138,13 +143,13 @@ export function EnterpriseProjectAssignment({ teamId, allProjects, assignedProje
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium truncate">{project.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(project.createdAt).toLocaleDateString()}
+                    {new Date(project.createdAt).toLocaleDateString('en-US')}
                   </p>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  disabled={loadingId === project.id || pending}
+                  disabled={loadingIds.has(project.id) || pending}
                   onClick={() => void assign(project.id)}
                   className="text-muted-foreground hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 h-7 w-7 p-0 shrink-0"
                   title="Add to team"
