@@ -151,65 +151,10 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
       }
 
       const { url } = await paymentResponse.json();
-      if (url) {
-        window.location.href = url;
-        return;
+      if (!url) {
+        throw new Error('Payment session created but no redirect URL returned');
       }
-
-      // Fallback: if no URL returned, proceed with processing
-      setStep('processing');
-      setUploadProgress(10);
-
-      // Step 2: Upload file
-      setProcessingStatus('Uploading script...');
-      setUploadProgress(30);
-
-      const formData = new FormData();
-      formData.append('file', file!);
-      formData.append('name', scriptName);
-      formData.append('needsOCR', 'false');
-
-      const uploadResponse = await apiFetch('/api/reader/upload/process', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error('Upload failed');
-      }
-
-      const { projectId, jobId } = await uploadResponse.json();
-
-      // Step 3: Monitor processing
-      setProcessingStatus('Parsing script...');
-      setUploadProgress(50);
-
-      // Poll for completion
-      let attempts = 0;
-      const maxAttempts = 60; // 5 minutes max
-
-      while (attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        attempts++;
-
-        const statusResponse = await apiFetch(`/api/jobs/${jobId}/status`);
-        const { status, progress, message } = await statusResponse.json();
-
-        setProcessingStatus(message || 'Processing...');
-        setUploadProgress(50 + (progress || 0) * 0.5);
-
-        if (status === 'completed') {
-          setStep('complete');
-          setUploadProgress(100);
-          return;
-        }
-
-        if (status === 'failed') {
-          throw new Error(message || 'Processing failed');
-        }
-      }
-
-      throw new Error('Processing timed out');
+      window.location.href = url;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       setStep('preview');
