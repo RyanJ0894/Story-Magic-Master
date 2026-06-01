@@ -1,15 +1,35 @@
 const { withSentryConfig } = require('@sentry/nextjs');
 
+const isDev = process.env.NODE_ENV === 'development';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // eval-source-map (Next.js default) routes eval() through the browser's
+  // Trusted Types API via webpack's __webpack_require__.ts helper. Some
+  // Chromium builds enforce Trusted Types independently of CSP, causing
+  // "Invalid or unexpected token" SyntaxErrors at the eval() call site.
+  // cheap-module-source-map avoids eval() entirely while still giving
+  // accurate dev-mode source maps.
+  ...(isDev && { devtool: 'cheap-module-source-map' }),
   // Bake the build timestamp into the client bundle so each deploy is
   // identifiable in the footer and in the browser console.
   env: {
     NEXT_PUBLIC_BUILD_TIME: new Date().toISOString(),
   },
+  // Treat workspace packages as source so webpack tracks their dependency
+  // graph precisely, avoiding cascade HMR invalidations in dev.
+  transpilePackages: ['@story-magic/shared'],
   experimental: {
     // Allow file uploads up to 10MB via /api/projects/upload
     serverActions: { bodySizeLimit: '10mb' },
+    // Pre-bundle heavy icon/UI packages into fewer chunks so HMR only
+    // invalidates the modules that actually changed.
+    optimizePackageImports: [
+      '@radix-ui/react-tabs',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-select',
+      'lucide-react',
+    ],
   },
   // pdf-parse uses Node.js fs internals and must not be bundled by webpack —
   // when bundled it tries to open its test fixture file at runtime and crashes.
@@ -57,7 +77,7 @@ const nextConfig = {
   },
 };
 
-module.exports = withSentryConfig(nextConfig, {
+const sentryConfig = {
   // Sentry webpack plugin options
   org: 'servicevision',
   project: 'story-magic-web',
@@ -79,4 +99,13 @@ module.exports = withSentryConfig(nextConfig, {
   webpack: {
     removeDebugLogging: true,
   },
-});
+};
+
+// Sentry's webpack plugin patches __webpack_require__ with interceptors that
+// assume factory references are stable. During HMR in dev, factories are
+// briefly undefined while modules reload, triggering:
+//   TypeError: Cannot read properties of undefined (reading 'call')
+// Skipping the plugin in dev avoids this entirely — Sentry still initialises
+// at runtime via sentry.client.config.ts; only source-map upload is skipped,
+// which is not needed locally anyway.
+module.exports = isDev ? nextConfig : withSentryConfig(nextConfig, sentryConfig);
