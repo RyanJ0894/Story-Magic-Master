@@ -2,13 +2,6 @@ const { withSentryConfig } = require('@sentry/nextjs');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // eval-source-map (Next.js default) routes eval() through the browser's
-  // Trusted Types API via webpack's __webpack_require__.ts helper. Some
-  // Chromium builds enforce Trusted Types independently of CSP, causing
-  // "Invalid or unexpected token" SyntaxErrors at the eval() call site.
-  // cheap-module-source-map avoids eval() entirely while still giving
-  // accurate dev-mode source maps.
-  ...(process.env.NODE_ENV === 'development' && { devtool: 'cheap-module-source-map' }),
   // Bake the build timestamp into the client bundle so each deploy is
   // identifiable in the footer and in the browser console.
   env: {
@@ -28,6 +21,23 @@ const nextConfig = {
         hostname: '*.supabase.co',
       },
     ],
+  },
+  // Exclude the shared Prisma-generated directory from webpack's file watcher.
+  // Both Next.js and the orchestrator's tsx watch import @story-magic/shared,
+  // and the Prisma library engine binary loading can fire inotify events on
+  // packages/shared/src/generated/ that Next.js misreads as file modifications,
+  // causing spurious HMR recompilation and server action ID churn.
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored: [
+          ...(Array.isArray(config.watchOptions?.ignored) ? config.watchOptions.ignored : []),
+          '**/packages/shared/src/generated/**',
+        ],
+      };
+    }
+    return config;
   },
   // Reduce build memory usage on constrained environments
   productionBrowserSourceMaps: false,
