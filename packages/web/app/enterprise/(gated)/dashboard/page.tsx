@@ -13,7 +13,7 @@ import { Users, FolderOpen, Activity, ThumbsUp, ThumbsDown, MessageSquare, Play,
 import { SignOutButton } from '@/components/auth/sign-out-button';
 import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
 import { TeamNotesTab } from '@/components/enterprise/TeamNotesTab';
-import { ShareWithTeamButton } from '@/components/enterprise/ShareWithTeamButton';
+import { EnterpriseProjectAssignment } from '@/components/enterprise/EnterpriseProjectAssignment';
 
 const EVENT_LABELS: Record<string, { label: string; icon: string; color: string }> = {
   listen_complete: { label: 'Listened to completion', icon: '🎧', color: 'text-green-500' },
@@ -43,9 +43,15 @@ const TIER_SEAT_LIMITS: Record<string, number> = {
   enterprise: 200,
 };
 
-export default async function EnterpriseDashboardPage() {
+export default async function EnterpriseDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ teamId?: string }>;
+}) {
   const { userId } = await auth();
   if (!userId) redirect('/login');
+
+  const { teamId: teamIdParam } = await searchParams;
 
   // Load profile for UI display (gate is handled by the (gated) layout)
   const profile = await prisma.profile.findUnique({
@@ -53,9 +59,26 @@ export default async function EnterpriseDashboardPage() {
     select: { fullName: true, email: true, subscriptionTier: true },
   });
 
-  // Load the team owned by this user
-  const team = await prisma.team.findFirst({
+  // Load all teams owned by this user (for the team selector)
+  const allTeams = await prisma.team.findMany({
     where: { ownerId: userId },
+    select: { id: true, name: true },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  // No team yet — send to team setup
+  if (allTeams.length === 0) {
+    redirect('/enterprise/team');
+  }
+
+  // Resolve which team to display; fall back to first owned team
+  const resolvedTeamId = teamIdParam && allTeams.some(t => t.id === teamIdParam)
+    ? teamIdParam
+    : allTeams[0].id;
+
+  // Load full team data
+  const team = await prisma.team.findUnique({
+    where: { id: resolvedTeamId },
     include: {
       members: {
         where: { status: 'accepted' },
@@ -89,10 +112,14 @@ export default async function EnterpriseDashboardPage() {
     },
   });
 
-  // No team yet — send straight to team setup
-  if (!team) {
-    redirect('/enterprise/team');
-  }
+  if (!team) redirect('/enterprise/team');
+
+  // All user projects for assignment UI
+  const userProjects = await prisma.project.findMany({
+    where: { userId },
+    select: { id: true, name: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+  });
 
   // Owner's own projects that haven't been shared with this team yet
   const sharedProjectIds = new Set(team.teamShares.map((s) => s.project.id));
@@ -105,8 +132,6 @@ export default async function EnterpriseDashboardPage() {
   const unsharedProjects = ownProjects.filter((p) => !sharedProjectIds.has(p.id));
 
   const memberCount = team.members.length;
-  const projectCount = team.teamShares.length;
-  const activityCount = team.activityLogs.length;
 
   // Aggregate project decisions
   const projectDecisions = team.teamShares.map((share) => {
@@ -121,7 +146,6 @@ export default async function EnterpriseDashboardPage() {
     };
   });
 
-  // Notes & Reactions across all team-shared projects (first page — client handles load more)
   const teamProjectIds = team.teamShares.map((s) => s.project.id);
   const NOTES_PAGE_SIZE = 20;
   const [teamComments, totalTeamComments, totalDecisions] = teamProjectIds.length > 0
@@ -172,7 +196,7 @@ export default async function EnterpriseDashboardPage() {
 
       <main className="max-w-7xl mx-auto px-4 py-8">
         {/* Page header */}
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Master Dashboard</h1>
             <p className="text-muted-foreground mt-1 text-sm">
@@ -186,6 +210,33 @@ export default async function EnterpriseDashboardPage() {
           </Link>
         </div>
 
+        {/* Team selector — only shown when multiple teams exist */}
+        {allTeams.length > 1 && (
+          <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-1">
+            <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">Team:</span>
+            {allTeams.map(t => (
+              <Link
+                key={t.id}
+                href={`/enterprise/dashboard?teamId=${t.id}`}
+              >
+                <Button
+                  variant={t.id === resolvedTeamId ? 'default' : 'outline'}
+                  size="sm"
+                  className={t.id === resolvedTeamId ? 'brand-gradient brand-gradient-hover' : ''}
+                >
+                  {t.name}
+                </Button>
+              </Link>
+            ))}
+            <Link href="/enterprise/team">
+              <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground">
+                <Plus className="w-3.5 h-3.5" />
+                New Team
+              </Button>
+            </Link>
+          </div>
+        )}
+
         {/* Stats Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <Card>
@@ -195,7 +246,7 @@ export default async function EnterpriseDashboardPage() {
                   <FolderOpen className="w-4 h-4 text-violet-600 dark:text-violet-400" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{projectCount}</p>
+                  <p className="text-2xl font-bold">{team.teamShares.length}</p>
                   <p className="text-xs text-muted-foreground">Team Projects</p>
                 </div>
               </div>
@@ -302,7 +353,7 @@ export default async function EnterpriseDashboardPage() {
           <TabsContent value="team">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-base">Team Members</CardTitle>
+                <CardTitle className="text-base">Team Members — {team.name}</CardTitle>
                 <Link href="/enterprise/team">
                   <Button size="sm" className="brand-gradient brand-gradient-hover">Invite Member</Button>
                 </Link>
@@ -334,96 +385,25 @@ export default async function EnterpriseDashboardPage() {
             </Card>
           </TabsContent>
 
-          {/* Projects Tab */}
+          {/* Projects Tab — team-scoped assignment */}
           <TabsContent value="projects">
-            {/* Team-shared projects */}
-            {projectDecisions.length > 0 && (
-              <div className="mb-8">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                  Shared with Team ({projectDecisions.length})
-                </h3>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {projectDecisions.map(({ project, liked, passed, undecided, notes, completed }) => (
-                    <Card key={project.id} className="hover:border-violet-500/50 transition-colors">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-semibold truncate">{project.name}</CardTitle>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(project.createdAt).toLocaleDateString()}
-                        </p>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center gap-3 text-sm mb-4">
-                          <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                            <ThumbsUp className="w-3.5 h-3.5" />
-                            {liked}
-                          </span>
-                          <span className="flex items-center gap-1 text-red-500">
-                            <ThumbsDown className="w-3.5 h-3.5" />
-                            {passed}
-                          </span>
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <Clock className="w-3.5 h-3.5" />
-                            {undecided}
-                          </span>
-                          <span className="flex items-center gap-1 text-amber-500">
-                            <MessageSquare className="w-3.5 h-3.5" />
-                            {notes}
-                          </span>
-                          <span className="flex items-center gap-1 text-blue-500">
-                            <Play className="w-3.5 h-3.5" />
-                            {completed}
-                          </span>
-                        </div>
-                        <Link href={`/projects/${project.id}/listen`}>
-                          <Button size="sm" className="w-full text-xs brand-gradient brand-gradient-hover">Listen</Button>
-                        </Link>
-                      </CardContent>
-                    </Card>
-                  ))}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-base">Project Assignment — {team.name}</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Assign your projects to this team so members can listen and react.
+                  </p>
                 </div>
-              </div>
-            )}
-
-            {/* Owner's own unshared projects */}
-            {unsharedProjects.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                  My Projects — Not Yet Shared ({unsharedProjects.length})
-                </h3>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {unsharedProjects.map((project) => (
-                    <Card key={project.id} className="border-dashed hover:border-violet-400 transition-colors">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-semibold truncate">{project.name}</CardTitle>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(project.updatedAt).toLocaleDateString()}
-                        </p>
-                      </CardHeader>
-                      <CardContent className="flex flex-col gap-2">
-                        <ShareWithTeamButton projectId={project.id} teamId={team.id} />
-                        <Link href={`/projects/${project.id}`}>
-                          <Button size="sm" variant="outline" className="w-full text-xs">Open Project</Button>
-                        </Link>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {projectDecisions.length === 0 && unsharedProjects.length === 0 && (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <p className="text-muted-foreground text-sm mb-4">No projects yet.</p>
-                  <Link href="/projects/new">
-                    <Button variant="outline" size="sm">
-                      <Plus className="w-3.5 h-3.5 mr-1.5" />
-                      Create a Project
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            )}
+              </CardHeader>
+              <CardContent>
+                <EnterpriseProjectAssignment
+                  teamId={team.id}
+                  allProjects={userProjects}
+                  assignedProjectIds={teamProjectIds}
+                />
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Notes & Reactions Tab */}
