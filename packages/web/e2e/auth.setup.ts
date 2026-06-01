@@ -1,6 +1,7 @@
 import { test as setup } from '@playwright/test';
 import { setupClerkTestingToken, clerk } from '@clerk/testing/playwright';
 import path from 'path';
+import fs from 'fs';
 
 // Email address of the dedicated E2E test account in Clerk.
 // The account must exist in your Clerk instance.
@@ -22,8 +23,9 @@ const authFile = path.join(__dirname, '.auth/user.json');
  */
 setup('authenticate', async ({ page, context }) => {
   if (!TEST_EMAIL) {
-    console.warn('⚠️  E2E_TEST_EMAIL not set — skipping authenticated setup');
-    setup.skip();
+    console.warn('⚠️  E2E_TEST_EMAIL not set — writing empty storage state so chromium-authenticated can start');
+    fs.mkdirSync(path.dirname(authFile), { recursive: true });
+    fs.writeFileSync(authFile, JSON.stringify({ cookies: [], origins: [] }));
     return;
   }
 

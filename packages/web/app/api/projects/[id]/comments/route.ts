@@ -17,6 +17,7 @@ import { z } from 'zod';
 import { errorResponse } from '@/lib/api/error-response';
 import { log } from '@/lib/logger';
 import { notifyNewComment } from '@/lib/comments/notify';
+import { ensureProfile } from '@/lib/ensure-profile';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -125,6 +126,14 @@ export async function POST(request: Request, { params }: RouteParams) {
 
   const { text, body: bodyAlias, sceneIndex, audioTimestampMs, reactionType } = parsed.data;
   const noteText = text ?? bodyAlias ?? null;
+
+  // Ensure profile exists before FK-constrained INSERT (Clerk webhook may not have fired yet)
+  try {
+    await ensureProfile(userId);
+  } catch (err) {
+    log.error('[Comments] ensureProfile failed', { userId, error: err });
+    return errorResponse('Profile not ready — please refresh and try again', 503);
+  }
 
   // Reaction upsert: atomic delete-then-insert to prevent duplicate rows under concurrent requests
   const comment = await prisma.$transaction(async (tx) => {

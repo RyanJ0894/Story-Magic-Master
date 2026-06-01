@@ -31,6 +31,11 @@ vi.mock('@/lib/db', () => ({ prisma: mockPrisma }));
 vi.mock('@/lib/logger', () => ({ log: { info: vi.fn(), error: vi.fn(), warn: vi.fn() } }));
 vi.mock('@/lib/comments/notify', () => ({ notifyNewComment: vi.fn() }));
 
+const mockEnsureProfile = vi.fn().mockResolvedValue({ id: 'user_owner' });
+vi.mock('@/lib/ensure-profile', () => ({
+  ensureProfile: (...args: unknown[]) => mockEnsureProfile(...args),
+}));
+
 const { GET, POST } = await import('@/app/api/projects/[id]/comments/route');
 const { DELETE } = await import('@/app/api/projects/[id]/comments/[commentId]/route');
 
@@ -118,6 +123,7 @@ describe('POST /api/projects/[id]/comments — text note', () => {
     mockPrisma.scriptShare.findFirst.mockResolvedValue(null);
     mockPrisma.projectComment.create.mockResolvedValue(BASE_COMMENT);
     mockPrisma.projectComment.deleteMany.mockResolvedValue({ count: 0 });
+    mockEnsureProfile.mockResolvedValue({ id: USER_ID });
   });
 
   it('creates a comment with sceneIndex + audioTimestampMs', async () => {
@@ -170,6 +176,7 @@ describe('POST /api/projects/[id]/comments — reaction upsert', () => {
       body: null,
       reactionType: 'like',
     });
+    mockEnsureProfile.mockResolvedValue({ id: USER_ID });
   });
 
   it('deletes existing reaction for same user+scene then inserts new', async () => {

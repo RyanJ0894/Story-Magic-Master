@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Search, MoreHorizontal, Mail, Ban, Shield, Eye } from 'lucide-react';
 import Link from 'next/link';
+import { GrantCreditsButton } from '@/components/admin/GrantCreditsButton';
 
 interface Props {
   searchParams: Promise<{ page?: string; search?: string; type?: string }>;
@@ -225,6 +226,12 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                         <DropdownMenuItem disabled>
                           <Shield className="w-4 h-4 mr-2" />
                           Change Role (coming soon)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <GrantCreditsButton
+                            userId={user.id}
+                            userName={user.fullName ?? 'Unknown'}
+                          />
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem disabled className="text-destructive">

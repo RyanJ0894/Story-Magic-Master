@@ -100,6 +100,7 @@ export const AuditActions = {
   ADMIN_USER_SUSPEND: 'admin.user_suspend',
   ADMIN_SUBSCRIPTION_MODIFY: 'admin.subscription_modify',
   ADMIN_SETTINGS_UPDATE: 'admin.settings_update',
+  ADMIN_CREDIT_GRANT: 'admin.credit_grant',
 } as const;
 
 export type AuditAction = (typeof AuditActions)[keyof typeof AuditActions];
