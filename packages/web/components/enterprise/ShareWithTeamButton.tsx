@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/lib/api/fetch';
@@ -14,6 +15,7 @@ interface Props {
 export function ShareWithTeamButton({ projectId, teamId }: Props) {
   const [loading, setLoading] = useState(false);
   const [shared, setShared] = useState(false);
+  const router = useRouter();
 
   const handleShare = async () => {
     setLoading(true);
@@ -31,8 +33,7 @@ export function ShareWithTeamButton({ projectId, teamId }: Props) {
 
       setShared(true);
       toast.success('Project shared with team');
-      // Reload page to move the project from "unshared" to "shared" section
-      window.location.reload();
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to share');
     } finally {
