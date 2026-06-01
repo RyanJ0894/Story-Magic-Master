@@ -23,10 +23,12 @@ export const test = base.extend<object>({
   page: async ({ page }, use) => {
     await setupClerkTestingToken({ page });
 
+    // Always navigate to root so the page has a valid origin — tests that use
+    // page.evaluate() with fetch() need a non-null base URL regardless of auth.
+    await page.goto('/');
+    await page.waitForLoadState('networkidle', { timeout: 15_000 });
+
     if (TEST_EMAIL) {
-      // Load the public root page so Clerk.js initialises in the browser
-      await page.goto('/');
-      await page.waitForLoadState('networkidle', { timeout: 15_000 });
       try {
         await clerk.signIn({ page, emailAddress: TEST_EMAIL });
       } catch (err) {
