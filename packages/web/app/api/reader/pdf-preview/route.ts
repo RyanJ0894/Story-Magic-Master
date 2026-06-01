@@ -15,9 +15,6 @@ import { NextResponse } from 'next/server';
 import { log } from '@/lib/logger';
 
 const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB — matches parse-screenplay.ts
-// A scanned page averages ~0 extractable chars; a text PDF ~250–400 chars/page.
-// Threshold of 50 chars/page catches near-blank text layers from bad exports.
-const OCR_CHARS_PER_PAGE_THRESHOLD = 50;
 
 export async function POST(request: Request) {
   const { userId } = await auth();
@@ -59,21 +56,17 @@ export async function POST(request: Request) {
 
     const { text, numpages } = await pdfParse(buffer);
 
-    const needsOCR = text.trim().length < numpages * OCR_CHARS_PER_PAGE_THRESHOLD;
-
     log.info('[PDFPreview] Analyzed PDF', {
       userId,
       name: file.name,
       pages: numpages,
       textLength: text.length,
-      needsOCR,
     });
 
     return NextResponse.json({
       name: file.name,
       size: file.size,
       pageCount: numpages,
-      needsOCR,
     });
   } catch (error) {
     log.error('[PDFPreview] Failed to parse PDF', { userId, error });

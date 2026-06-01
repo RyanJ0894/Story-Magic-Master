@@ -127,12 +127,11 @@ function createPaymentRequest(body: Record<string, unknown>): NextRequest {
 function createProcessRequest(
   file: File | null,
   name: string | null,
-  needsOCR = false,
 ): NextRequest {
   const formData = new FormData();
   if (file) formData.append('file', file);
   if (name) formData.append('name', name);
-  formData.append('needsOCR', String(needsOCR));
+  formData.append('needsOCR', 'false');
 
   return new NextRequest(`${BASE_URL}/api/reader/upload/process`, {
     method: 'POST',
@@ -168,7 +167,7 @@ describe('Reader Upload Create Payment (POST /api/reader/upload/create-payment)'
     it('returns 401 when not authenticated', async () => {
       mockAuth.mockResolvedValue({ userId: null });
 
-      const request = createPaymentRequest({ price: 5, needsOCR: false });
+      const request = createPaymentRequest({ price: 5 });
       const response = await createPaymentPOST(request);
 
       expect(response.status).toBe(401);
@@ -180,7 +179,7 @@ describe('Reader Upload Create Payment (POST /api/reader/upload/create-payment)'
 
   describe('Input validation', () => {
     it('returns 400 for invalid price value', async () => {
-      const request = createPaymentRequest({ price: 10, needsOCR: false });
+      const request = createPaymentRequest({ price: 8 });
       const response = await createPaymentPOST(request);
 
       expect(response.status).toBe(400);
@@ -189,39 +188,14 @@ describe('Reader Upload Create Payment (POST /api/reader/upload/create-payment)'
     });
 
     it('returns 400 for missing price', async () => {
-      const request = createPaymentRequest({ needsOCR: false });
+      const request = createPaymentRequest({});
       const response = await createPaymentPOST(request);
 
       expect(response.status).toBe(400);
-    });
-
-    it('returns 400 for missing needsOCR', async () => {
-      const request = createPaymentRequest({ price: 5 });
-      const response = await createPaymentPOST(request);
-
-      expect(response.status).toBe(400);
-    });
-
-    it('returns 400 when price does not match OCR selection (OCR price with needsOCR=false)', async () => {
-      const request = createPaymentRequest({ price: 8, needsOCR: false });
-      const response = await createPaymentPOST(request);
-
-      expect(response.status).toBe(400);
-      const json = await response.json();
-      expect(json.error).toBe('Invalid price');
-    });
-
-    it('returns 400 when price does not match OCR selection (standard price with needsOCR=true)', async () => {
-      const request = createPaymentRequest({ price: 5, needsOCR: true });
-      const response = await createPaymentPOST(request);
-
-      expect(response.status).toBe(400);
-      const json = await response.json();
-      expect(json.error).toBe('Invalid price');
     });
 
     it('returns 400 for non-numeric price', async () => {
-      const request = createPaymentRequest({ price: 'five', needsOCR: false });
+      const request = createPaymentRequest({ price: 'five' });
       const response = await createPaymentPOST(request);
 
       expect(response.status).toBe(400);
@@ -245,40 +219,17 @@ describe('Reader Upload Create Payment (POST /api/reader/upload/create-payment)'
   });
 
   describe('Success cases', () => {
-    it('creates checkout session for standard upload ($5)', async () => {
-      const request = createPaymentRequest({
-        price: 5,
-        needsOCR: false,
-        scriptName: 'My Script',
-      });
+    it('creates checkout session ($5)', async () => {
+      const request = createPaymentRequest({ price: 5, scriptName: 'My Script' });
       const response = await createPaymentPOST(request);
 
       expect(response.status).toBe(200);
       const json = await response.json();
-      expect(json.url).toBe(
-        'https://checkout.stripe.com/pay/cs_test_session_id',
-      );
+      expect(json.url).toBe('https://checkout.stripe.com/pay/cs_test_session_id');
     });
 
-    it('creates checkout session for OCR upload ($8)', async () => {
-      const request = createPaymentRequest({
-        price: 8,
-        needsOCR: true,
-        scriptName: 'Scanned Script',
-      });
-      const response = await createPaymentPOST(request);
-
-      expect(response.status).toBe(200);
-      const json = await response.json();
-      expect(json.url).toBeDefined();
-    });
-
-    it('calls Stripe with correct line item for standard upload', async () => {
-      const request = createPaymentRequest({
-        price: 5,
-        needsOCR: false,
-        scriptName: 'Test Script',
-      });
+    it('calls Stripe with correct line item', async () => {
+      const request = createPaymentRequest({ price: 5, scriptName: 'Test Script' });
       await createPaymentPOST(request);
 
       expect(mockCheckoutSessionsCreate).toHaveBeenCalledWith(
@@ -299,44 +250,13 @@ describe('Reader Upload Create Payment (POST /api/reader/upload/create-payment)'
           metadata: expect.objectContaining({
             userId: 'user-123',
             type: 'reader_upload',
-            needsOCR: 'false',
-          }),
-        }),
-      );
-    });
-
-    it('calls Stripe with correct line item for OCR upload', async () => {
-      const request = createPaymentRequest({
-        price: 8,
-        needsOCR: true,
-        scriptName: 'OCR Script',
-      });
-      await createPaymentPOST(request);
-
-      expect(mockCheckoutSessionsCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          line_items: [
-            expect.objectContaining({
-              price_data: expect.objectContaining({
-                unit_amount: 800,
-                product_data: expect.objectContaining({
-                  description: 'OCR + standard processing',
-                }),
-              }),
-            }),
-          ],
-          metadata: expect.objectContaining({
-            needsOCR: 'true',
           }),
         }),
       );
     });
 
     it('records purchase intent in database', async () => {
-      const request = createPaymentRequest({
-        price: 5,
-        needsOCR: false,
-      });
+      const request = createPaymentRequest({ price: 5 });
       await createPaymentPOST(request);
 
       expect(mockPrisma.purchase.create).toHaveBeenCalledWith({
@@ -350,28 +270,8 @@ describe('Reader Upload Create Payment (POST /api/reader/upload/create-payment)'
       });
     });
 
-    it('records OCR purchase type when needsOCR is true', async () => {
-      const request = createPaymentRequest({
-        price: 8,
-        needsOCR: true,
-      });
-      await createPaymentPOST(request);
-
-      expect(mockPrisma.purchase.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            purchaseType: 'upload_ocr',
-            amountCents: 800,
-          }),
-        }),
-      );
-    });
-
     it('uses default script name when not provided', async () => {
-      const request = createPaymentRequest({
-        price: 5,
-        needsOCR: false,
-      });
+      const request = createPaymentRequest({ price: 5 });
       await createPaymentPOST(request);
 
       expect(mockCheckoutSessionsCreate).toHaveBeenCalledWith(
@@ -396,7 +296,7 @@ describe('Reader Upload Create Payment (POST /api/reader/upload/create-payment)'
         new Error('Stripe API error'),
       );
 
-      const request = createPaymentRequest({ price: 5, needsOCR: false });
+      const request = createPaymentRequest({ price: 5 });
       const response = await createPaymentPOST(request);
 
       expect(response.status).toBe(500);
@@ -470,11 +370,7 @@ describe('Reader Upload Process (POST /api/reader/upload/process)', () => {
 
   describe('Success cases', () => {
     it('creates project, library entry, and job on successful upload', async () => {
-      const request = createProcessRequest(
-        createPDFFile(),
-        'My Script',
-        false,
-      );
+      const request = createProcessRequest(createPDFFile(), 'My Script');
       const response = await processPOST(request);
 
       expect(response.status).toBe(200);
@@ -485,11 +381,7 @@ describe('Reader Upload Process (POST /api/reader/upload/process)', () => {
     });
 
     it('creates project record with correct data', async () => {
-      const request = createProcessRequest(
-        createPDFFile(),
-        'My Script',
-        false,
-      );
+      const request = createProcessRequest(createPDFFile(), 'My Script');
       await processPOST(request);
 
       expect(mockPrisma.project.create).toHaveBeenCalledWith({
@@ -502,11 +394,7 @@ describe('Reader Upload Process (POST /api/reader/upload/process)', () => {
     });
 
     it('adds entry to reader library', async () => {
-      const request = createProcessRequest(
-        createPDFFile(),
-        'My Script',
-        false,
-      );
+      const request = createProcessRequest(createPDFFile(), 'My Script');
       await processPOST(request);
 
       expect(mockPrisma.readerLibrary.create).toHaveBeenCalledWith({
@@ -519,11 +407,7 @@ describe('Reader Upload Process (POST /api/reader/upload/process)', () => {
     });
 
     it('creates job with pdf_extract type for standard upload', async () => {
-      const request = createProcessRequest(
-        createPDFFile(),
-        'My Script',
-        false,
-      );
+      const request = createProcessRequest(createPDFFile(), 'My Script');
       await processPOST(request);
 
       expect(mockPrisma.job.create).toHaveBeenCalledWith({
@@ -535,27 +419,8 @@ describe('Reader Upload Process (POST /api/reader/upload/process)', () => {
       });
     });
 
-    it('creates job with ocr_extract type for OCR upload', async () => {
-      const request = createProcessRequest(
-        createPDFFile(),
-        'My Script',
-        true,
-      );
-      await processPOST(request);
-
-      expect(mockPrisma.job.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          jobType: 'ocr_extract',
-        }),
-      });
-    });
-
     it('saves uploaded file to disk', async () => {
-      const request = createProcessRequest(
-        createPDFFile(),
-        'My Script',
-        false,
-      );
+      const request = createProcessRequest(createPDFFile(), 'My Script');
       await processPOST(request);
 
       expect(mockMkdirSync).toHaveBeenCalledWith(
@@ -572,11 +437,7 @@ describe('Reader Upload Process (POST /api/reader/upload/process)', () => {
         new Error('Database error'),
       );
 
-      const request = createProcessRequest(
-        createPDFFile(),
-        'My Script',
-        false,
-      );
+      const request = createProcessRequest(createPDFFile(), 'My Script');
       const response = await processPOST(request);
 
       expect(response.status).toBe(500);
@@ -589,11 +450,7 @@ describe('Reader Upload Process (POST /api/reader/upload/process)', () => {
         new Error('Duplicate entry'),
       );
 
-      const request = createProcessRequest(
-        createPDFFile(),
-        'My Script',
-        false,
-      );
+      const request = createProcessRequest(createPDFFile(), 'My Script');
       const response = await processPOST(request);
 
       // Should still succeed because library error is caught
