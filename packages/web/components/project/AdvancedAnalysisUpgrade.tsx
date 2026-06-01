@@ -11,6 +11,7 @@
  */
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +23,7 @@ interface AdvancedAnalysisUpgradeProps {
 }
 
 export function AdvancedAnalysisUpgrade({ projectId, purchased: initialPurchased }: AdvancedAnalysisUpgradeProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(() => {
@@ -57,8 +59,8 @@ export function AdvancedAnalysisUpgrade({ projectId, purchased: initialPurchased
       const data = (await response.json()) as { url?: string; purchased?: boolean; alreadyOwned?: boolean };
 
       if (data.alreadyOwned) {
-        // Already purchased — reload the page to reflect the state
-        window.location.reload();
+        // Soft RSC refresh keeps JS chunks consistent (avoids HMR hash mismatch)
+        router.refresh();
         return;
       }
 
