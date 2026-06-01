@@ -212,6 +212,28 @@ export async function POST(request: Request) {
           break;
         }
 
+        // --- Script upload payment ---
+        if (session.metadata?.type === 'reader_upload') {
+          const { purchaseId } = session.metadata;
+          if (purchaseId) {
+            const paymentIntentId = session.payment_intent
+              ? typeof session.payment_intent === 'string'
+                ? session.payment_intent
+                : session.payment_intent.id
+              : null;
+
+            await prisma.purchase.update({
+              where: { id: purchaseId },
+              data: {
+                status: 'completed',
+                ...(paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : {}),
+              },
+            });
+            log.info('reader_upload purchase completed', { purchaseId, paymentIntentId });
+          }
+          break;
+        }
+
         // --- Subscription checkout ---
         if (userId && customerId && subscriptionId) {
           // Update both Profile and Subscription in parallel

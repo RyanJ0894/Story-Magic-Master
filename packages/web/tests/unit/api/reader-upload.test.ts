@@ -250,24 +250,35 @@ describe('Reader Upload Create Payment (POST /api/reader/upload/create-payment)'
           metadata: expect.objectContaining({
             userId: 'user-123',
             type: 'reader_upload',
+            purchaseId: 'test-purchase-id',
           }),
         }),
       );
     });
 
-    it('records purchase intent in database', async () => {
+    it('records purchase intent in database before creating Stripe session', async () => {
       const request = createPaymentRequest({ price: 5 });
       await createPaymentPOST(request);
 
+      // Purchase is created first (no stripePaymentIntentId — that's filled
+      // in later by the checkout.session.completed webhook with the real pi_... ID)
       expect(mockPrisma.purchase.create).toHaveBeenCalledWith({
         data: {
           userId: 'user-123',
           purchaseType: 'upload',
           amountCents: 500,
-          stripePaymentIntentId: 'cs_test_session_id',
           status: 'pending',
         },
       });
+
+      // Stripe session includes purchaseId so webhook can update the record
+      expect(mockCheckoutSessionsCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            purchaseId: 'test-purchase-id',
+          }),
+        }),
+      );
     });
 
     it('uses default script name when not provided', async () => {
