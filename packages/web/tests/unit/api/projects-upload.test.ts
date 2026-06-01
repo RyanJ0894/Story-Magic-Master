@@ -254,4 +254,60 @@ describe('POST /api/projects/upload', () => {
     expect(data.id).toBe(PROJECT_ID);
     expect(mockParseScreenplay).toHaveBeenCalledWith(expect.any(Buffer), 'script.fdx');
   });
+
+  // ── Description field (#85) ────────────────────────────────────────────────
+
+  it('persists description when provided', async () => {
+    const file = createFile('INT. OFFICE - DAY', 'script.txt', 'text/plain');
+    const request = createFormDataRequest({ file, description: 'A thriller about corporate espionage.' });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(201);
+    expect(mockCreateProject).toHaveBeenCalledWith(
+      expect.anything(),
+      'user_test123',
+      expect.objectContaining({ description: 'A thriller about corporate espionage.' })
+    );
+  });
+
+  it('passes null description when field is omitted', async () => {
+    const file = createFile('INT. OFFICE - DAY', 'script.txt', 'text/plain');
+    const request = createFormDataRequest({ file, name: 'Unnamed' });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(201);
+    expect(mockCreateProject).toHaveBeenCalledWith(
+      expect.anything(),
+      'user_test123',
+      expect.objectContaining({ description: null })
+    );
+  });
+
+  it('passes null description when field is whitespace only', async () => {
+    const file = createFile('INT. OFFICE - DAY', 'script.txt', 'text/plain');
+    const request = createFormDataRequest({ file, description: '   ' });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(201);
+    expect(mockCreateProject).toHaveBeenCalledWith(
+      expect.anything(),
+      'user_test123',
+      expect.objectContaining({ description: null })
+    );
+  });
+
+  it('rejects description longer than 500 characters', async () => {
+    const file = createFile('INT. OFFICE - DAY', 'script.txt', 'text/plain');
+    const request = createFormDataRequest({ file, description: 'x'.repeat(501) });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.code).toBe('DESCRIPTION_TOO_LONG');
+    expect(mockCreateProject).not.toHaveBeenCalled();
+  });
 });

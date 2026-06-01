@@ -48,6 +48,16 @@ const nextConfig = {
   // packages/shared/src/generated/ that Next.js misreads as file modifications,
   // causing spurious HMR recompilation and server action ID churn.
   webpack: (config, { dev }) => {
+    // require-in-the-middle (pulled in by @opentelemetry/instrumentation via @sentry/node)
+    // uses dynamic require() that webpack cannot statically analyze. The warning is a
+    // false positive — the package works correctly at runtime. Suppress it here because
+    // instrumentation.ts has a top-level @sentry/nextjs import that pulls the whole
+    // chain into the bundle before serverExternalPackages can intercept it.
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      { module: /require-in-the-middle/ },
+    ];
+
     if (dev) {
       config.watchOptions = {
         ...config.watchOptions,
