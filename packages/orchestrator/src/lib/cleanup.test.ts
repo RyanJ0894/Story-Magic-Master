@@ -10,17 +10,11 @@ vi.mock('./logger.js', () => ({
 
 vi.mock('./env.js', () => ({
   getOutputDir: vi.fn(() => '/fake/output'),
+  getStemsDir: vi.fn(() => '/nonexistent/stems'),
 }));
 
-import { getStemsDir, getDiskUsage, runCleanup } from './cleanup.js';
-import { getOutputDir } from './env.js';
-
-describe('getStemsDir', () => {
-  it('returns a path ending in data/stems relative to cwd', () => {
-    const dir = getStemsDir();
-    expect(dir).toBe(path.join(process.cwd(), 'data', 'stems'));
-  });
-});
+import { getDiskUsage, runCleanup } from './cleanup.js';
+import { getOutputDir, getStemsDir } from './env.js';
 
 describe('getDiskUsage', () => {
   it('returns zero counts when output dir does not exist', () => {

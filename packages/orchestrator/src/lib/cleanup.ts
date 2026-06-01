@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { log } from './logger.js';
-import { getOutputDir } from './env.js';
+import { getOutputDir, getStemsDir } from './env.js';
 
 const PREVIEW_TTL_DAYS = 7;
 const FULL_AUDIO_TTL_DAYS = 30;
@@ -9,9 +9,7 @@ const FULL_AUDIO_TTL_DAYS = 30;
 // 2 days is generous — any job running longer than that has bigger problems.
 const STEMS_TTL_DAYS = 2;
 
-export function getStemsDir(): string {
-  return path.join(process.cwd(), 'data', 'stems');
-}
+export { getStemsDir } from './env.js';
 
 /**
  * Remove files older than the given TTL (in days)

@@ -159,6 +159,13 @@ export function getOutputDir(): string {
 }
 
 /**
+ * Get the stems scratch directory (ephemeral PCM/WAV files created during mixing).
+ */
+export function getStemsDir(): string {
+  return path.join(process.cwd(), 'data', 'stems');
+}
+
+/**
  * Print startup environment summary
  */
 export function printEnvSummary(): void {

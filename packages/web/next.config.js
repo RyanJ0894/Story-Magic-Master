@@ -2,6 +2,13 @@ const { withSentryConfig } = require('@sentry/nextjs');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // eval-source-map (Next.js default) routes eval() through the browser's
+  // Trusted Types API via webpack's __webpack_require__.ts helper. Some
+  // Chromium builds enforce Trusted Types independently of CSP, causing
+  // "Invalid or unexpected token" SyntaxErrors at the eval() call site.
+  // cheap-module-source-map avoids eval() entirely while still giving
+  // accurate dev-mode source maps.
+  ...(process.env.NODE_ENV === 'development' && { devtool: 'cheap-module-source-map' }),
   // Bake the build timestamp into the client bundle so each deploy is
   // identifiable in the footer and in the browser console.
   env: {
