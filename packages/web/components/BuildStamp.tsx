@@ -28,7 +28,6 @@ export function BuildStamp() {
       : BUILD_TIME.replace('T', ' ').slice(0, 16) + ' UTC';
 
   return (
-    // eslint-disable-next-line react/no-danger-with-children
     <span
       className="text-[10px] text-muted-foreground/40 select-none"
       title={BUILD_TIME}

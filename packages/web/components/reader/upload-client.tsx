@@ -14,7 +14,6 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Upload,
   FileText,
-  ScanLine,
   Loader2,
   CheckCircle,
   AlertCircle,
@@ -33,7 +32,6 @@ interface PDFPreview {
   name: string;
   size: number;
   pageCount: number;
-  needsOCR: boolean;
 }
 
 export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
@@ -50,7 +48,7 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const price = preview?.needsOCR ? 8 : 5;
+  const price = 5;
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -144,7 +142,6 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           price,
-          needsOCR: preview?.needsOCR,
           scriptName,
         }),
       });
@@ -154,65 +151,10 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
       }
 
       const { url } = await paymentResponse.json();
-      if (url) {
-        window.location.href = url;
-        return;
+      if (!url) {
+        throw new Error('Payment session created but no redirect URL returned');
       }
-
-      // Fallback: if no URL returned, proceed with processing
-      setStep('processing');
-      setUploadProgress(10);
-
-      // Step 2: Upload file
-      setProcessingStatus('Uploading script...');
-      setUploadProgress(30);
-
-      const formData = new FormData();
-      formData.append('file', file!);
-      formData.append('name', scriptName);
-      formData.append('needsOCR', String(preview?.needsOCR || false));
-
-      const uploadResponse = await apiFetch('/api/reader/upload/process', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error('Upload failed');
-      }
-
-      const { projectId, jobId } = await uploadResponse.json();
-
-      // Step 3: Monitor processing
-      setProcessingStatus('Parsing script...');
-      setUploadProgress(50);
-
-      // Poll for completion
-      let attempts = 0;
-      const maxAttempts = 60; // 5 minutes max
-
-      while (attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        attempts++;
-
-        const statusResponse = await apiFetch(`/api/jobs/${jobId}/status`);
-        const { status, progress, message } = await statusResponse.json();
-
-        setProcessingStatus(message || 'Processing...');
-        setUploadProgress(50 + (progress || 0) * 0.5);
-
-        if (status === 'completed') {
-          setStep('complete');
-          setUploadProgress(100);
-          return;
-        }
-
-        if (status === 'failed') {
-          throw new Error(message || 'Processing failed');
-        }
-      }
-
-      throw new Error('Processing timed out');
+      window.location.href = url;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       setStep('preview');
@@ -289,7 +231,7 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
           <CardHeader>
             <CardTitle>Upload PDF Script</CardTitle>
             <CardDescription>
-              Upload a screenplay in PDF format. Scanned documents require OCR processing.
+              Upload a screenplay in PDF format (text-based PDFs only).
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -331,15 +273,9 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
                 <Info className="w-4 h-4 text-blue-500" />
                 Pricing
               </h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Standard PDF (text-based)</span>
-                  <span className="font-medium">$5</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Scanned PDF (requires OCR)</span>
-                  <span className="font-medium">$8</span>
-                </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Per script</span>
+                <span className="font-medium">$5</span>
               </div>
             </div>
           </CardContent>
@@ -374,14 +310,8 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{preview.name}</p>
                 <p className="text-sm text-muted-foreground">
-                  {formatFileSize(preview.size)} • ~{preview.pageCount} pages
+                  {formatFileSize(preview.size)} • {preview.pageCount} pages
                 </p>
-                {preview.needsOCR && (
-                  <Badge variant="secondary" className="mt-2">
-                    <ScanLine className="w-3 h-3 mr-1" />
-                    Requires OCR
-                  </Badge>
-                )}
               </div>
               <Button variant="ghost" size="icon" onClick={handleClearFile}>
                 <X className="w-4 h-4" />
@@ -415,9 +345,7 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium">Total</p>
-                <p className="text-sm text-muted-foreground">
-                  {preview.needsOCR ? 'OCR processing included' : 'Standard processing'}
-                </p>
+                <p className="text-sm text-muted-foreground">Standard processing</p>
               </div>
               <p className="text-2xl font-bold">${price}</p>
             </div>
