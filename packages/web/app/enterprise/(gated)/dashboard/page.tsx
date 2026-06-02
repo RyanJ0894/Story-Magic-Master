@@ -47,6 +47,12 @@ export default async function EnterpriseDashboardPage() {
   const { userId } = await auth();
   if (!userId) redirect('/login');
 
+  // Load profile for UI display (gate is handled by the (gated) layout)
+  const profile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { fullName: true, email: true, subscriptionTier: true },
+  });
+
   // Load the team owned by this user
   const team = await prisma.team.findFirst({
     where: { ownerId: userId },
@@ -134,10 +140,6 @@ export default async function EnterpriseDashboardPage() {
       ])
     : [[], 0, 0];
 
-  const profile = await prisma.profile.findUnique({
-    where: { id: userId },
-    select: { fullName: true, email: true, subscriptionTier: true },
-  });
   const seatLimit = TIER_SEAT_LIMITS[profile?.subscriptionTier ?? 'creator'] ?? 30;
 
   return (
