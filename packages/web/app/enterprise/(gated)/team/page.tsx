@@ -10,8 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Users, Mail, Trash2, Plus, ArrowLeft } from 'lucide-react';
-import { apiFetch } from '@/lib/api/fetch';
+import { Users, Mail, Trash2, Plus, ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface TeamMember {
   id: string;
@@ -43,6 +42,7 @@ export default function EnterpriseTeamPage() {
   const [inviting, setInviting] = useState(false);
   const [teamName, setTeamName] = useState('');
   const [creatingTeam, setCreatingTeam] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const loadTeams = useCallback(async () => {
     try {
@@ -51,8 +51,6 @@ export default function EnterpriseTeamPage() {
       const data = await res.json();
       const owned: Team[] = data.owned ?? [];
       setTeams(owned);
-      // Always sync selectedTeam from fresh data so member list reflects changes
-      // (delete/invite) without requiring a page reload.
       setSelectedTeam(prev => {
         if (!prev) return owned[0] ?? null;
         return owned.find(t => t.id === prev.id) ?? owned[0] ?? null;
@@ -71,16 +69,17 @@ export default function EnterpriseTeamPage() {
     if (!teamName.trim()) return;
     setCreatingTeam(true);
     try {
-      const res = await apiFetch('/api/teams', {
+      const res = await fetch('/api/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: teamName.trim() }),
       });
       if (!res.ok) throw new Error('Failed to create team');
       setTeamName('');
-      // Reload to get full Team shape including members array
-      await loadTeams();
+      setShowCreateForm(false);
       toast.success('Team created!');
+      // Reload full list to get accurate state from server
+      await loadTeams();
     } catch {
       toast.error('Failed to create team');
     } finally {
@@ -149,23 +148,38 @@ export default function EnterpriseTeamPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
-        <div className="flex items-center gap-3 mb-8">
-          <Link href="/enterprise/dashboard">
-            <Button variant="ghost" size="sm" className="gap-1.5">
-              <ArrowLeft className="w-4 h-4" />
-              Dashboard
+        {/* Header row */}
+        <div className="flex items-center justify-between gap-3 mb-8">
+          <div className="flex items-center gap-3">
+            <Link href="/enterprise/dashboard">
+              <Button variant="ghost" size="sm" className="gap-1.5">
+                <ArrowLeft className="w-4 h-4" />
+                Dashboard
+              </Button>
+            </Link>
+            <h1 className="text-xl font-bold">Team Management</h1>
+          </div>
+          {/* Show "New Team" toggle only when at least one team exists */}
+          {teams.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setShowCreateForm(v => !v)}
+            >
+              {showCreateForm ? <ChevronDown className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+              New Team
             </Button>
-          </Link>
-          <h1 className="text-xl font-bold">Team Management</h1>
+          )}
         </div>
 
-        {teams.length === 0 ? (
-          /* Create first team */
-          <Card className="max-w-md">
+        {/* Create form — shown when no teams, OR when user toggled it open */}
+        {(teams.length === 0 || showCreateForm) && (
+          <Card className="max-w-md mb-6">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <Users className="w-4 h-4" />
-                Create Your Team
+                {teams.length === 0 ? 'Create Your Team' : 'Create New Team'}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -178,144 +192,196 @@ export default function EnterpriseTeamPage() {
                     onChange={e => setTeamName(e.target.value)}
                     placeholder="e.g. Answers Film LLC"
                     className="mt-1"
-                    autoFocus
+                    autoFocus={showCreateForm}
                   />
                 </div>
-                <Button type="submit" disabled={creatingTeam || !teamName.trim()} className="w-full brand-gradient brand-gradient-hover">
-                  {creatingTeam ? 'Creating...' : 'Create Team'}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    type="submit"
+                    disabled={creatingTeam || !teamName.trim()}
+                    className="flex-1 brand-gradient brand-gradient-hover"
+                  >
+                    {creatingTeam ? 'Creating...' : 'Create Team'}
+                  </Button>
+                  {teams.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => { setShowCreateForm(false); setTeamName(''); }}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                </div>
               </form>
             </CardContent>
           </Card>
-        ) : (
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Invite member */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Mail className="w-4 h-4" />
-                  Invite Member
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={inviteMember} className="space-y-4">
-                  <div>
-                    <Label htmlFor="email">Email Address</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={inviteEmail}
-                      onChange={e => setInviteEmail(e.target.value)}
-                      placeholder="actor@example.com"
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="role">Role</Label>
-                    <Select value={inviteRole} onValueChange={setInviteRole}>
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ROLES.map(r => (
-                          <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button type="submit" disabled={inviting || !inviteEmail.trim()} className="w-full brand-gradient brand-gradient-hover gap-1.5">
-                    <Plus className="w-4 h-4" />
-                    {inviting ? 'Sending Invite...' : 'Send Invite'}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
+        )}
 
-            {/* Member list */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Users className="w-4 h-4" />
-                  Members ({selectedTeam?.members.filter(m => m.status === 'accepted').length ?? 0})
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Active members */}
-                {(() => {
-                  const active = selectedTeam?.members.filter(m => m.status === 'accepted') ?? [];
-                  return active.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No active members yet. Invite your first team member.
-                    </p>
-                  ) : (
-                    <div className="max-h-[360px] overflow-y-auto space-y-2 pr-1">
-                      {active.map(m => (
-                        <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
-                          <div className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center text-sm font-medium text-violet-600 dark:text-violet-400 shrink-0">
-                            {(m.user?.fullName ?? m.invitedEmail ?? '?')[0].toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">
-                              {m.user?.fullName ?? m.invitedEmail}
-                            </p>
-                            <Badge variant="secondary" className="text-xs capitalize mt-0.5">{m.role}</Badge>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              const name = m.user?.fullName ?? m.invitedEmail ?? 'this member';
-                              if (!window.confirm(`Remove ${name} from the team? Their account will be disabled.`)) return;
-                              void removeMember(m.id);
-                            }}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
+        {/* Team list + management — only when teams exist */}
+        {teams.length > 0 && (
+          <div className="space-y-6">
+            {/* Team selector — tabs when multiple teams */}
+            {teams.length > 1 && (
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Select Team</p>
+                <div className="flex flex-wrap gap-2">
+                  {teams.map(t => (
+                    <Button
+                      key={t.id}
+                      variant={t.id === selectedTeam?.id ? 'default' : 'outline'}
+                      size="sm"
+                      className={t.id === selectedTeam?.id ? 'brand-gradient brand-gradient-hover' : ''}
+                      onClick={() => setSelectedTeam(teams.find(x => x.id === t.id) ?? null)}
+                    >
+                      {t.name}
+                      <Badge
+                        variant="secondary"
+                        className="ml-1.5 text-xs"
+                      >
+                        {t.members.filter(m => m.status === 'accepted').length}
+                      </Badge>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-                {/* Pending invitations */}
-                {(() => {
-                  const pending = selectedTeam?.members.filter(m => m.status === 'pending') ?? [];
-                  if (pending.length === 0) return null;
-                  return (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                        Pending Invitations ({pending.length})
-                      </p>
-                      <div className="max-h-[280px] overflow-y-auto space-y-2 pr-1">
-                        {pending.map(m => (
-                          <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/30 border border-dashed border-border">
-                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium text-muted-foreground shrink-0">
-                              {(m.invitedEmail ?? '?')[0].toUpperCase()}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm text-muted-foreground truncate">{m.invitedEmail}</p>
-                              <p className="text-xs text-muted-foreground/60">Invite pending</p>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => {
-                                if (!window.confirm(`Cancel invite for ${m.invitedEmail}?`)) return;
-                                void removeMember(m.id);
-                              }}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        ))}
+            {selectedTeam && (
+              <div className="grid gap-6 lg:grid-cols-2">
+                {/* Invite member */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Mail className="w-4 h-4" />
+                      Invite to {selectedTeam.name}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={inviteMember} className="space-y-4">
+                      <div>
+                        <Label htmlFor="email">Email Address</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          value={inviteEmail}
+                          onChange={e => setInviteEmail(e.target.value)}
+                          placeholder="actor@example.com"
+                          className="mt-1"
+                        />
                       </div>
-                    </div>
-                  );
-                })()}
-              </CardContent>
-            </Card>
+                      <div>
+                        <Label htmlFor="role">Role</Label>
+                        <Select value={inviteRole} onValueChange={setInviteRole}>
+                          <SelectTrigger className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ROLES.map(r => (
+                              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        type="submit"
+                        disabled={inviting || !inviteEmail.trim()}
+                        className="w-full brand-gradient brand-gradient-hover gap-1.5"
+                      >
+                        <Plus className="w-4 h-4" />
+                        {inviting ? 'Sending Invite...' : 'Send Invite'}
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                {/* Member list */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      Members ({selectedTeam.members.filter(m => m.status === 'accepted').length})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Active members */}
+                    {(() => {
+                      const active = selectedTeam.members.filter(m => m.status === 'accepted');
+                      return active.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          No active members yet. Invite your first team member.
+                        </p>
+                      ) : (
+                        <div className="max-h-[360px] overflow-y-auto space-y-2 pr-1">
+                          {active.map(m => (
+                            <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
+                              <div className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center text-sm font-medium text-violet-600 dark:text-violet-400 shrink-0">
+                                {(m.user?.fullName ?? m.invitedEmail ?? '?')[0].toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">
+                                  {m.user?.fullName ?? m.invitedEmail}
+                                </p>
+                                <Badge variant="secondary" className="text-xs capitalize mt-0.5">{m.role}</Badge>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => {
+                                  const name = m.user?.fullName ?? m.invitedEmail ?? 'this member';
+                                  if (!window.confirm(`Remove ${name} from the team? Their account will be disabled.`)) return;
+                                  void removeMember(m.id);
+                                }}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Pending invitations */}
+                    {(() => {
+                      const pending = selectedTeam.members.filter(m => m.status === 'pending');
+                      if (pending.length === 0) return null;
+                      return (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                            Pending Invitations ({pending.length})
+                          </p>
+                          <div className="max-h-[280px] overflow-y-auto space-y-2 pr-1">
+                            {pending.map(m => (
+                              <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/30 border border-dashed border-border">
+                                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium text-muted-foreground shrink-0">
+                                  {(m.invitedEmail ?? '?')[0].toUpperCase()}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-muted-foreground truncate">{m.invitedEmail}</p>
+                                  <p className="text-xs text-muted-foreground/60">Invite pending</p>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => {
+                                    if (!window.confirm(`Cancel invite for ${m.invitedEmail}?`)) return;
+                                    void removeMember(m.id);
+                                  }}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </div>
         )}
       </main>
