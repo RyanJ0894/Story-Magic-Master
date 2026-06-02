@@ -537,10 +537,10 @@ describe('mixScene', () => {
 
       const manifest = await mixScene(options);
 
-      // Default music_gain_db = -4
-      expect(manifest.inputs.music[0].gain_db).toBe(-4);
-      // Default ambience_gain_db = -6
-      expect(manifest.inputs.ambience[0].gain_db).toBe(-6);
+      // Default music_gain_db = -22 (film-standard background level, #96)
+      expect(manifest.inputs.music[0].gain_db).toBe(-22);
+      // Default ambience_gain_db = -18 (audible room tone, raised from -26, #96)
+      expect(manifest.inputs.ambience[0].gain_db).toBe(-18);
     });
 
     it('should use default sfx_gain_db = -4 when not specified', async () => {
@@ -557,7 +557,7 @@ describe('mixScene', () => {
 
       const manifest = await mixScene(options);
 
-      expect(manifest.inputs.sfx[0].gain_db).toBe(-4);
+      expect(manifest.inputs.sfx[0].gain_db).toBe(-12);
     });
   });
 

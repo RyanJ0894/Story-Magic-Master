@@ -5,8 +5,7 @@
  * 1. Score every voice in catalog (gender mismatch = instant 0)
  * 2. Age uses proximity scoring (adjacent ranges get partial credit)
  * 3. Style, narrative, tone are weighted soft scores
- * 4. Fallback to ElevenLabs API if local catalog is empty
- * 5. Ultimate fallback: default voices
+ * 4. Fallback to curated default voices (ElevenLabs API is NOT used — #94)
  *
  * Scoring model:
  * - Gender: hard gate (mismatch = score 0, match = no bonus, just eligible)
@@ -367,13 +366,16 @@ async function fetchElevenLabsVoices(params: {
 }
 
 /**
- * Main hybrid search function
+ * Main hybrid search function — curated-catalog-only (#94)
  *
  * Single-pass approach:
  * 1. Score every voice in catalog (gender gate eliminates wrong gender)
  * 2. Sort by score, return top K
- * 3. If local catalog yields nothing, try ElevenLabs API
- * 4. Ultimate fallback: default voice
+ * 3. If local catalog yields nothing, use a curated default voice
+ *
+ * The ElevenLabs API fallback has been intentionally removed: the API returns
+ * voices from ElevenLabs' global library which are NOT in the client's curated
+ * collection. We must only ever assign voices Ryan has approved.
  */
 export async function searchVoicesHybrid(params: VoiceSearchParams): Promise<VoiceSearchResult> {
   const {
@@ -431,33 +433,8 @@ export async function searchVoicesHybrid(params: VoiceSearchParams): Promise<Voi
     };
   }
 
-  // Fallback: Try ElevenLabs API
-  const apiVoices = await fetchElevenLabsVoices({
-    gender,
-    age: ageRange,
-    accent: effectiveStyle,
-  });
-
-  if (apiVoices.length > 0) {
-    const apiCandidates = apiVoices.filter((v) => !excludeVoiceIds.includes(v.voice_id));
-    const apiScored = apiCandidates.map((v) => ({
-      voice: v,
-      score: scoreVoiceMatch(v, criteria),
-    }));
-    const apiEligible = apiScored.filter((s) => s.score > 0 || !criteria.gender);
-    apiEligible.sort((a, b) => b.score - a.score);
-
-    if (apiEligible.length > 0 && apiEligible[0].score > 0) {
-      return {
-        success: true,
-        voices: apiEligible.slice(0, topK).map((s) => s.voice),
-        source: 'elevenlabs_api',
-        message: `Found ${apiEligible.length} voices from ElevenLabs API`,
-      };
-    }
-  }
-
-  // Ultimate fallback: default voice
+  // No local match — use curated default voice (ElevenLabs API is intentionally skipped)
+  // See: #94 — only assign voices from Ryan's approved catalog
   log.warn('HybridVoiceSearch no matches found, using fallback', { characterName });
 
   let fallbackVoice: VoiceMetadata;
