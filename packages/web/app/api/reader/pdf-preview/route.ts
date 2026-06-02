@@ -63,10 +63,14 @@ export async function POST(request: Request) {
       textLength: text.length,
     });
 
+    const charsPerPage = numpages > 0 ? text.length / numpages : 0;
+    const needsOCR = charsPerPage < 50;
+
     return NextResponse.json({
       name: file.name,
       size: file.size,
       pageCount: numpages,
+      needsOCR,
     });
   } catch (error) {
     log.error('[PDFPreview] Failed to parse PDF', { userId, error });
