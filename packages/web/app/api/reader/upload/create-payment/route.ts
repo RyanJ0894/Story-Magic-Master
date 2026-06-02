@@ -28,6 +28,18 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
     const stripe = getStripe();
     const origin = request.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || '';
 
+    // Create purchase record first so we can pass its ID to Stripe metadata.
+    // stripePaymentIntentId is filled in by the checkout.session.completed webhook
+    // once payment succeeds — we don't have a pi_... ID at checkout creation time.
+    const purchase = await prisma.purchase.create({
+      data: {
+        userId,
+        purchaseType: 'upload',
+        amountCents: price * 100,
+        status: 'pending',
+      },
+    });
+
     // Create Stripe Checkout Session (hosted payment page)
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
@@ -47,20 +59,10 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
       metadata: {
         userId,
         type: 'reader_upload',
+        purchaseId: purchase.id,
       },
       success_url: `${origin}/reader/upload/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/reader/upload`,
-    });
-
-    // Record purchase intent
-    await prisma.purchase.create({
-      data: {
-        userId,
-        purchaseType: 'upload',
-        amountCents: price * 100,
-        stripePaymentIntentId: session.id,
-        status: 'pending',
-      },
     });
 
     return NextResponse.json({ url: session.url });

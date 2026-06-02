@@ -121,16 +121,6 @@ export default async function EnterpriseDashboardPage({
     orderBy: { createdAt: 'desc' },
   });
 
-  // Owner's own projects that haven't been shared with this team yet
-  const sharedProjectIds = new Set(team.teamShares.map((s) => s.project.id));
-  const ownProjects = await prisma.project.findMany({
-    where: { userId },
-    select: { id: true, name: true, createdAt: true, updatedAt: true },
-    orderBy: { updatedAt: 'desc' },
-    take: 50,
-  });
-  const unsharedProjects = ownProjects.filter((p) => !sharedProjectIds.has(p.id));
-
   const memberCount = team.members.length;
 
   // Aggregate project decisions

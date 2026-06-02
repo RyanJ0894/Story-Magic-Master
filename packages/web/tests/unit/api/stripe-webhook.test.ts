@@ -15,6 +15,7 @@ const mockSubscriptionUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
 const mockPurchaseUpsert = vi.fn().mockResolvedValue({ id: 'purchase-1' });
 const mockPurchaseCreate = vi.fn().mockResolvedValue({ id: 'purchase-1' });
 const mockPurchaseFindFirst = vi.fn().mockResolvedValue(null);
+const mockPurchaseUpdate = vi.fn().mockResolvedValue({ id: 'purchase-1' });
 const mockImpactDonationCreate = vi.fn().mockResolvedValue({ id: 'donation-1' });
 const mockCreditTransactionCreate = vi.fn().mockResolvedValue({ id: 'ct-1' });
 const mockCreditTransactionFindUnique = vi.fn().mockResolvedValue(null); // null = not yet processed
@@ -37,6 +38,7 @@ vi.mock('@/lib/db', () => ({
       upsert: (...args: unknown[]) => mockPurchaseUpsert(...args),
       create: (...args: unknown[]) => mockPurchaseCreate(...args),
       findFirst: (...args: unknown[]) => mockPurchaseFindFirst(...args),
+      update: (...args: unknown[]) => mockPurchaseUpdate(...args),
     },
     impactDonation: {
       create: (...args: unknown[]) => mockImpactDonationCreate(...args),
@@ -508,6 +510,53 @@ describe('Stripe Webhook Handler', () => {
       expect(response.status).toBe(200);
       expect(mockProfileUpdate).not.toHaveBeenCalled();
       expect(mockCreditTransactionCreate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('checkout.session.completed — reader_upload', () => {
+    it('updates purchase to completed with real payment intent ID', async () => {
+      mockConstructWebhookEvent.mockReturnValue(createStripeEvent('checkout.session.completed', {
+        metadata: { type: 'reader_upload', purchaseId: 'purchase-abc', userId: 'user-123' },
+        payment_intent: 'pi_test_real123',
+      }));
+
+      const request = createWebhookRequest('{}', 'valid_sig');
+      const response = await POST(request);
+
+      expect(response.status).toBe(200);
+      expect(mockPurchaseUpdate).toHaveBeenCalledWith({
+        where: { id: 'purchase-abc' },
+        data: { status: 'completed', stripePaymentIntentId: 'pi_test_real123' },
+      });
+    });
+
+    it('updates purchase to completed without stripePaymentIntentId when payment_intent absent', async () => {
+      mockConstructWebhookEvent.mockReturnValue(createStripeEvent('checkout.session.completed', {
+        metadata: { type: 'reader_upload', purchaseId: 'purchase-abc', userId: 'user-123' },
+        payment_intent: null,
+      }));
+
+      const request = createWebhookRequest('{}', 'valid_sig');
+      const response = await POST(request);
+
+      expect(response.status).toBe(200);
+      expect(mockPurchaseUpdate).toHaveBeenCalledWith({
+        where: { id: 'purchase-abc' },
+        data: { status: 'completed' },
+      });
+    });
+
+    it('skips update when purchaseId is missing from metadata', async () => {
+      mockConstructWebhookEvent.mockReturnValue(createStripeEvent('checkout.session.completed', {
+        metadata: { type: 'reader_upload', userId: 'user-123' },
+        payment_intent: 'pi_test_real123',
+      }));
+
+      const request = createWebhookRequest('{}', 'valid_sig');
+      const response = await POST(request);
+
+      expect(response.status).toBe(200);
+      expect(mockPurchaseUpdate).not.toHaveBeenCalled();
     });
   });
 
