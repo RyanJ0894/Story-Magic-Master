@@ -21,7 +21,7 @@ const EVENT_LABELS: Record<string, { label: string; icon: string; color: string 
   listen_progress: { label: 'Listening in progress',   icon: '⏳',  color: 'text-blue-400' },
   note_added:      { label: 'Added a note',            icon: '📝',  color: 'text-yellow-500' },
   liked:           { label: 'Liked',                   icon: '👍',  color: 'text-green-600' },
-  passed:          { label: 'Passed',                  icon: '👎',  color: 'text-red-500' },
+  passed:          { label: 'Disliked',                 icon: '👎',  color: 'text-red-500' },
   undecided:       { label: 'Marked undecided',        icon: '🤔',  color: 'text-gray-500' },
 };
 

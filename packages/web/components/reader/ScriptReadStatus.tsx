@@ -129,7 +129,7 @@ export function ScriptReadStatus({
               ) : (
                 <ThumbsDown className={config.icon} />
               )}
-              <span className={cn('ml-1.5', config.text)}>Pass</span>
+              <span className={cn('ml-1.5', config.text)}>Dislike</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -242,7 +242,7 @@ export function ScriptReadStatusCompact({
               <ThumbsDown className="w-4 h-4" />
             </button>
           </TooltipTrigger>
-          <TooltipContent>Pass</TooltipContent>
+          <TooltipContent>Dislike</TooltipContent>
         </Tooltip>
 
         <Tooltip>
@@ -280,7 +280,7 @@ export function ReadStatusBadge({ status }: { status: ReadStatus }) {
       bg: 'bg-red-100 dark:bg-red-900/30',
       text: 'text-red-700 dark:text-red-300',
       icon: ThumbsDown,
-      label: 'Passed',
+      label: 'Disliked',
     },
     undecided: {
       bg: 'bg-amber-100 dark:bg-amber-900/30',

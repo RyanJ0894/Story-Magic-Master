@@ -396,7 +396,7 @@ export function ScreenplayPlayer({
                 />
                 <ReactionButton
                   icon={<ThumbsDown className="w-3 h-3" />}
-                  label="Pass"
+                  label="Dislike"
                   active={currentReaction === 'dislike'}
                   testId="reaction-dislike"
                   onClick={() => void saveReaction(block.sceneIndex, 'dislike')}
