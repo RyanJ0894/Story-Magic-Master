@@ -4,7 +4,7 @@
   "private": true,
   "description": "Shared Prisma schema, migrations, and generated client for all Story Magic packages",
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./src/index.mjs",
   "types": "./src/index.ts",
   "scripts": {
     "build": "prisma generate",
