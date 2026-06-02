@@ -66,25 +66,24 @@ export default function InvitePage() {
     fetchInvite();
   }, [token]);
 
-  // Auto-accept once Clerk confirms the user is signed in and the invite is loaded.
-  // Covers the return-from-sign-up flow: user clicks "Create Account", signs up,
-  // Clerk redirects back here — we accept automatically without a second click.
+  // Once Clerk confirms the auth state, branch immediately:
+  //   signed in  → auto-accept (return-from-sign-up flow, or direct link click)
+  //   not signed in → skip to the "Create Your Account" prompt without
+  //                   requiring the user to click Accept first (eliminates FOUC)
   useEffect(() => {
-    if (
-      clerkLoaded &&
-      isSignedIn &&
-      invite &&
-      !success &&
-      !accepting &&
-      !error &&
-      !autoAcceptAttempted.current
-    ) {
-      autoAcceptAttempted.current = true;
-      void handleAccept();
+    if (!clerkLoaded || !invite || loading) return;
+
+    if (isSignedIn) {
+      if (!success && !accepting && !error && !autoAcceptAttempted.current) {
+        autoAcceptAttempted.current = true;
+        void handleAccept();
+      }
+    } else {
+      setNeedsAuth(true);
     }
     // handleAccept is stable (only depends on token + router via closure)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clerkLoaded, isSignedIn, invite]);
+  }, [clerkLoaded, isSignedIn, invite, loading]);
 
   const handleAccept = async () => {
     setAccepting(true);
