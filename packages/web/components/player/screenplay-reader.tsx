@@ -488,7 +488,7 @@ export function ScreenplayReader({
                 <button
                   onClick={() => updateReadStatus('pass')}
                   disabled={statusSaving}
-                  aria-label="Pass"
+                  aria-label="Dislike"
                   aria-pressed={readStatus === 'pass'}
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
@@ -498,7 +498,7 @@ export function ScreenplayReader({
                   )}
                 >
                   <ThumbsDown className="w-3.5 h-3.5" />
-                  Pass
+                  Dislike
                 </button>
               </div>
             </div>

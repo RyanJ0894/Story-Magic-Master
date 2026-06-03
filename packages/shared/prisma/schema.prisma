@@ -774,6 +774,7 @@ model TeamMember {
   userId       String?   @map("user_id")
   invitedEmail String?   @map("invited_email")
   role         String    @default("member")
+  memberType   String?   @map("member_type")
   status       String    @default("pending")
   inviteToken  String?   @unique @map("invite_token")
   invitedBy    String?   @map("invited_by")

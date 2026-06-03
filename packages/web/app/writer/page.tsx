@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 
 const VERDICT_LABELS: Record<string, string> = {
-  pass: 'Pass',
+  pass: 'Dislike',
   consider: 'Consider',
   recommend: 'Recommend',
   strong_recommend: 'Strong Rec.',

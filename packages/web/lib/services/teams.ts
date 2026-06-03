@@ -41,7 +41,9 @@ export interface UpdateTeamInput {
 
 export interface InviteMemberInput {
   email: string;
+  name?: string;
   role?: 'admin' | 'member' | 'viewer';
+  memberType?: 'talent_actor' | 'staff' | 'representation';
 }
 
 export class TeamServiceError extends Error {
@@ -391,6 +393,7 @@ export async function addMember(
           userId: existingUser?.id || null,
           invitedEmail: email,
           role: input.role || 'member',
+          memberType: input.memberType || null,
           status: 'pending',
           invitedBy: userId,
           inviteToken: generateInviteToken(),
@@ -404,6 +407,7 @@ export async function addMember(
           userId: existingUser?.id || null,
           invitedEmail: email,
           role: input.role || 'member',
+          memberType: input.memberType || null,
           status: 'pending',
           invitedBy: userId,
         },

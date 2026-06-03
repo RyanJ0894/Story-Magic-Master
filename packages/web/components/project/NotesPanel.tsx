@@ -37,7 +37,7 @@ function formatTs(ms: number): string {
 
 const REACTION_META: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
   like: { icon: <ThumbsUp className="w-3 h-3" />, label: 'Liked', color: 'text-green-600 dark:text-green-400' },
-  dislike: { icon: <ThumbsDown className="w-3 h-3" />, label: 'Passed', color: 'text-red-600 dark:text-red-400' },
+  dislike: { icon: <ThumbsDown className="w-3 h-3" />, label: 'Disliked', color: 'text-red-600 dark:text-red-400' },
   undecided: { icon: <HelpCircle className="w-3 h-3" />, label: 'Undecided', color: 'text-muted-foreground' },
 };
 
