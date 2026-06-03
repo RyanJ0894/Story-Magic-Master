@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import LoginPage from '@/app/login/page';
+import LoginPage from '@/app/login/[[...rest]]/page';
 
 // next/image is a server-side optimised component; stub it for tests.
 vi.mock('next/image', () => ({
