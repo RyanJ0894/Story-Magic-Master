@@ -26,16 +26,21 @@ export default async function ReaderUploadSuccessPage({
   const { session_id: sessionId } = await searchParams;
   if (!sessionId) redirect('/reader/upload');
 
-  // Retrieve the Stripe session to get the purchase ID from metadata
+  // Retrieve the Stripe session to get the purchase ID from metadata.
+  // Defense-in-depth: verify session belongs to the caller before resolving projectId.
   let projectId: string | null = null;
   try {
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
     if (session.payment_status === 'paid' && session.metadata?.purchaseId) {
-      // Look up any project created from this purchase
-      const purchase = await prisma.purchase.findUnique({
-        where: { id: session.metadata.purchaseId },
+      // Reject if the session was created for a different user
+      if (session.metadata.userId && session.metadata.userId !== userId) {
+        redirect('/reader/dashboard');
+      }
+      // Scope the purchase lookup to the authenticated user — prevents IDOR
+      const purchase = await prisma.purchase.findFirst({
+        where: { id: session.metadata.purchaseId, userId },
         select: { projectId: true },
       });
       projectId = purchase?.projectId ?? null;
