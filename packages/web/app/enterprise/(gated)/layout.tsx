@@ -16,7 +16,7 @@ export default async function EnterpriseGatedLayout({
   });
 
   if (profile?.subscriptionTier !== 'enterprise') {
-    redirect('/enterprise/upgrade');
+    redirect('/enterprise/contact');
   }
 
   return <>{children}</>;
