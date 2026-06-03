@@ -392,6 +392,27 @@ export default function Home() {
             </div>
           </div>
           <div className="pt-8 border-t border-border text-center text-sm text-muted-foreground">
+            {/* ElevenLabs Grants — required display per grant conditions */}
+            <div className="flex justify-center mb-6">
+              <a href="https://elevenlabs.io/startup-grants" target="_blank" rel="noopener noreferrer">
+                <Image
+                  src="https://eleven-public-cdn.elevenlabs.io/payloadcms/pwsc4vchsqt-ElevenLabsGrants.webp"
+                  alt="ElevenLabs Grants"
+                  width={200}
+                  height={50}
+                  className="dark:hidden"
+                  unoptimized
+                />
+                <Image
+                  src="https://eleven-public-cdn.elevenlabs.io/payloadcms/cy7rxce8uki-IIElevenLabsGrants%201.webp"
+                  alt="ElevenLabs Grants"
+                  width={200}
+                  height={50}
+                  className="hidden dark:block"
+                  unoptimized
+                />
+              </a>
+            </div>
             <p className="mb-1">
               <a href="https://www.storymagicapp.net" className="text-brand-600 hover:text-brand-700 font-medium">
                 www.StoryMagicApp.net

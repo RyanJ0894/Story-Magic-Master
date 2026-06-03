@@ -163,9 +163,8 @@ export default async function EnterpriseDashboardPage({
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link href="/enterprise/dashboard">
-              <Image src="/logo.png" alt="Story Magic" width={32} height={32} className="rounded-lg" />
+              <Image src="/logo.png" alt="Story Magic" width={144} height={144} className="rounded-lg" />
             </Link>
-            <span className="font-semibold text-sm hidden sm:block">Story Magic</span>
             <Badge variant="secondary" className="text-xs hidden sm:flex items-center gap-1">
               <Crown className="w-3 h-3" /> Master Account
             </Badge>

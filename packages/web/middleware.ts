@@ -35,7 +35,7 @@ function addSecurityHeaders(response: NextResponse, nonce: string): void {
     // unsafe-eval required by Clerk JS SDK (uses new Function during init — CSP policy, not our code).
     `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://clerk.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com`,
     "style-src 'self' 'unsafe-inline'", // Tailwind requires unsafe-inline
-    "img-src 'self' data: blob: https://img.clerk.com https://api.dicebear.com",
+    "img-src 'self' data: blob: https://img.clerk.com https://api.dicebear.com https://eleven-public-cdn.elevenlabs.io",
     "font-src 'self' data:",
     // story-magic-orchestrator.onrender.com required in connect-src so the
     // service worker can fetch() audio files (fetch is governed by connect-src,
