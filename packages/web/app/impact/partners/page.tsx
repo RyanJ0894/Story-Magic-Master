@@ -249,7 +249,7 @@ export default function PartnersPage() {
                   <option value="">Select a tier…</option>
                   {PARTNER_TIERS.map(t => (
                     <option key={t.id} value={t.id}>
-                      {t.name} (${t.annualAmount.toLocaleString()}/year)
+                      {t.name} (${t.annualAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })}/year)
                     </option>
                   ))}
                   <option value="custom">Custom / In-kind partnership</option>

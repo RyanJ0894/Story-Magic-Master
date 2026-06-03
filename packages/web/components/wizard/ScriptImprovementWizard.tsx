@@ -284,8 +284,8 @@ function SuggestionsStep({ context }: { context: WizardContext }) {
         </div>
       </div>
 
-      <div className="space-y-3 max-h-[300px] overflow-y-auto">
-        {suggestions.slice(0, 5).map((suggestion) => (
+      <div className="space-y-3 max-h-[400px] overflow-y-auto">
+        {suggestions.map((suggestion) => (
           <div
             key={suggestion.id}
             className="p-4 border rounded-lg hover:border-violet-300 dark:hover:border-violet-700 transition-colors"

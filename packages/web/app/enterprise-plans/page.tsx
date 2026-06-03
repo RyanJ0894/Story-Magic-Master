@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Check, Building2, Shield, Users, Headphones, Zap, GraduationCap, CheckCircle, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const PLAN_TIERS: Record<string, string> = {
   'Starter Enterprise': 'creator',
@@ -144,6 +145,9 @@ export default function EnterprisePlansPage() {
       if (res.ok) {
         setActivated(planName);
         setTimeout(() => router.push('/enterprise/dashboard'), 1500);
+      } else {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        toast.error(data.error ?? 'Activation failed. Please try again.');
       }
     } finally {
       setActivating(null);

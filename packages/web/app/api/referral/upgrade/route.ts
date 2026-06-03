@@ -2,26 +2,17 @@ import { auth } from '@clerk/nextjs/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
-// Referral code → tier mapping.
-// Add new codes here or override via REFERRAL_CODES env var (JSON object).
-const BUILT_IN_CODES: Record<string, string> = {
-  STORYMAGIC2026: 'creator',
-  SMCREATOR: 'creator',
-  SMPRO: 'pro',
-  SMSTUDIO: 'studio',
-  SMENTERPRISE: 'enterprise',
-};
-
+// Referral code → tier mapping comes exclusively from the REFERRAL_CODES env var
+// (JSON object, e.g. {"MYCODE":"studio","OTHERCODE":"enterprise"}).
+// No built-in codes — hard-coded codes in source are a supply-chain security risk.
 function getValidCodes(): Record<string, string> {
   try {
     const env = process.env.REFERRAL_CODES;
-    if (env) {
-      return { ...BUILT_IN_CODES, ...JSON.parse(env) };
-    }
+    if (env) return JSON.parse(env) as Record<string, string>;
   } catch {
-    // ignore bad env JSON
+    // ignore malformed JSON
   }
-  return BUILT_IN_CODES;
+  return {};
 }
 
 const TIER_NAMES: Record<string, string> = {
