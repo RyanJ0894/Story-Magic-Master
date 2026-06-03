@@ -73,10 +73,13 @@ export async function listTeams(prisma: PrismaClient, userId: string) {
           userId: true,
           invitedEmail: true,
           role: true,
+          memberType: true,
           status: true,
           user: {
             select: {
+              id: true,
               fullName: true,
+              email: true,
               avatarUrl: true,
             },
           },

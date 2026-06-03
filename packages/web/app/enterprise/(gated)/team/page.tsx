@@ -255,7 +255,7 @@ export default function EnterpriseTeamPage() {
                         variant="secondary"
                         className="ml-1.5 text-xs"
                       >
-                        {t.members.filter(m => m.status === 'accepted').length}
+                        {(t.members ?? []).filter(m => m.status === 'accepted').length}
                       </Badge>
                     </Button>
                   ))}
@@ -327,13 +327,13 @@ export default function EnterpriseTeamPage() {
                   <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2">
                       <Users className="w-4 h-4" />
-                      Members ({selectedTeam.members.filter(m => m.status === 'accepted').length})
+                      Members ({(selectedTeam.members ?? []).filter(m => m.status === 'accepted').length})
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Active members */}
                     {(() => {
-                      const active = selectedTeam.members.filter(m => m.status === 'accepted');
+                      const active = (selectedTeam.members ?? []).filter(m => m.status === 'accepted');
                       return active.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-4">
                           No active members yet. Invite your first team member.
@@ -373,7 +373,7 @@ export default function EnterpriseTeamPage() {
 
                     {/* Pending invitations */}
                     {(() => {
-                      const pending = selectedTeam.members.filter(m => m.status === 'pending');
+                      const pending = (selectedTeam.members ?? []).filter(m => m.status === 'pending');
                       if (pending.length === 0) return null;
                       return (
                         <div>
