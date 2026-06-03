@@ -1,30 +1,35 @@
 /**
  * LoginPage Component Tests
  *
- * Tests the login page rendering with Clerk's SignIn component.
- * The login page now uses Clerk's prebuilt <SignIn /> instead of a custom form.
+ * LoginPage is an async Next.js server component — call it as an async function
+ * and render the resolved JSX rather than using JSX syntax directly.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import LoginPage from '@/app/login/page';
+import LoginPage from '@/app/login/[[...rest]]/page';
+
+// next/image is a server-side optimised component; stub it for tests.
+vi.mock('next/image', () => ({
+  default: ({ alt, src }: { alt: string; src: string }) => <img alt={alt} src={src} />,
+}));
 
 describe('LoginPage', () => {
-  it('renders the Story Magic branding', () => {
-    render(<LoginPage />);
-
-    expect(screen.getByText('Story Magic')).toBeInTheDocument();
+  it('renders the Story Magic logo image', async () => {
+    const page = await LoginPage({ searchParams: Promise.resolve({}) });
+    render(page);
+    expect(screen.getByAltText('Story Magic')).toBeInTheDocument();
   });
 
-  it('renders the Clerk SignIn component', () => {
-    render(<LoginPage />);
-
+  it('renders the Clerk SignIn component', async () => {
+    const page = await LoginPage({ searchParams: Promise.resolve({}) });
+    render(page);
     expect(screen.getByTestId('clerk-sign-in')).toBeInTheDocument();
   });
 
-  it('renders with the correct layout classes', () => {
-    const { container } = render(<LoginPage />);
-
+  it('renders with the correct layout classes', async () => {
+    const page = await LoginPage({ searchParams: Promise.resolve({}) });
+    const { container } = render(page);
     const wrapper = container.firstElementChild;
     expect(wrapper).toHaveClass('min-h-screen');
     expect(wrapper).toHaveClass('flex');
@@ -32,10 +37,10 @@ describe('LoginPage', () => {
     expect(wrapper).toHaveClass('justify-center');
   });
 
-  it('renders the sparkles icon', () => {
-    render(<LoginPage />);
-
-    const icon = document.querySelector('.lucide-sparkles');
-    expect(icon).toBeInTheDocument();
+  it('wraps the logo in a home link', async () => {
+    const page = await LoginPage({ searchParams: Promise.resolve({}) });
+    render(page);
+    const logoLink = screen.getByRole('link');
+    expect(logoLink).toHaveAttribute('href', '/');
   });
 });

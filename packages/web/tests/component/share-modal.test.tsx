@@ -37,37 +37,42 @@ describe('ShareModal', () => {
   it('renders when open is true', () => {
     render(<ShareModal {...defaultProps} />);
 
-    expect(screen.getByText('Share "My Amazing Script"')).toBeInTheDocument();
+    // Title uses curly quotes (“ / ”) — match with regex
+    expect(screen.getByText(/Share.*My Amazing Script/)).toBeInTheDocument();
     expect(screen.getByText('Create a shareable link or send directly to industry readers')).toBeInTheDocument();
   });
 
   it('does not render content when open is false', () => {
     render(<ShareModal {...defaultProps} open={false} />);
 
-    expect(screen.queryByText('Share "My Amazing Script"')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Share.*My Amazing Script/)).not.toBeInTheDocument();
   });
 
-  it('shows three share method tabs: Link, Email, QR Code', () => {
+  it('shows two share method tabs: Link and Send to...', () => {
     render(<ShareModal {...defaultProps} />);
 
     expect(screen.getByText('Link')).toBeInTheDocument();
-    expect(screen.getByText('Email')).toBeInTheDocument();
-    expect(screen.getByText('QR Code')).toBeInTheDocument();
+    expect(screen.getByText('Send to...')).toBeInTheDocument();
   });
 
-  it('shows the share form with access level and expiry options', () => {
+  it('shows access level and expiry options after expanding the Options toggle', async () => {
+    const user = userEvent.setup();
     render(<ShareModal {...defaultProps} />);
+
+    // Options are collapsed by default — expand them first
+    await user.click(screen.getByText('Options'));
 
     expect(screen.getByText('Access Level')).toBeInTheDocument();
     expect(screen.getByText('Expires')).toBeInTheDocument();
     expect(screen.getByText('Create Share Link')).toBeInTheDocument();
   });
 
-  it('shows placeholder URL before share link is created', () => {
+  it('shows Create Share Link button and no URL input before a link is created', () => {
     render(<ShareModal {...defaultProps} />);
 
-    const input = screen.getByDisplayValue('Click "Create Share Link" to generate a URL');
-    expect(input).toBeInTheDocument();
+    expect(screen.getByText('Create Share Link')).toBeInTheDocument();
+    // No URL input until a share link is generated
+    expect(screen.queryByRole('textbox', { name: /share url/i })).not.toBeInTheDocument();
   });
 
   it('disables copy button when no share URL exists', () => {
@@ -182,7 +187,7 @@ describe('ShareModal', () => {
     });
   });
 
-  it('shows existing shares when provided', () => {
+  it('shows share count badge when existing shares are provided', () => {
     const existingShares = [
       {
         id: 'share-1',
@@ -201,35 +206,31 @@ describe('ShareModal', () => {
 
     render(<ShareModal {...defaultProps} existingShares={existingShares} />);
 
-    expect(screen.getByText('Active Shares')).toBeInTheDocument();
-    expect(screen.getByText('5 views')).toBeInTheDocument();
-    expect(screen.getByText('No expiry')).toBeInTheDocument();
+    expect(screen.getByText('1 share')).toBeInTheDocument();
   });
 
-  it('does not show existing shares section when none provided', () => {
+  it('does not show share count badge when no existing shares', () => {
     render(<ShareModal {...defaultProps} />);
 
-    expect(screen.queryByText('Active Shares')).not.toBeInTheDocument();
+    expect(screen.queryByText(/\d+ share/)).not.toBeInTheDocument();
   });
 
-  it('shows email tab with recipient input', async () => {
+  it('shows Send to... tab with recipient input', async () => {
     const user = userEvent.setup();
     render(<ShareModal {...defaultProps} />);
 
-    await user.click(screen.getByText('Email'));
+    await user.click(screen.getByText('Send to...'));
 
-    expect(screen.getByText('Recipient Email')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('agent@talent-agency.com')).toBeInTheDocument();
-    expect(screen.getByText('Open Email Client')).toBeInTheDocument();
+    expect(screen.getByText('Recipients')).toBeInTheDocument();
+    expect(screen.getAllByPlaceholderText('email@example.com')[0]).toBeInTheDocument();
   });
 
-  it('shows QR code tab content', async () => {
+  it('shows Send to... tab with add-recipient button', async () => {
     const user = userEvent.setup();
     render(<ShareModal {...defaultProps} />);
 
-    await user.click(screen.getByText('QR Code'));
+    await user.click(screen.getByText('Send to...'));
 
-    expect(screen.getByText('Perfect for in-person pitches. Show this QR code for instant access.')).toBeInTheDocument();
-    expect(screen.getByText('Download QR Code')).toBeInTheDocument();
+    expect(screen.getByText('Add recipient')).toBeInTheDocument();
   });
 });
