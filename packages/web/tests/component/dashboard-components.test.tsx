@@ -512,10 +512,11 @@ describe('ShareModal', () => {
       />
     );
 
-    expect(screen.getByText('Share "My Screenplay"')).toBeInTheDocument();
+    // Title uses curly quotes (" / ") — match with regex
+    expect(screen.getByText(/Share.*My Screenplay/)).toBeInTheDocument();
   });
 
-  it('renders tab navigation with Link, Email, and QR', () => {
+  it('renders tab navigation with Link and Send to...', () => {
     render(
       <ShareModal
         open={true}
@@ -527,11 +528,11 @@ describe('ShareModal', () => {
     );
 
     expect(screen.getByText('Link')).toBeInTheDocument();
-    expect(screen.getByText('Email')).toBeInTheDocument();
-    expect(screen.getByText('QR Code')).toBeInTheDocument();
+    expect(screen.getByText('Send to...')).toBeInTheDocument();
   });
 
-  it('shows access level and expiry controls', () => {
+  it('shows access level and expiry controls after expanding Options', async () => {
+    const user = userEvent.setup();
     render(
       <ShareModal
         open={true}
@@ -541,6 +542,9 @@ describe('ShareModal', () => {
         writerCode="ABC123"
       />
     );
+
+    // Options are collapsed by default — expand first
+    await user.click(screen.getByText('Options'));
 
     expect(screen.getByText('Access Level')).toBeInTheDocument();
     expect(screen.getByText('Expires')).toBeInTheDocument();
@@ -560,7 +564,7 @@ describe('ShareModal', () => {
     expect(screen.getByText('Create Share Link')).toBeInTheDocument();
   });
 
-  it('shows placeholder text before share is created', () => {
+  it('shows Create Share Link button before a link is created', () => {
     render(
       <ShareModal
         open={true}
@@ -571,8 +575,7 @@ describe('ShareModal', () => {
       />
     );
 
-    const input = screen.getByDisplayValue(/Click "Create Share Link"/);
-    expect(input).toBeInTheDocument();
+    expect(screen.getByText('Create Share Link')).toBeInTheDocument();
   });
 
   it('calls onCreateShare when button clicked', async () => {
@@ -602,7 +605,7 @@ describe('ShareModal', () => {
     );
   });
 
-  it('shows existing shares when provided', () => {
+  it('shows share count badge when existing shares are provided', () => {
     const existingShares: ScriptShare[] = [
       {
         id: 'share-1',
@@ -630,8 +633,7 @@ describe('ShareModal', () => {
       />
     );
 
-    expect(screen.getByText('Active Shares')).toBeInTheDocument();
-    expect(screen.getByText('10 views')).toBeInTheDocument();
+    expect(screen.getByText('1 share')).toBeInTheDocument();
   });
 
   it('does not render when closed', () => {
@@ -648,7 +650,7 @@ describe('ShareModal', () => {
     expect(screen.queryByText('Share "My Screenplay"')).not.toBeInTheDocument();
   });
 
-  it('renders QR code tab content', async () => {
+  it('renders Send to... tab with bulk share form', async () => {
     const user = userEvent.setup();
 
     render(
@@ -661,13 +663,10 @@ describe('ShareModal', () => {
       />
     );
 
-    await user.click(screen.getByText('QR Code'));
+    await user.click(screen.getByText('Send to...'));
 
-    await waitFor(() => {
-      expect(screen.getByText(/Perfect for in-person pitches/)).toBeInTheDocument();
-    });
-
-    expect(screen.getByText('Download QR Code')).toBeInTheDocument();
+    expect(screen.getByText('Recipients')).toBeInTheDocument();
+    expect(screen.getByText('Add recipient')).toBeInTheDocument();
   });
 });
 
