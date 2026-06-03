@@ -647,7 +647,7 @@ describe('ShareModal', () => {
       />
     );
 
-    expect(screen.queryByText('Share "My Screenplay"')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Share.*My Screenplay/)).not.toBeInTheDocument();
   });
 
   it('renders Send to... tab with bulk share form', async () => {

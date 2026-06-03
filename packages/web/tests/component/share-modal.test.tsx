@@ -45,7 +45,7 @@ describe('ShareModal', () => {
   it('does not render content when open is false', () => {
     render(<ShareModal {...defaultProps} open={false} />);
 
-    expect(screen.queryByText('Share "My Amazing Script"')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Share.*My Amazing Script/)).not.toBeInTheDocument();
   });
 
   it('shows two share method tabs: Link and Send to...', () => {
