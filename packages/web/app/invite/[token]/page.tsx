@@ -124,8 +124,8 @@ export default function InvitePage() {
     }
   };
 
-  // Loading state
-  if (loading) {
+  // Loading state — wait for both invite fetch and Clerk auth state
+  if (loading || !clerkLoaded) {
     return (
       <div className="min-h-screen bg-muted flex items-center justify-center">
         <div className="text-center">
@@ -192,12 +192,12 @@ export default function InvitePage() {
             <p className="text-sm text-muted-foreground text-center">
               Once your account is created you&apos;ll be added to the team automatically.
             </p>
-            <Link href={`/sign-up?redirect_url=/invite/${token}`} className="block">
+            <Link href={`/signup?redirect_url=/invite/${token}`} className="block">
               <Button className="w-full brand-gradient brand-gradient-hover">Create Account</Button>
             </Link>
             <p className="text-xs text-muted-foreground text-center">
               Already have an account?{' '}
-              <Link href={`/sign-in?redirect_url=/invite/${token}`} className="underline">Sign in</Link>
+              <Link href={`/login?redirect_url=/invite/${token}`} className="underline">Sign in</Link>
             </p>
           </CardContent>
         </Card>
@@ -223,7 +223,7 @@ export default function InvitePage() {
             <p className="text-sm text-muted-foreground text-center">
               Once your account is created you'll be added to the team automatically.
             </p>
-            <Link href={`/sign-up?redirect_url=/invite/${token}`} className="block">
+            <Link href={`/signup?redirect_url=/invite/${token}`} className="block">
               <Button className="w-full brand-gradient brand-gradient-hover">Create Account</Button>
             </Link>
           </CardContent>
