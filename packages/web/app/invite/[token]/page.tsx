@@ -105,7 +105,7 @@ export default function InvitePage() {
         // accepted) — treat as success and send them to the dashboard.
         if (data.code === 'INVALID_STATUS' && data.details?.status === 'accepted') {
           setSuccess(true);
-          setTimeout(() => router.push('/enterprise/dashboard'), 1500);
+          setTimeout(() => router.push('/dashboard'), 1500);
           return;
         }
         throw new Error(data.error || 'Failed to accept invite');
@@ -113,9 +113,8 @@ export default function InvitePage() {
 
       setSuccess(true);
 
-      // Redirect to enterprise dashboard after a moment
       setTimeout(() => {
-        router.push('/enterprise/dashboard');
+        router.push('/dashboard');
       }, 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to accept invite');
@@ -131,6 +130,18 @@ export default function InvitePage() {
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-violet-600 mx-auto mb-4" />
           <p className="text-muted-foreground">Loading invite...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Signed-in user: keep showing spinner while auto-accept runs — prevents flash of main invite card
+  if (isSignedIn && invite && !success && !error) {
+    return (
+      <div className="min-h-screen bg-muted flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-violet-600 mx-auto mb-4" />
+          <p className="text-muted-foreground">Joining team...</p>
         </div>
       </div>
     );

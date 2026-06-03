@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import Image from 'next/image';
 import Link from 'next/link';
-import ClerkSignIn from './clerk-sign-in';
+import ClerkSignIn from '../clerk-sign-in';
 
 export default async function LoginPage({
   searchParams,
