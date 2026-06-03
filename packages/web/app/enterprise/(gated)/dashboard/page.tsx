@@ -392,6 +392,7 @@ export default async function EnterpriseDashboardPage({
               </CardHeader>
               <CardContent>
                 <EnterpriseProjectAssignment
+                  key={team.id}
                   teamId={team.id}
                   allProjects={userProjects}
                   assignedProjectIds={teamProjectIds}

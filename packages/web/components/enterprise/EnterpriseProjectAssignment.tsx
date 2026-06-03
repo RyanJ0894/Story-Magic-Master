@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -103,12 +104,12 @@ export function EnterpriseProjectAssignment({ teamId, allProjects, assignedProje
                 key={project.id}
                 className="flex items-center justify-between gap-3 p-3 rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-900/10"
               >
-                <div className="min-w-0 flex-1">
+                <Link href={`/projects/${project.id}`} className="min-w-0 flex-1 min-h-0 hover:opacity-80">
                   <p className="text-sm font-medium truncate">{project.name}</p>
                   <p className="text-xs text-muted-foreground">
                     {new Date(project.createdAt).toLocaleDateString('en-US')}
                   </p>
-                </div>
+                </Link>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <Badge variant="secondary" className="text-xs text-violet-600 dark:text-violet-400 hidden sm:flex">Shared</Badge>
                   <Button
@@ -140,12 +141,12 @@ export function EnterpriseProjectAssignment({ teamId, allProjects, assignedProje
                 key={project.id}
                 className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border hover:border-violet-300 dark:hover:border-violet-700 transition-colors"
               >
-                <div className="min-w-0 flex-1">
+                <Link href={`/projects/${project.id}`} className="min-w-0 flex-1 min-h-0 hover:opacity-80">
                   <p className="text-sm font-medium truncate">{project.name}</p>
                   <p className="text-xs text-muted-foreground">
                     {new Date(project.createdAt).toLocaleDateString('en-US')}
                   </p>
-                </div>
+                </Link>
                 <Button
                   variant="ghost"
                   size="sm"
