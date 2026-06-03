@@ -9,8 +9,11 @@
 //     updated Content-Security-Policy that adds story-magic-orchestrator.onrender.com
 //     to connect-src (required for SW fetch() to reach cross-origin audio files).
 
-const CACHE_NAME = 'story-magic-v3';
-const STATIC_PATTERNS = [/^\/_next\/static\//, /^\/logo\.png$/, /^\/manifest\.webmanifest$/];
+const CACHE_NAME = 'story-magic-v4';
+// JS chunks are excluded — they contain hardcoded server action IDs (e.g. Clerk
+// keyless) and must always be fetched fresh so client IDs match the server.
+// CSS and media are content-hashed and safe to serve cache-first for offline use.
+const STATIC_PATTERNS = [/^\/_next\/static\/(css|media)\//, /^\/logo\.png$/, /^\/manifest\.webmanifest$/];
 const AUDIO_PATTERNS = [
   /supabase\.co\/storage\/v1\/object\/public\//,
   /\/audio\/.*\.(m4a|mp3|wav|ogg)$/i,
