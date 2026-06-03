@@ -112,6 +112,12 @@ export default async function ProjectPage(
   });
   const remainingPreviews = Math.max(0, 10 - (usageRow?.previewsUsed ?? 0));
 
+  // Fetch active team shares for this project (so the workflow can show an Unshare button)
+  const teamShares = await prisma.teamShare.findMany({
+    where: { projectId: params.id },
+    select: { id: true, teamId: true, team: { select: { name: true } } },
+  });
+
   // Check if Advanced Analysis is purchased for this project
   const advancedAnalysisPurchase = await prisma.purchase.findFirst({
     where: {
@@ -252,6 +258,7 @@ export default async function ProjectPage(
           voiceAssignments={voiceAssignments}
           audioOverrides={audioOverrideStats}
           remainingPreviews={remainingPreviews ?? 0}
+          teamShares={teamShares.map(s => ({ id: s.id, teamId: s.teamId, teamName: s.team.name }))}
         />
 
         {/* Advanced Analysis upgrade (one-time per project) */}

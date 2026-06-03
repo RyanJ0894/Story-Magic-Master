@@ -40,6 +40,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: '*.supabase.co',
       },
+      {
+        protocol: 'https',
+        hostname: 'eleven-public-cdn.elevenlabs.io',
+      },
     ],
   },
   // Exclude the shared Prisma-generated directory from webpack's file watcher.

@@ -41,6 +41,7 @@ import {
   Volume2,
   SkipForward,
   RotateCcw,
+  UserMinus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ImprovementWizardButton } from './improvement-wizard-button';
@@ -138,6 +139,7 @@ interface ProjectWorkflowProps {
     scenesWithOverrides: number;
   };
   remainingPreviews?: number;
+  teamShares?: Array<{ id: string; teamId: string; teamName: string }>;
 }
 
 // =============================================================================
@@ -259,6 +261,7 @@ export function ProjectWorkflow({
   voiceAssignments = { total: 0, assigned: 0 },
   audioOverrides,
   remainingPreviews: initialRemainingPreviews = 0,
+  teamShares = [],
 }: ProjectWorkflowProps) {
   const router = useRouter();
 
@@ -1062,48 +1065,81 @@ export function ProjectWorkflow({
                     <>
                       <AudioPlayer outputs={currentRunAudio!} />
                       <div className="flex gap-2 justify-center">
-                        <Button
-                          variant="outline"
-                          onClick={async () => {
-                            try {
-                              const res = await apiFetch('/api/teams');
-                              if (!res.ok) {
-                                toast.error('Failed to load teams');
-                                return;
+                        {teamShares.length > 0 ? (
+                          teamShares.map((share) => (
+                            <Button
+                              key={share.teamId}
+                              variant="outline"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={async () => {
+                                if (!window.confirm(`Remove "${project.name}" from team "${share.teamName}"? Team members will lose access.`)) return;
+                                try {
+                                  const res = await apiFetch('/api/teams/share', {
+                                    method: 'DELETE',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ projectId: project.id, teamId: share.teamId }),
+                                  });
+                                  if (res.ok) {
+                                    toast.success(`Removed from team "${share.teamName}"`);
+                                    router.refresh();
+                                  } else {
+                                    const err = await res.json();
+                                    toast.error(err.error || 'Failed to unshare');
+                                  }
+                                } catch {
+                                  toast.error('Failed to unshare from team');
+                                }
+                              }}
+                            >
+                              <UserMinus className="w-4 h-4 mr-2" />
+                              Remove from {share.teamName}
+                            </Button>
+                          ))
+                        ) : (
+                          <Button
+                            variant="outline"
+                            onClick={async () => {
+                              try {
+                                const res = await apiFetch('/api/teams');
+                                if (!res.ok) {
+                                  toast.error('Failed to load teams');
+                                  return;
+                                }
+                                const data = await res.json();
+                                const teams = data.teams || [];
+                                if (teams.length === 0) {
+                                  toast.info('No teams found. Create a team first in Settings.');
+                                  return;
+                                }
+                                // Share with first team (for MVP — multi-team picker coming with #107)
+                                const team = teams[0];
+                                if (!window.confirm(`Share "${project.name}" with team "${team.name}"?`)) return;
+                                const shareRes = await apiFetch('/api/teams/share', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    projectId: project.id,
+                                    teamId: team.id,
+                                    accessLevel: 'stream',
+                                  }),
+                                });
+                                if (shareRes.ok) {
+                                  const result = await shareRes.json();
+                                  toast.success(result.message || 'Shared with team!');
+                                  router.refresh();
+                                } else {
+                                  const err = await shareRes.json();
+                                  toast.error(err.error || 'Failed to share');
+                                }
+                              } catch {
+                                toast.error('Failed to share with team');
                               }
-                              const data = await res.json();
-                              const teams = data.teams || [];
-                              if (teams.length === 0) {
-                                toast.info('No teams found. Create a team first in Settings.');
-                                return;
-                              }
-                              // Share with first team (for MVP)
-                              const team = teams[0];
-                              if (!window.confirm(`Share "${project.name}" with team "${team.name}"?`)) return;
-                              const shareRes = await apiFetch('/api/teams/share', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  projectId: project.id,
-                                  teamId: team.id,
-                                  accessLevel: 'stream',
-                                }),
-                              });
-                              if (shareRes.ok) {
-                                const result = await shareRes.json();
-                                toast.success(result.message || 'Shared with team!');
-                              } else {
-                                const err = await shareRes.json();
-                                toast.error(err.error || 'Failed to share');
-                              }
-                            } catch {
-                              toast.error('Failed to share with team');
-                            }
-                          }}
-                        >
-                          <Share2 className="w-4 h-4 mr-2" />
-                          Share with Team
-                        </Button>
+                            }}
+                          >
+                            <Share2 className="w-4 h-4 mr-2" />
+                            Share with Team
+                          </Button>
+                        )}
                         <Button variant="outline">
                           <Play className="w-4 h-4 mr-2" />
                           Compare Scripts
