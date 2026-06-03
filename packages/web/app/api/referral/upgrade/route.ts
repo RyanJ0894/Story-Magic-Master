@@ -50,13 +50,47 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid referral code' }, { status: 400 });
   }
 
-  await prisma.profile.update({
-    where: { id: userId },
-    data: {
-      subscriptionTier: targetTier,
-      subscriptionStatus: 'active',
-    },
+  const TIER_LIMITS: Record<string, { generations: number; downloads: number }> = {
+    creator:    { generations: 5,    downloads: 1 },
+    pro:        { generations: 20,   downloads: 5 },
+    studio:     { generations: 100,  downloads: 50 },
+    enterprise: { generations: 1000, downloads: 500 },
+  };
+  const limits = TIER_LIMITS[targetTier] ?? { generations: 5, downloads: 1 };
+
+  const existingSub = await prisma.subscription.findFirst({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
   });
+
+  await prisma.$transaction([
+    prisma.profile.update({
+      where: { id: userId },
+      data: {
+        subscriptionTier: targetTier,
+        subscriptionStatus: 'active',
+      },
+    }),
+    existingSub
+      ? prisma.subscription.update({
+          where: { id: existingSub.id },
+          data: {
+            plan: targetTier,
+            status: 'active',
+            generationsLimit: limits.generations,
+            downloadsLimit: limits.downloads,
+          },
+        })
+      : prisma.subscription.create({
+          data: {
+            userId,
+            plan: targetTier,
+            status: 'active',
+            generationsLimit: limits.generations,
+            downloadsLimit: limits.downloads,
+          },
+        }),
+  ]);
 
   return NextResponse.json({
     success: true,

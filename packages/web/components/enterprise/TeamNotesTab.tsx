@@ -57,7 +57,7 @@ export function TeamNotesTab({ initialComments, hasMore: initialHasMore }: TeamN
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1 max-h-[480px] overflow-y-auto pr-1">
       {comments.map((comment) => {
         const isReaction = !!comment.reactionType && !comment.body;
         return (

@@ -35,10 +35,44 @@ export const POST = withAdminAuth(async (request, { userId: adminId, prisma }) =
     return errorResponse('User not found', 404, { code: 'NOT_FOUND' });
   }
 
-  await prisma.profile.update({
-    where: { id: targetUserId },
-    data: { subscriptionTier: tier },
+  const TIER_LIMITS: Record<string, { generations: number; downloads: number }> = {
+    creator:    { generations: 5,    downloads: 1 },
+    pro:        { generations: 20,   downloads: 5 },
+    studio:     { generations: 100,  downloads: 50 },
+    enterprise: { generations: 1000, downloads: 500 },
+  };
+  const limits = TIER_LIMITS[tier] ?? { generations: 5, downloads: 1 };
+
+  const existingSub = await prisma.subscription.findFirst({
+    where: { userId: targetUserId },
+    orderBy: { createdAt: 'desc' },
   });
+
+  await prisma.$transaction([
+    prisma.profile.update({
+      where: { id: targetUserId },
+      data: { subscriptionTier: tier },
+    }),
+    existingSub
+      ? prisma.subscription.update({
+          where: { id: existingSub.id },
+          data: {
+            plan: tier,
+            status: 'active',
+            generationsLimit: limits.generations,
+            downloadsLimit: limits.downloads,
+          },
+        })
+      : prisma.subscription.create({
+          data: {
+            userId: targetUserId,
+            plan: tier,
+            status: 'active',
+            generationsLimit: limits.generations,
+            downloadsLimit: limits.downloads,
+          },
+        }),
+  ]);
 
   const requestInfo = extractRequestInfo(request);
   await logAuditEvent({

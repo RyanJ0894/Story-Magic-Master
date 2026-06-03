@@ -51,6 +51,7 @@ export const GET = withAdminAuth(async (request, { userId, prisma }) => {
   if (search) {
     where.OR = [
       { fullName: { contains: search, mode: 'insensitive' } },
+      { email: { contains: search, mode: 'insensitive' } },
       { writerCode: { contains: search, mode: 'insensitive' } },
       { readerCode: { contains: search, mode: 'insensitive' } },
     ];

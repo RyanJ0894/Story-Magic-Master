@@ -117,10 +117,10 @@ export function EnterpriseProjectAssignment({ teamId, allProjects, assignedProje
                     size="sm"
                     disabled={loadingIds.has(project.id) || pending}
                     onClick={() => void unassign(project.id)}
-                    className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0"
+                    className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-9 w-9 p-0"
                     title="Remove from team"
                   >
-                    <Minus className="w-3.5 h-3.5" />
+                    <Minus className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
@@ -152,10 +152,10 @@ export function EnterpriseProjectAssignment({ teamId, allProjects, assignedProje
                   size="sm"
                   disabled={loadingIds.has(project.id) || pending}
                   onClick={() => void assign(project.id)}
-                  className="text-muted-foreground hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 h-7 w-7 p-0 shrink-0"
+                  className="text-muted-foreground hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 h-9 w-9 p-0 shrink-0"
                   title="Add to team"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus className="w-4 h-4" />
                 </Button>
               </div>
             ))}
