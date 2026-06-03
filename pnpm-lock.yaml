@@ -128,10 +128,10 @@ importers:
       '@prisma/client':
         specifier: ^6.19.2
         version: 6.19.2(prisma@6.19.2(typescript@5.9.3))(typescript@5.9.3)
-    devDependencies:
       prisma:
         specifier: ^6
         version: 6.19.2(typescript@5.9.3)
+    devDependencies:
       typescript:
         specifier: ^5
         version: 5.9.3
