@@ -40,9 +40,9 @@ export default async function ProjectPage(
     notFound();
   }
 
-  // Fetch project
+  // Fetch project — scope to userId to prevent IDOR
   const project = await prisma.project.findUnique({
-    where: { id: params.id },
+    where: { id: params.id, userId },
   });
 
   if (!project) {
