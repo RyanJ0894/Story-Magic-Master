@@ -2,10 +2,11 @@
  * Tests for POST /api/shares/access/[code]/play
  *
  * Verifies play/complete event tracking:
- * - playCount incremented only on 'play' action (not 'complete')
+ * - playCount incremented atomically via $executeRaw (not scriptShare.update)
+ * - $executeRaw returns 0 when play limit already reached → 410
  * - ContentAccessLog row created for both actions
  * - IP + user-agent captured
- * - Invalid/inactive shares rejected
+ * - Invalid/inactive/expired shares rejected
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -16,17 +17,17 @@ import { NextRequest } from 'next/server';
 // =============================================================================
 
 const mockShareFindFirst = vi.fn();
-const mockShareUpdate = vi.fn();
+const mockExecuteRaw = vi.fn();
 const mockLogCreate = vi.fn();
 
 const mockPrisma = {
   scriptShare: {
     findFirst: mockShareFindFirst,
-    update: mockShareUpdate,
   },
   contentAccessLog: {
     create: mockLogCreate,
   },
+  $executeRaw: mockExecuteRaw,
 };
 vi.mock('@/lib/db', () => ({ prisma: mockPrisma }));
 
@@ -43,7 +44,7 @@ const { POST } = await import('@/app/api/shares/access/[code]/play/route');
 const mockShare = {
   id: 'share-uuid-1',
   projectId: 'project-uuid-1',
-  playCount: 3,
+  expiresAt: null,
 };
 
 function makeRequest(code: string, body?: object, headers?: Record<string, string>) {
@@ -66,11 +67,11 @@ describe('POST /api/shares/access/[code]/play', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockShareFindFirst.mockResolvedValue(mockShare);
-    mockShareUpdate.mockResolvedValue({ ...mockShare, playCount: 4 });
+    mockExecuteRaw.mockResolvedValue(1); // 1 row updated = success
     mockLogCreate.mockResolvedValue({ id: 'log-1' });
   });
 
-  it('increments playCount and writes ContentAccessLog on play action', async () => {
+  it('uses $executeRaw atomic increment on play action', async () => {
     const req = makeRequest('abc123def', { action: 'play' });
     const res = await POST(req, { params: Promise.resolve({ code: 'abc123def' }) });
     const body = await res.json();
@@ -79,13 +80,7 @@ describe('POST /api/shares/access/[code]/play', () => {
     expect(body.success).toBe(true);
     expect(body.action).toBe('play');
 
-    expect(mockShareUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          playCount: { increment: 1 }, // atomic Prisma increment
-        }),
-      })
-    );
+    expect(mockExecuteRaw).toHaveBeenCalledTimes(1);
 
     expect(mockLogCreate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -99,7 +94,20 @@ describe('POST /api/shares/access/[code]/play', () => {
     );
   });
 
-  it('does NOT increment playCount on complete action', async () => {
+  it('returns 410 PLAY_LIMIT_REACHED when $executeRaw returns 0 (atomic guard)', async () => {
+    // 0 rows updated = max_plays condition blocked the increment
+    mockExecuteRaw.mockResolvedValue(0);
+
+    const req = makeRequest('abc123def', { action: 'play' });
+    const res = await POST(req, { params: Promise.resolve({ code: 'abc123def' }) });
+    const body = await res.json();
+
+    expect(res.status).toBe(410);
+    expect(body.code).toBe('PLAY_LIMIT_REACHED');
+    expect(mockLogCreate).not.toHaveBeenCalled();
+  });
+
+  it('does NOT call $executeRaw on complete action', async () => {
     const req = makeRequest('abc123def', { action: 'complete', progressPct: 100 });
     const res = await POST(req, { params: Promise.resolve({ code: 'abc123def' }) });
     const body = await res.json();
@@ -107,15 +115,11 @@ describe('POST /api/shares/access/[code]/play', () => {
     expect(res.status).toBe(200);
     expect(body.action).toBe('complete');
 
-    // playCount update should NOT be called
-    expect(mockShareUpdate).not.toHaveBeenCalled();
+    expect(mockExecuteRaw).not.toHaveBeenCalled();
 
-    // ContentAccessLog should still be written
     expect(mockLogCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
-          accessType: 'complete',
-        }),
+        data: expect.objectContaining({ accessType: 'complete' }),
       })
     );
   });
@@ -123,11 +127,9 @@ describe('POST /api/shares/access/[code]/play', () => {
   it('defaults to play action when no body provided', async () => {
     const req = makeRequest('abc123def');
     const res = await POST(req, { params: Promise.resolve({ code: 'abc123def' }) });
-    const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.action).toBe('play');
-    expect(mockShareUpdate).toHaveBeenCalled();
+    expect(mockExecuteRaw).toHaveBeenCalledTimes(1);
   });
 
   it('returns 404 when share not found or inactive', async () => {
@@ -137,7 +139,7 @@ describe('POST /api/shares/access/[code]/play', () => {
     const res = await POST(req, { params: Promise.resolve({ code: 'nonexistent1' }) });
 
     expect(res.status).toBe(404);
-    expect(mockShareUpdate).not.toHaveBeenCalled();
+    expect(mockExecuteRaw).not.toHaveBeenCalled();
     expect(mockLogCreate).not.toHaveBeenCalled();
   });
 
@@ -146,6 +148,19 @@ describe('POST /api/shares/access/[code]/play', () => {
     const res = await POST(req, { params: Promise.resolve({ code: 'abc' }) });
 
     expect(res.status).toBe(400);
+  });
+
+  it('returns 410 EXPIRED for shares past expiresAt', async () => {
+    const pastDate = new Date(Date.now() - 1000);
+    mockShareFindFirst.mockResolvedValue({ ...mockShare, expiresAt: pastDate });
+
+    const req = makeRequest('abc123def', { action: 'play' });
+    const res = await POST(req, { params: Promise.resolve({ code: 'abc123def' }) });
+    const body = await res.json();
+
+    expect(res.status).toBe(410);
+    expect(body.code).toBe('EXPIRED');
+    expect(mockExecuteRaw).not.toHaveBeenCalled();
   });
 
   it('captures x-forwarded-for IP in ContentAccessLog', async () => {
@@ -160,7 +175,7 @@ describe('POST /api/shares/access/[code]/play', () => {
     expect(mockLogCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          ipAddress: '203.0.113.42', // first IP only
+          ipAddress: '203.0.113.42',
         }),
       })
     );

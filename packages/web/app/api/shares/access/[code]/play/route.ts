@@ -42,9 +42,7 @@ export async function POST(
       select: {
         id: true,
         projectId: true,
-        playCount: true,
         expiresAt: true,
-        maxPlays: true,
       },
     });
 
@@ -52,25 +50,24 @@ export async function POST(
       return errorResponse('Share not found', 404, { code: 'NOT_FOUND' });
     }
 
-    // Validate expiry (even if isActive is still true)
     if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
       return errorResponse('Share link has expired', 410, { code: 'EXPIRED' });
     }
 
-    // Validate play limit
-    if (share.maxPlays && (share.playCount ?? 0) >= share.maxPlays) {
-      return errorResponse('Share play limit reached', 410, { code: 'PLAY_LIMIT_REACHED' });
-    }
-
-    // Atomically increment playCount only on the initial 'play' action
+    // Atomic increment — WHERE guard prevents play count overshoot under concurrent requests.
+    // Returns 0 rows when max_plays already reached; eliminates the read-check-write race.
     if (action === 'play') {
-      await prisma.scriptShare.update({
-        where: { id: share.id },
-        data: {
-          playCount: { increment: 1 },
-          lastAccessedAt: new Date(),
-        },
-      });
+      const updated = await prisma.$executeRaw`
+        UPDATE script_shares
+        SET play_count = play_count + 1,
+            last_accessed_at = NOW()
+        WHERE id = ${share.id}::uuid
+          AND (max_plays IS NULL OR play_count < max_plays)
+      `;
+
+      if (updated === 0) {
+        return errorResponse('Share play limit reached', 410, { code: 'PLAY_LIMIT_REACHED' });
+      }
     }
 
     // Write ContentAccessLog row for analytics dashboard

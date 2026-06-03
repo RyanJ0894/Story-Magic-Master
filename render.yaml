@@ -195,6 +195,32 @@ services:
         sync: false
 
   # =============================================================================
+  # CRON JOB — Nightly Log Cleanup
+  # Runs daily at 02:00 UTC. Deletes content_access_log rows older than 90 days.
+  # =============================================================================
+  - type: cron
+    name: cleanup-logs
+    runtime: node
+    region: oregon
+    plan: starter
+    schedule: "0 2 * * *"
+    buildCommand: echo "no build needed"
+    startCommand: >
+      node -e "
+        const url = process.env.WEB_URL + '/api/cron/cleanup-logs';
+        const secret = process.env.CRON_SECRET;
+        fetch(url, { method: 'POST', headers: { 'x-cron-secret': secret } })
+          .then(r => r.json()).then(console.log).catch(console.error);
+      "
+    envVars:
+      - key: NODE_VERSION
+        value: "22.12.0"
+      - key: WEB_URL
+        value: "https://story-magic-web.onrender.com"
+      - key: CRON_SECRET
+        sync: false
+
+  # =============================================================================
   # BACKGROUND WORKER (Queue Processor) — currently disabled to save costs.
   # The web service runs an embedded queue worker instead.
   # To re-enable: uncomment the worker block below and set WORKER_MODE=standalone
