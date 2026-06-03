@@ -285,7 +285,7 @@ model Subscription {
 
 model Purchase {
   id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId                String   @map("user_id")
+  userId                String?  @map("user_id")
   projectId             String?  @map("project_id") @db.Uuid
   purchaseType          String   @map("purchase_type")
   amountCents           Int      @map("amount_cents")
@@ -295,9 +295,9 @@ model Purchase {
   status                String   @default("completed")
   createdAt             DateTime @default(now()) @map("created_at")
 
-  // Relations
-  user    Profile  @relation(fields: [userId], references: [id])
-  project Project? @relation(fields: [projectId], references: [id])
+  // Relations — SetNull so deleting a user anonymises purchases rather than cascade-deleting
+  user    Profile? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([projectId])
@@ -350,7 +350,7 @@ model PodcastFeed {
 model ScriptShare {
   id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   projectId      String    @map("project_id") @db.Uuid
-  sharedBy       String    @map("shared_by")
+  sharedBy       String?   @map("shared_by")
   sharedWith     String?   @map("shared_with")
   shareToken     String?   @unique @map("share_token")
   shareCode      String?   @unique @map("share_code")
@@ -373,8 +373,8 @@ model ScriptShare {
 
   // Relations
   project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  sharedByUser      Profile            @relation("SharedBy", fields: [sharedBy], references: [id])
-  sharedWithUser    Profile?           @relation("SharedWith", fields: [sharedWith], references: [id])
+  sharedByUser      Profile?           @relation("SharedBy", fields: [sharedBy], references: [id], onDelete: SetNull)
+  sharedWithUser    Profile?           @relation("SharedWith", fields: [sharedWith], references: [id], onDelete: SetNull)
   readerLibrary     ReaderLibrary[]
   contentAccessLogs ContentAccessLog[]
 
@@ -800,14 +800,14 @@ model TeamShare {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   projectId   String   @map("project_id") @db.Uuid
   teamId      String   @map("team_id") @db.Uuid
-  sharedBy    String   @map("shared_by")
+  sharedBy    String?  @map("shared_by")
   accessLevel String   @default("stream") @map("access_level")
   createdAt   DateTime @default(now()) @map("created_at")
 
   // Relations
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  team    Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  sharer  Profile @relation(fields: [sharedBy], references: [id])
+  project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  team    Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sharer  Profile? @relation(fields: [sharedBy], references: [id], onDelete: SetNull)
 
   @@unique([projectId, teamId])
   @@index([teamId])
