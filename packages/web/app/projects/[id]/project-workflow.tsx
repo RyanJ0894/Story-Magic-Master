@@ -270,29 +270,15 @@ export function ProjectWorkflow({
     latestJob?.runNumber || null
   );
 
-  // Track workflow mode for current run (persisted in localStorage per run)
-  const [selectedMode, setSelectedMode] = useState<WorkflowMode | null>(() => {
-    // If there's an active job, use its mode
-    if (latestJob?.workflowMode) {
-      return latestJob.workflowMode;
-    }
-    // Check localStorage for mode selection for current run
-    if (typeof window !== 'undefined') {
-      const key = `project-${project.id}-run-${project.currentRunNumber + 1}-mode`;
-      const saved = localStorage.getItem(key);
-      if (saved) return saved as WorkflowMode;
-    }
-    return null;
-  });
+  // Track workflow mode for current run (persisted in localStorage per run).
+  // SSR-safe: initialise from server-available data only; localStorage hydrated in useEffect below.
+  const [selectedMode, setSelectedMode] = useState<WorkflowMode | null>(
+    latestJob?.workflowMode ?? null,
+  );
 
-  // Track which steps have been skipped (persisted in localStorage)
-  const [skippedSteps, setSkippedSteps] = useState<Set<string>>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(`project-${project.id}-skipped-steps`);
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    }
-    return new Set();
-  });
+  // Track which steps have been skipped (persisted in localStorage).
+  // SSR-safe: empty Set on first render; localStorage hydrated in useEffect below.
+  const [skippedSteps, setSkippedSteps] = useState<Set<string>>(new Set());
 
   // Preview budget state (can be updated when previews are used)
   const [remainingPreviews, setRemainingPreviews] = useState(initialRemainingPreviews);
@@ -327,6 +313,25 @@ export function ProjectWorkflow({
       localStorage.setItem(key, selectedMode);
     }
   }, [selectedMode, project.id, project.currentRunNumber]);
+
+  // Hydrate localStorage state after mount so SSR and first client render match exactly.
+  // Runs once — any subsequent changes go through the save effects above.
+  useEffect(() => {
+    if (!selectedMode) {
+      const key = `project-${project.id}-run-${project.currentRunNumber + 1}-mode`;
+      const saved = localStorage.getItem(key);
+      if (saved) setSelectedMode(saved as WorkflowMode);
+    }
+    const savedSkips = localStorage.getItem(`project-${project.id}-skipped-steps`);
+    if (savedSkips) {
+      try {
+        setSkippedSteps(new Set(JSON.parse(savedSkips) as string[]));
+      } catch {
+        // malformed JSON — leave empty Set
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // mount-only: localStorage hydration after SSR
 
   const handleModeSelected = (mode: WorkflowMode) => {
     setSelectedMode(mode);

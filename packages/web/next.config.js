@@ -1,4 +1,5 @@
 const { withSentryConfig } = require('@sentry/nextjs');
+const path = require('path');
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -67,7 +68,9 @@ const nextConfig = {
         ...config.watchOptions,
         ignored: [
           ...(Array.isArray(config.watchOptions?.ignored) ? config.watchOptions.ignored : []),
-          '**/packages/shared/src/generated/**',
+          // Absolute-path glob so watchpack reliably excludes the Prisma engine
+          // binary — relative globs can silently fail to match absolute inotify paths.
+          `${path.resolve(__dirname, '../shared/src/generated')}/**`,
         ],
       };
     }
