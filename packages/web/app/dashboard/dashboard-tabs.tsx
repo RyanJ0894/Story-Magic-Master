@@ -257,8 +257,8 @@ export function DashboardTabs({
             </div>
           </div>
 
-          {/* Enterprise Packages banner */}
-          <div className="rounded-xl border border-border bg-card p-5">
+          {/* Enterprise Packages banner — hidden for users already on studio/enterprise */}
+          {!['studio', 'enterprise'].includes(tier) && <div className="rounded-xl border border-border bg-card p-5">
             <div className="flex items-center gap-2 mb-2">
               <Building2 className="w-4 h-4 text-violet-500" />
               <p className="font-semibold text-sm text-foreground">Enterprise Packages!</p>
@@ -272,7 +272,7 @@ export function DashboardTabs({
                 View Enterprise Packages
               </Button>
             </Link>
-          </div>
+          </div>}
 
           {/* Monthly Usage + Recent Projects */}
           <div className="grid sm:grid-cols-2 gap-4">
