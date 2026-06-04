@@ -150,6 +150,10 @@ export function UploadScreenplay({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click(); } }}
+        tabIndex={0}
+        role="button"
+        aria-label="Upload screenplay — click or press Enter to browse"
         className={`
           relative flex flex-col items-center justify-center gap-3 p-8
           border-2 border-dashed rounded-lg cursor-pointer transition-colors

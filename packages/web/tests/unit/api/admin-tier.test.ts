@@ -27,6 +27,12 @@ const mockPrisma = {
     findUnique: vi.fn(),
     update: vi.fn(),
   },
+  subscription: {
+    findFirst: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  },
+  $transaction: vi.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
   auditLog: {
     create: vi.fn(),
   },
@@ -136,6 +142,10 @@ describe('POST /api/admin/tier', () => {
         .mockResolvedValueOnce({ id: ADMIN_ID, userType: 'admin' })
         .mockResolvedValueOnce({ id: TARGET_ID, fullName: 'Ryan Jae', email: 'ryan@example.com', subscriptionTier: 'creator' });
       mockPrisma.profile.update.mockResolvedValue({ id: TARGET_ID, subscriptionTier: 'enterprise' });
+      mockPrisma.subscription.findFirst.mockResolvedValue(null);
+      mockPrisma.subscription.create.mockResolvedValue({});
+      mockPrisma.subscription.update.mockResolvedValue({});
+      mockPrisma.$transaction.mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops));
     });
 
     it('returns 200 with previous and new tier', async () => {
@@ -172,6 +182,9 @@ describe('POST /api/admin/tier', () => {
           .mockResolvedValueOnce({ id: ADMIN_ID, userType: 'admin' })
           .mockResolvedValueOnce({ id: TARGET_ID, fullName: 'Test', email: 'test@example.com', subscriptionTier: 'creator' });
         mockPrisma.profile.update.mockResolvedValue({ id: TARGET_ID, subscriptionTier: tier });
+        mockPrisma.subscription.findFirst.mockResolvedValue(null);
+        mockPrisma.subscription.create.mockResolvedValue({});
+        mockPrisma.$transaction.mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops));
         const res = await POST(makeRequest({ userId: TARGET_ID, tier }));
         expect(res.status).toBe(200);
       }

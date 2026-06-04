@@ -14,6 +14,7 @@ import { log } from '@/lib/logger';
 export const GET = withAdminAuth(async (_request, { prisma }) => {
   try {
     const scripts = await prisma.scriptCorpus.findMany({
+      take: 500,
       where: { datasetCategory: { not: null } },
       select: {
         title: true,
