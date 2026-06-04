@@ -4,6 +4,7 @@ import { processScript } from '../director/pipeline.js';
 import { log } from '../lib/logger.js';
 import { getEnv } from '../lib/env.js';
 import { prisma } from '../lib/prisma.js';
+import { checkAIProviders } from '../lib/ai-health.js';
 
 const router = Router();
 
@@ -72,6 +73,27 @@ router.post('/generate-scenes', async (req: Request, res: Response): Promise<voi
       // Non-fatal: if DB is unavailable, log and continue (allows dev without DB)
       log.warn('generate-scenes: ownership check skipped (DB unavailable)', { projectId: project_id });
     }
+  }
+
+  // Pre-flight: verify AI provider keys are reachable before committing
+  // to a long-running batch job.  Probes are zero-cost (model-list endpoints).
+  const preflight = await checkAIProviders('preflight');
+  if (!preflight.canProceed) {
+    const detail = preflight.results
+      .filter((r) => r.status === 'down')
+      .map((r) => `${r.provider}: ${r.errorCode ?? 'down'}`)
+      .join(', ');
+    log.error('generate-scenes: AI preflight failed — aborting job', undefined, {
+      projectId: project_id,
+      blockedBy: preflight.blockedBy,
+      detail,
+    });
+    res.status(503).json({
+      project_id,
+      success: false,
+      message: `AI services unavailable — please retry in a few minutes. (${detail})`,
+    } as GenerateScenesResponse);
+    return;
   }
 
   // Pre-flight: enforce script size limits before any LLM call
