@@ -11,7 +11,7 @@ import express from 'express';
 
 // ── hoisted mocks ────────────────────────────────────────────────────────────
 
-const { mockProcessScript, mockGetEnv, mockPrisma } = vi.hoisted(() => ({
+const { mockProcessScript, mockGetEnv, mockPrisma, mockCheckAIProviders } = vi.hoisted(() => ({
   mockProcessScript: vi.fn(),
   mockGetEnv: vi.fn(),
   mockPrisma: {
@@ -19,6 +19,7 @@ const { mockProcessScript, mockGetEnv, mockPrisma } = vi.hoisted(() => ({
       findUnique: vi.fn(),
     },
   },
+  mockCheckAIProviders: vi.fn(),
 }));
 
 vi.mock('../director/pipeline.js', () => ({
@@ -35,6 +36,10 @@ vi.mock('../lib/env.js', () => ({
 
 vi.mock('../lib/prisma.js', () => ({
   prisma: mockPrisma,
+}));
+
+vi.mock('../lib/ai-health.js', () => ({
+  checkAIProviders: (...args: unknown[]) => mockCheckAIProviders(...args),
 }));
 
 // ── imports after mocks ───────────────────────────────────────────────────────
@@ -67,6 +72,7 @@ async function post(
   userId?: string,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   mockGetEnv.mockReturnValue(env);
+  mockCheckAIProviders.mockResolvedValue({ canProceed: true, results: [], blockedBy: [] });
 
   const app = express();
   app.use(express.json());
