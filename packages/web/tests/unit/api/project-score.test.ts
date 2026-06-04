@@ -65,7 +65,7 @@ const mockProject = {
   id: PROJECT_ID,
   userId: 'user_test123',
   name: 'Test Script',
-  script_text: 'A'.repeat(200), // >100 chars
+  scriptText: 'A'.repeat(200), // >100 chars
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -237,7 +237,7 @@ describe('POST /api/projects/[id]/score', () => {
   it('returns 400 when script text is too short', async () => {
     mockPrisma.project.findFirst.mockResolvedValue({
       ...mockProject,
-      script_text: 'Short',
+      scriptText: 'Short',
     });
 
     const req = createRequest(`http://localhost:22000/api/projects/${PROJECT_ID}/score`, {
@@ -297,7 +297,7 @@ describe('POST /api/projects/[id]/score', () => {
     expect(data.score).toEqual(generatedScore);
     expect(mockGenerateScore).toHaveBeenCalledWith(
       PROJECT_ID,
-      mockProject.script_text,
+      mockProject.scriptText,
       expect.objectContaining({ title: 'My Script', genre: 'Drama' }),
     );
   });
