@@ -1207,3 +1207,22 @@ model VoiceMap {
   @@id([projectId, character])
   @@map("voice_map")
 }
+
+// =============================================================================
+// AI HEALTH MONITORING
+// =============================================================================
+
+model AiHealthLog {
+  id           String   @id @default(cuid())
+  provider     String                       // 'anthropic' | 'openai' | 'elevenlabs' | 'google'
+  status       String                       // 'healthy' | 'degraded' | 'down'
+  errorCode    String?  @map("error_code")  // 'INVALID_KEY' | 'QUOTA_EXCEEDED' | 'RATE_LIMITED' | 'TIMEOUT' | 'UNREACHABLE'
+  errorMessage String?  @map("error_message")
+  latencyMs    Int?     @map("latency_ms")
+  triggeredBy  String   @default("preflight") @map("triggered_by")
+  checkedAt    DateTime @default(now()) @map("checked_at")
+
+  @@index([provider, checkedAt])
+  @@index([checkedAt])
+  @@map("ai_health_log")
+}
