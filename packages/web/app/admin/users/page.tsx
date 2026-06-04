@@ -203,7 +203,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   </TableCell>
                   <TableCell>{projectCountMap.get(user.id) || 0}</TableCell>
                   <TableCell>
-                    {new Date(user.createdAt).toLocaleDateString()}
+                    {new Date(user.createdAt).toLocaleDateString('en-US')}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
