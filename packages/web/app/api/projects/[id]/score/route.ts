@@ -110,7 +110,7 @@ export const POST = withProjectAuth(
     }
 
     // Validate script text exists
-    const scriptText = project.script_text as string | undefined;
+    const scriptText = project.scriptText as string | undefined;
     if (!scriptText || scriptText.trim().length < 100) {
       return NextResponse.json(
         {
