@@ -120,8 +120,11 @@ router.post('/generate-scenes', async (req: Request, res: Response): Promise<voi
     log.info('generate-scenes: Advanced Analysis active — using upgraded model', { projectId: project_id, model: directorModel });
   }
 
+  // Attach model to req so pino-http can include it in access log error messages
+  (req as unknown as Record<string, unknown>).llmModel = directorModel;
+
   try {
-    log.info('Starting scene generation', { projectId: project_id, scriptLength: script_text.length, estimatedPages });
+    log.info('Starting scene generation', { projectId: project_id, scriptLength: script_text.length, estimatedPages, model: directorModel });
     if (voice_overrides && Object.keys(voice_overrides).length > 0) {
       log.info('Voice overrides provided', { projectId: project_id, overrideCount: Object.keys(voice_overrides).length, characters: Object.keys(voice_overrides) });
     }
@@ -147,7 +150,7 @@ router.post('/generate-scenes', async (req: Request, res: Response): Promise<voi
       validation_report: result.validation_report,
     });
   } catch (error) {
-    log.error('Scene generation failed', error instanceof Error ? error : new Error(String(error)), { projectId: project_id });
+    log.error('Scene generation failed', error instanceof Error ? error : new Error(String(error)), { projectId: project_id, model: directorModel });
     res.status(500).json({
       project_id,
       success: false,

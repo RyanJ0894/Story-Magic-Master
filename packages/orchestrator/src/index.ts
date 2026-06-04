@@ -6,8 +6,12 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
-// Load environment variables first
-dotenv.config();
+// Load environment variables first — explicit path ensures correct .env is loaded
+// regardless of process.cwd() (which varies when launched from the monorepo root).
+// dotenv does not override vars already set by Doppler/the shell, so this is safe in prod.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 // Validate environment variables
 import { validateEnv, printEnvSummary, getOutputDir } from './lib/env.js';
@@ -40,9 +44,6 @@ import previewRouter from './routes/preview.js';
 import impactRouter from './routes/impact.js';
 import stemsRouter from './routes/stems.js';
 import stitchSegmentsRouter from './routes/stitch-segments.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '22002', 10);
