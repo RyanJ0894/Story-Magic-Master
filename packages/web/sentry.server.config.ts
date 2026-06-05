@@ -19,5 +19,9 @@ Sentry.init({
   ignoreErrors: [
     'NEXT_NOT_FOUND',
     'NEXT_REDIRECT',
+    // TCP close before response completes — client navigated away or connection dropped.
+    // Originates at socketOnClose → onStreamRead; not actionable in application code.
+    'Error: aborted',
+    'ECONNRESET',
   ],
 });
