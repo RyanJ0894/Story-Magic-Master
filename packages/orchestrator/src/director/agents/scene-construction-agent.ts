@@ -6,12 +6,14 @@
  *
  * Key properties:
  * - NO tool calls: voice_key values come from the pre-built VoiceMap
- * - Chunks are processed in parallel (Promise.allSettled)
+ * - Chunks are processed with bounded parallelism (pLimit(3)) to avoid
+ *   exhausting Claude's concurrent-request quota on dense scripts
  * - Each chunk is bounded in size, so output JSON never hits token limits
  * - A failed chunk is logged and skipped; the pipeline continues with
  *   successful chunks rather than failing completely
  */
 
+import pLimit from 'p-limit';
 import { generateStructuredOutput } from '../../lib/llm-client.js';
 import { log } from '../../lib/logger.js';
 import {
@@ -27,6 +29,9 @@ const DEFAULT_MODEL = process.env.DIRECTOR_MODEL || 'openai/gpt-4.1';
 const DEFAULT_SCENES_PER_CHUNK = 15;
 // 15-scene chunk outputs ~8-10K tokens of JSON; 16K provides ample headroom
 const SCENE_CONSTRUCTION_MAX_TOKENS = 16384;
+// Cap concurrent Claude calls to avoid 429s on dense scripts (6+ chunks).
+// 3 means a 90-scene script processes in 2 waves of 3 rather than 6 at once.
+const MAX_CONCURRENT_CHUNKS = 3;
 
 // Output schema for one chunk: an object wrapping the scenes array.
 // Using z.object (not z.array) at the top level works better with generateObject.
@@ -70,9 +75,11 @@ export class SceneConstructionAgent {
       scenesPerChunk: this.scenesPerChunk,
     });
 
-    // Dispatch all chunks in parallel
+    // Dispatch chunks with bounded parallelism — avoids saturating Claude's
+    // concurrent-request quota on dense scripts that produce 6+ chunks.
+    const limit = pLimit(MAX_CONCURRENT_CHUNKS);
     const results = await Promise.allSettled(
-      chunks.map((chunk) => this.constructChunk(chunk, input.voice_map))
+      chunks.map((chunk) => limit(() => this.constructChunk(chunk, input.voice_map)))
     );
 
     // Collect successful results in order

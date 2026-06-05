@@ -159,9 +159,10 @@ describe('generate-scenes pre-flight: page limit', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it('returns 400 when estimated page count exceeds MAX_SCRIPT_PAGES', async () => {
-    // 11 pages × 500 chars/page = 5_500 chars → ~11 estimated pages; limit = 10
+    // Real screenplay density: ~2,200 chars/page.
+    // 11 pages × 2,200 chars/page = 24,200 chars → ~11 estimated pages; limit = 10.
     const { status, body } = await post(
-      { project_id: 'proj-1', script_text: 'A'.repeat(5_500) },
+      { project_id: 'proj-1', script_text: 'A'.repeat(24_200) },
       { MAX_SCRIPT_CHARS: 200_000, MAX_SCRIPT_PAGES: 10 }
     );
     expect(status).toBe(400);
@@ -172,12 +173,27 @@ describe('generate-scenes pre-flight: page limit', () => {
 
   it('accepts script within page limit', async () => {
     mockProcessScript.mockResolvedValue({ director_json: VALID_DIRECTOR_JSON, validation_report: {} });
-    // 9 pages × 500 chars = 4_500 chars → ~9 estimated pages ≤ 10
+    // 9 pages × 2,200 chars = 19,800 chars → ~9 estimated pages ≤ 10
     const { status, body } = await post(
-      { project_id: 'proj-1', script_text: 'A'.repeat(4_500) },
+      { project_id: 'proj-1', script_text: 'A'.repeat(19_800) },
       { MAX_SCRIPT_CHARS: 200_000, MAX_SCRIPT_PAGES: 10 }
     );
     expect(String(body.message ?? '')).not.toMatch(/page limit/i);
+    expect(mockProcessScript).toHaveBeenCalledTimes(1);
+  });
+
+  it('a real 30-page script (66K chars) is estimated as ~30 pages, not ~132', async () => {
+    // Before fix: Math.ceil(66_000 / 500) = 132 pages — triggers a false block
+    // at MAX_SCRIPT_PAGES=150 on any script over ~75 pages of real content.
+    // After fix: Math.ceil(66_000 / 2_200) = 30 pages — correctly passes a 30-page limit.
+    mockProcessScript.mockResolvedValue({ director_json: VALID_DIRECTOR_JSON, validation_report: {} });
+    const thirtyPageScript = 'A'.repeat(66_000);
+    const { status, body } = await post(
+      { project_id: 'proj-1', script_text: thirtyPageScript },
+      { MAX_SCRIPT_CHARS: 200_000, MAX_SCRIPT_PAGES: 35 }, // 35-page limit → 30-page script must pass
+    );
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
     expect(mockProcessScript).toHaveBeenCalledTimes(1);
   });
 });

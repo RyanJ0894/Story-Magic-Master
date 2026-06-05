@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { extractSceneInfo, chunkScript, countScenes } from './script-chunker.js';
+import {
+  extractSceneInfo,
+  chunkScript,
+  countScenes,
+  chunkScriptForExtraction,
+  mergeCharacterLists,
+  EXTRACTION_CHUNK_THRESHOLD,
+} from './script-chunker.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fixtures
@@ -160,5 +167,128 @@ describe('countScenes', () => {
 
   it('counts scenes accurately', () => {
     expect(countScenes(makeScript(7))).toBe(7);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// chunkScript — large-script boundary conditions (30-page scale)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('chunkScript — large-script boundary conditions', () => {
+  it('no scenes are dropped between chunks on a 30-scene script', () => {
+    const script = makeScript(30);
+    const chunks = chunkScript(script, 15); // 2 chunks
+    const allSceneNums = chunks.flatMap((c) =>
+      Array.from({ length: c.end_scene_num - c.start_scene_num + 1 }, (_, i) => c.start_scene_num + i)
+    );
+    expect(allSceneNums).toEqual(Array.from({ length: 30 }, (_, i) => i + 1));
+  });
+
+  it('no scenes are duplicated at chunk boundaries on a 30-scene script', () => {
+    const script = makeScript(30);
+    const chunks = chunkScript(script, 15);
+    const allSceneNums = chunks.flatMap((c) =>
+      Array.from({ length: c.end_scene_num - c.start_scene_num + 1 }, (_, i) => c.start_scene_num + i)
+    );
+    expect(new Set(allSceneNums).size).toBe(allSceneNums.length);
+  });
+
+  it('leading text before the first INT./EXT. heading is not included in any chunk', () => {
+    // Screenplays sometimes start with FADE IN: or title-page text before
+    // the first scene heading. chunkScript starts at the first heading —
+    // that preamble is correctly excluded (it has no dialogue or audio cues).
+    const scriptWithPreamble =
+      'FADE IN:\n\nTITLE CARD: "A long time ago..."\n\n' + makeScript(5);
+    const chunks = chunkScript(scriptWithPreamble, 15);
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0].text.trim()).toMatch(/^INT\. LOCATION 1/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// chunkScriptForExtraction — 30-page scale
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('chunkScriptForExtraction', () => {
+  it('returns a single chunk for script below the threshold', () => {
+    const shortScript = makeScript(5); // well under 30K chars
+    expect(shortScript.length).toBeLessThan(EXTRACTION_CHUNK_THRESHOLD);
+    const chunks = chunkScriptForExtraction(shortScript);
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0].chunk_index).toBe(0);
+  });
+
+  it('splits a 30-page-scale script (66K chars) into multiple extraction chunks', () => {
+    // ~2,200 chars per scene, 30 scenes = ~66K chars — each scene is realistic size.
+    // 'DIALOG LINE. ' = 13 chars; 170 repeats ≈ 2,210 chars per scene.
+    const denseScript = Array.from({ length: 30 }, (_, i) =>
+      `INT. LOCATION ${i + 1} - DAY\n\n` + 'DIALOG LINE. '.repeat(170)
+    ).join('\n\n');
+    expect(denseScript.length).toBeGreaterThan(EXTRACTION_CHUNK_THRESHOLD);
+    const chunks = chunkScriptForExtraction(denseScript);
+    expect(chunks.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('chunk_index values are sequential starting from 0', () => {
+    const longScript = makeScript(30) + 'X'.repeat(50_000);
+    const chunks = chunkScriptForExtraction(longScript);
+    expect(chunks.map((c) => c.chunk_index)).toEqual(Array.from({ length: chunks.length }, (_, i) => i));
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// mergeCharacterLists — large cast (30-page scale)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('mergeCharacterLists', () => {
+  function makeChar(name: string, extras: Partial<{ description: string; gender: 'Male' | 'Female'; aliases: string[] }> = {}) {
+    return {
+      name,
+      canonical_name: name,
+      aliases: extras.aliases ?? [],
+      description: extras.description,
+      gender: extras.gender,
+      is_narrator: name === 'NARRATOR',
+    };
+  }
+
+  it('merges two non-overlapping character lists', () => {
+    const a = [makeChar('ALICE'), makeChar('BOB')];
+    const b = [makeChar('CAROL'), makeChar('DAVE')];
+    const merged = mergeCharacterLists([a, b]);
+    expect(merged).toHaveLength(4);
+  });
+
+  it('deduplicates characters across chunks (case-insensitive match)', () => {
+    const a = [makeChar('ALICE', { description: 'short' })];
+    const b = [makeChar('Alice', { description: 'a longer richer description' })];
+    const merged = mergeCharacterLists([a, b]);
+    expect(merged).toHaveLength(1);
+    // Keeps the richer description
+    expect(merged[0].description).toBe('a longer richer description');
+  });
+
+  it('is_narrator=true always wins on merge', () => {
+    const a = [makeChar('NARRATOR', { })];
+    const b = [{ ...makeChar('NARRATOR'), is_narrator: false }];
+    const merged = mergeCharacterLists([a, b]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].is_narrator).toBe(true);
+  });
+
+  it('merges aliases across chunks for the same character', () => {
+    const a = [{ ...makeChar('BOB'), aliases: ['BOBBY'] }];
+    const b = [{ ...makeChar('BOB'), aliases: ['ROBERT'] }];
+    const merged = mergeCharacterLists([a, b]);
+    expect(merged[0].aliases).toContain('BOBBY');
+    expect(merged[0].aliases).toContain('ROBERT');
+  });
+
+  it('handles 30-character cast spread across 3 chunks with full dedup', () => {
+    // All 30 characters appear in chunk 0; chunks 1+2 repeat them (as happens
+    // when the same character appears in different parts of a long script).
+    const allChars = Array.from({ length: 30 }, (_, i) => makeChar(`CHAR_${i + 1}`));
+    const merged = mergeCharacterLists([allChars, allChars, allChars]);
+    expect(merged).toHaveLength(30);
   });
 });

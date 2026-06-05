@@ -76,13 +76,19 @@ export class VoiceAssignmentAgent {
 
     const userMessage = buildVoiceAssignmentUserMessage(manifest);
 
+    // Scale iterations with cast size: each character needs ~4 tool calls
+    // (search_voices, get_voice, commit_voice, confirm). A 25-character script
+    // needs 100 iterations; the base 30 would exhaust at ~7 characters and
+    // fall back to default voices for everyone else.
+    const scaledMaxIterations = Math.max(this.maxIterations, manifest.characters.length * 4);
+
     let rawText: string;
     try {
       rawText = await runAgentLoop(userMessage, {
         model: this.model,
         systemPrompt: VOICE_ASSIGNMENT_SYSTEM_PROMPT,
         tools,
-        maxIterations: this.maxIterations,
+        maxIterations: scaledMaxIterations,
         maxTokens: 8192,
         temperature: 0.3,
       });

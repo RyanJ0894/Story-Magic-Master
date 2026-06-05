@@ -106,8 +106,11 @@ router.post('/generate-scenes', async (req: Request, res: Response): Promise<voi
     } as GenerateScenesResponse);
     return;
   }
-  // Estimate page count: ~500 chars per page (average screenplay line density)
-  const estimatedPages = Math.ceil(script_text.length / 500);
+  // Estimate page count: ~2,200 chars/page (standard screenplay format with
+  // whitespace, action lines, dialogue).  The prior 500 chars/page estimate
+  // was ~4× too low — a 30-page script (66K chars) was reported as ~132 pages,
+  // triggering false 400 rejections against a 150-page limit.
+  const estimatedPages = Math.ceil(script_text.length / 2_200);
   if (estimatedPages > MAX_SCRIPT_PAGES) {
     res.status(400).json({
       project_id,
