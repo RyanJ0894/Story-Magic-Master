@@ -152,4 +152,57 @@ describe('SceneConstructionAgent', () => {
       expect.objectContaining({ model: 'anthropic/claude-sonnet-4-6' })
     );
   });
+
+  // ── 30-page scale: concurrency cap ─────────────────────────────────────────
+  // A dense 30-page script can produce 6+ chunks (90 scenes / 15 per chunk).
+  // Without a concurrency cap all chunks fire simultaneously, saturating the
+  // Claude API rate limit and causing cascading 429 failures.
+  // With the cap (MAX_CONCURRENT_CHUNKS = 3) at most 3 calls are in-flight at once.
+
+  it('never exceeds MAX_CONCURRENT_CHUNKS simultaneous LLM calls (6-chunk script)', async () => {
+    let peakConcurrent = 0;
+    let activeCalls = 0;
+
+    vi.mocked(generateStructuredOutput).mockImplementation(async () => {
+      activeCalls++;
+      peakConcurrent = Math.max(peakConcurrent, activeCalls);
+      // Simulate async work — long enough to overlap
+      await new Promise((r) => setTimeout(r, 10));
+      activeCalls--;
+      return makeChunkOutput(['scene_x']);
+    });
+
+    // 90 scenes / 15 per chunk = 6 chunks
+    const agent = new SceneConstructionAgent({ scenesPerChunk: 15 });
+    await agent.construct({
+      project_id: PROJECT_ID,
+      script_text: makeScript(90),
+      voice_map: VOICE_MAP,
+    });
+
+    expect(generateStructuredOutput).toHaveBeenCalledTimes(6);
+    // Must never have more than 3 active simultaneously (cap)
+    expect(peakConcurrent).toBeLessThanOrEqual(3);
+    // Must have at least 2 concurrent (proves pLimit isn't accidentally 1/serial)
+    expect(peakConcurrent).toBeGreaterThanOrEqual(2);
+  });
+
+  it('all 90 scenes present in output after 6-chunk capped run', async () => {
+    let callIndex = 0;
+    vi.mocked(generateStructuredOutput).mockImplementation(async () => {
+      const start = callIndex * 15 + 1;
+      const ids = Array.from({ length: 15 }, (_, i) => `scene_${String(start + i).padStart(3, '0')}`);
+      callIndex++;
+      return makeChunkOutput(ids);
+    });
+
+    const agent = new SceneConstructionAgent({ scenesPerChunk: 15 });
+    const result = await agent.construct({
+      project_id: PROJECT_ID,
+      script_text: makeScript(90),
+      voice_map: VOICE_MAP,
+    });
+
+    expect(result).toHaveLength(90);
+  });
 });

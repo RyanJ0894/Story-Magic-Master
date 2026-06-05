@@ -13,6 +13,7 @@ const { mockCreateVoiceTools, mockResetUsedVoices } = vi.hoisted(() => {
     searchVoicesTool: { description: 'search', inputSchema: {}, execute: vi.fn() },
     getVoiceByIdTool: { description: 'get', inputSchema: {}, execute: vi.fn() },
     listVoiceLabelsTool: { description: 'list', inputSchema: {}, execute: vi.fn() },
+    commitVoiceTool: { description: 'commit', inputSchema: {}, execute: vi.fn() },
     resetUsedVoices: mockResetUsedVoices,
   }));
   return { mockCreateVoiceTools, mockResetUsedVoices };
@@ -131,6 +132,48 @@ describe('VoiceAssignmentAgent', () => {
     vi.mocked(runAgentLoop).mockRejectedValue(new Error('network timeout'));
     const agent = new VoiceAssignmentAgent();
     await expect(agent.assign({ manifest: MANIFEST })).rejects.toThrow('VoiceAssignmentAgent failed');
+  });
+
+  // ── 30-page scale: maxIterations scales with cast size ──────────────────────
+  // A 30-page script can have 25+ characters. Each character needs ~4 tool call
+  // iterations (search_voices, get_voice, commit_voice, confirm).
+  // With maxIterations=30 the loop exits at ~7 characters — the rest fall back
+  // to default voices, making all characters sound identical.
+  // Fix: scale maxIterations = max(30, characterCount * 4).
+
+  it('passes maxIterations scaled to character count for large manifests', async () => {
+    const largeManifest = {
+      project_id: PROJECT_ID,
+      characters: Array.from({ length: 25 }, (_, i) => ({
+        name: `CHARACTER_${i + 1}`,
+        canonical_name: `CHARACTER_${i + 1}`,
+        aliases: [] as string[],
+        description: `Character ${i + 1}`,
+        is_narrator: false,
+      })),
+    };
+
+    vi.mocked(runAgentLoop).mockResolvedValue(JSON.stringify(makeValidVoiceMap()));
+    vi.mocked(parseJSONSafely).mockReturnValue({ success: true, data: makeValidVoiceMap() });
+
+    const agent = new VoiceAssignmentAgent({ maxIterations: 30 });
+    await agent.assign({ manifest: largeManifest });
+
+    const callArgs = vi.mocked(runAgentLoop).mock.calls[0][1] as { maxIterations: number };
+    // 25 characters × 4 iterations = 100; must exceed the base 30
+    expect(callArgs.maxIterations).toBeGreaterThanOrEqual(100);
+  });
+
+  it('does not over-scale maxIterations for small manifests (≤7 characters)', async () => {
+    vi.mocked(runAgentLoop).mockResolvedValue(JSON.stringify(makeValidVoiceMap()));
+    vi.mocked(parseJSONSafely).mockReturnValue({ success: true, data: makeValidVoiceMap() });
+
+    const agent = new VoiceAssignmentAgent({ maxIterations: 30 });
+    await agent.assign({ manifest: MANIFEST }); // 2 characters
+
+    const callArgs = vi.mocked(runAgentLoop).mock.calls[0][1] as { maxIterations: number };
+    // Small manifest uses the configured base (30), not an inflated value
+    expect(callArgs.maxIterations).toBe(30);
   });
 
   it('fills in missing default voices from constants', async () => {
