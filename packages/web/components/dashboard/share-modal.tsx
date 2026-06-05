@@ -333,19 +333,19 @@ export function ShareModal({
               <Label>Recipients</Label>
               <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
               {bulkRecipients.map((r, idx) => (
-                <div key={idx} className="flex items-center gap-2">
+                <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                   <Input
                     type="email"
                     placeholder="email@example.com"
                     value={r.email}
                     onChange={(e) => updateBulkRecipient(idx, 'email', e.target.value)}
-                    className="flex-1"
+                    className="flex-1 w-full sm:w-auto"
                   />
                   <Input
                     placeholder="Name (optional)"
                     value={r.name}
                     onChange={(e) => updateBulkRecipient(idx, 'name', e.target.value)}
-                    className="w-36"
+                    className="w-full sm:w-36"
                   />
                   {bulkRecipients.length > 1 && (
                     <Button

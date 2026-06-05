@@ -65,7 +65,9 @@ let _httpLogger: any = null;
         return `${req.method} ${req.url} completed in ${responseTime}ms`;
       },
       customErrorMessage: (req: IncomingMessage, res: ServerResponse, err: Error) => {
-        return `${req.method} ${req.url} failed: ${err.message}`;
+        const llmModel = (req as unknown as Record<string, unknown>).llmModel as string | undefined;
+        const suffix = llmModel ? ` [llm: ${llmModel}]` : '';
+        return `${req.method} ${req.url} failed: ${err.message}${suffix}`;
       },
       redact: ['req.headers.authorization', 'req.headers.cookie'],
       autoLogging: {

@@ -267,7 +267,7 @@ function AudioTrackCard({
           size="sm"
           onClick={onLockToggle}
           disabled={disabled}
-          className="h-8 w-8 p-0"
+          className="h-10 w-10 p-0"
           title={isLocked ? 'Unlock (AI can change)' : 'Lock (prevent AI changes)'}
         >
           {isLocked ? (
@@ -294,7 +294,7 @@ function AudioTrackCard({
             size="sm"
             onClick={onRemove}
             disabled={disabled}
-            className="h-8 w-8 p-0 text-red-500 hover:text-red-600"
+            className="h-10 w-10 p-0 text-red-500 hover:text-red-600"
           >
             <X className="w-3.5 h-3.5" />
           </Button>
@@ -479,7 +479,7 @@ function SceneAudioCard({
               size="sm"
               onClick={() => onApplyToAll(sceneId)}
               disabled={disabled}
-              className="h-7 text-xs px-2"
+              className="h-9 text-xs px-2"
               title="Copy these audio selections to all scenes"
             >
               <CopyCheck className="w-3 h-3 mr-1" />
@@ -491,7 +491,7 @@ function SceneAudioCard({
             size="sm"
             onClick={() => onRegenerateScene(sceneIndex)}
             disabled={disabled || regeneratingScene !== null}
-            className="h-7 text-xs"
+            className="h-9 text-xs"
             title="Regenerate this scene's audio"
           >
             {regeneratingScene === sceneIndex ? (
@@ -725,7 +725,7 @@ function AudioSelectionDialog({
                   variant="outline"
                   size="sm"
                   onClick={() => onSelect(track)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity h-7 text-xs"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity h-9 text-xs"
                 >
                   Select
                 </Button>

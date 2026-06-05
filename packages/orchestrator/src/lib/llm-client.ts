@@ -58,6 +58,16 @@ export interface AgentOptions {
  * "openai/gpt-4.1" }, which is exactly the model id OpenRouter expects. A bare
  * string with no slash defaults to the openai provider.
  */
+function providerEnvVar(provider: LLMProvider): string {
+  switch (provider) {
+    case 'anthropic':   return 'ANTHROPIC_API_KEY';
+    case 'google':      return 'GOOGLE_GENERATIVE_AI_API_KEY';
+    case 'groq':        return 'GROQ_API_KEY';
+    case 'openrouter':  return 'OPENROUTER_API_KEY';
+    default:            return 'OPENAI_API_KEY';
+  }
+}
+
 function parseModelString(modelString: string): { provider: LLMProvider; modelName: string } {
   const slash = modelString.indexOf('/');
   if (slash === -1) {
@@ -250,13 +260,17 @@ async function runAgentLoopCore(
   // windows (e.g. groq/llama capped at 8192).
   const MAX_OUTPUT_TOKENS = options.maxOutputTokens ?? Math.max(32768, maxTokens);
 
+  const { provider } = parseModelString(model);
+  const envVar = providerEnvVar(provider);
   const messages: ModelMessage[] = [{ role: 'user', content: userInput }];
   const loopStart = Date.now();
   let totalToolCalls = 0;
 
+  log.info('[LLM] runAgentLoop starting', { model, provider, envVar });
+
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     const iterElapsed = Math.round((Date.now() - loopStart) / 1000);
-    log.info('[LLM] iteration', { iteration: iteration + 1, maxIterations, elapsedSec: iterElapsed, totalToolCalls });
+    log.info('[LLM] iteration', { model, provider, envVar, iteration: iteration + 1, maxIterations, elapsedSec: iterElapsed, totalToolCalls });
 
     // Two iterations before the limit: inject a force-completion message so the
     // model stops calling tools and emits its final JSON output.
@@ -287,6 +301,7 @@ async function runAgentLoopCore(
 
       if (!result.toolCalls || result.toolCalls.length === 0) {
         log.info('[LLM] completed — final text received', {
+          model, provider, envVar,
           iteration: iteration + 1,
           textLength: result.text.length,
           finishReason: result.finishReason,
@@ -299,6 +314,7 @@ async function runAgentLoopCore(
       const toolNames = result.toolCalls.map((tc) => tc.toolName);
       totalToolCalls += result.toolCalls.length;
       log.info('[LLM] tool calls', {
+        model, provider, envVar,
         iteration: iteration + 1,
         count: result.toolCalls.length,
         tools: toolNames,
@@ -368,7 +384,7 @@ async function runAgentLoopCore(
         content: toolResults,
       });
     } catch (err) {
-      log.error('LLM error in iteration', err instanceof Error ? err : undefined, { iteration: iteration + 1 });
+      log.error('LLM error in iteration', err instanceof Error ? err : undefined, { model, provider, envVar, iteration: iteration + 1 });
       throw err;
     }
   }
@@ -376,6 +392,7 @@ async function runAgentLoopCore(
   // Max iterations exhausted. The last message in the array is tool results (an array),
   // not a string. Do one final generation pass with NO tools to force text output.
   log.warn('[LLM] max iterations reached — forcing final generation without tools', {
+    model, provider, envVar,
     maxIterations,
     totalToolCalls,
     elapsedSec: Math.round((Date.now() - loopStart) / 1000),
@@ -399,6 +416,7 @@ async function runAgentLoopCore(
     });
 
     log.info('[LLM] forced final output', {
+      model, provider, envVar,
       textLength: finalResult.text.length,
       finishReason: finalResult.finishReason,
       totalTokens: finalResult.usage?.totalTokens,
@@ -406,7 +424,7 @@ async function runAgentLoopCore(
 
     return finalResult.text;
   } catch (err) {
-    log.error('[LLM] forced final generation failed', err instanceof Error ? err : undefined);
+    log.error('[LLM] forced final generation failed', err instanceof Error ? err : undefined, { model, provider, envVar });
     return '';
   }
 }
@@ -444,6 +462,8 @@ export async function generateStructuredOutput<T>(
 
   for (let i = 0; i < chain.length; i++) {
     const model = chain[i];
+    const { provider } = parseModelString(model);
+    const envVar = providerEnvVar(provider);
     const isRetry = i > 0;
     const isLast = i === chain.length - 1;
 
@@ -451,19 +471,23 @@ export async function generateStructuredOutput<T>(
       log.warn('[LLM] generateStructuredOutput — failing over', {
         from: chain[i - 1],
         to: model,
+        provider, envVar,
         attempt: i + 1,
         chainLength: chain.length,
       });
+    } else {
+      log.info('[LLM] generateStructuredOutput starting', { model, provider, envVar });
     }
 
     try {
       return (await run(model)).object;
     } catch (err) {
       if (isLast || !isFailoverableError(err)) {
+        log.error('[LLM] generateStructuredOutput failed', err instanceof Error ? err : undefined, { model, provider, envVar });
         throw err;
       }
       log.warn('[LLM] generateStructuredOutput — provider rejected, trying next in chain', {
-        model,
+        model, provider, envVar,
         reason: err instanceof Error ? err.message.slice(0, 120) : String(err),
         next: chain[i + 1],
       });
@@ -486,6 +510,8 @@ export async function structureTextAsJSON<T>(
   }
 ): Promise<T> {
   const model = options.model || process.env.DIRECTOR_MODEL || 'openai/gpt-4.1';
+  const { provider } = parseModelString(model);
+  const envVar = providerEnvVar(provider);
 
   const prompt = `Convert the following text into valid JSON matching the required schema.
 Extract all relevant information and format it correctly.
@@ -494,15 +520,21 @@ Only output the JSON, nothing else.
 ${options.context ? `Context: ${options.context}\n\n` : ''}Text to convert:
 ${rawText}`;
 
-  const result = await generateObject({
-    model: getModel(model),
-    schema: options.schema,
-    prompt,
-    maxOutputTokens: 16384,
-    temperature: 0,
-  });
+  log.info('[LLM] structureTextAsJSON starting', { model, provider, envVar });
 
-  return result.object;
+  try {
+    const result = await generateObject({
+      model: getModel(model),
+      schema: options.schema,
+      prompt,
+      maxOutputTokens: 16384,
+      temperature: 0,
+    });
+    return result.object;
+  } catch (err) {
+    log.error('[LLM] structureTextAsJSON failed', err instanceof Error ? err : undefined, { model, provider, envVar });
+    throw err;
+  }
 }
 
 export { tool };

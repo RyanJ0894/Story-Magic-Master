@@ -139,8 +139,11 @@ export type FeatureKey = 'STORY_SCORE' | 'STORY_ADVISER' | 'REVISION_TRACKING' |
  *
  * Priority:
  * 1. Environment variable (NEXT_PUBLIC_FF_<KEY>=true/false)
- * 2. URL parameter in development (?ff_<key>=true)
- * 3. Default value from feature definition
+ * 2. Default value from feature definition
+ *
+ * Intentionally deterministic — same result on server and client — to prevent
+ * React hydration mismatches. Do not add typeof-window branches here.
+ * To override flags in development, set NEXT_PUBLIC_FF_<KEY>=false/.env.local.
  */
 export function isFeatureEnabled(key: FeatureKey): boolean {
   const feature = FEATURES[key];
@@ -154,16 +157,7 @@ export function isFeatureEnabled(key: FeatureKey): boolean {
     return envValue === 'true' || envValue === '1';
   }
 
-  // 2. In development, check URL params (client-side only)
-  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlValue = urlParams.get(`ff_${key.toLowerCase()}`);
-    if (urlValue !== null) {
-      return urlValue === 'true' || urlValue === '1';
-    }
-  }
-
-  // 3. Check dependencies - if any dependency is disabled, this is disabled
+  // 2. Check dependencies - if any dependency is disabled, this is disabled
   if (feature.dependsOn) {
     for (const dep of feature.dependsOn) {
       if (!isFeatureEnabled(dep as FeatureKey)) {
@@ -172,7 +166,7 @@ export function isFeatureEnabled(key: FeatureKey): boolean {
     }
   }
 
-  // 4. Return default
+  // 3. Return default
   return feature.defaultEnabled;
 }
 

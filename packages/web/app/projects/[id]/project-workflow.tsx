@@ -1145,7 +1145,11 @@ export function ProjectWorkflow({
                             Share with Team
                           </Button>
                         )}
-                        <Button variant="outline">
+                        <Button
+                          variant="outline"
+                          disabled={allJobs.length < 2}
+                          onClick={() => handleCompareRuns(allJobs[0].runNumber, allJobs[1].runNumber)}
+                        >
                           <Play className="w-4 h-4 mr-2" />
                           Compare Scripts
                         </Button>

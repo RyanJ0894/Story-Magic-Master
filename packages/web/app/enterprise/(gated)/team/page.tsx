@@ -9,9 +9,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Users, Mail, Trash2, Plus, ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react';
 import { apiFetch } from '@/lib/api/fetch';
+import { EnterpriseErrorBoundary } from '@/components/enterprise/EnterpriseErrorBoundary';
 
 interface TeamMember {
   id: string;
@@ -54,6 +56,7 @@ export default function EnterpriseTeamPage() {
   const [teamName, setTeamName] = useState('');
   const [creatingTeam, setCreatingTeam] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [confirmPending, setConfirmPending] = useState<{ memberId: string; label: string } | null>(null);
 
   const loadTeams = useCallback(async () => {
     try {
@@ -152,6 +155,7 @@ export default function EnterpriseTeamPage() {
   }
 
   return (
+    <EnterpriseErrorBoundary>
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 h-14 flex items-center gap-3">
@@ -359,8 +363,7 @@ export default function EnterpriseTeamPage() {
                                 className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                                 onClick={() => {
                                   const name = m.user?.fullName ?? m.invitedEmail ?? 'this member';
-                                  if (!window.confirm(`Remove ${name} from the team? Their account will be disabled.`)) return;
-                                  void removeMember(m.id);
+                                  setConfirmPending({ memberId: m.id, label: `Remove ${name} from the team? Their account will be disabled.` });
                                 }}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -395,8 +398,7 @@ export default function EnterpriseTeamPage() {
                                   size="sm"
                                   className="shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                                   onClick={() => {
-                                    if (!window.confirm(`Cancel invite for ${m.invitedEmail}?`)) return;
-                                    void removeMember(m.id);
+                                    setConfirmPending({ memberId: m.id, label: `Cancel invite for ${m.invitedEmail}?` });
                                   }}
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -414,6 +416,29 @@ export default function EnterpriseTeamPage() {
           </div>
         )}
       </main>
+
+      {/* Confirm remove/cancel dialog — replaces window.confirm */}
+      <Dialog open={!!confirmPending} onOpenChange={(open) => { if (!open) setConfirmPending(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Are you sure?</DialogTitle>
+            <DialogDescription>{confirmPending?.label}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmPending(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (confirmPending) { void removeMember(confirmPending.memberId); }
+                setConfirmPending(null);
+              }}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+    </EnterpriseErrorBoundary>
   );
 }

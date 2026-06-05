@@ -11,7 +11,7 @@ import express from 'express';
 
 // ── hoisted mocks ────────────────────────────────────────────────────────────
 
-const { mockOrchestrate, mockOrchParallel, mockProcessScript, mockPrisma } = vi.hoisted(() => ({
+const { mockOrchestrate, mockOrchParallel, mockProcessScript, mockPrisma, mockCheckAIProviders } = vi.hoisted(() => ({
   mockOrchestrate: vi.fn(),
   mockOrchParallel: vi.fn(),
   mockProcessScript: vi.fn(),
@@ -20,6 +20,7 @@ const { mockOrchestrate, mockOrchParallel, mockProcessScript, mockPrisma } = vi.
       findUnique: vi.fn(),
     },
   },
+  mockCheckAIProviders: vi.fn(),
 }));
 
 vi.mock('../orchestrator/pipeline.js', () => ({
@@ -33,6 +34,10 @@ vi.mock('../director/pipeline.js', () => ({
 
 vi.mock('../lib/prisma.js', () => ({
   prisma: mockPrisma,
+}));
+
+vi.mock('../lib/ai-health.js', () => ({
+  checkAIProviders: (...args: unknown[]) => mockCheckAIProviders(...args),
 }));
 
 vi.mock('../lib/logger.js', () => ({
@@ -114,6 +119,11 @@ async function post(
     server.on('error', reject);
   });
 }
+
+// Default: preflight passes so tests focus on their own concerns
+beforeEach(() => {
+  mockCheckAIProviders.mockResolvedValue({ canProceed: true, results: [], blockedBy: [] });
+});
 
 // =============================================================================
 // Ownership checks (BL-013)

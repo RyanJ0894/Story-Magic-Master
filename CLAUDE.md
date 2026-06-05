@@ -13,6 +13,8 @@ Story Magic is an AI-powered audio production platform that transforms screenpla
 ```
 story-magic/
 ├── packages/
+│   ├── shared/         # Shared Prisma schema + generated client
+│   │   └── prisma/     # schema.prisma + migrations (single source of truth)
 │   ├── orchestrator/   # TypeScript/Express — Director + Orchestrator pipeline (port 22002)
 │   │   └── src/
 │   │       ├── director/   # Script parsing, voice assignment, LLM agents
@@ -25,7 +27,6 @@ story-magic/
 │       ├── lib/        # db, features, stripe, queue, generation, scoring, upload, ...
 │       ├── components/ # Shared UI components (Radix + Tailwind)
 │       ├── hooks/      # React hooks
-│       ├── prisma/     # Schema + migrations
 │       └── supabase/   # Storage bucket config (auth is Clerk, not Supabase)
 ├── docker-compose.yml  # Local dev: PostgreSQL, Redis
 ├── .doppler.yaml       # Doppler project config (story-magic/dev) — committed
@@ -76,7 +77,7 @@ pnpm --filter @story-magic/web test -- tests/someTest.test.ts
 |-------|------------|
 | Frontend | Next.js 14 (App Router) + Tailwind + Radix UI |
 | Auth | Clerk (`@clerk/nextjs`) |
-| Database | PostgreSQL via Prisma (both packages have their own schema) |
+| Database | PostgreSQL via Prisma (shared schema in `packages/shared`) |
 | Queue/Cache | Redis (Upstash in prod) |
 | Orchestrator | TypeScript/Express + FFmpeg |
 | TTS | ElevenLabs |
@@ -88,7 +89,7 @@ pnpm --filter @story-magic/web test -- tests/someTest.test.ts
 ## Architecture Notes
 
 - **Director is not a separate service** — it is consolidated into the orchestrator at `src/director/`. The Python FastAPI prototype is deprecated.
-- **Two Prisma schemas** — `packages/web/prisma/schema.prisma` and `packages/orchestrator/prisma/schema.prisma`. Run migrations from the respective package directory.
+- **Single Prisma schema** — `packages/shared/prisma/schema.prisma`. Run migrations from `packages/shared`.
 - **Auth is Clerk**, not Supabase. Supabase is used only for file storage buckets. Middleware at `packages/web/middleware.ts` uses `clerkMiddleware`.
 - **Feature flags** live in `packages/web/lib/features/flags.ts`. Gate new features with `isFeatureEnabled(FEATURES.X)` or `<FeatureGate feature="X">`.
 - **StoryScore uses Claude Sonnet 4.6** via `lib/ai/providers.ts` (Vercel AI SDK). Corpus batch scoring uses Gemini 2.0 Flash. Env vars needed: `ANTHROPIC_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`.
@@ -116,7 +117,7 @@ Both packages share the same PostgreSQL database. Key tables (web schema):
 - `jobs` — Audio generation jobs with status tracking
 - `usage` — Usage tracking per billing period
 
-Run migrations: `cd packages/web && pnpm prisma migrate dev`
+Run migrations: `cd packages/shared && pnpm prisma migrate dev`
 
 ## Environment Variables
 
