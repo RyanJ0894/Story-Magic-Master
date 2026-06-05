@@ -14,6 +14,7 @@ import { SignOutButton } from '@/components/auth/sign-out-button';
 import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
 import { TeamNotesTab } from '@/components/enterprise/TeamNotesTab';
 import { EnterpriseProjectAssignment } from '@/components/enterprise/EnterpriseProjectAssignment';
+import { EnterpriseErrorBoundary } from '@/components/enterprise/EnterpriseErrorBoundary';
 
 const EVENT_LABELS: Record<string, { label: string; icon: string; color: string }> = {
   listen_complete: { label: 'Listened to completion', icon: '🎧', color: 'text-green-500' },
@@ -157,6 +158,7 @@ export default async function EnterpriseDashboardPage({
   const seatLimit = TIER_SEAT_LIMITS[profile?.subscriptionTier ?? 'creator'] ?? 30;
 
   return (
+    <EnterpriseErrorBoundary>
     <div className="min-h-screen bg-background">
       {/* Nav */}
       <header className="border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-10">
@@ -431,5 +433,6 @@ export default async function EnterpriseDashboardPage({
         </Tabs>
       </main>
     </div>
+    </EnterpriseErrorBoundary>
   );
 }

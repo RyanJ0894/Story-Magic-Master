@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogD
 import { toast } from 'sonner';
 import { Users, Mail, Trash2, Plus, ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react';
 import { apiFetch } from '@/lib/api/fetch';
+import { EnterpriseErrorBoundary } from '@/components/enterprise/EnterpriseErrorBoundary';
 
 interface TeamMember {
   id: string;
@@ -154,6 +155,7 @@ export default function EnterpriseTeamPage() {
   }
 
   return (
+    <EnterpriseErrorBoundary>
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 h-14 flex items-center gap-3">
@@ -437,5 +439,6 @@ export default function EnterpriseTeamPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </EnterpriseErrorBoundary>
   );
 }
