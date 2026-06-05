@@ -219,7 +219,7 @@ test.describe('Shared Content Reader', () => {
     const content = page
       .getByText(/E2E Share Test Project/i)
       .or(page.getByText(/loading|play|listen/i))
-      .or(page.locator('audio'));
+      .or(page.getByTestId('audio-player'));
 
     await expect(content.first()).toBeVisible({ timeout: 10000 });
   });
