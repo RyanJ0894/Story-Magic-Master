@@ -91,11 +91,15 @@ export default defineConfig({
     },
   ],
 
-  /* Run local dev server before starting tests */
-  webServer: {
-    command: 'pnpm dev',
-    url: 'http://localhost:22000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  /* Run local dev server before starting tests, unless targeting an external URL */
+  ...(process.env.PLAYWRIGHT_BASE_URL && !process.env.PLAYWRIGHT_BASE_URL.includes('localhost')
+    ? {}
+    : {
+        webServer: {
+          command: 'pnpm dev',
+          url: 'http://localhost:22000',
+          reuseExistingServer: !process.env.CI,
+          timeout: 120 * 1000,
+        },
+      }),
 });

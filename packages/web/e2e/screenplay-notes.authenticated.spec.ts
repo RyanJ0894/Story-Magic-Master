@@ -318,12 +318,12 @@ test.describe('Screenplay Notes (Authenticated)', () => {
 
       await postRequest;
 
-      // Note indicator should appear on the line
+      // Note indicator should appear on the line (multiple per page in strict mode — use .first())
       const noteIndicator = page
         .getByTestId('note-indicator')
         .or(page.locator('[data-has-note="true"]'))
-        .or(page.locator('[class*="note-dot"], [class*="note-indicator"]').first());
-      await expect(noteIndicator).toBeVisible({ timeout: 5000 });
+        .or(page.locator('[class*="note-dot"], [class*="note-indicator"]'));
+      await expect(noteIndicator.first()).toBeVisible({ timeout: 5000 });
     });
 
     test('note persists after page refresh', async ({ page }) => {
