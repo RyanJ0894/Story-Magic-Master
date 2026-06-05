@@ -4,6 +4,7 @@ import { processScript } from '../director/pipeline.js';
 import { log } from '../lib/logger.js';
 import { getEnv } from '../lib/env.js';
 import { prisma } from '../lib/prisma.js';
+import { checkAIProviders } from '../lib/ai-health.js';
 
 const router = Router();
 
@@ -74,6 +75,27 @@ router.post('/generate-scenes', async (req: Request, res: Response): Promise<voi
     }
   }
 
+  // Pre-flight: verify AI provider keys are reachable before committing
+  // to a long-running batch job.  Probes are zero-cost (model-list endpoints).
+  const preflight = await checkAIProviders('preflight');
+  if (!preflight.canProceed) {
+    const detail = preflight.results
+      .filter((r) => r.status === 'down')
+      .map((r) => `${r.provider}: ${r.errorCode ?? 'down'}`)
+      .join(', ');
+    log.error('generate-scenes: AI preflight failed — aborting job', undefined, {
+      projectId: project_id,
+      blockedBy: preflight.blockedBy,
+      detail,
+    });
+    res.status(503).json({
+      project_id,
+      success: false,
+      message: `AI services unavailable — please retry in a few minutes. (${detail})`,
+    } as GenerateScenesResponse);
+    return;
+  }
+
   // Pre-flight: enforce script size limits before any LLM call
   const { MAX_SCRIPT_CHARS, MAX_SCRIPT_PAGES } = getEnv();
   if (script_text.length > MAX_SCRIPT_CHARS) {
@@ -120,8 +142,11 @@ router.post('/generate-scenes', async (req: Request, res: Response): Promise<voi
     log.info('generate-scenes: Advanced Analysis active — using upgraded model', { projectId: project_id, model: directorModel });
   }
 
+  // Attach model to req so pino-http can include it in access log error messages
+  (req as unknown as Record<string, unknown>).llmModel = directorModel;
+
   try {
-    log.info('Starting scene generation', { projectId: project_id, scriptLength: script_text.length, estimatedPages });
+    log.info('Starting scene generation', { projectId: project_id, scriptLength: script_text.length, estimatedPages, model: directorModel });
     if (voice_overrides && Object.keys(voice_overrides).length > 0) {
       log.info('Voice overrides provided', { projectId: project_id, overrideCount: Object.keys(voice_overrides).length, characters: Object.keys(voice_overrides) });
     }
@@ -147,7 +172,7 @@ router.post('/generate-scenes', async (req: Request, res: Response): Promise<voi
       validation_report: result.validation_report,
     });
   } catch (error) {
-    log.error('Scene generation failed', error instanceof Error ? error : new Error(String(error)), { projectId: project_id });
+    log.error('Scene generation failed', error instanceof Error ? error : new Error(String(error)), { projectId: project_id, model: directorModel });
     res.status(500).json({
       project_id,
       success: false,

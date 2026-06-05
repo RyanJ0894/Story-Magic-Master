@@ -5,6 +5,7 @@ import { orchestrate, orchestrateParallel, type PipelineProgress } from '../orch
 import { log } from '../lib/logger.js';
 import { getEnv } from '../lib/env.js';
 import { prisma } from '../lib/prisma.js';
+import { checkAIProviders } from '../lib/ai-health.js';
 
 const router = Router();
 
@@ -71,6 +72,27 @@ router.post('/orchestrate', async (req: Request, res: Response): Promise<void> =
       // Non-fatal: if DB is unavailable, log and continue (allows dev without DB)
       log.warn('orchestrate: ownership check skipped (DB unavailable)', { projectId: project_id });
     }
+  }
+
+  // Pre-flight: verify AI provider keys are reachable before committing
+  // to a long-running audio generation job.
+  const preflight = await checkAIProviders('preflight');
+  if (!preflight.canProceed) {
+    const detail = preflight.results
+      .filter((r) => r.status === 'down')
+      .map((r) => `${r.provider}: ${r.errorCode ?? 'down'}`)
+      .join(', ');
+    log.error('orchestrate: AI preflight failed — aborting job', undefined, {
+      projectId: project_id,
+      blockedBy: preflight.blockedBy,
+      detail,
+    });
+    res.status(503).json({
+      status: 'error',
+      project_id,
+      message: `AI services unavailable — please retry in a few minutes. (${detail})`,
+    } as OrchestrateResponse);
+    return;
   }
 
   // Check if project has an Advanced Analysis purchase — model selection is

@@ -18,6 +18,12 @@ vi.mock('@clerk/nextjs/server', () => ({
 
 const mockPrisma = {
   profile: { update: vi.fn() },
+  subscription: {
+    findFirst: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  },
+  $transaction: vi.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
 };
 vi.mock('@/lib/db', () => ({ prisma: mockPrisma }));
 
@@ -46,6 +52,11 @@ describe('POST /api/referral/upgrade', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.REFERRAL_CODES;
+    mockPrisma.subscription.findFirst.mockResolvedValue(null);
+    mockPrisma.subscription.create.mockResolvedValue({});
+    mockPrisma.subscription.update.mockResolvedValue({});
+    mockPrisma.profile.update.mockResolvedValue({});
+    mockPrisma.$transaction.mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops));
   });
 
   it('returns 401 when not authenticated', async () => {

@@ -14,6 +14,7 @@ import { SignOutButton } from '@/components/auth/sign-out-button';
 import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
 import { TeamNotesTab } from '@/components/enterprise/TeamNotesTab';
 import { EnterpriseProjectAssignment } from '@/components/enterprise/EnterpriseProjectAssignment';
+import { EnterpriseErrorBoundary } from '@/components/enterprise/EnterpriseErrorBoundary';
 
 const EVENT_LABELS: Record<string, { label: string; icon: string; color: string }> = {
   listen_complete: { label: 'Listened to completion', icon: '🎧', color: 'text-green-500' },
@@ -157,6 +158,7 @@ export default async function EnterpriseDashboardPage({
   const seatLimit = TIER_SEAT_LIMITS[profile?.subscriptionTier ?? 'creator'] ?? 30;
 
   return (
+    <EnterpriseErrorBoundary>
     <div className="min-h-screen bg-background">
       {/* Nav */}
       <header className="border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-10">
@@ -307,7 +309,7 @@ export default async function EnterpriseDashboardPage({
                     No activity yet. Share a project with your team to start tracking engagement.
                   </p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
                     {team.activityLogs.map((log) => {
                       const ev = EVENT_LABELS[log.eventType] ?? { label: log.eventType, icon: '•', color: 'text-muted-foreground' };
                       const meta = log.metadata as Record<string, unknown>;
@@ -353,7 +355,7 @@ export default async function EnterpriseDashboardPage({
                     No team members yet. Invite your first member to get started.
                   </p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
                     {team.members.map((member) => (
                       <div key={member.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50">
                         <div className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center text-sm font-medium text-violet-600 dark:text-violet-400">
@@ -431,5 +433,6 @@ export default async function EnterpriseDashboardPage({
         </Tabs>
       </main>
     </div>
+    </EnterpriseErrorBoundary>
   );
 }

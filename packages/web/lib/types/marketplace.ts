@@ -143,12 +143,9 @@ export interface ReaderLibraryEntryDetailed extends ReaderLibraryEntry {
 // =============================================================================
 
 export type PurchaseType =
-  | 'processing'      // Reader upload processing ($5)
-  | 'ocr_processing'  // Reader OCR processing ($8)
-  | 'unlock'          // Unlock archived script ($5)
-  | 'download'        // Royalty-free download ($25)
-  | 'subscription'    // Subscription payment
-  | 'generation';     // Pay-per-generation (if over limit)
+  | 'advanced_analysis'  // Opus Advanced Analysis upgrade ($9.99/project)
+  | 'upload'             // Reader upload processing ($5)
+  | 'human_review'       // Human-in-the-loop professional review;
 
 export interface Purchase {
   id: string;
@@ -163,12 +160,9 @@ export interface Purchase {
 }
 
 export const PURCHASE_PRICES: Record<PurchaseType, number> = {
-  processing: 500,      // $5
-  ocr_processing: 800,  // $8
-  unlock: 500,          // $5
-  download: 2500,       // $25
-  subscription: 0,      // Varies
-  generation: 300,      // $3 per extra generation
+  advanced_analysis: 999,  // $9.99
+  upload: 500,             // $5
+  human_review: 0,         // Varies by reviewer
 };
 
 // =============================================================================
