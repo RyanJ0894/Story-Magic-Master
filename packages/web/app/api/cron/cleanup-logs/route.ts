@@ -20,11 +20,16 @@ export async function POST(req: NextRequest) {
 
   const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
-  const { count } = await prisma.contentAccessLog.deleteMany({
-    where: { createdAt: { lt: cutoff } },
-  });
+  try {
+    const { count } = await prisma.contentAccessLog.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
 
-  log.info('[CleanupLogs] Deleted stale content_access_log rows', { count, cutoffDate: cutoff.toISOString() });
+    log.info('[CleanupLogs] Deleted stale content_access_log rows', { count, cutoffDate: cutoff.toISOString() });
 
-  return NextResponse.json({ deleted: count, cutoffDate: cutoff.toISOString() });
+    return NextResponse.json({ deleted: count, cutoffDate: cutoff.toISOString() });
+  } catch (err) {
+    log.error('[CleanupLogs] Failed to delete stale rows', { error: err, cutoffDate: cutoff.toISOString() });
+    return NextResponse.json({ error: 'Cleanup failed' }, { status: 500 });
+  }
 }
