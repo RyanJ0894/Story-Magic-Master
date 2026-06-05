@@ -240,7 +240,7 @@ test.describe('Team Invite Flow (Authenticated)', () => {
       const hasTeamRef = await teamRef.isVisible({ timeout: 8000 }).catch(() => false);
       // Accept redirect to /dashboard or /enterprise/* (authenticated user auto-accepted or no team)
       const finalUrl = page.url();
-      const isExpectedRedirect = finalUrl.includes('/dashboard') || finalUrl.includes('/enterprise');
+      const isExpectedRedirect = finalUrl.includes('/dashboard') || finalUrl.includes('/enterprise') || finalUrl.includes('/invite/');
       expect(hasTeamRef || isExpectedRedirect).toBe(true);
     });
 

@@ -44,7 +44,7 @@ async function setWorkflowMode(
 
 async function setupGenerateMocks(
   page: import('@playwright/test').Page,
-  _projectId: string,
+  projectId: string,
 ) {
   // Mock generation trigger — /api/generate is the actual endpoint (not project-scoped)
   await page.route('**/api/generate', async (route) => {
