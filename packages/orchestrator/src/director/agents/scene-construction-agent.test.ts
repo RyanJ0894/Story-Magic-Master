@@ -181,8 +181,10 @@ describe('SceneConstructionAgent', () => {
     });
 
     expect(generateStructuredOutput).toHaveBeenCalledTimes(6);
-    // Must never have more than 3 active simultaneously
+    // Must never have more than 3 active simultaneously (cap)
     expect(peakConcurrent).toBeLessThanOrEqual(3);
+    // Must have at least 2 concurrent (proves pLimit isn't accidentally 1/serial)
+    expect(peakConcurrent).toBeGreaterThanOrEqual(2);
   });
 
   it('all 90 scenes present in output after 6-chunk capped run', async () => {

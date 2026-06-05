@@ -13,6 +13,7 @@ const { mockCreateVoiceTools, mockResetUsedVoices } = vi.hoisted(() => {
     searchVoicesTool: { description: 'search', inputSchema: {}, execute: vi.fn() },
     getVoiceByIdTool: { description: 'get', inputSchema: {}, execute: vi.fn() },
     listVoiceLabelsTool: { description: 'list', inputSchema: {}, execute: vi.fn() },
+    commitVoiceTool: { description: 'commit', inputSchema: {}, execute: vi.fn() },
     resetUsedVoices: mockResetUsedVoices,
   }));
   return { mockCreateVoiceTools, mockResetUsedVoices };
