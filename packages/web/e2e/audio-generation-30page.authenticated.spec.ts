@@ -35,10 +35,10 @@ import { THIRTY_PAGE_SCRIPT } from './fixtures/test-script';
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Draft project ID in the Render DB — same as the 15-page spec */
-const REAL_DRAFT_PROJECT_ID = '606f2749-17a3-431c-9ec5-9970284bb32d';
+const REAL_DRAFT_PROJECT_ID = process.env.REAL_DRAFT_PROJECT_ID || '606f2749-17a3-431c-9ec5-9970284bb32d';
 
 /** Completed project with audio_output row — for post-gen UI checks */
-const REAL_COMPLETED_PROJECT_ID = '71e98a0f-731f-4a25-8cab-2226daca0a3e';
+const REAL_COMPLETED_PROJECT_ID = process.env.REAL_COMPLETED_PROJECT_ID || '71e98a0f-731f-4a25-8cab-2226daca0a3e';
 
 const MOCK_JOB_ID = 'e2e-30pg-job-000000000000-0000-0000-0000-000000000003';
 const SEG_URLS = Array.from(
@@ -58,7 +58,9 @@ async function setWorkflowMode(
 ) {
   await page.addInitScript(
     ({ id, m }) => {
-      localStorage.setItem(`project-${id}-run-1-mode`, m);
+      for (let run = 1; run <= 20; run++) {
+        localStorage.setItem(`project-${id}-run-${run}-mode`, m);
+      }
     },
     { id: projectId, m: mode },
   );

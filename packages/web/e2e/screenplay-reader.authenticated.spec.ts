@@ -1,3 +1,4 @@
+import path from 'path';
 import { test, expect } from './fixtures/authenticated';
 import { SHORT_SCRIPT } from './fixtures/test-script';
 
@@ -87,20 +88,27 @@ test.describe('Screenplay Reader (Authenticated)', () => {
   let projectId: string | null = null;
 
   test.beforeAll(async ({ browser }) => {
-    // Create a project using the authenticated browser context so we have a
-    // real project ID to navigate to. This mirrors the project.authenticated
-    // tests pattern.
-    const page = await browser.newPage();
+    // Prefer env-var project IDs — avoids creating a new project and works
+    // regardless of whether browser.newPage() inherits the auth storageState.
+    const envId = process.env.REAL_DRAFT_PROJECT_ID || process.env.REAL_COMPLETED_PROJECT_ID;
+    if (envId) {
+      projectId = envId;
+      return;
+    }
+
+    // Fallback: create a project via an explicitly authenticated context.
+    const authFile = path.join(__dirname, '.auth/user.json');
+    const context = await browser.newContext({ storageState: authFile });
+    const page = await context.newPage();
     await page.goto('/projects/new');
 
-    // If not authenticated (no storageState), skip the rest
     const isLoggedIn = await page
       .getByTestId('project-name-input')
       .isVisible({ timeout: 8000 })
       .catch(() => false);
 
     if (!isLoggedIn) {
-      await page.close();
+      await context.close();
       return;
     }
 
@@ -111,7 +119,7 @@ test.describe('Screenplay Reader (Authenticated)', () => {
     await page.waitForURL(/\/projects\/[a-f0-9-]+/, { timeout: 15000 });
     const match = page.url().match(/\/projects\/([a-f0-9-]+)/);
     if (match) projectId = match[1];
-    await page.close();
+    await context.close();
   });
 
   test('listen page loads for project owner', async ({ page }) => {

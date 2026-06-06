@@ -30,10 +30,10 @@ import { FIFTEEN_PAGE_SCRIPT } from './fixtures/test-script';
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Draft project (status='draft', 1 page) — for generate-flow tests */
-const REAL_DRAFT_PROJECT_ID = '606f2749-17a3-431c-9ec5-9970284bb32d';
+const REAL_DRAFT_PROJECT_ID = process.env.REAL_DRAFT_PROJECT_ID || '606f2749-17a3-431c-9ec5-9970284bb32d';
 
 /** Completed project (status='completed', has audio_output row) — for post-gen UI tests */
-const REAL_COMPLETED_PROJECT_ID = '71e98a0f-731f-4a25-8cab-2226daca0a3e';
+const REAL_COMPLETED_PROJECT_ID = process.env.REAL_COMPLETED_PROJECT_ID || '71e98a0f-731f-4a25-8cab-2226daca0a3e';
 
 const MOCK_JOB_ID = 'e2e-15pg-job-000000000000-0000-0000-0000-000000000002';
 const SEGMENT_0_URL = 'https://storage.example.com/audio/15page-segment-0.m4a';
@@ -52,7 +52,9 @@ async function setWorkflowMode(
 ) {
   await page.addInitScript(
     ({ id, m }) => {
-      localStorage.setItem(`project-${id}-run-1-mode`, m);
+      for (let run = 1; run <= 20; run++) {
+        localStorage.setItem(`project-${id}-run-${run}-mode`, m);
+      }
     },
     { id: projectId, m: mode },
   );

@@ -15,7 +15,7 @@ import { test, expect } from './fixtures/authenticated';
 // ---------------------------------------------------------------------------
 
 /** Completed project (status='completed', has audio_output row) — for share tests */
-const REAL_COMPLETED_PROJECT_ID = '71e98a0f-731f-4a25-8cab-2226daca0a3e';
+const REAL_COMPLETED_PROJECT_ID = process.env.REAL_COMPLETED_PROJECT_ID || '71e98a0f-731f-4a25-8cab-2226daca0a3e';
 
 const MOCK_SHARE_CODE = 'e2eshare_abc123def456';
 const MOCK_SHARE_URL = `/s/${MOCK_SHARE_CODE}`;
