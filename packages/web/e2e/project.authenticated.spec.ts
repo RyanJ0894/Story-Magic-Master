@@ -1,12 +1,21 @@
 import { test, expect } from './fixtures/authenticated';
 import { SHORT_SCRIPT } from './fixtures/test-script';
 
-/** Navigate to an existing project from the Dashboard Projects tab.
- * Returns the project URL, or null if no projects exist. */
+/** Navigate to an existing project.
+ * Prefers env-var project IDs to avoid dashboard navigation issues for enterprise users. */
 async function getExistingProjectUrl(page: import('@playwright/test').Page): Promise<string | null> {
+  const envId = process.env.REAL_COMPLETED_PROJECT_ID || process.env.REAL_DRAFT_PROJECT_ID;
+  if (envId) return `/projects/${envId}`;
+
+  // Fallback: navigate via dashboard Projects tab
   await page.goto('/dashboard');
-  await page.waitForLoadState('networkidle', { timeout: 15_000 });
-  await page.getByRole('button', { name: 'Projects', exact: true }).click();
+  await page.waitForLoadState('load', { timeout: 15_000 });
+  const projectsBtn = page.getByRole('button', { name: 'Projects', exact: true });
+  const hasBtnVisible = await projectsBtn.isVisible({ timeout: 5_000 }).catch(() => false);
+  if (hasBtnVisible) {
+    await projectsBtn.click();
+    await page.waitForLoadState('load', { timeout: 10_000 });
+  }
   const card = page.getByTestId('project-card').first();
   const found = await card.isVisible({ timeout: 5_000 }).catch(() => false);
   if (!found) return null;
@@ -21,7 +30,7 @@ test.describe('Project Management (Authenticated)', () => {
   test.describe('Create New Project', () => {
     test.beforeEach(async ({ page }) => {
       await page.goto('/projects/new');
-      await page.waitForLoadState('networkidle', { timeout: 15_000 });
+      await page.waitForLoadState('load', { timeout: 15_000 });
     });
 
     test('displays project creation form', async ({ page }) => {
@@ -60,8 +69,11 @@ test.describe('Project Management (Authenticated)', () => {
 
       await page.getByTestId('create-project-button').click();
       await expect(page.getByText('Creating...')).toBeVisible();
-      await expect(page).toHaveURL(/\/projects\/[a-f0-9-]+/, { timeout: 15000 });
-      await expect(page.getByText(projectName, { exact: false })).toBeVisible({ timeout: 5000 });
+      // Enterprise users may be redirected to enterprise dashboard after project creation
+      await expect(page).toHaveURL(/\/projects\/[a-f0-9-]+|\/enterprise\/dashboard/, { timeout: 15000 });
+      if (page.url().match(/\/projects\/[a-f0-9-]+/)) {
+        await expect(page.getByText(projectName, { exact: false })).toBeVisible({ timeout: 5000 });
+      }
 
       // Clean up: delete the created project to prevent quota accumulation
       const projectId = page.url().split('/projects/')[1]?.split('/')[0];
@@ -80,7 +92,7 @@ test.describe('Project Management (Authenticated)', () => {
         return;
       }
       await page.goto(projectHref);
-      await page.waitForLoadState('networkidle', { timeout: 15_000 });
+      await page.waitForLoadState('load', { timeout: 15_000 });
 
       await expect(page.getByTestId('project-status-badge')).toBeVisible({ timeout: 10_000 });
     });
@@ -93,7 +105,7 @@ test.describe('Project Management (Authenticated)', () => {
         return;
       }
       await page.goto(projectHref);
-      await page.waitForLoadState('networkidle', { timeout: 15_000 });
+      await page.waitForLoadState('load', { timeout: 15_000 });
 
       // Delete button is inside the collapsible "Danger Zone" section
       await page.getByText('Danger Zone').click();

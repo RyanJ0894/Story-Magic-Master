@@ -315,7 +315,7 @@ export async function accessShare(
   await prisma.scriptShare.update({
     where: { id: share.id },
     data: {
-      viewCount: (share.viewCount || 0) + 1,
+      viewCount: { increment: 1 },
       lastAccessedAt: new Date(),
     },
   });
