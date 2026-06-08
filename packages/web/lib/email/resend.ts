@@ -93,6 +93,74 @@ export async function sendTeamInviteEmail(params: {
 }
 
 // =============================================================================
+// Sub-Account Deactivation / Reactivation Emails (#147)
+// =============================================================================
+
+export async function sendSubAccountDeactivationEmail(params: {
+  to: string;
+  recipientName: string;
+  teamName: string;
+  masterAccountName: string;
+}): Promise<EmailResult> {
+  const { to, recipientName, teamName, masterAccountName } = params;
+  try {
+    const { data, error } = await getResendClient().emails.send({
+      from: FROM_ADDRESS,
+      to,
+      subject: `Your access to ${teamName} has been deactivated`,
+      html: `
+        <p>Hi ${recipientName || 'there'},</p>
+        <p>Your sub-account access to the <strong>${teamName}</strong> team on Story Magic has been deactivated by ${masterAccountName}.</p>
+        <p>If you believe this was a mistake, please contact your team administrator.</p>
+        <p>— The Story Magic Team</p>
+      `,
+    });
+
+    if (error) {
+      log.error('[Email] Sub-account deactivation failed', error);
+      return { success: false, error: error.message };
+    }
+    log.info('[Email] Sub-account deactivation sent', { id: data?.id, to });
+    return { success: true, id: data?.id };
+  } catch (error) {
+    log.error('[Email] Sub-account deactivation exception', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+export async function sendSubAccountReactivationEmail(params: {
+  to: string;
+  recipientName: string;
+  teamName: string;
+  masterAccountName: string;
+}): Promise<EmailResult> {
+  const { to, recipientName, teamName, masterAccountName } = params;
+  try {
+    const { data, error } = await getResendClient().emails.send({
+      from: FROM_ADDRESS,
+      to,
+      subject: `Your access to ${teamName} has been reactivated`,
+      html: `
+        <p>Hi ${recipientName || 'there'},</p>
+        <p>Great news! Your sub-account access to the <strong>${teamName}</strong> team on Story Magic has been reactivated by ${masterAccountName}.</p>
+        <p>You can now sign in and access the team's shared scripts at <a href="${APP_URL}/enterprise/dashboard">${APP_URL}/enterprise/dashboard</a>.</p>
+        <p>— The Story Magic Team</p>
+      `,
+    });
+
+    if (error) {
+      log.error('[Email] Sub-account reactivation failed', error);
+      return { success: false, error: error.message };
+    }
+    log.info('[Email] Sub-account reactivation sent', { id: data?.id, to });
+    return { success: true, id: data?.id };
+  } catch (error) {
+    log.error('[Email] Sub-account reactivation exception', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+// =============================================================================
 // Script Status Change Email
 // =============================================================================
 

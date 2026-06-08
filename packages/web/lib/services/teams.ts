@@ -304,14 +304,17 @@ export async function listMembers(
       userId: true,
       invitedEmail: true,
       role: true,
+      memberType: true,
       status: true,
       invitedAt: true,
       acceptedAt: true,
+      deactivatedAt: true,
       user: {
         select: {
           fullName: true,
           avatarUrl: true,
           id: true,
+          email: true,
         },
       },
       inviter: {

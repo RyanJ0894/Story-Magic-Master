@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Users, Mail, Trash2, Plus, ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react';
+import { Users, Mail, Trash2, Plus, ArrowLeft, ChevronDown, ChevronRight, UserMinus, UserCheck } from 'lucide-react';
 import { apiFetch } from '@/lib/api/fetch';
 import { EnterpriseErrorBoundary } from '@/components/enterprise/EnterpriseErrorBoundary';
 
@@ -22,6 +22,7 @@ interface TeamMember {
   role: string;
   memberType?: string | null;
   status: string;
+  deactivatedAt?: string | null;
   user?: { id: string; fullName: string | null; email: string | null } | null;
 }
 
@@ -56,7 +57,7 @@ export default function EnterpriseTeamPage() {
   const [teamName, setTeamName] = useState('');
   const [creatingTeam, setCreatingTeam] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [confirmPending, setConfirmPending] = useState<{ memberId: string; label: string } | null>(null);
+  const [confirmPending, setConfirmPending] = useState<{ memberId: string; label: string; action: 'remove' | 'deactivate' | 'reactivate' } | null>(null);
 
   const loadTeams = useCallback(async () => {
     try {
@@ -143,6 +144,25 @@ export default function EnterpriseTeamPage() {
       await loadTeams();
     } catch {
       toast.error('Failed to remove member');
+    }
+  };
+
+  const patchMember = async (memberId: string, action: 'deactivate' | 'reactivate') => {
+    if (!selectedTeam) return;
+    try {
+      const res = await fetch(`/api/teams/${selectedTeam.id}/members/${memberId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) {
+        const err = await res.json() as { error?: string };
+        throw new Error(err.error ?? `Failed to ${action}`);
+      }
+      toast.success(action === 'deactivate' ? 'Sub-account deactivated' : 'Sub-account reactivated');
+      await loadTeams();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : `Failed to ${action}`);
     }
   };
 
@@ -360,10 +380,23 @@ export default function EnterpriseTeamPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                title="Deactivate (90-day retention)"
+                                className="shrink-0 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                                onClick={() => {
+                                  const name = m.user?.fullName ?? m.invitedEmail ?? 'this member';
+                                  setConfirmPending({ memberId: m.id, action: 'deactivate', label: `Deactivate ${name}? They will lose access immediately. Their record is retained for 90 days.` });
+                                }}
+                              >
+                                <UserMinus className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="Remove permanently"
                                 className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                                 onClick={() => {
                                   const name = m.user?.fullName ?? m.invitedEmail ?? 'this member';
-                                  setConfirmPending({ memberId: m.id, label: `Remove ${name} from the team? Their account will be disabled.` });
+                                  setConfirmPending({ memberId: m.id, action: 'remove', label: `Permanently remove ${name} from the team?` });
                                 }}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -398,7 +431,60 @@ export default function EnterpriseTeamPage() {
                                   size="sm"
                                   className="shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                                   onClick={() => {
-                                    setConfirmPending({ memberId: m.id, label: `Cancel invite for ${m.invitedEmail}?` });
+                                    setConfirmPending({ memberId: m.id, action: 'remove', label: `Cancel invite for ${m.invitedEmail}?` });
+                                  }}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Deactivated sub-accounts (90-day retention) */}
+                    {(() => {
+                      const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+                      const deactivated = (selectedTeam.members ?? []).filter(m =>
+                        m.deactivatedAt && new Date(m.deactivatedAt) > ninetyDaysAgo
+                      );
+                      if (deactivated.length === 0) return null;
+                      return (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                            Deactivated ({deactivated.length}) — retained for 90 days
+                          </p>
+                          <div className="max-h-[200px] overflow-y-auto space-y-2 pr-1">
+                            {deactivated.map(m => (
+                              <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/20 border border-dashed border-amber-200 dark:border-amber-900/40 opacity-70">
+                                <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-sm font-medium text-amber-600 shrink-0">
+                                  {(m.user?.fullName ?? m.invitedEmail ?? '?')[0].toUpperCase()}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{m.user?.fullName ?? m.invitedEmail}</p>
+                                  <p className="text-xs text-muted-foreground/60">Deactivated</p>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title="Reactivate"
+                                  className="shrink-0 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20"
+                                  onClick={() => {
+                                    const name = m.user?.fullName ?? m.invitedEmail ?? 'this member';
+                                    setConfirmPending({ memberId: m.id, action: 'reactivate', label: `Reactivate ${name}? They will regain access to shared projects.` });
+                                  }}
+                                >
+                                  <UserCheck className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  title="Delete permanently"
+                                  className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => {
+                                    const name = m.user?.fullName ?? m.invitedEmail ?? 'this member';
+                                    setConfirmPending({ memberId: m.id, action: 'remove', label: `Permanently delete ${name}? This cannot be undone.` });
                                   }}
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -427,9 +513,12 @@ export default function EnterpriseTeamPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmPending(null)}>Cancel</Button>
             <Button
-              variant="destructive"
+              variant={confirmPending?.action === 'reactivate' ? 'default' : 'destructive'}
               onClick={() => {
-                if (confirmPending) { void removeMember(confirmPending.memberId); }
+                if (confirmPending) {
+                  if (confirmPending.action === 'remove') void removeMember(confirmPending.memberId);
+                  else void patchMember(confirmPending.memberId, confirmPending.action);
+                }
                 setConfirmPending(null);
               }}
             >

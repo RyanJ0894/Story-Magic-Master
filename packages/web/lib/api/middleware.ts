@@ -147,6 +147,7 @@ export function withProjectAuth(
                     some: {
                       userId,
                       acceptedAt: { not: null },
+                      deactivatedAt: null,
                     },
                   },
                 },
