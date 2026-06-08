@@ -36,6 +36,11 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://www.storymagicapp.ne
 const FROM_ADDRESS =
   process.env.RESEND_FROM_ADDRESS || 'Story Magic <noreply@storymagicapp.net>';
 
+// HTML-escape user-supplied values before embedding in email templates.
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -107,10 +112,10 @@ export async function sendSubAccountDeactivationEmail(params: {
     const { data, error } = await getResendClient().emails.send({
       from: FROM_ADDRESS,
       to,
-      subject: `Your access to ${teamName} has been deactivated`,
+      subject: `Your access to ${esc(teamName)} has been deactivated`,
       html: `
-        <p>Hi ${recipientName || 'there'},</p>
-        <p>Your sub-account access to the <strong>${teamName}</strong> team on Story Magic has been deactivated by ${masterAccountName}.</p>
+        <p>Hi ${esc(recipientName) || 'there'},</p>
+        <p>Your sub-account access to the <strong>${esc(teamName)}</strong> team on Story Magic has been deactivated by ${esc(masterAccountName)}.</p>
         <p>If you believe this was a mistake, please contact your team administrator.</p>
         <p>— The Story Magic Team</p>
       `,
@@ -139,10 +144,10 @@ export async function sendSubAccountReactivationEmail(params: {
     const { data, error } = await getResendClient().emails.send({
       from: FROM_ADDRESS,
       to,
-      subject: `Your access to ${teamName} has been reactivated`,
+      subject: `Your access to ${esc(teamName)} has been reactivated`,
       html: `
-        <p>Hi ${recipientName || 'there'},</p>
-        <p>Great news! Your sub-account access to the <strong>${teamName}</strong> team on Story Magic has been reactivated by ${masterAccountName}.</p>
+        <p>Hi ${esc(recipientName) || 'there'},</p>
+        <p>Great news! Your sub-account access to the <strong>${esc(teamName)}</strong> team on Story Magic has been reactivated by ${esc(masterAccountName)}.</p>
         <p>You can now sign in and access the team's shared scripts at <a href="${APP_URL}/enterprise/dashboard">${APP_URL}/enterprise/dashboard</a>.</p>
         <p>— The Story Magic Team</p>
       `,
