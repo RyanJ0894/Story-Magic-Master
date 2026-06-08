@@ -84,7 +84,7 @@ describe('processGenerationJob — silent audio failure detection', () => {
 
     expect(getJobFailCalls()).toHaveLength(1);
     const failCall = getJobFailCalls()[0][0] as { data: { error: string } };
-    expect(failCall.data.error).toMatch(/no usable audio URLs/i);
+    expect(failCall.data.error).toMatch(/audio generation failed/i);
   });
 
   it('marks job failed when audio_urls is empty array', async () => {

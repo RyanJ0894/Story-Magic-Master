@@ -230,6 +230,13 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   startCleanupSchedule();
 });
 
+// Disable socket idle timeout so long-running generation requests (15+ pages, 10+ min)
+// don't get dropped by the OS or Render's internal proxy before the response is sent.
+server.setTimeout(0);
+// Keep-alive connections stay open for 65s (just above Render's 60s idle cutoff)
+// so the load balancer doesn't recycle sockets between chunked requests.
+server.keepAliveTimeout = 65000;
+
 // Graceful shutdown
 const shutdown = () => {
   log.info('Shutting down gracefully...');

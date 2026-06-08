@@ -29,7 +29,7 @@ import { orchestratorGenerate } from '@/lib/orchestrator-fetch';
 const DEFAULT_CONFIG: WorkerConfig = {
   workerId: `worker-${process.pid}-${Date.now()}`,
   pollIntervalMs: 5000, // Poll every 5 seconds
-  lockDurationSeconds: 300, // 5 minute lock
+  lockDurationSeconds: 1800, // 30 minute lock — accommodates 15+ page scripts
   maxConcurrentJobs: parseInt(process.env.QUEUE_CONCURRENCY || '3', 10),
   jobTypes: undefined, // Process all job types
 };

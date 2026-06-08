@@ -32,7 +32,24 @@ export interface UpdateProjectInput {
 
 export async function listProjects(prisma: PrismaClient, userId: string) {
   return prisma.project.findMany({
-    where: { userId },
+    where: {
+      OR: [
+        // User's own projects
+        { userId },
+        // Projects shared with a team the user is an active member of
+        {
+          teamShares: {
+            some: {
+              team: {
+                members: {
+                  some: { userId, status: 'active' },
+                },
+              },
+            },
+          },
+        },
+      ],
+    },
     select: {
       id: true,
       name: true,
