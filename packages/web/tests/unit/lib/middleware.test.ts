@@ -418,7 +418,7 @@ describe('withProjectAuth', () => {
     );
   });
 
-  it('queries project with OR clause for ownership + team-share access (BL-014)', async () => {
+  it('queries project with three-branch OR clause (BL-014/BL-015)', async () => {
     const handler = vi.fn().mockResolvedValue(new Response('ok'));
     const wrapped = withProjectAuth(handler);
 
@@ -430,24 +430,75 @@ describe('withProjectAuth', () => {
         id: PROJECT_ID,
         OR: [
           { userId: USER_ID },
+          { teamShares: { some: { team: { ownerId: USER_ID } } } },
           {
-            teamShares: {
-              some: {
-                team: {
-                  members: {
-                    some: {
-                      userId: USER_ID,
-                      acceptedAt: { not: null },
-                      deactivatedAt: null,
+            AND: [
+              {
+                teamShares: {
+                  some: {
+                    team: {
+                      members: {
+                        some: {
+                          userId: USER_ID,
+                          acceptedAt: { not: null },
+                          deactivatedAt: null,
+                        },
+                      },
                     },
                   },
                 },
               },
-            },
+              { projectAssignments: { some: { userId: USER_ID } } },
+            ],
           },
         ],
       },
     });
+  });
+
+  it('grants team-owner access without requiring a ProjectAssignment (master account path)', async () => {
+    // Team owner: project is shared with their team; they didn't personally create it
+    const masterProject = { ...mockProject, userId: 'other-owner' };
+    mockPrisma.project.findFirst.mockResolvedValue(masterProject);
+
+    const handler = vi.fn().mockResolvedValue(new Response('ok'));
+    const wrapped = withProjectAuth(handler);
+
+    const req = createRequest('/api/projects/' + PROJECT_ID, { method: 'GET' });
+    const res = await wrapped(req, routeParams({ id: PROJECT_ID }));
+
+    expect(res.status).toBe(200);
+    expect(handler).toHaveBeenCalledWith(req, expect.objectContaining({ projectId: PROJECT_ID }));
+  });
+
+  it('denies sub-account access when no ProjectAssignment exists (BL-015 isolation)', async () => {
+    // Prisma returns null because the AND clause fails (no ProjectAssignment row)
+    mockPrisma.project.findFirst.mockResolvedValue(null);
+
+    const handler = vi.fn();
+    const wrapped = withProjectAuth(handler);
+
+    const req = createRequest('/api/projects/' + PROJECT_ID, { method: 'GET' });
+    const res = await wrapped(req, routeParams({ id: PROJECT_ID }));
+    const body = await parseJson(res);
+
+    expect(res.status).toBe(404);
+    expect(body.code).toBe('PROJECT_NOT_FOUND');
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('grants sub-account access when ProjectAssignment exists (BL-015 isolation)', async () => {
+    const assignedProject = { ...mockProject, userId: 'other-owner' };
+    mockPrisma.project.findFirst.mockResolvedValue(assignedProject);
+
+    const handler = vi.fn().mockResolvedValue(new Response('ok'));
+    const wrapped = withProjectAuth(handler);
+
+    const req = createRequest('/api/projects/' + PROJECT_ID, { method: 'GET' });
+    const res = await wrapped(req, routeParams({ id: PROJECT_ID }));
+
+    expect(res.status).toBe(200);
+    expect(handler).toHaveBeenCalledWith(req, expect.objectContaining({ projectId: PROJECT_ID }));
   });
 
   it('passes projectId and project to handler on success', async () => {
