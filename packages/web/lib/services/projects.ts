@@ -96,7 +96,10 @@ export async function updateProject(
     where: { id: projectId },
     data: {
       ...(input.name !== undefined && { name: input.name }),
-      ...(input.scriptText !== undefined && { scriptText: input.scriptText }),
+      ...(input.scriptText !== undefined && {
+        scriptText: input.scriptText,
+        directorJson: null, // invalidate cached parse — script changed
+      }),
       ...(input.pageCount !== undefined && { pageCount: input.pageCount }),
     },
   });

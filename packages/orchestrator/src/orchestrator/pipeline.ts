@@ -159,11 +159,15 @@ export async function orchestrate(directorJSON: unknown, options: { chunkIndex?:
     const dialoguePath = path.join(scenesDir, `dialogue-${safeSceneId}.m4a`);
     await concatenateDialogueStems(stems, dialoguePath);
 
-    const mixInputs = resolveCuesToMixInputs({
+    const { mixInputs, warnings: cueWarnings } = resolveCuesToMixInputs({
       cues,
       alignmentLines: alignment.lines,
       dialoguePath,
     });
+
+    if (cueWarnings.length > 0) {
+      log.warn('[Pipeline] missing audio tracks in scene', { sceneId: scene.scene_id, warnings: cueWarnings });
+    }
 
     if (mixInputs.music) log.debug('Adding music layer', { sceneId: scene.scene_id });
     if (mixInputs.ambience) log.debug('Adding ambience layer', { sceneId: scene.scene_id });

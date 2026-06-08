@@ -18,13 +18,21 @@ export interface ResolveCuesOptions {
   dialoguePath: string;
 }
 
+export interface ResolveCuesResult {
+  mixInputs: MixInputs;
+  warnings: string[];
+}
+
 /**
  * Resolve audio cues into concrete MixInputs with file paths.
  * Handles music, ambience, and SFX (including line_id → timestamp lookup).
+ * Returns warnings for any tracks that could not be resolved — callers must
+ * log or surface these so the user knows audio is missing from the mix.
  */
-export function resolveCuesToMixInputs(opts: ResolveCuesOptions): MixInputs {
+export function resolveCuesToMixInputs(opts: ResolveCuesOptions): ResolveCuesResult {
   const { cues, alignmentLines, dialoguePath } = opts;
   const mixInputs: MixInputs = { dialogue: dialoguePath };
+  const warnings: string[] = [];
 
   // Music: use first cue's file
   if (cues.music && cues.music.length > 0) {
@@ -34,7 +42,9 @@ export function resolveCuesToMixInputs(opts: ResolveCuesOptions): MixInputs {
       if (musicPath && fs.existsSync(musicPath)) {
         mixInputs.music = musicPath;
       } else {
-        log.warn('[ResolveCues] music track not found in catalog (#96)', { trackId });
+        const msg = `Music track not found in catalog: "${trackId}" — scene will have no music`;
+        log.warn('[ResolveCues] ' + msg);
+        warnings.push(msg);
       }
     }
   }
@@ -47,7 +57,9 @@ export function resolveCuesToMixInputs(opts: ResolveCuesOptions): MixInputs {
       if (ambiencePath && fs.existsSync(ambiencePath)) {
         mixInputs.ambience = ambiencePath;
       } else {
-        log.warn('[ResolveCues] ambience track not found in catalog (#96)', { trackId });
+        const msg = `Ambience track not found in catalog: "${trackId}" — scene will have no ambience`;
+        log.warn('[ResolveCues] ' + msg);
+        warnings.push(msg);
       }
     }
   }
@@ -61,7 +73,9 @@ export function resolveCuesToMixInputs(opts: ResolveCuesOptions): MixInputs {
 
       const sfxPath = getTrackPath(sfxCue.file);
       if (!sfxPath || !fs.existsSync(sfxPath)) {
-        log.warn('[ResolveCues] SFX track not found in catalog (#96)', { file: sfxCue.file });
+        const msg = `SFX track not found in catalog: "${sfxCue.file}" — effect will be omitted`;
+        log.warn('[ResolveCues] ' + msg);
+        warnings.push(msg);
         continue;
       }
 
@@ -86,7 +100,7 @@ export function resolveCuesToMixInputs(opts: ResolveCuesOptions): MixInputs {
     }
   }
 
-  return mixInputs;
+  return { mixInputs, warnings };
 }
 
 /**

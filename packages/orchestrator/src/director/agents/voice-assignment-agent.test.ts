@@ -113,19 +113,24 @@ describe('VoiceAssignmentAgent', () => {
     expect(result.assignments['JOHN']).toBeDefined();
   });
 
-  it('returns minimal fallback VoiceMap when all parsing fails', async () => {
+  it('throws when all parsing fails — no silent wrong-voice fallback', async () => {
     vi.mocked(runAgentLoop).mockResolvedValue('garbage');
     vi.mocked(parseJSONSafely).mockReturnValue({ success: false, error: 'err' });
     vi.mocked(structureTextAsJSON).mockRejectedValue(new Error('AI failed'));
 
     const agent = new VoiceAssignmentAgent();
-    const result = await agent.assign({ manifest: MANIFEST });
+    await expect(agent.assign({ manifest: MANIFEST })).rejects.toThrow('VoiceAssignment failed');
+  });
 
-    // Should not throw — returns a minimal map with defaults
-    expect(result.default_narrator_voice).toBe(DEFAULT_NARRATOR_VOICE);
-    expect(result.default_male_voice).toBe(DEFAULT_MALE_VOICE);
-    expect(result.default_female_voice).toBe(DEFAULT_FEMALE_VOICE);
-    expect(result.assignments['NARRATOR']).toBeDefined();
+  it('throws when schema fix also fails — no silent wrong-voice fallback', async () => {
+    // Agent returns valid JSON but fails VoiceMap schema, and the fix attempt also fails
+    vi.mocked(runAgentLoop).mockResolvedValue('{"not":"a_voice_map"}');
+    vi.mocked(parseJSONSafely).mockReturnValue({ success: true, data: { not: 'a_voice_map' } });
+    // Schema validation will fail; structureTextAsJSON is used for fix and also fails
+    vi.mocked(structureTextAsJSON).mockRejectedValue(new Error('schema fix failed'));
+
+    const agent = new VoiceAssignmentAgent();
+    await expect(agent.assign({ manifest: MANIFEST })).rejects.toThrow('VoiceAssignment failed');
   });
 
   it('throws when runAgentLoop itself fails', async () => {
