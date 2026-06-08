@@ -29,15 +29,15 @@ model Profile {
   stripeCustomerId     String?   @map("stripe_customer_id")
   stripeSubscriptionId String?   @map("stripe_subscription_id")
   subscriptionStatus   String    @default("inactive") @map("subscription_status")
-  currentPeriodEnd     DateTime? @map("current_period_end")
+  currentPeriodEnd     DateTime? @map("current_period_end") @db.Timestamptz
   userType             String    @default("writer") @map("user_type")
   suspended            Boolean   @default(false)
   writerCode           String?   @unique @map("writer_code")
   readerCode           String?   @unique @map("reader_code")
   externalId           String?   @unique @map("external_id") // Old Supabase UUID during migration
   credits              Int       @default(0)
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
   projects              Project[]
@@ -100,13 +100,13 @@ model Project {
   emotionOverrides      Json?    @map("emotion_overrides")
   // Exchange listing fields
   exchangeIsPublic      Boolean  @default(false) @map("exchange_is_public")
-  exchangeListedAt      DateTime? @map("exchange_listed_at")
+  exchangeListedAt      DateTime? @map("exchange_listed_at") @db.Timestamptz
   exchangeSlug          String?  @unique @map("exchange_slug")
   exchangeTagline       String?  @map("exchange_tagline")
   exchangeGenre         String?  @map("exchange_genre")
   page1PreviewUrl       String?  @map("page1_preview_url")
-  createdAt             DateTime @default(now()) @map("created_at")
-  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
   user              Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -148,13 +148,13 @@ model Job {
   progress            Json      @default("{\"step\": \"queued\", \"percent\": 0}")
   result              Json?
   error               String?
-  createdAt           DateTime  @default(now()) @map("created_at")
-  startedAt           DateTime? @map("started_at")
-  completedAt         DateTime? @map("completed_at")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  startedAt           DateTime? @map("started_at") @db.Timestamptz
+  completedAt         DateTime? @map("completed_at") @db.Timestamptz
   priority            Int       @default(0)
-  queuedAt            DateTime? @map("queued_at")
+  queuedAt            DateTime? @map("queued_at") @db.Timestamptz
   processingLock      String?   @map("processing_lock") @db.Uuid
-  lockExpiresAt       DateTime? @map("lock_expires_at")
+  lockExpiresAt       DateTime? @map("lock_expires_at") @db.Timestamptz
   workerId            String?   @map("worker_id")
   retryCount          Int       @default(0) @map("retry_count")
   maxRetries          Int       @default(3) @map("max_retries")
@@ -196,7 +196,7 @@ model JobLog {
   metadata     Json     @default("{}")
   errorMessage String?  @map("error_message")
   errorStack   String?  @map("error_stack")
-  createdAt    DateTime @default(now()) @map("created_at")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   durationMs   Int?     @map("duration_ms")
 
   // Relations
@@ -224,7 +224,7 @@ model AudioOutput {
   durationSeconds Decimal? @map("duration_seconds") @db.Decimal(10, 2)
   format          String   @default("mp3")
   storageBucket   String   @default("audio-outputs") @map("storage_bucket")
-  createdAt       DateTime @default(now()) @map("created_at")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   // Relations
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -246,8 +246,8 @@ model Usage {
   pagesUsed    Int      @default(0) @map("pages_used")
   pagesLimit   Int      @default(3) @map("pages_limit")
   previewsUsed Int      @default(0) @map("previews_used")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -264,15 +264,15 @@ model Subscription {
   stripeCustomerId     String?   @map("stripe_customer_id")
   stripeSubscriptionId String?   @unique @map("stripe_subscription_id")
   stripePriceId        String?   @map("stripe_price_id")
-  currentPeriodStart   DateTime? @map("current_period_start")
-  currentPeriodEnd     DateTime? @map("current_period_end")
+  currentPeriodStart   DateTime? @map("current_period_start") @db.Timestamptz
+  currentPeriodEnd     DateTime? @map("current_period_end") @db.Timestamptz
   cancelAtPeriodEnd    Boolean   @default(false) @map("cancel_at_period_end")
   generationsUsed      Int       @default(0) @map("generations_used")
   generationsLimit     Int       @default(5) @map("generations_limit")
   downloadsUsed        Int       @default(0) @map("downloads_used")
   downloadsLimit       Int       @default(1) @map("downloads_limit")
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -293,7 +293,7 @@ model Purchase {
   stripePaymentIntentId String?  @unique @map("stripe_payment_intent_id")
   stripeInvoiceId       String?  @map("stripe_invoice_id")
   status                String   @default("completed")
-  createdAt             DateTime @default(now()) @map("created_at")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   // Relations — SetNull so deleting a user anonymises purchases rather than cascade-deleting
   user    Profile? @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -312,7 +312,7 @@ model CreditTransaction {
   reason          String   // signup_bonus | purchase | scene_generation | refund
   jobId           String?  @map("job_id") @db.Uuid
   stripeSessionId String?  @unique @map("stripe_session_id")
-  createdAt       DateTime @default(now()) @map("created_at")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
@@ -331,9 +331,9 @@ model PodcastFeed {
   coverArtUrl   String?   @map("cover_art_url")
   rssFeedSlug   String    @unique @map("rss_feed_slug")
   published     Boolean   @default(false)
-  publishedAt   DateTime? @map("published_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at")
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user    Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -358,7 +358,7 @@ model ScriptShare {
   sceneIndex     Int?      @map("scene_index")
   sceneStartMs   Int?      @map("scene_start_ms")
   viaReaderCode  String?   @map("via_reader_code")
-  expiresAt      DateTime? @map("expires_at")
+  expiresAt      DateTime? @map("expires_at") @db.Timestamptz
   passwordHash   String?   @map("password_hash")
   maxPlays       Int?      @map("max_plays")
   playCount      Int       @default(0) @map("play_count")
@@ -366,10 +366,10 @@ model ScriptShare {
   isActive       Boolean   @default(true) @map("is_active")
   recipientEmail String?   @map("recipient_email")
   recipientName  String?   @map("recipient_name")
-  lastViewedAt   DateTime? @map("last_viewed_at")
-  lastAccessedAt DateTime? @map("last_accessed_at")
-  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at")
-  createdAt      DateTime  @default(now()) @map("created_at")
+  lastViewedAt   DateTime? @map("last_viewed_at") @db.Timestamptz
+  lastAccessedAt DateTime? @map("last_accessed_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   // Relations
   project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -396,13 +396,13 @@ model ReaderLibrary {
   isFavorited         Boolean   @default(false) @map("is_favorited")
   notes               String?
   tags                String[]  @default([])
-  lastPlayedAt        DateTime? @map("last_played_at")
+  lastPlayedAt        DateTime? @map("last_played_at") @db.Timestamptz
   playPositionSeconds Int       @default(0) @map("play_position_seconds")
   completed           Boolean   @default(false)
   readStatus          String    @default("undecided") @map("read_status")
-  readStatusUpdatedAt DateTime? @map("read_status_updated_at")
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at")
+  readStatusUpdatedAt DateTime? @map("read_status_updated_at") @db.Timestamptz
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
   reader  Profile      @relation(fields: [readerId], references: [id], onDelete: Cascade)
@@ -428,7 +428,7 @@ model ContentAccessLog {
   ipAddress            String?  @map("ip_address")
   userAgent            String?  @map("user_agent")
   deviceType           String?  @map("device_type")
-  createdAt            DateTime @default(now()) @map("created_at")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   // Relations
   user    Profile?     @relation(fields: [userId], references: [id])
@@ -489,7 +489,7 @@ model StoryScore {
   weaknesses   String[] @default([])
   confidence   Decimal  @db.Decimal(3, 2)
   modelVersion String   @default("claude-sonnet-4-6") @map("model_version")
-  createdAt    DateTime @default(now()) @map("created_at")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   // Relations
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -526,8 +526,8 @@ model Suggestion {
   status       String    @default("pending")
   userFeedback String?   @map("user_feedback")
   confidence   Decimal   @db.Decimal(3, 2)
-  createdAt    DateTime  @default(now()) @map("created_at")
-  respondedAt  DateTime? @map("responded_at")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  respondedAt  DateTime? @map("responded_at") @db.Timestamptz
 
   // Relations
   project  Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -551,7 +551,7 @@ model Rewrite {
   explanation   String
   selected      Boolean  @default(false)
   style         String?
-  createdAt     DateTime @default(now()) @map("created_at")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   // Relations
   suggestion Suggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
@@ -575,7 +575,7 @@ model Revision {
   scoreId        String?  @map("score_id") @db.Uuid
   overallScore   Decimal? @map("overall_score") @db.Decimal(4, 1)
   changesSummary Json?    @map("changes_summary")
-  createdAt      DateTime @default(now()) @map("created_at")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
   createdBy      String?  @map("created_by")
 
   // Relations
@@ -611,8 +611,8 @@ model ScriptCorpus {
   isPublic          Boolean                      @default(false) @map("is_public")
   source            String?
   uploadedBy        String?                      @map("uploaded_by")
-  createdAt         DateTime                     @default(now()) @map("created_at")
-  updatedAt         DateTime                     @default(now()) @updatedAt @map("updated_at")
+  createdAt         DateTime                     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime                     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Training dataset fields
   scriptText        String?                      @map("script_text")
@@ -649,7 +649,7 @@ model CorpusScore {
   strengths       String[]
   weaknesses      String[]
   confidence      Decimal  @map("confidence") @db.Decimal(4, 2)
-  createdAt       DateTime @default(now()) @map("created_at")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   corpusScript ScriptCorpus @relation(fields: [corpusScriptId], references: [id], onDelete: Cascade)
 
@@ -669,8 +669,8 @@ model Team {
   description          String?
   defaultShareAccess   String   @default("stream") @map("default_share_access")
   autoShareNewProjects Boolean  @default(false) @map("auto_share_new_projects")
-  createdAt            DateTime @default(now()) @map("created_at")
-  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
   owner        Profile       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
@@ -696,7 +696,7 @@ model ActivityLog {
   // eventType: listen_complete | note_added | liked | passed | undecided | listen_start | listen_progress
   eventType String   @map("event_type")
   metadata  Json     @default("{}")
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   // Relations
   team    Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
@@ -722,8 +722,8 @@ model ProjectNote {
   lineId      String?  @map("line_id")          // director_json line reference
   timestamp   Int?                               // seconds offset in audio
   noteText    String   @map("note_text") @db.Text
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -749,8 +749,8 @@ model ProjectComment {
   audioTimestampMs Int?     @map("audio_timestamp_ms")
   body             String?  @db.Text
   reactionType     String?  @map("reaction_type")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -778,10 +778,10 @@ model TeamMember {
   status       String    @default("pending")
   inviteToken  String?   @unique @map("invite_token")
   invitedBy    String?   @map("invited_by")
-  invitedAt    DateTime  @default(now()) @map("invited_at")
-  acceptedAt   DateTime? @map("accepted_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
+  invitedAt    DateTime  @default(now()) @map("invited_at") @db.Timestamptz
+  acceptedAt   DateTime? @map("accepted_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
   team    Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
@@ -802,7 +802,7 @@ model TeamShare {
   teamId      String   @map("team_id") @db.Uuid
   sharedBy    String?  @map("shared_by")
   accessLevel String   @default("stream") @map("access_level")
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   // Relations
   project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -830,10 +830,10 @@ model Alert {
   relatedUserId String?   @map("related_user_id")
   metadata      Json      @default("{}")
   isRead        Boolean   @default(false) @map("is_read")
-  readAt        DateTime? @map("read_at")
+  readAt        DateTime? @map("read_at") @db.Timestamptz
   emailSent     Boolean   @default(false) @map("email_sent")
-  emailSentAt   DateTime? @map("email_sent_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
+  emailSentAt   DateTime? @map("email_sent_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   // Relations
   user        Profile  @relation("AlertUser", fields: [userId], references: [id], onDelete: Cascade)
@@ -857,8 +857,8 @@ model AlertPreference {
   emailGenerationComplete Boolean  @default(false) @map("email_generation_complete")
   inappAll                Boolean  @default(true) @map("inapp_all")
   emailDigestFrequency    String   @default("instant") @map("email_digest_frequency")
-  createdAt               DateTime @default(now()) @map("created_at")
-  updatedAt               DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -879,7 +879,7 @@ model AuditLog {
   details      Json     @default("{}")
   ipAddress    String?  @map("ip_address")
   userAgent    String?  @map("user_agent")
-  createdAt    DateTime @default(now()) @map("created_at")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   // Relations
   user Profile? @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -895,7 +895,7 @@ model PlatformSetting {
   key       String   @id
   value     Json
   updatedBy String?  @map("updated_by")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("platform_settings")
 }
@@ -922,11 +922,11 @@ model ImpactStory {
   authorCity   String?   @map("author_city")
   status       String    @default("draft") // draft | processing | complete
   jobId        String?   @map("job_id") @db.Uuid
-  attestedAt   DateTime? @map("attested_at") // timestamp user accepted Impact program terms
+  attestedAt   DateTime? @map("attested_at") // timestamp user accepted Impact program terms @db.Timestamptz
   viewCount    Int       @default(0) @map("view_count")
   playCount    Int       @default(0) @map("play_count")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   user         Profile?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   prizeEntries ImpactPrizeDraw[]
@@ -948,12 +948,12 @@ model ImpactPartner {
   contactEmail  String?   @map("contact_email")
   annualAmount  Decimal   @map("annual_amount") @db.Decimal(10, 2)
   creditsGranted Int      @default(0) @map("credits_granted")
-  activeFrom    DateTime  @map("active_from")
-  activeTo      DateTime? @map("active_to")
+  activeFrom    DateTime  @map("active_from") @db.Timestamptz
+  activeTo      DateTime? @map("active_to") @db.Timestamptz
   isActive      Boolean   @default(true) @map("is_active")
   notes         String?   @db.Text
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   @@index([tier])
   @@index([isActive])
@@ -965,9 +965,9 @@ model ImpactPrizeDraw {
   storyId    String    @map("story_id") @db.Uuid
   drawMonth  String    @map("draw_month") // YYYY-MM
   isWinner   Boolean   @default(false) @map("is_winner")
-  notifiedAt DateTime? @map("notified_at")
-  paidAt     DateTime? @map("paid_at")
-  createdAt  DateTime  @default(now()) @map("created_at")
+  notifiedAt DateTime? @map("notified_at") @db.Timestamptz
+  paidAt     DateTime? @map("paid_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   story ImpactStory @relation(fields: [storyId], references: [id], onDelete: Cascade)
 
@@ -985,7 +985,7 @@ model ImpactDonation {
   donorName        String?   @map("donor_name")
   message          String?   @db.Text
   status           String    @default("completed") // completed | refunded
-  createdAt        DateTime  @default(now()) @map("created_at")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   @@index([createdAt(sort: Desc)])
   @@index([stripeSessionId])
@@ -999,7 +999,7 @@ model VoiceMarketplaceInterest {
   role          String   // "actor" | "producer" | "both"
   notes         String?  @db.Text
   demoAudioUrl  String?  @map("demo_audio_url")
-  createdAt     DateTime @default(now()) @map("created_at")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@unique([email])
   @@index([createdAt(sort: Desc)])
@@ -1021,8 +1021,8 @@ model ScriptReview {
   comment       String?  @db.Text
   isAnonymous   Boolean  @default(false) @map("is_anonymous")
   isPublic      Boolean  @default(true) @map("is_public")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   reviewer Profile @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
@@ -1037,7 +1037,7 @@ model WriterSubscription {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   subscriberId String   @map("subscriber_id")
   writerId     String   @map("writer_id")
-  createdAt    DateTime @default(now()) @map("created_at")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   subscriber Profile @relation("SubscriberSubs", fields: [subscriberId], references: [id], onDelete: Cascade)
   writer     Profile @relation("WriterSubs", fields: [writerId], references: [id], onDelete: Cascade)
@@ -1057,7 +1057,7 @@ model VoiceClone {
   userId             String   @map("user_id")
   name               String
   elevenLabsVoiceId  String   @unique @map("elevenlabs_voice_id")
-  createdAt          DateTime @default(now()) @map("created_at")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1075,8 +1075,8 @@ model ApiKey {
   name       String
   keyHash    String    @unique @map("key_hash") // SHA-256 of the raw key
   keyPrefix  String    @map("key_prefix")       // first 8 chars of raw key for display
-  lastUsedAt DateTime? @map("last_used_at")
-  createdAt  DateTime  @default(now()) @map("created_at")
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1091,7 +1091,7 @@ model WebhookEndpoint {
   secret    String   // HMAC-SHA256 signing secret (stored plaintext — needed for signing)
   events    String[] // e.g. ["job.completed", "job.failed"]
   isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   user         Profile              @relation(fields: [userId], references: [id], onDelete: Cascade)
   deliveryLogs WebhookDeliveryLog[]
@@ -1110,7 +1110,7 @@ model WebhookDeliveryLog {
   durationMs        Int?     @map("duration_ms")
   success           Boolean
   error             String?
-  createdAt         DateTime @default(now()) @map("created_at")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   endpoint WebhookEndpoint @relation(fields: [webhookEndpointId], references: [id], onDelete: Cascade)
 
@@ -1129,12 +1129,12 @@ model HumanReview {
   userId               String    @map("user_id")       // customer
   status               String    @default("pending")   // pending | approved | rejected
   reviewerNotes        String?   @map("reviewer_notes") @db.Text
-  reviewedAt           DateTime? @map("reviewed_at")
+  reviewedAt           DateTime? @map("reviewed_at") @db.Timestamptz
   reviewedBy           String?   @map("reviewed_by")   // admin Clerk ID
-  notifiedReviewerAt   DateTime? @map("notified_reviewer_at")
-  notifiedCustomerAt   DateTime? @map("notified_customer_at")
+  notifiedReviewerAt   DateTime? @map("notified_reviewer_at") @db.Timestamptz
+  notifiedCustomerAt   DateTime? @map("notified_customer_at") @db.Timestamptz
   amountCents          Int       @default(9900) @map("amount_cents")
-  createdAt            DateTime  @default(now()) @map("created_at")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   job     Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
@@ -1158,7 +1158,7 @@ model MixManifest {
   projectId       String   @map("project_id")
   sceneId         String   @map("scene_id")
   mixManifestJson Json     @map("mix_manifest_json")
-  createdAt       DateTime @default(now()) @map("created_at")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@id([projectId, sceneId])
   @@map("mix_manifests")
@@ -1168,7 +1168,7 @@ model Timeline {
   projectId    String   @map("project_id")
   sceneId      String   @map("scene_id")
   timelineJson Json     @map("timeline_json")
-  createdAt    DateTime @default(now()) @map("created_at")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@id([projectId, sceneId])
   @@map("timelines")
@@ -1178,7 +1178,7 @@ model Alignment {
   projectId     String   @map("project_id")
   sceneId       String   @map("scene_id")
   alignmentJson Json     @map("alignment_json")
-  createdAt     DateTime @default(now()) @map("created_at")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@id([projectId, sceneId])
   @@map("alignments")
@@ -1220,7 +1220,7 @@ model AiHealthLog {
   errorMessage String?  @map("error_message")
   latencyMs    Int?     @map("latency_ms")
   triggeredBy  String   @default("preflight") @map("triggered_by")
-  checkedAt    DateTime @default(now()) @map("checked_at")
+  checkedAt    DateTime @default(now()) @map("checked_at") @db.Timestamptz
 
   @@index([provider, checkedAt])
   @@index([checkedAt])
