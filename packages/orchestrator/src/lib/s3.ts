@@ -5,11 +5,13 @@
  * across multiple orchestrator instances (Render horizontal scale).
  *
  * Required env vars (when STORAGE_PROVIDER=s3):
- *   AWS_ACCESS_KEY_ID       — IAM access key
- *   AWS_SECRET_ACCESS_KEY   — IAM secret key
+ *   AWS_ACCESS_KEY_ID       — IAM access key (or R2 S3 Access Key ID)
+ *   AWS_SECRET_ACCESS_KEY   — IAM secret key (or R2 S3 Secret Access Key)
  *   AWS_S3_BUCKET           — bucket name
- *   AWS_S3_REGION           — region (default: us-east-1)
+ *   AWS_S3_REGION           — AWS region (default: us-east-1) or "auto" for Cloudflare R2
  *   AWS_S3_PUBLIC_URL       — public base URL (e.g. https://audio.storymagicapp.net)
+ *   AWS_S3_ENDPOINT         — optional; custom endpoint for R2 / MinIO / non-AWS stores
+ *                             (e.g. https://<account-id>.r2.cloudflarestorage.com)
  *
  * When not configured, all functions no-op and callers fall back to local paths.
  */
@@ -23,12 +25,18 @@ function getClient(): S3Client {
   const region = process.env.AWS_S3_REGION ?? 'us-east-1';
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+  const endpoint = process.env.AWS_S3_ENDPOINT;
 
   if (!accessKeyId || !secretAccessKey) {
     throw new Error('AWS credentials not configured (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)');
   }
 
-  return new S3Client({ region, credentials: { accessKeyId, secretAccessKey } });
+  return new S3Client({
+    region,
+    credentials: { accessKeyId, secretAccessKey },
+    // endpoint + forcePathStyle required for Cloudflare R2 and other S3-compatible stores
+    ...(endpoint && { endpoint, forcePathStyle: true }),
+  });
 }
 
 export function isS3Configured(): boolean {

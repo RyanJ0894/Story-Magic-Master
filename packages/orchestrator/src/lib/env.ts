@@ -81,6 +81,7 @@ const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: optionalString,
   AWS_S3_BUCKET: optionalString,
   AWS_S3_REGION: optionalString,
+  AWS_S3_ENDPOINT: optionalUrl,   // custom endpoint for R2 / MinIO
   AWS_S3_PUBLIC_URL: optionalUrl,
 
   // Script size limits (pre-flight guards against LLM context overflow)
