@@ -30,6 +30,17 @@ export interface UpdateProjectInput {
 // List projects
 // =============================================================================
 
+/**
+ * Canonical predicate for "user is an active team member".
+ * acceptedAt: { not: null } mirrors the check in withProjectAuth.
+ * NOTE: deactivatedAt guard added in migration 0034 (PR #171) — update then.
+ */
+export const activeMemberWhere = (userId: string) =>
+  ({
+    userId,
+    acceptedAt: { not: null as Date | null },
+  }) as const;
+
 export async function listProjects(prisma: PrismaClient, userId: string) {
   return prisma.project.findMany({
     where: {
@@ -42,7 +53,7 @@ export async function listProjects(prisma: PrismaClient, userId: string) {
             some: {
               team: {
                 members: {
-                  some: { userId, status: 'active' },
+                  some: activeMemberWhere(userId),
                 },
               },
             },
