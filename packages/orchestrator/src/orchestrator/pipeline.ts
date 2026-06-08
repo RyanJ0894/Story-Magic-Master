@@ -65,6 +65,8 @@ export interface OrchestrationResult {
   scenes: SceneOutput[];
   audio_urls: (string | null)[];
   manifest: PlaybackManifest | null;
+  /** Tracks requested by the AudioDirector that could not be resolved — surfaces to the user. */
+  mix_warnings: string[];
 }
 
 // concatenateDialogueStems extracted to shared/concat-stems.ts
@@ -134,6 +136,7 @@ export async function orchestrate(directorJSON: unknown, options: { chunkIndex?:
   fs.mkdirSync(scenesDir, { recursive: true });
 
   const sceneOutputs: SceneOutput[] = [];
+  const mixWarnings: string[] = [];
 
   for (let i = 0; i < director.scenes.length; i++) {
     const scene = director.scenes[i];
@@ -216,14 +219,14 @@ export async function orchestrate(directorJSON: unknown, options: { chunkIndex?:
     const dialoguePath = path.join(scenesDir, `dialogue-${safeSceneId}.m4a`);
     await concatenateDialogueStems(stems, dialoguePath);
 
-    const { mixInputs, warnings: cueWarnings } = resolveCuesToMixInputs({
+    const { mixInputs, warnings: sceneWarnings } = resolveCuesToMixInputs({
       cues,
       alignmentLines: alignment.lines,
       dialoguePath,
     });
-
-    if (cueWarnings.length > 0) {
-      log.warn('[Pipeline] missing audio tracks in scene', { sceneId: scene.scene_id, warnings: cueWarnings });
+    if (sceneWarnings.length > 0) {
+      log.warn('[Pipeline] missing audio tracks in scene', { sceneId: scene.scene_id, warnings: sceneWarnings });
+      mixWarnings.push(...sceneWarnings.map((w) => `Scene ${scene.scene_id}: ${w}`));
     }
 
     if (mixInputs.music) log.debug('Adding music layer', { sceneId: scene.scene_id });
@@ -301,6 +304,7 @@ export async function orchestrate(directorJSON: unknown, options: { chunkIndex?:
       scenes: sceneOutputs,
       audio_urls: [`/audio/${safeProjectId}/${episodeName}`],
       manifest: null,
+      mix_warnings: mixWarnings,
     };
   }
 
@@ -331,6 +335,7 @@ export async function orchestrate(directorJSON: unknown, options: { chunkIndex?:
     scenes: sceneOutputs,
     audio_urls: [manifest.public_url],
     manifest: manifest,
+    mix_warnings: mixWarnings,
   };
 }
 
@@ -459,6 +464,7 @@ export async function orchestrateParallel(
       scenes: sceneOutputsChunk,
       audio_urls: [`/audio/${safeProjectId}/${episodeName}`],
       manifest: null,
+      mix_warnings: stitchResult.mix_warnings,
     };
   }
 
@@ -512,5 +518,6 @@ export async function orchestrateParallel(
     scenes: sceneOutputs,
     audio_urls: [manifest.public_url],
     manifest: manifest,
+    mix_warnings: stitchResult.mix_warnings,
   };
 }

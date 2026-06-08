@@ -34,6 +34,7 @@ export interface SceneAssemblyResult {
   alignment: SceneAlignment;
   cues: SceneCues;
   duration_ms: number;
+  mix_warnings: string[];
 }
 
 export interface ProgressiveStitchProgress {
@@ -48,6 +49,7 @@ export interface ProgressiveStitchProgress {
 export interface ProgressiveStitchResult {
   scenes: SceneAssemblyResult[];
   total_duration_ms: number;
+  mix_warnings: string[];
 }
 
 export interface ProgressCallback {
@@ -70,6 +72,8 @@ async function processScene(
   scenesDir: string
 ): Promise<SceneAssemblyResult> {
   const scene_id = scene.scene_id;
+  // Strip any path separators from scene_id before using in filenames
+  const safeSceneId = path.basename(scene_id);
 
   log.info('Processing scene', { sceneIndex: scene_index + 1, sceneId: scene_id });
 
@@ -87,18 +91,18 @@ async function processScene(
 
   // 4. Concatenate dialogue stems
   // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
-  const dialoguePath = path.join(scenesDir, `dialogue-${scene_id}.m4a`);
+  const dialoguePath = path.join(scenesDir, `dialogue-${safeSceneId}.m4a`);
   await concatenateDialogueStems(stems, dialoguePath);
 
   // 5. Prepare mix inputs
-  const { mixInputs, warnings: cueWarnings } = resolveCuesToMixInputs({
+  const { mixInputs, warnings: sceneWarnings } = resolveCuesToMixInputs({
     cues,
     alignmentLines: alignment.lines,
     dialoguePath,
   });
 
-  if (cueWarnings.length > 0) {
-    log.warn('[ProgressiveStitch] missing audio tracks in scene', { sceneId: scene_id, warnings: cueWarnings });
+  if (sceneWarnings.length > 0) {
+    log.warn('[ProgressiveStitch] missing audio tracks in scene', { sceneId: scene_id, warnings: sceneWarnings });
   }
 
   if (mixInputs.music) log.debug('Adding music to mix', { sceneId: scene_id });
@@ -107,9 +111,9 @@ async function processScene(
   // 6. Mix scene
   log.debug('Mixing scene audio', { sceneId: scene_id });
   // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
-  const sceneOutput = path.join(projectDir, `scene-${scene_id}.m4a`);
+  const sceneOutput = path.join(projectDir, `scene-${safeSceneId}.m4a`);
   // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
-  const tempWav = path.join(scenesDir, `temp-${scene_id}.wav`);
+  const tempWav = path.join(scenesDir, `temp-${safeSceneId}.wav`);
   const mixParams = getDefaultMixParams(scene.mix as Record<string, unknown>);
 
   await mixScene({
@@ -144,6 +148,7 @@ async function processScene(
     alignment,
     cues,
     duration_ms,
+    mix_warnings: sceneWarnings.map((w) => `Scene ${scene_id}: ${w}`),
   };
 }
 
@@ -254,6 +259,7 @@ export async function progressiveStitch(
   return {
     scenes: results,
     total_duration_ms: totalDuration,
+    mix_warnings: results.flatMap((r) => r.mix_warnings),
   };
 }
 

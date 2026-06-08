@@ -86,7 +86,7 @@ describe('resolveCuesToMixInputs — missing track handling (#96, #166)', () => 
     expect(warnings).toHaveLength(0);
   });
 
-  it('skips ambience and returns warning when track is missing from catalog (#166)', () => {
+  it('skips ambience, logs warning and surfaces it in warnings array when track is missing', () => {
     mockGetTrackPath.mockReturnValue(null);
     mockExistsSync.mockReturnValue(false);
 
@@ -100,9 +100,12 @@ describe('resolveCuesToMixInputs — missing track handling (#96, #166)', () => 
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('ambience/missing_track.mp3');
     expect(warnings[0]).toContain('no ambience');
+    expect(mockWarn).toHaveBeenCalledWith(
+      expect.stringContaining('[ResolveCues] Ambience track not found')
+    );
   });
 
-  it('skips music and returns warning when music track is missing (#166)', () => {
+  it('skips music, logs warning and surfaces it in warnings array when track is missing', () => {
     mockGetTrackPath.mockReturnValue(null);
     mockExistsSync.mockReturnValue(false);
 
@@ -116,9 +119,12 @@ describe('resolveCuesToMixInputs — missing track handling (#96, #166)', () => 
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('music/missing.mp3');
     expect(warnings[0]).toContain('no music');
+    expect(mockWarn).toHaveBeenCalledWith(
+      expect.stringContaining('[ResolveCues] Music track not found')
+    );
   });
 
-  it('skips SFX cue and returns warning when SFX file is missing (#166)', () => {
+  it('skips SFX cue, logs warning and surfaces it in warnings array when SFX file is missing', () => {
     mockGetTrackPath.mockReturnValue(null);
 
     const { mixInputs, warnings } = resolveCuesToMixInputs({
@@ -132,6 +138,9 @@ describe('resolveCuesToMixInputs — missing track handling (#96, #166)', () => 
     expect(mixInputs.sfx).toBeUndefined();
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('sfx/missing_sfx.mp3');
+    expect(mockWarn).toHaveBeenCalledWith(
+      expect.stringContaining('[ResolveCues] SFX track not found')
+    );
   });
 
   it('resolves an existing SFX track with numeric start_at', () => {
@@ -168,7 +177,7 @@ describe('resolveCuesToMixInputs — missing track handling (#96, #166)', () => 
     expect(mixInputs.sfx?.[0]).toMatchObject({ at: 12.5 });
   });
 
-  it('returns empty sfx and two warnings when all SFX tracks are missing (#166)', () => {
+  it('returns empty sfx and two warnings when all SFX tracks are missing', () => {
     mockGetTrackPath.mockReturnValue(null);
 
     const { mixInputs, warnings } = resolveCuesToMixInputs({
@@ -184,5 +193,6 @@ describe('resolveCuesToMixInputs — missing track handling (#96, #166)', () => 
 
     expect(mixInputs.sfx).toBeUndefined();
     expect(warnings).toHaveLength(2);
+    expect(mockWarn).toHaveBeenCalledTimes(2);
   });
 });

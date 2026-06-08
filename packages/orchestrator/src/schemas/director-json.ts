@@ -198,6 +198,7 @@ export const OrchestrateResponseSchema = z.object({
   audio_urls: z.array(z.string()).optional(),
   playback_manifest: PlaybackManifestSchema.optional(),
   message: z.string().optional(),
+  warnings: z.array(z.string()).optional(),
 });
 
 export type OrchestrateResponse = z.infer<typeof OrchestrateResponseSchema>;
