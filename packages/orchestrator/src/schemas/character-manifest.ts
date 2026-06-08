@@ -20,8 +20,8 @@ export const CharacterEntrySchema = z.object({
   gender: z.enum(['Male', 'Female']).optional().describe(
     'Inferred from pronouns, dialogue, relationships, or name titles.'
   ),
-  age: z.number().int().min(1).max(120).optional().describe(
-    'Estimated age in years, inferred from context (e.g., "elderly", "teenager", "in her 30s").'
+  age: z.number().int().optional().describe(
+    'Estimated age in years (1–120), inferred from context (e.g., "elderly", "teenager", "in her 30s").'
   ),
   description: z.string().describe(
     'Character role, personality, and vocal attributes implied by their dialogue and context.'

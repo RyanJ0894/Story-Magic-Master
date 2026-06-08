@@ -6,6 +6,7 @@
  * and translate results into HTTP responses.
  */
 
+import { Prisma } from '@story-magic/shared';
 import type { PrismaClient } from '@story-magic/shared';
 
 // =============================================================================
@@ -96,7 +97,10 @@ export async function updateProject(
     where: { id: projectId },
     data: {
       ...(input.name !== undefined && { name: input.name }),
-      ...(input.scriptText !== undefined && { scriptText: input.scriptText }),
+      ...(input.scriptText !== undefined && {
+        scriptText: input.scriptText,
+        directorJson: Prisma.DbNull, // invalidate cached parse — script changed
+      }),
       ...(input.pageCount !== undefined && { pageCount: input.pageCount }),
     },
   });

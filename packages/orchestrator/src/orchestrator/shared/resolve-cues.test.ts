@@ -1,10 +1,10 @@
 /**
- * Resolve Cues Tests (#96)
+ * Resolve Cues Tests (#96, #166)
  *
  * Verifies that resolveCuesToMixInputs:
  * 1. Correctly resolves existing catalog tracks
- * 2. Logs a warning (not a throw) when a track is missing from catalog
- * 3. Skips missing tracks silently (no crash)
+ * 2. Returns a warnings array (not a throw) when a track is missing from catalog
+ * 3. Skips missing tracks and includes them in warnings
  * 4. getDefaultMixParams returns audible ambience gain (-18 dB)
  */
 
@@ -67,7 +67,7 @@ describe('getDefaultMixParams — audible ambience gain (#96)', () => {
   });
 });
 
-describe('resolveCuesToMixInputs — missing track handling (#96)', () => {
+describe('resolveCuesToMixInputs — missing track handling (#96, #166)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -76,53 +76,52 @@ describe('resolveCuesToMixInputs — missing track handling (#96)', () => {
     mockGetTrackPath.mockReturnValue('/catalog/ambience/forest.mp3');
     mockExistsSync.mockReturnValue(true);
 
-    const result = resolveCuesToMixInputs({
+    const { mixInputs, warnings } = resolveCuesToMixInputs({
       cues: makeCues({ ambience: [{ file: 'ambience/forest.mp3' }] }),
       alignmentLines: [],
       dialoguePath: '/audio/dialogue.wav',
     });
 
-    expect(result.ambience).toBe('/catalog/ambience/forest.mp3');
+    expect(mixInputs.ambience).toBe('/catalog/ambience/forest.mp3');
+    expect(warnings).toHaveLength(0);
   });
 
-  it('skips ambience and logs warning when track is missing from catalog', () => {
+  it('skips ambience and returns warning when track is missing from catalog (#166)', () => {
     mockGetTrackPath.mockReturnValue(null);
     mockExistsSync.mockReturnValue(false);
 
-    const result = resolveCuesToMixInputs({
+    const { mixInputs, warnings } = resolveCuesToMixInputs({
       cues: makeCues({ ambience: [{ file: 'ambience/missing_track.mp3' }] }),
       alignmentLines: [],
       dialoguePath: '/audio/dialogue.wav',
     });
 
-    expect(result.ambience).toBeUndefined();
-    expect(mockWarn).toHaveBeenCalledWith(
-      expect.stringContaining('[ResolveCues] ambience track not found'),
-      expect.objectContaining({ trackId: 'ambience/missing_track.mp3' })
-    );
+    expect(mixInputs.ambience).toBeUndefined();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('ambience/missing_track.mp3');
+    expect(warnings[0]).toContain('no ambience');
   });
 
-  it('skips music and logs warning when music track is missing', () => {
+  it('skips music and returns warning when music track is missing (#166)', () => {
     mockGetTrackPath.mockReturnValue(null);
     mockExistsSync.mockReturnValue(false);
 
-    const result = resolveCuesToMixInputs({
+    const { mixInputs, warnings } = resolveCuesToMixInputs({
       cues: makeCues({ music: [{ file: 'music/missing.mp3' }] }),
       alignmentLines: [],
       dialoguePath: '/audio/dialogue.wav',
     });
 
-    expect(result.music).toBeUndefined();
-    expect(mockWarn).toHaveBeenCalledWith(
-      expect.stringContaining('[ResolveCues] music track not found'),
-      expect.any(Object)
-    );
+    expect(mixInputs.music).toBeUndefined();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('music/missing.mp3');
+    expect(warnings[0]).toContain('no music');
   });
 
-  it('skips SFX cue and logs warning when SFX file is missing', () => {
+  it('skips SFX cue and returns warning when SFX file is missing (#166)', () => {
     mockGetTrackPath.mockReturnValue(null);
 
-    const result = resolveCuesToMixInputs({
+    const { mixInputs, warnings } = resolveCuesToMixInputs({
       cues: makeCues({
         sfx: [{ file: 'sfx/missing_sfx.mp3', start_at: 0, duration: null }],
       }),
@@ -130,18 +129,16 @@ describe('resolveCuesToMixInputs — missing track handling (#96)', () => {
       dialoguePath: '/audio/dialogue.wav',
     });
 
-    expect(result.sfx).toBeUndefined();
-    expect(mockWarn).toHaveBeenCalledWith(
-      expect.stringContaining('[ResolveCues] SFX track not found'),
-      expect.objectContaining({ file: 'sfx/missing_sfx.mp3' })
-    );
+    expect(mixInputs.sfx).toBeUndefined();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('sfx/missing_sfx.mp3');
   });
 
   it('resolves an existing SFX track with numeric start_at', () => {
     mockGetTrackPath.mockReturnValue('/catalog/sfx/gunshot.mp3');
     mockExistsSync.mockReturnValue(true);
 
-    const result = resolveCuesToMixInputs({
+    const { mixInputs, warnings } = resolveCuesToMixInputs({
       cues: makeCues({
         sfx: [{ file: 'sfx/gunshot.mp3', start_at: 5, duration: 2 }],
       }),
@@ -149,15 +146,16 @@ describe('resolveCuesToMixInputs — missing track handling (#96)', () => {
       dialoguePath: '/audio/dialogue.wav',
     });
 
-    expect(result.sfx).toHaveLength(1);
-    expect(result.sfx?.[0]).toMatchObject({ file: '/catalog/sfx/gunshot.mp3', at: 5, duration: 2 });
+    expect(mixInputs.sfx).toHaveLength(1);
+    expect(mixInputs.sfx?.[0]).toMatchObject({ file: '/catalog/sfx/gunshot.mp3', at: 5, duration: 2 });
+    expect(warnings).toHaveLength(0);
   });
 
   it('resolves SFX start_at from line_id via alignment lookup', () => {
     mockGetTrackPath.mockReturnValue('/catalog/sfx/door.mp3');
     mockExistsSync.mockReturnValue(true);
 
-    const result = resolveCuesToMixInputs({
+    const { mixInputs } = resolveCuesToMixInputs({
       cues: makeCues({
         sfx: [{ file: 'sfx/door.mp3', start_at: 'line_003', duration: null }],
       }),
@@ -167,13 +165,13 @@ describe('resolveCuesToMixInputs — missing track handling (#96)', () => {
       dialoguePath: '/audio/dialogue.wav',
     });
 
-    expect(result.sfx?.[0]).toMatchObject({ at: 12.5 });
+    expect(mixInputs.sfx?.[0]).toMatchObject({ at: 12.5 });
   });
 
-  it('returns empty sfx when all SFX tracks are missing', () => {
+  it('returns empty sfx and two warnings when all SFX tracks are missing (#166)', () => {
     mockGetTrackPath.mockReturnValue(null);
 
-    const result = resolveCuesToMixInputs({
+    const { mixInputs, warnings } = resolveCuesToMixInputs({
       cues: makeCues({
         sfx: [
           { file: 'sfx/missing1.mp3', start_at: 0, duration: null },
@@ -184,7 +182,7 @@ describe('resolveCuesToMixInputs — missing track handling (#96)', () => {
       dialoguePath: '/audio/dialogue.wav',
     });
 
-    expect(result.sfx).toBeUndefined();
-    expect(mockWarn).toHaveBeenCalledTimes(2);
+    expect(mixInputs.sfx).toBeUndefined();
+    expect(warnings).toHaveLength(2);
   });
 });

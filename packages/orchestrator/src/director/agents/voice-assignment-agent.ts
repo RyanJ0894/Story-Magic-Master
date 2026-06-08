@@ -130,9 +130,10 @@ export class VoiceAssignmentAgent {
         return this.addDefaults(parsed as VoiceMap, projectId);
       } catch (err) {
         log.error('[VoiceAssignment] structureTextAsJSON fallback failed', err instanceof Error ? err : undefined);
-        // Return a minimal valid VoiceMap with defaults so the pipeline can continue
-        log.warn('[VoiceAssignment] returning minimal fallback VoiceMap');
-        return this.buildFallbackVoiceMap(projectId);
+        throw new Error(
+          'VoiceAssignment failed: could not parse agent output into a valid VoiceMap. ' +
+          'Retrying the generation may resolve this.',
+        );
       }
     }
 
@@ -150,8 +151,10 @@ export class VoiceAssignmentAgent {
         });
         return this.addDefaults(fixed as VoiceMap, projectId);
       } catch {
-        log.warn('[VoiceAssignment] schema fix failed — returning minimal fallback VoiceMap');
-        return this.buildFallbackVoiceMap(projectId);
+        throw new Error(
+          'VoiceAssignment failed: agent produced an invalid VoiceMap that could not be repaired. ' +
+          'Retrying the generation may resolve this.',
+        );
       }
     }
 
@@ -189,24 +192,4 @@ export class VoiceAssignmentAgent {
     return result;
   }
 
-  /**
-   * Build a minimal fallback VoiceMap using only default voices.
-   * Used when the agent loop produces unrecoverable output.
-   * The SceneConstructionAgent will use defaults for every character.
-   */
-  private buildFallbackVoiceMap(projectId: string): VoiceMap {
-    return {
-      project_id: projectId,
-      assignments: {
-        NARRATOR: {
-          canonical_name: 'NARRATOR',
-          voice_key: DEFAULT_NARRATOR_VOICE,
-          voice_name: 'George (default narrator)',
-        },
-      },
-      default_narrator_voice: DEFAULT_NARRATOR_VOICE,
-      default_male_voice: DEFAULT_MALE_VOICE,
-      default_female_voice: DEFAULT_FEMALE_VOICE,
-    };
-  }
 }
