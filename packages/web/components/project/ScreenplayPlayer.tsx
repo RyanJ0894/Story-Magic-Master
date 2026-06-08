@@ -374,7 +374,7 @@ export function ScreenplayPlayer({
               </span>
             )}
 
-            {/* Hover/focus actions: add note + reaction buttons */}
+            {/* Hover/focus actions: add note (all blocks) + reactions (scene headings only) */}
             {(isHovered || openNoteBlockIndex === i) && (
               <div className="absolute right-0 top-0 flex items-center gap-1 bg-background/90 backdrop-blur-sm border border-border rounded px-1.5 py-0.5 shadow-sm">
                 <button
@@ -386,28 +386,32 @@ export function ScreenplayPlayer({
                   <Plus className="w-3 h-3" />
                 </button>
 
-                {/* Scene-level reactions */}
-                <ReactionButton
-                  icon={<ThumbsUp className="w-3 h-3" />}
-                  label="Like"
-                  active={currentReaction === 'like'}
-                  testId="reaction-like"
-                  onClick={() => void saveReaction(block.sceneIndex, 'like')}
-                />
-                <ReactionButton
-                  icon={<ThumbsDown className="w-3 h-3" />}
-                  label="Dislike"
-                  active={currentReaction === 'dislike'}
-                  testId="reaction-dislike"
-                  onClick={() => void saveReaction(block.sceneIndex, 'dislike')}
-                />
-                <ReactionButton
-                  icon={<HelpCircle className="w-3 h-3" />}
-                  label="?"
-                  active={currentReaction === 'undecided'}
-                  testId="reaction-undecided"
-                  onClick={() => void saveReaction(block.sceneIndex, 'undecided')}
-                />
+                {/* Scene-level reactions — only on scene headings */}
+                {block.type === 'scene-heading' && (
+                  <>
+                    <ReactionButton
+                      icon={<ThumbsUp className="w-3 h-3" />}
+                      label="Like"
+                      active={currentReaction === 'like'}
+                      testId="reaction-like"
+                      onClick={() => void saveReaction(block.sceneIndex, 'like')}
+                    />
+                    <ReactionButton
+                      icon={<ThumbsDown className="w-3 h-3" />}
+                      label="Dislike"
+                      active={currentReaction === 'dislike'}
+                      testId="reaction-dislike"
+                      onClick={() => void saveReaction(block.sceneIndex, 'dislike')}
+                    />
+                    <ReactionButton
+                      icon={<HelpCircle className="w-3 h-3" />}
+                      label="?"
+                      active={currentReaction === 'undecided'}
+                      testId="reaction-undecided"
+                      onClick={() => void saveReaction(block.sceneIndex, 'undecided')}
+                    />
+                  </>
+                )}
               </div>
             )}
 

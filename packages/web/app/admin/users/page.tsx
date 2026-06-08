@@ -25,6 +25,7 @@ import {
 import { Search, MoreHorizontal, Mail, Ban, Shield, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { GrantCreditsButton } from '@/components/admin/GrantCreditsButton';
+import { DeleteUserButton } from '@/components/admin/DeleteUserButton';
 
 interface Props {
   searchParams: Promise<{ page?: string; search?: string; type?: string }>;
@@ -234,9 +235,15 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                           />
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem disabled className="text-destructive">
+                        <DropdownMenuItem disabled className="text-muted-foreground">
                           <Ban className="w-4 h-4 mr-2" />
                           Suspend User (coming soon)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <DeleteUserButton
+                            userId={user.id}
+                            userName={user.fullName ?? 'Unknown'}
+                          />
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

@@ -139,3 +139,55 @@ export const PATCH = withAuth(async (request, { userId: authUserId, prisma, para
     return errorResponse('Failed to update user', 500);
   }
 }, { rateLimit: 'strict' });
+
+// =============================================================================
+// DELETE /api/admin/users/[userId] - Delete user and all their data
+// =============================================================================
+
+export const DELETE = withAuth(async (request, { userId: authUserId, prisma, params }) => {
+  const targetUserId = params.userId;
+
+  // Verify admin
+  const adminProfile = await prisma.profile.findUnique({
+    where: { id: authUserId },
+    select: { userType: true },
+  });
+
+  if (adminProfile?.userType !== 'admin') {
+    return errorResponse('Forbidden', 403, { code: 'FORBIDDEN' });
+  }
+
+  // Prevent self-deletion
+  if (targetUserId === authUserId) {
+    return errorResponse('Cannot delete your own account', 400, { code: 'SELF_DELETE' });
+  }
+
+  const existingUser = await prisma.profile.findUnique({
+    where: { id: targetUserId },
+    select: { id: true, fullName: true },
+  });
+
+  if (!existingUser) {
+    return errorResponse('User not found', 404, { code: 'NOT_FOUND' });
+  }
+
+  try {
+    // Delete profile — cascade handles related records (projects, jobs, etc.)
+    await prisma.profile.delete({ where: { id: targetUserId } });
+
+    const requestInfo = extractRequestInfo(request);
+    await logAuditEvent({
+      user_id: authUserId,
+      action: AuditActions.USER_DELETE,
+      resource_type: ResourceTypes.USER,
+      resource_id: targetUserId,
+      details: { deleted_name: existingUser.fullName },
+      ...requestInfo,
+    });
+
+    return NextResponse.json({ data: { deleted: true } });
+  } catch (error) {
+    log.error('Error deleting user', error);
+    return errorResponse('Failed to delete user', 500);
+  }
+}, { rateLimit: 'strict' });
