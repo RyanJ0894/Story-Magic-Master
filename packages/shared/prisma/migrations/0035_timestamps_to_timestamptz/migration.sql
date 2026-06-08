@@ -65,8 +65,35 @@ ALTER TABLE "impact_stories" ALTER COLUMN "attested_at" TYPE TIMESTAMPTZ;
 ALTER TABLE "impact_stories" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ;
 ALTER TABLE "impact_stories" ALTER COLUMN "updated_at" TYPE TIMESTAMPTZ;
 
+-- Drop view that depends on job_logs.created_at before altering the column
+DROP VIEW IF EXISTS recent_job_errors;
+
 -- job_logs
 ALTER TABLE "job_logs" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ;
+
+-- Recreate view with timestamptz-typed created_at
+CREATE OR REPLACE VIEW recent_job_errors AS
+SELECT
+    jl.id,
+    jl.job_id,
+    jl.project_id,
+    j.user_id,
+    p.name AS project_name,
+    jl.step,
+    jl.message,
+    jl.error_message,
+    jl.error_stack,
+    jl.metadata,
+    jl.created_at
+FROM job_logs jl
+JOIN jobs j ON j.id = jl.job_id
+JOIN projects p ON p.id = jl.project_id
+WHERE jl.level = 'error'
+ORDER BY jl.created_at DESC
+LIMIT 100;
+
+-- Drop view that depends on jobs.completed_at before altering the column
+DROP VIEW IF EXISTS queue_stats;
 
 -- jobs
 ALTER TABLE "jobs" ALTER COLUMN "completed_at" TYPE TIMESTAMPTZ;
@@ -74,6 +101,20 @@ ALTER TABLE "jobs" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ;
 ALTER TABLE "jobs" ALTER COLUMN "lock_expires_at" TYPE TIMESTAMPTZ;
 ALTER TABLE "jobs" ALTER COLUMN "queued_at" TYPE TIMESTAMPTZ;
 ALTER TABLE "jobs" ALTER COLUMN "started_at" TYPE TIMESTAMPTZ;
+
+-- Recreate view with timestamptz-typed columns
+CREATE OR REPLACE VIEW queue_stats AS
+SELECT
+    job_type,
+    COUNT(*) FILTER (WHERE status = 'queued') AS queued_count,
+    COUNT(*) FILTER (WHERE status = 'processing') AS processing_count,
+    COUNT(*) FILTER (WHERE status = 'completed' AND completed_at > NOW() - INTERVAL '24 hours') AS completed_24h,
+    COUNT(*) FILTER (WHERE status = 'failed' AND completed_at > NOW() - INTERVAL '24 hours') AS failed_24h,
+    AVG(actual_duration_ms) FILTER (WHERE status = 'completed' AND completed_at > NOW() - INTERVAL '24 hours') AS avg_duration_ms,
+    MAX(queued_at) FILTER (WHERE status = 'queued') AS oldest_queued_at,
+    COUNT(*) FILTER (WHERE status = 'processing' AND lock_expires_at < NOW()) AS stale_locks
+FROM jobs
+GROUP BY job_type;
 
 -- mix_manifests
 ALTER TABLE "mix_manifests" ALTER COLUMN "created_at" TYPE TIMESTAMPTZ;
