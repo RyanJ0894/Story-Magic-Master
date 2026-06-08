@@ -21,6 +21,7 @@ import {
   Menu,
   BookOpen,
   Heart,
+  Mic,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -33,6 +34,7 @@ const iconMap: Record<string, LucideIcon> = {
   Settings,
   BookOpen,
   Heart,
+  Mic,
 };
 
 export interface AdminNavItem {
