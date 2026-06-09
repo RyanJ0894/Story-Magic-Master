@@ -20,6 +20,7 @@ export interface ResolveCuesOptions {
 
 export interface ResolveCuesResult {
   mixInputs: MixInputs;
+  /** Human-readable descriptions of tracks the LLM requested but couldn't be resolved. */
   warnings: string[];
 }
 

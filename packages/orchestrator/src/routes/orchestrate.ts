@@ -173,6 +173,7 @@ router.post('/orchestrate', async (req: Request, res: Response): Promise<void> =
       project_id,
       audio_urls: result.audio_urls || [],
       playback_manifest: result.manifest,
+      ...(result.mix_warnings?.length ? { warnings: result.mix_warnings } : {}),
     } as OrchestrateResponse);
   } catch (error) {
     log.error('Orchestration failed', error instanceof Error ? error : new Error(String(error)), { projectId: project_id });
