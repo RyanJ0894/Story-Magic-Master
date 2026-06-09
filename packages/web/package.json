@@ -25,6 +25,7 @@
     "ingest:training": "tsx scripts/ingest-training-scripts.ts",
     "score:corpus": "tsx scripts/score-corpus.ts",
     "db:seed": "prisma db seed",
+    "e2e:seed": "tsx e2e/seed-test-data.ts",
     "postinstall": "cd ../shared && prisma generate",
     "prisma:generate": "cd ../shared && prisma generate"
   },
@@ -121,6 +122,7 @@
     "happy-dom": "^20.6.0",
     "jsdom": "^27.4.0",
     "msw": "^2.12.7",
+    "tsx": "^4.7.0",
     "vitest": "^4.0.17",
     "xlsx": "^0.18.5"
   }

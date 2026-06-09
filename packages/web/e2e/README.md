@@ -75,7 +75,18 @@ Several authenticated specs reference real project IDs from a seeded test accoun
 
 **These IDs must exist in the database for the test account.** If the account's projects were deleted, the tests will either skip silently (via `test.skip()`) or 404.
 
-To reset: log in as the test account, create projects that match the expected state (draft / completed), and update the constants in the spec files.
+To reset, run the seed script:
+
+```bash
+# Set E2E_TEST_USER_ID to the Clerk user ID of the test account (find it
+# in Clerk Dashboard > Users, or in Doppler story-magic/dev).
+doppler run --project story-magic --config dev -- \
+  pnpm --filter @story-magic/web e2e:seed
+```
+
+This creates the three well-known projects (draft + two completed) via idempotent upserts.
+The seed script is safe to run repeatedly — it will not overwrite real data belonging to
+other users because it targets the dedicated test account only.
 
 ---
 
