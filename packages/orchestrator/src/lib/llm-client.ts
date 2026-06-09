@@ -33,6 +33,7 @@ import {
   mockAgentResponse,
   mockStructuredResponse,
 } from './mock-provider.js';
+import { recordLlmCall } from './llm-call-log.js';
 
 export type LLMProvider = 'openai' | 'anthropic' | 'google' | 'groq' | 'openrouter';
 
@@ -53,6 +54,12 @@ export interface AgentOptions {
   maxOutputTokens?: number;
   temperature?: number;
   maxIterations?: number;
+  /** T3-4 cost attribution. Stable label written to llm_call_log so
+   *  per-operation cost rollups are queryable. Optional but strongly
+   *  recommended for any new caller. */
+  operation?: string;
+  /** Project ID written to llm_call_log for per-project cost rollups. */
+  projectId?: string;
 }
 
 /**
@@ -272,9 +279,33 @@ export async function runAgentLoop(
       });
     }
 
+    // T3-4 cost attribution: time + record every attempt, success or fail.
+    // We attribute by the model that was actually attempted (not the primary)
+    // so a fallback hit shows up as the model that incurred the cost.
+    const callStart = Date.now();
     try {
-      return await runAgentLoopCore(userInput, { ...options, model });
+      const result = await runAgentLoopCore(userInput, { ...options, model });
+      void recordLlmCall({
+        projectId: options.projectId ?? null,
+        operation: options.operation ?? 'runAgentLoop',
+        model,
+        // runAgentLoopCore doesn't currently surface usage from its internal
+        // generateText calls. T3-4 follow-up can thread per-iteration usage
+        // through; for now we log timing + succeeded.
+        durationMs: Date.now() - callStart,
+        succeeded: true,
+      });
+      return result;
     } catch (err) {
+      void recordLlmCall({
+        projectId: options.projectId ?? null,
+        operation: options.operation ?? 'runAgentLoop',
+        model,
+        durationMs: Date.now() - callStart,
+        succeeded: false,
+        errorMessage: err instanceof Error ? err.message.slice(0, 500) : String(err).slice(0, 500),
+      });
+
       if (isLast || !isFailoverableError(err)) {
         throw err;
       }
@@ -505,6 +536,10 @@ export async function generateStructuredOutput<T>(
     systemPrompt?: string;
     maxTokens?: number;
     temperature?: number;
+    /** T3-4 cost attribution. Stable label for SQL rollups. */
+    operation?: string;
+    /** T3-4 cost attribution. Project ID for per-project totals. */
+    projectId?: string;
   },
 ): Promise<T> {
   // T3-1 (cost-opt): TEST_MODE=mock bypass — see runAgentLoop comment.
@@ -550,9 +585,31 @@ export async function generateStructuredOutput<T>(
       log.info('[LLM] generateStructuredOutput starting', { model, provider, envVar });
     }
 
+    // T3-4 cost attribution: time + record each provider attempt with the
+    // real token usage from the AI SDK result.
+    const callStart = Date.now();
     try {
-      return (await run(model)).object;
+      const result = await run(model);
+      void recordLlmCall({
+        projectId: options.projectId ?? null,
+        operation: options.operation ?? 'generateStructuredOutput',
+        model,
+        inputTokens: result.usage?.inputTokens ?? null,
+        outputTokens: result.usage?.outputTokens ?? null,
+        durationMs: Date.now() - callStart,
+        succeeded: true,
+      });
+      return result.object;
     } catch (err) {
+      void recordLlmCall({
+        projectId: options.projectId ?? null,
+        operation: options.operation ?? 'generateStructuredOutput',
+        model,
+        durationMs: Date.now() - callStart,
+        succeeded: false,
+        errorMessage: err instanceof Error ? err.message.slice(0, 500) : String(err).slice(0, 500),
+      });
+
       if (isLast || !isFailoverableError(err)) {
         log.error('[LLM] generateStructuredOutput failed', err instanceof Error ? err : undefined, { model, provider, envVar });
         throw err;
