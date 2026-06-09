@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, FolderOpen, Activity, ThumbsUp, ThumbsDown, MessageSquare, Play, Clock, Headphones, Plus, Crown } from 'lucide-react';
 import { SignOutButton } from '@/components/auth/sign-out-button';
 import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { TeamNotesTab } from '@/components/enterprise/TeamNotesTab';
 import { EnterpriseProjectAssignment } from '@/components/enterprise/EnterpriseProjectAssignment';
 import { EnterpriseErrorBoundary } from '@/components/enterprise/EnterpriseErrorBoundary';
@@ -172,6 +173,8 @@ export default async function EnterpriseDashboardPage({
             </Badge>
           </div>
           <div className="flex items-center gap-2">
+            {/* #174: Master notification feed bell (right of legacy alerts). */}
+            <NotificationBell />
             <AlertsDropdown />
             <div className="hidden sm:flex flex-col items-end text-right leading-tight">
               <span className="text-xs font-medium text-foreground truncate max-w-[140px]">{profile?.fullName || 'My Account'}</span>
