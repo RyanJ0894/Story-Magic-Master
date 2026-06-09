@@ -84,7 +84,9 @@ describe('processGenerationJob — Director parse skip', () => {
       .mockResolvedValueOnce({ directorJson: null })
       .mockResolvedValueOnce({ audioOverrides: [] });
 
-    await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1);
+    await expect(
+      processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1)
+    ).rejects.toThrow(/audio generation failed/i);
 
     expect(mockOrchestratorGenerate).toHaveBeenCalledWith(
       '/generate-scenes',
@@ -97,7 +99,9 @@ describe('processGenerationJob — Director parse skip', () => {
       .mockResolvedValueOnce({ directorJson: { scenes: [] } })
       .mockResolvedValueOnce({ audioOverrides: [] });
 
-    await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1);
+    await expect(
+      processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1)
+    ).rejects.toThrow(/audio generation failed/i);
 
     expect(mockOrchestratorGenerate).toHaveBeenCalledWith(
       '/generate-scenes',
@@ -110,7 +114,9 @@ describe('processGenerationJob — Director parse skip', () => {
       .mockResolvedValueOnce({ directorJson: DIRECTOR_JSON })
       .mockResolvedValueOnce({ audioOverrides: [] });
 
-    await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1);
+    await expect(
+      processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1)
+    ).rejects.toThrow(/audio generation failed/i);
 
     const generateScenesCalls = mockOrchestratorGenerate.mock.calls.filter(
       ([path]: [string]) => path === '/generate-scenes',
@@ -123,7 +129,9 @@ describe('processGenerationJob — Director parse skip', () => {
       .mockResolvedValueOnce({ directorJson: DIRECTOR_JSON })
       .mockResolvedValueOnce({ audioOverrides: [] });
 
-    await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1);
+    await expect(
+      processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1)
+    ).rejects.toThrow(/audio generation failed/i);
 
     expect(mockOrchestratorGenerate).toHaveBeenCalledWith(
       '/orchestrate',
@@ -136,7 +144,9 @@ describe('processGenerationJob — Director parse skip', () => {
       .mockResolvedValueOnce({ directorJson: DIRECTOR_JSON })
       .mockResolvedValueOnce({ audioOverrides: [] });
 
-    await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1);
+    await expect(
+      processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1)
+    ).rejects.toThrow(/audio generation failed/i);
 
     const directorSaveCalls = mockPrisma.project.update.mock.calls.filter(
       (args: unknown[]) => {
@@ -152,7 +162,9 @@ describe('processGenerationJob — Director parse skip', () => {
       .mockResolvedValueOnce({ directorJson: null })
       .mockResolvedValueOnce({ audioOverrides: [] });
 
-    await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1);
+    await expect(
+      processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1)
+    ).rejects.toThrow(/audio generation failed/i);
 
     const directorSaveCalls = mockPrisma.project.update.mock.calls.filter(
       (args: unknown[]) => {
@@ -169,7 +181,9 @@ describe('processGenerationJob — Director parse skip', () => {
       .mockResolvedValueOnce({ audioOverrides: [] });
 
     const overrides = { ALICE: 'voice-abc' };
-    await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1, overrides);
+    await expect(
+      processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1, overrides)
+    ).rejects.toThrow(/audio generation failed/i);
 
     expect(mockOrchestratorGenerate).toHaveBeenCalledWith(
       '/generate-scenes',

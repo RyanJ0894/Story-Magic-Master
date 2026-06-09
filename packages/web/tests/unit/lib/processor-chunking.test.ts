@@ -210,7 +210,9 @@ describe('processGenerationJob — chunked generation (Sprint K)', () => {
     });
 
     // All segments fail → job should fail with clear error
-    await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 25);
+    await expect(
+      processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 25)
+    ).rejects.toThrow(/audio generation failed/i);
 
     const jobFailUpdate = (mockPrisma.job.update.mock.calls as Array<[{ data: Record<string, unknown> }]>)
       .find(([args]) => args?.data?.status === 'failed');
