@@ -1197,6 +1197,37 @@ model TtsStem {
   @@map("tts_stems")
 }
 
+/// Per-call LLM cost-attribution log (T3-4 of cost-opt Phase 2).
+///
+/// Every successful or failed LLM call from `runAgentLoop` or
+/// `generateStructuredOutput` writes one row here. Lets us answer the
+/// "what did this script cost?" question with SQL instead of grep + guess.
+///
+/// `projectId` is nullable because some calls (script-score quick triage,
+/// startup health checks) don't have one. Most have it.
+///
+/// Cost estimates use a hardcoded price table in `lib/llm-call-log.ts`
+/// keyed on model name (cents per million tokens). Update yearly.
+model LlmCallLog {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId       String?  @map("project_id")
+  operation       String
+  model           String
+  provider        String
+  inputTokens     Int?     @map("input_tokens")
+  outputTokens   Int?     @map("output_tokens")
+  costEstimateUsd Decimal? @db.Decimal(10, 6) @map("cost_estimate_usd")
+  durationMs      Int      @map("duration_ms")
+  succeeded       Boolean
+  errorMessage    String?  @map("error_message")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([projectId, createdAt(sort: Desc)], map: "llm_call_log_project_created_idx")
+  @@index([operation, createdAt(sort: Desc)], map: "llm_call_log_operation_created_idx")
+  @@index([createdAt], map: "llm_call_log_created_idx")
+  @@map("llm_call_log")
+}
+
 /// Scene-level render cache (T2-2 of cost-opt Phase 2, issue #190).
 ///
 /// When the orchestrator pipeline renders a scene, it hashes the scene's
