@@ -80,6 +80,28 @@ function safeId(id: string, label: string): string {
 }
 
 /**
+ * Validate constraints that can't live in the Zod schema because the schema
+ * is also used for LLM structured output (Anthropic rejects minLength/minItems
+ * in `generateObject` input). This function asserts the HTTP-input invariants
+ * the LLM-bound schema can no longer enforce.
+ */
+function assertHttpDirectorJSONInvariants(director: import('../schemas/director-json.js').DirectorJSON): void {
+  const issues: string[] = [];
+  for (const scene of director.scenes) {
+    for (const line of scene.dialogue) {
+      if (typeof line.text !== 'string' || line.text.trim() === '') {
+        issues.push(
+          `scenes[${scene.scene_id}].dialogue[${line.line_id}].text: dialogue text must be non-empty`
+        );
+      }
+    }
+  }
+  if (issues.length > 0) {
+    throw new Error('Invalid Director JSON: ' + JSON.stringify(issues));
+  }
+}
+
+/**
  * Main orchestration pipeline
  */
 export async function orchestrate(directorJSON: unknown, options: { chunkIndex?: number } = {}): Promise<OrchestrationResult> {
@@ -89,6 +111,7 @@ export async function orchestrate(directorJSON: unknown, options: { chunkIndex?:
     throw new Error('Invalid Director JSON: ' + JSON.stringify(parsed.error.issues));
   }
   const director = parsed.data;
+  assertHttpDirectorJSONInvariants(director);
   const safeProjectId = safeId(director.project_id, 'project_id');
 
   log.generation(director.project_id, 'validation-complete', {
@@ -294,6 +317,7 @@ export async function orchestrateParallel(
     throw new Error('Invalid Director JSON: ' + JSON.stringify(parsed.error.issues));
   }
   const director = parsed.data;
+  assertHttpDirectorJSONInvariants(director);
   const safeProjectId = safeId(director.project_id, 'project_id');
 
   const totalLines = director.scenes.reduce((sum, s) => sum + s.dialogue.length, 0);

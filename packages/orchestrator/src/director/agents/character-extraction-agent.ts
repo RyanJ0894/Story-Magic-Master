@@ -68,6 +68,15 @@ export class CharacterExtractionAgent {
       );
     }
 
+    // Post-LLM length guard: the Anthropic-compatible schema cannot encode
+    // `.min(1)` on the characters array (Anthropic rejects `minItems`), so
+    // enforce "at least one character" here.
+    if (validation.data.characters.length === 0) {
+      throw new Error(
+        'CharacterExtractionAgent output failed schema validation: characters: at least one speaking character required (got 0)'
+      );
+    }
+
     const manifest = validation.data;
     const elapsedSec = Math.round((Date.now() - start) / 1000);
     log.info('[CharacterExtraction] complete', {

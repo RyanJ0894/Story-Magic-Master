@@ -266,11 +266,13 @@ async function runAgentLoopCore(
   const loopStart = Date.now();
   let totalToolCalls = 0;
 
+  // Single info-level startup line is enough; per-iteration noise was the
+  // "shocking amount of logging" Peter saw on 5-page scripts. Drop to debug.
   log.info('[LLM] runAgentLoop starting', { model, provider, envVar });
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     const iterElapsed = Math.round((Date.now() - loopStart) / 1000);
-    log.info('[LLM] iteration', { model, provider, envVar, iteration: iteration + 1, maxIterations, elapsedSec: iterElapsed, totalToolCalls });
+    log.debug('[LLM] iteration', { model, provider, iteration: iteration + 1, maxIterations, elapsedSec: iterElapsed, totalToolCalls });
 
     // Two iterations before the limit: inject a force-completion message so the
     // model stops calling tools and emits its final JSON output.
@@ -313,8 +315,10 @@ async function runAgentLoopCore(
 
       const toolNames = result.toolCalls.map((tc) => tc.toolName);
       totalToolCalls += result.toolCalls.length;
+      // Tool-call batch summary is helpful at info; per-tool execute/result
+      // logs below were dropped to debug to cut log volume by ~70%.
       log.info('[LLM] tool calls', {
-        model, provider, envVar,
+        model, provider,
         iteration: iteration + 1,
         count: result.toolCalls.length,
         tools: toolNames,
@@ -339,7 +343,7 @@ async function runAgentLoopCore(
         const toolName = toolCall.toolName;
         const toolInput = toolCall.input as Record<string, unknown>;
 
-        log.info('[LLM] executing tool', { toolName, query: (toolInput.query as string | undefined)?.slice(0, 80) });
+        log.debug('[LLM] executing tool', { toolName, query: (toolInput.query as string | undefined)?.slice(0, 80) });
 
         const toolDef = tools[toolName] as Tool | undefined;
         if (!toolDef) {
@@ -359,7 +363,7 @@ async function runAgentLoopCore(
             messages: [],
             abortSignal: undefined as unknown as AbortSignal,
           });
-          log.info('[LLM] tool result', { toolName, resultPreview: JSON.stringify(toolResult).slice(0, 150) });
+          log.debug('[LLM] tool result', { toolName, resultPreview: JSON.stringify(toolResult).slice(0, 150) });
 
           toolResults.push({
             type: 'tool-result',

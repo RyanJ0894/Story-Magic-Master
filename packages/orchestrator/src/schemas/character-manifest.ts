@@ -34,9 +34,13 @@ export const CharacterEntrySchema = z.object({
   ),
 });
 
+// IMPORTANT (Claude compatibility): do NOT use `.min()` on arrays in schemas
+// passed to `generateObject` — Anthropic rejects `minItems` in structured-
+// output JSON Schema. "At least one character" is enforced via the prompt
+// (CHARACTER_EXTRACTION_SYSTEM_PROMPT) and post-validated by the agent.
 export const CharacterManifestSchema = z.object({
   project_id: z.string(),
-  characters: z.array(CharacterEntrySchema).min(1),
+  characters: z.array(CharacterEntrySchema).describe('At least one speaking character'),
 });
 
 export type CharacterEntry = z.infer<typeof CharacterEntrySchema>;

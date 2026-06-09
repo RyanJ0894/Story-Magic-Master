@@ -80,16 +80,24 @@ export async function whisperAlign(
     log.debug('Whisper alignment complete', { wordCount: words.length });
     return words;
   } catch (err) {
-    log.warn('whisper.cpp failed, trying OpenAI Whisper API', {
-      error: (err as Error).message,
-    });
+    // Cost note: OpenAI's Whisper API is billed per-second of audio and is
+    // expensive at scale. Default behavior is to fall through to the duration-
+    // based estimator (no extra cost) when whisper.cpp is unavailable. Opt in
+    // explicitly via ENABLE_OPENAI_WHISPER_FALLBACK=true if you need the
+    // higher-quality alignment in production.
+    const fallbackEnabled = process.env.ENABLE_OPENAI_WHISPER_FALLBACK === 'true';
 
-    // Fallback to OpenAI Whisper API
-    if (process.env.OPENAI_API_KEY) {
+    if (fallbackEnabled && process.env.OPENAI_API_KEY) {
+      log.warn('whisper.cpp failed; falling back to OpenAI Whisper API (billed)', {
+        error: (err as Error).message,
+      });
       return await whisperAPIAlign(audioPath, expectedText);
     }
 
-    log.warn('No Whisper available, using duration-based fallback');
+    log.warn('whisper.cpp failed; using duration-based estimator (no OpenAI cost)', {
+      error: (err as Error).message,
+      hint: 'Set ENABLE_OPENAI_WHISPER_FALLBACK=true to opt into the paid OpenAI Whisper API fallback.',
+    });
     return null;
   }
 }

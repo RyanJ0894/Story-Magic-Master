@@ -103,33 +103,32 @@ function buildSearchVoicesTool(scopedUsed: Set<string>) {
 Returns voice profiles with voice_id, name, label, gender, tone, style, and description.
 IMPORTANT: Each voice can only be assigned to ONE character.
 
-The 'query' parameter describes the character's narrative role and vocal quality
-(e.g., "fierce warrior, commanding and deep" or "warm motherly mentor, reassuring
-storyteller"). Keywords are matched against voice names and descriptions.
+The 'query' parameter describes the character's narrative role AND vocal quality
+(e.g., "fierce warrior, commanding and deep" or "warm motherly mentor, calm and
+reassuring storyteller"). Include voice-quality hints like "calm", "energetic",
+"raspy", "deep" directly in the query — it is matched against voice names and
+descriptions. Use 'style' separately for accent/ethnicity-specific filtering.
 
 Parameters:
-- query: Character description for narrative matching (ALWAYS provide this)
-- gender: "Male" or "Female" (REQUIRED - wrong gender is eliminated)
-- label: Age hint like "Teen", "Older", "Young Adult", "Narrator" (uses proximity - close ages score higher)
+- query: Character description + vocal quality hints (ALWAYS provide this)
+- gender: "Male" or "Female" (REQUIRED — wrong gender is eliminated)
+- label: Age hint like "Teen", "Older", "Young Adult", "Narrator"
 - style: Accent/ethnicity like "African American", "American", "British"
-- tone: Voice quality like "Calm", "Energetic", "Deep"
 
-Scoring model (all voices scored, best rises to top):
+Scoring model:
 - Gender: hard gate (wrong gender = eliminated)
 - Age: proximity spectrum (exact match best, adjacent ranges still score well)
-- Style/Ethnicity + Narrative query: equally weighted soft scores
-- Tone: light preference weight`,
+- Style/Ethnicity + Narrative query: equally weighted soft scores`,
 
   inputSchema: z.object({
-    query: z.string().describe('Natural language description of the desired voice'),
-    gender: z.enum(['Male', 'Female']).optional().describe('Gender filter'),
-    label: z.string().optional().describe('Age/category filter (e.g., "Teen", "Older Male", "Narrator")'),
-    style: z.string().optional().describe('Accent/ethnicity filter (e.g., "African American", "British")'),
-    tone: z.string().optional().describe('Voice quality filter (e.g., "Calm", "Energetic")'),
-    top_k: z.number().min(1).max(10).default(3).describe('Number of results to return'),
+    query: z.string().describe('Character narrative + vocal quality hints (required)'),
+    gender: z.enum(['Male', 'Female']).optional().describe('Gender hard-gate filter'),
+    label: z.string().optional().describe('Age/category filter (e.g., "Teen", "Older", "Narrator")'),
+    style: z.string().optional().describe('Accent/ethnicity filter (e.g., "British", "African American")'),
+    top_k: z.number().default(3).describe('Number of results to return'),
   }),
 
-  execute: async ({ query, gender, label, style, tone, top_k = 3 }) => {
+  execute: async ({ query, gender, label, style, top_k = 3 }) => {
     try {
       log.debug('searchVoices searching', { query, gender, label, style });
 
@@ -139,13 +138,13 @@ Scoring model (all voices scored, best rises to top):
       // Parse age range from label
       const ageRange = parseAgeRangeFromLabel(label);
 
-      // Use hybrid search (attribute-based, no embeddings)
+      // Use hybrid search (attribute-based, no embeddings).
+      // `tone` is no longer a tool input — voice quality hints live in `query`.
       const result = await searchVoicesHybrid({
         characterName: query,
         gender,
         ageRange,
         style,
-        tone,
         isNarrator,
         excludeVoiceIds: Array.from(scopedUsed),
         topK: top_k,

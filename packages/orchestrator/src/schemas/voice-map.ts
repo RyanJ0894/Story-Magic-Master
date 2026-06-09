@@ -12,7 +12,7 @@ import { z } from 'zod';
  */
 export const VoiceAssignmentSchema = z.object({
   canonical_name: z.string().describe('The definitive character name (resolves aliases).'),
-  voice_key: z.string().min(1).describe('ElevenLabs voice ID (typically 20 alphanumeric chars).'),
+  voice_key: z.string().describe('Non-empty ElevenLabs voice ID (typically 20 alphanumeric chars).'),
   voice_name: z.string().optional().describe('Human-readable voice label for debugging.'),
   gender: z.enum(['Male', 'Female']).optional(),
   age: z.number().optional(),
@@ -25,12 +25,14 @@ export const VoiceMapSchema = z.object({
    * Every name the scene construction agent might encounter must be here.
    */
   assignments: z.record(z.string(), VoiceAssignmentSchema),
+  // Note: do not use .min(1) on these — Anthropic rejects minLength in
+  // structured-output schemas. The agent post-validates that defaults are set.
   /** Fallback for NARRATOR entries and any unknown narration. */
-  default_narrator_voice: z.string().min(1),
+  default_narrator_voice: z.string().describe('Non-empty ElevenLabs voice ID for narration'),
   /** Fallback voice_key for unknown male characters. */
-  default_male_voice: z.string().min(1),
+  default_male_voice: z.string().describe('Non-empty ElevenLabs voice ID for male fallback'),
   /** Fallback voice_key for unknown female characters. */
-  default_female_voice: z.string().min(1),
+  default_female_voice: z.string().describe('Non-empty ElevenLabs voice ID for female fallback'),
 });
 
 export type VoiceAssignment = z.infer<typeof VoiceAssignmentSchema>;

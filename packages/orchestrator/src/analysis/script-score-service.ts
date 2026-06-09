@@ -5,10 +5,10 @@
  * Each analysis dimension is evaluated separately for accuracy, then synthesized.
  */
 
-import { generateText, generateObject } from 'ai';
-import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
 import { log } from '../lib/logger.js';
+import { generateStructuredOutput } from '../lib/llm-client.js';
+import { runAgentLoop } from '../lib/llm-client.js';
 
 import {
   SCORING_CALIBRATION,
@@ -67,10 +67,21 @@ export interface ScriptAnalysisReport {
 // =============================================================================
 // Zod Schemas for Structured Output
 // =============================================================================
+//
+// IMPORTANT (Claude compatibility): do NOT use `.min()` / `.max()` on Zod
+// numbers in schemas passed to `generateStructuredOutput`. The AI SDK converts
+// those to JSON Schema `minimum`/`maximum`, which Anthropic's structured-output
+// API rejects. We communicate the intended range via `.describe()` and via the
+// prompt; values are then clamped server-side by `clampScore()` below.
+
+/** A 1–10 score from the LLM. Range is enforced via the prompt + post-clamp. */
+const scoreField = (label = '1-10 score') => z.number().describe(label);
+/** A 0–1 confidence value. Range communicated via prompt + post-clamp. */
+const confidenceField = () => z.number().describe('0.0-1.0 confidence');
 
 const CategoryScoreSchema = z.object({
-  score: z.number().min(1).max(10),
-  confidence: z.number().min(0).max(1),
+  score: scoreField(),
+  confidence: confidenceField(),
   summary: z.string(),
   strengths: z.array(z.string()),
   weaknesses: z.array(z.string()),
@@ -80,97 +91,97 @@ const CategoryScoreSchema = z.object({
 const WritingQualitySchema = z.object({
   overall: CategoryScoreSchema,
   dialogue: CategoryScoreSchema.extend({
-    subtext_usage: z.number().min(1).max(10),
-    voice_distinction: z.number().min(1).max(10),
-    naturalism: z.number().min(1).max(10),
-    economy: z.number().min(1).max(10),
+    subtext_usage: scoreField(),
+    voice_distinction: scoreField(),
+    naturalism: scoreField(),
+    economy: scoreField(),
   }),
   action_lines: CategoryScoreSchema.extend({
-    clarity: z.number().min(1).max(10),
-    brevity: z.number().min(1).max(10),
-    voice: z.number().min(1).max(10),
+    clarity: scoreField(),
+    brevity: scoreField(),
+    voice: scoreField(),
   }),
   formatting: CategoryScoreSchema.extend({
-    industry_standard: z.number().min(1).max(10),
-    white_space: z.number().min(1).max(10),
-    readability: z.number().min(1).max(10),
+    industry_standard: scoreField(),
+    white_space: scoreField(),
+    readability: scoreField(),
   }),
 });
 
 const StoryQualitySchema = z.object({
   overall: CategoryScoreSchema,
   premise: CategoryScoreSchema.extend({
-    originality: z.number().min(1).max(10),
-    clarity: z.number().min(1).max(10),
-    hook: z.number().min(1).max(10),
+    originality: scoreField(),
+    clarity: scoreField(),
+    hook: scoreField(),
   }),
   structure: CategoryScoreSchema.extend({
-    three_act: z.number().min(1).max(10),
-    pacing: z.number().min(1).max(10),
-    beat_sheet: z.number().min(1).max(10),
-    turning_points: z.number().min(1).max(10),
+    three_act: scoreField(),
+    pacing: scoreField(),
+    beat_sheet: scoreField(),
+    turning_points: scoreField(),
   }),
   characters: CategoryScoreSchema.extend({
-    protagonist_clarity: z.number().min(1).max(10),
-    antagonist_strength: z.number().min(1).max(10),
-    arc: z.number().min(1).max(10),
-    supporting_cast: z.number().min(1).max(10),
-    motivation: z.number().min(1).max(10),
+    protagonist_clarity: scoreField(),
+    antagonist_strength: scoreField(),
+    arc: scoreField(),
+    supporting_cast: scoreField(),
+    motivation: scoreField(),
   }),
   conflict: CategoryScoreSchema.extend({
-    central_conflict: z.number().min(1).max(10),
-    stakes: z.number().min(1).max(10),
-    escalation: z.number().min(1).max(10),
-    resolution: z.number().min(1).max(10),
+    central_conflict: scoreField(),
+    stakes: scoreField(),
+    escalation: scoreField(),
+    resolution: scoreField(),
   }),
   theme: CategoryScoreSchema.extend({
-    presence: z.number().min(1).max(10),
-    integration: z.number().min(1).max(10),
-    resonance: z.number().min(1).max(10),
+    presence: scoreField(),
+    integration: scoreField(),
+    resonance: scoreField(),
   }),
 });
 
 const CommercialViabilitySchema = z.object({
   overall: CategoryScoreSchema,
   market_fit: CategoryScoreSchema.extend({
-    genre_clarity: z.number().min(1).max(10),
-    target_audience: z.number().min(1).max(10),
-    trend_alignment: z.number().min(1).max(10),
+    genre_clarity: scoreField(),
+    target_audience: scoreField(),
+    trend_alignment: scoreField(),
     comparables: z.array(z.string()),
   }),
   producibility: CategoryScoreSchema.extend({
     budget_tier: z.enum(['micro', 'low', 'medium', 'high', 'blockbuster']),
-    location_feasibility: z.number().min(1).max(10),
-    cast_requirements: z.number().min(1).max(10),
-    vfx_demands: z.number().min(1).max(10),
+    location_feasibility: scoreField(),
+    cast_requirements: scoreField(),
+    vfx_demands: scoreField(),
     period_setting: z.boolean(),
   }),
   platform_fit: z.object({
-    theatrical: z.number().min(1).max(10),
-    streaming: z.number().min(1).max(10),
-    limited_series: z.number().min(1).max(10),
-    international: z.number().min(1).max(10),
+    theatrical: scoreField(),
+    streaming: scoreField(),
+    limited_series: scoreField(),
+    international: scoreField(),
   }),
   sales_hooks: CategoryScoreSchema.extend({
-    logline_strength: z.number().min(1).max(10),
+    logline_strength: scoreField(),
     poster_moment: z.boolean(),
-    trailer_beats: z.number().min(1).max(10),
-    word_of_mouth: z.number().min(1).max(10),
+    trailer_beats: scoreField(),
+    word_of_mouth: scoreField(),
   }),
 });
 
 const ProductionLikelihoodSchema = z.object({
   overall: CategoryScoreSchema,
   execution_readiness: CategoryScoreSchema.extend({
-    script_polish: z.number().min(1).max(10),
-    coverage_ready: z.number().min(1).max(10),
-    director_attachment: z.number().min(1).max(10),
+    script_polish: scoreField(),
+    coverage_ready: scoreField(),
+    director_attachment: scoreField(),
   }),
   industry_factors: CategoryScoreSchema.extend({
-    diversity_inclusion: z.number().min(1).max(10),
-    cultural_relevance: z.number().min(1).max(10),
-    controversy_risk: z.number().min(1).max(10),
-    awards_potential: z.number().min(1).max(10),
+    diversity_inclusion: scoreField(),
+    cultural_relevance: scoreField(),
+    controversy_risk: scoreField(),
+    awards_potential: scoreField(),
   }),
   practical_considerations: z.object({
     page_count: z.number(),
@@ -188,18 +199,18 @@ const DialogueAnalysisSchema = z.object({
       name: z.string(),
       line_count: z.number(),
       avg_line_length: z.enum(['short', 'medium', 'long']),
-      vocabulary_richness: z.number().min(1).max(10),
+      vocabulary_richness: scoreField(),
       speech_patterns: z.array(z.string()),
-      emotional_range: z.number().min(1).max(10),
-      consistency: z.number().min(1).max(10),
+      emotional_range: scoreField(),
+      consistency: scoreField(),
       memorable_lines: z.array(z.string()),
     })
   ),
   dynamics: z.object({
-    conflict_in_dialogue: z.number().min(1).max(10),
-    power_shifts: z.number().min(1).max(10),
-    subtext_density: z.number().min(1).max(10),
-    exposition_handling: z.number().min(1).max(10),
+    conflict_in_dialogue: scoreField(),
+    power_shifts: scoreField(),
+    subtext_density: scoreField(),
+    exposition_handling: scoreField(),
   }),
   issues: z.array(
     z.object({
@@ -212,7 +223,7 @@ const DialogueAnalysisSchema = z.object({
 });
 
 const SynthesisSchema = z.object({
-  overall_score: z.number().min(1).max(10),
+  overall_score: scoreField(),
   coverage_verdict: z.enum(['pass', 'consider', 'consider_with_reservations', 'recommend']),
   executive_summary: z.object({
     one_liner: z.string(),
@@ -238,37 +249,44 @@ const SynthesisSchema = z.object({
 // Analysis Functions
 // =============================================================================
 
-const MODEL = 'gpt-4o'; // Best for structured analysis
+/**
+ * Model selection for script analysis.
+ *
+ * Order of precedence:
+ *   1. SCRIPT_SCORE_MODEL — explicit override (testing, A/B)
+ *   2. DIRECTOR_MODEL — same model as the rest of the director pipeline
+ *   3. fallback Claude Sonnet
+ *
+ * NOTE: This was previously hardcoded to `openai('gpt-4o')` which caused every
+ * analysis to call OpenAI directly, completely bypassing the failover chain in
+ * llm-client.ts. That's why both billing accounts were being hit per analysis.
+ * Now routes through `generateStructuredOutput` which has built-in Claude →
+ * OpenRouter → OpenAI failover via `buildFailoverChain()`.
+ */
+function getAnalysisModel(): string {
+  return (
+    process.env.SCRIPT_SCORE_MODEL ||
+    process.env.DIRECTOR_MODEL ||
+    'anthropic/claude-sonnet-4-6'
+  );
+}
 
 async function analyzeWithRetry<T>(
   prompt: string,
   schema: z.ZodSchema<T>,
   script: string,
-  maxRetries: number = 2
 ): Promise<T> {
-  let lastError: Error | null = null;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const result = await generateObject({
-        model: openai(MODEL),
-        schema,
-        prompt: `${prompt}\n\n---\n\nSCRIPT TO ANALYZE:\n\n${script}`,
-        temperature: 0.3, // Lower temperature for consistent scoring
-      });
-
-      return result.object;
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      log.warn('Analysis attempt failed', { attempt: attempt + 1, error: lastError.message });
-
-      if (attempt < maxRetries) {
-        await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
-      }
-    }
-  }
-
-  throw lastError || new Error('Analysis failed after retries');
+  // `generateStructuredOutput` already does the failover chain
+  // (Claude → OpenRouter → OpenAI), so we don't loop here ourselves.
+  return generateStructuredOutput<T>(
+    `${prompt}\n\n---\n\nSCRIPT TO ANALYZE:\n\n${script}`,
+    {
+      model: getAnalysisModel(),
+      schema,
+      temperature: 0.3,
+      maxTokens: 8192,
+    },
+  );
 }
 
 // =============================================================================
@@ -324,15 +342,24 @@ export async function analyzeScript(
 
   if (include_structural_analysis) {
     report('structure', 75, 'Analyzing story structure...');
-    // Structural analysis is complex - use direct text generation for flexibility
-    const structureResult = await generateText({
-      model: openai(MODEL),
-      prompt: `${STRUCTURAL_ANALYSIS_PROMPT}\n\n---\n\nSCRIPT TO ANALYZE:\n\n${script_text}`,
-      temperature: 0.3,
-    });
+    // Structural analysis is complex — use unstructured text generation for
+    // flexibility (no schema enforcement). Routes through `runAgentLoop` so
+    // we still get the failover chain even though there are no tools.
+    const rawText = await runAgentLoop(
+      `${STRUCTURAL_ANALYSIS_PROMPT}\n\n---\n\nSCRIPT TO ANALYZE:\n\n${script_text}`,
+      {
+        model: getAnalysisModel(),
+        systemPrompt: 'You analyze screenplay structure and return JSON.',
+        temperature: 0.3,
+        maxTokens: 8192,
+        maxIterations: 1,
+      },
+    );
 
     try {
-      structuralAnalysis = JSON.parse(structureResult.text);
+      // Strip markdown code fences in case the model wraps its JSON
+      const cleaned = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+      structuralAnalysis = JSON.parse(cleaned);
     } catch {
       log.warn('Could not parse structural analysis as JSON');
     }
@@ -403,11 +430,11 @@ ${structuralAnalysis ? `STRUCTURAL ANALYSIS:\n${JSON.stringify(structuralAnalysi
 // =============================================================================
 
 const QuickScoreSchema = z.object({
-  overall_score: z.number().min(1).max(10),
-  writing: z.number().min(1).max(10),
-  story: z.number().min(1).max(10),
-  commercial: z.number().min(1).max(10),
-  production: z.number().min(1).max(10),
+  overall_score: scoreField(),
+  writing: scoreField(),
+  story: scoreField(),
+  commercial: scoreField(),
+  production: scoreField(),
   verdict: z.enum(['pass', 'consider', 'consider_with_reservations', 'recommend']),
   one_liner: z.string(),
   top_strength: z.string(),

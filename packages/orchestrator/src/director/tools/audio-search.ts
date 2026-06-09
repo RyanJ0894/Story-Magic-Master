@@ -57,10 +57,10 @@ Use group filter to narrow results.`,
     group: z.string().optional().describe('Music category filter (e.g., "EPIC", "UPLIFTING", "THRILLER")'),
     style: z.string().optional().describe('Music style filter (e.g., "orchestral", "electronic")'),
     mood: z.string().optional().describe('Mood filter (e.g., "epic", "peaceful", "tense")'),
-    intensity_min: z.number().min(0).max(100).optional().describe('Minimum intensity (0-100)'),
-    intensity_max: z.number().min(0).max(100).optional().describe('Maximum intensity (0-100)'),
+    intensity_min: z.number().optional().describe('Minimum intensity (0-100)'),
+    intensity_max: z.number().optional().describe('Maximum intensity (0-100)'),
     loopable: z.boolean().optional().describe('Filter for loopable tracks'),
-    top_k: z.number().min(1).max(10).default(3).describe('Number of results to return'),
+    top_k: z.number().default(3).describe('Number of results to return'),
   }),
 
   execute: async ({ query, group, style, mood, intensity_min, intensity_max, loopable, top_k = 3 }) => {
@@ -131,10 +131,10 @@ Groups available: "People in the City", "Suburbs & Countryside", "Interior Space
     group: z.string().optional().describe('Ambience category filter'),
     style: z.string().optional().describe('Style filter'),
     mood: z.string().optional().describe('Mood filter (e.g., "peaceful", "busy", "eerie")'),
-    intensity_min: z.number().min(0).max(100).optional().describe('Minimum intensity (0-100)'),
-    intensity_max: z.number().min(0).max(100).optional().describe('Maximum intensity (0-100)'),
+    intensity_min: z.number().optional().describe('Minimum intensity (0-100)'),
+    intensity_max: z.number().optional().describe('Maximum intensity (0-100)'),
     loopable: z.boolean().optional().describe('Filter for loopable tracks'),
-    top_k: z.number().min(1).max(10).default(3).describe('Number of results to return'),
+    top_k: z.number().default(3).describe('Number of results to return'),
   }),
 
   execute: async ({ query, group, style, mood, intensity_min, intensity_max, loopable, top_k = 3 }) => {
@@ -203,9 +203,9 @@ Groups available: "Fighting", "Explosions", "Doors & Impacts", "Vehicles", etc.`
     query: z.string().describe('Natural language description of the sound effect needed'),
     group: z.string().optional().describe('SFX category filter (e.g., "Fighting", "Explosions")'),
     style: z.string().optional().describe('Style filter'),
-    intensity_min: z.number().min(0).max(100).optional().describe('Minimum intensity (0-100)'),
-    intensity_max: z.number().min(0).max(100).optional().describe('Maximum intensity (0-100)'),
-    top_k: z.number().min(1).max(10).default(3).describe('Number of results to return'),
+    intensity_min: z.number().optional().describe('Minimum intensity (0-100)'),
+    intensity_max: z.number().optional().describe('Maximum intensity (0-100)'),
+    top_k: z.number().default(3).describe('Number of results to return'),
   }),
 
   execute: async ({ query, group, style, intensity_min, intensity_max, top_k = 3 }) => {

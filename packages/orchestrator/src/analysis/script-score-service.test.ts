@@ -8,14 +8,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ---------------------------------------------------------------------------
 // Mocks - declared before any import that triggers module load
 // ---------------------------------------------------------------------------
+//
+// Note: post-2026-06-08 the service routes through llm-client's
+// `generateStructuredOutput` / `runAgentLoop` instead of calling the AI SDK
+// directly. Failover/retry across providers is the llm-client's job and is
+// covered by its own tests — this file mocks llm-client and only verifies
+// the service's data flow + error propagation.
 
-vi.mock('ai', () => ({
-  generateText: vi.fn(),
-  generateObject: vi.fn(),
-}));
-
-vi.mock('@ai-sdk/openai', () => ({
-  openai: vi.fn(() => ({ modelId: 'gpt-4o' })),
+vi.mock('../lib/llm-client.js', () => ({
+  generateStructuredOutput: vi.fn(),
+  runAgentLoop: vi.fn(),
 }));
 
 vi.mock('../lib/logger.js', () => ({
@@ -45,7 +47,12 @@ vi.mock('./prompts/script-score-prompts.js', () => ({
 // ---------------------------------------------------------------------------
 
 import { quickScore, analyzeScript } from './script-score-service.js';
-import { generateObject, generateText } from 'ai';
+import { generateStructuredOutput, runAgentLoop } from '../lib/llm-client.js';
+
+// Local aliases so the existing test bodies can keep using the old names —
+// the change is purely which function under the hood is mocked.
+const generateObject = generateStructuredOutput as unknown as ReturnType<typeof vi.fn>;
+const generateText = runAgentLoop as unknown as ReturnType<typeof vi.fn>;
 
 // ---------------------------------------------------------------------------
 // Fixture factories
@@ -185,7 +192,7 @@ describe('quickScore', () => {
   });
 
   it('returns a score object with all expected fields', async () => {
-    vi.mocked(generateObject).mockResolvedValueOnce({ object: makeQuickScoreObject() } as any);
+    vi.mocked(generateObject).mockResolvedValueOnce(makeQuickScoreObject() as any);
 
     const result = await quickScore(SAMPLE_SCRIPT, 'Se7en');
 
@@ -206,7 +213,7 @@ describe('quickScore', () => {
   });
 
   it('overall_score is between 1 and 10', async () => {
-    vi.mocked(generateObject).mockResolvedValueOnce({ object: makeQuickScoreObject() } as any);
+    vi.mocked(generateObject).mockResolvedValueOnce(makeQuickScoreObject() as any);
 
     const result = await quickScore(SAMPLE_SCRIPT);
 
@@ -215,7 +222,7 @@ describe('quickScore', () => {
   });
 
   it('uses "Untitled" as default title when none is provided', async () => {
-    vi.mocked(generateObject).mockResolvedValueOnce({ object: makeQuickScoreObject() } as any);
+    vi.mocked(generateObject).mockResolvedValueOnce(makeQuickScoreObject() as any);
 
     const result = await quickScore(SAMPLE_SCRIPT);
 
@@ -225,7 +232,7 @@ describe('quickScore', () => {
   it('calculates page_count from word count', async () => {
     // ~750 words → ~3 pages (250 words/page)
     const longScript = 'word '.repeat(750);
-    vi.mocked(generateObject).mockResolvedValueOnce({ object: makeQuickScoreObject() } as any);
+    vi.mocked(generateObject).mockResolvedValueOnce(makeQuickScoreObject() as any);
 
     const result = await quickScore(longScript);
 
@@ -251,11 +258,11 @@ describe('analyzeScript', () => {
   it('returns full analysis report with all required dimensions', async () => {
     // 4 core analyses + synthesis = 5 generateObject calls
     vi.mocked(generateObject)
-      .mockResolvedValueOnce({ object: makeWritingQuality() } as any)
-      .mockResolvedValueOnce({ object: makeStoryQuality() } as any)
-      .mockResolvedValueOnce({ object: makeCommercialViability() } as any)
-      .mockResolvedValueOnce({ object: makeProductionLikelihood() } as any)
-      .mockResolvedValueOnce({ object: makeSynthesis() } as any);
+      .mockResolvedValueOnce(makeWritingQuality() as any)
+      .mockResolvedValueOnce(makeStoryQuality() as any)
+      .mockResolvedValueOnce(makeCommercialViability() as any)
+      .mockResolvedValueOnce(makeProductionLikelihood() as any)
+      .mockResolvedValueOnce(makeSynthesis() as any);
 
     const result = await analyzeScript({
       project_id: 'proj_001',
@@ -283,11 +290,11 @@ describe('analyzeScript', () => {
 
   it('calls progress callback at key milestones', async () => {
     vi.mocked(generateObject)
-      .mockResolvedValueOnce({ object: makeWritingQuality() } as any)
-      .mockResolvedValueOnce({ object: makeStoryQuality() } as any)
-      .mockResolvedValueOnce({ object: makeCommercialViability() } as any)
-      .mockResolvedValueOnce({ object: makeProductionLikelihood() } as any)
-      .mockResolvedValueOnce({ object: makeSynthesis() } as any);
+      .mockResolvedValueOnce(makeWritingQuality() as any)
+      .mockResolvedValueOnce(makeStoryQuality() as any)
+      .mockResolvedValueOnce(makeCommercialViability() as any)
+      .mockResolvedValueOnce(makeProductionLikelihood() as any)
+      .mockResolvedValueOnce(makeSynthesis() as any);
 
     const onProgress = vi.fn();
     await analyzeScript({ project_id: 'proj_002', script_text: SAMPLE_SCRIPT }, onProgress);
@@ -310,12 +317,12 @@ describe('analyzeScript', () => {
     };
 
     vi.mocked(generateObject)
-      .mockResolvedValueOnce({ object: makeWritingQuality() } as any)
-      .mockResolvedValueOnce({ object: makeStoryQuality() } as any)
-      .mockResolvedValueOnce({ object: makeCommercialViability() } as any)
-      .mockResolvedValueOnce({ object: makeProductionLikelihood() } as any)
-      .mockResolvedValueOnce({ object: dialogueResult } as any)
-      .mockResolvedValueOnce({ object: makeSynthesis() } as any);
+      .mockResolvedValueOnce(makeWritingQuality() as any)
+      .mockResolvedValueOnce(makeStoryQuality() as any)
+      .mockResolvedValueOnce(makeCommercialViability() as any)
+      .mockResolvedValueOnce(makeProductionLikelihood() as any)
+      .mockResolvedValueOnce(dialogueResult as any)
+      .mockResolvedValueOnce(makeSynthesis() as any);
 
     const result = await analyzeScript({
       project_id: 'proj_003',
@@ -326,31 +333,31 @@ describe('analyzeScript', () => {
     expect(result.dialogue_analysis).not.toBeNull();
   });
 
-  it('handles LLM failure by retrying then throwing', async () => {
-    // All calls fail — analyzeScript runs 4 analyses in parallel (Promise.all),
-    // each with up to 3 attempts (initial + 2 retries), so expect ≥ 3 calls total.
-    vi.mocked(generateObject).mockRejectedValue(new Error('OpenAI 500'));
+  it('propagates LLM failure to the caller (failover handled by llm-client)', async () => {
+    // analyzeScript fires 4 parallel analyses via Promise.all. Each one calls
+    // generateStructuredOutput exactly once — retry/failover across providers
+    // is the llm-client's responsibility and is tested separately.
+    vi.mocked(generateObject).mockRejectedValue(new Error('Anthropic 529'));
 
     await expect(
       analyzeScript({ project_id: 'proj_004', script_text: SAMPLE_SCRIPT })
     ).rejects.toThrow();
 
-    // At minimum the first failing dimension fires 3 attempts
-    expect(generateObject).toHaveBeenCalled();
-    expect(generateObject.mock.calls.length).toBeGreaterThanOrEqual(3);
+    // 4 parallel analyses each made 1 call.
+    expect(generateObject.mock.calls.length).toBeGreaterThanOrEqual(1);
   });
 
   it('runs structural analysis when include_structural_analysis is true', async () => {
     const structuralJson = JSON.stringify({ acts: [{ name: 'Act 1', pages: '1-30' }] });
 
     vi.mocked(generateObject)
-      .mockResolvedValueOnce({ object: makeWritingQuality() } as any)
-      .mockResolvedValueOnce({ object: makeStoryQuality() } as any)
-      .mockResolvedValueOnce({ object: makeCommercialViability() } as any)
-      .mockResolvedValueOnce({ object: makeProductionLikelihood() } as any)
-      .mockResolvedValueOnce({ object: makeSynthesis() } as any);
+      .mockResolvedValueOnce(makeWritingQuality() as any)
+      .mockResolvedValueOnce(makeStoryQuality() as any)
+      .mockResolvedValueOnce(makeCommercialViability() as any)
+      .mockResolvedValueOnce(makeProductionLikelihood() as any)
+      .mockResolvedValueOnce(makeSynthesis() as any);
 
-    vi.mocked(generateText).mockResolvedValueOnce({ text: structuralJson } as any);
+    vi.mocked(generateText).mockResolvedValueOnce(structuralJson as any);
 
     const result = await analyzeScript({
       project_id: 'proj_005',
@@ -364,41 +371,33 @@ describe('analyzeScript', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Tests: internal analyzeWithRetry behaviour (via quickScore surface)
+// Tests: llm-client delegation contract (via quickScore surface)
+//
+// Internal retry was removed from analyzeWithRetry on 2026-06-08; the service
+// now delegates failover to llm-client.generateStructuredOutput. These tests
+// pin the new contract: exactly one llm-client call per analysis dimension,
+// errors propagate unchanged.
 // ---------------------------------------------------------------------------
 
-describe('analyzeWithRetry (via quickScore)', () => {
+describe('analyzeWithRetry contract (via quickScore)', () => {
   beforeEach(() => {
-    // clearAllMocks resets call history. mockImplementation in each test body
-    // overrides any persistent mock left by analyzeScript tests.
     vi.clearAllMocks();
   });
 
-  it('retries on failure and eventually returns result', async () => {
-    const quickObj = makeQuickScoreObject();
-    let invocations = 0;
-    // Use closure counter rather than mock.calls.length to avoid bleed-over
-    // from call history in prior describe blocks.
-    vi.mocked(generateObject).mockImplementation(async () => {
-      invocations++;
-      if (invocations === 1) throw new Error('Transient error');
-      return { object: quickObj } as any;
-    });
+  it('makes exactly one llm-client call per dimension on success', async () => {
+    vi.mocked(generateObject).mockResolvedValueOnce(makeQuickScoreObject() as any);
 
     const result = await quickScore(SAMPLE_SCRIPT);
 
-    // invocations >= 2: at least 1 failure + 1 retry success.
-    // May be higher due to background retries leaked from a prior test's
-    // Promise.all branches that continue executing after that test resolves.
-    expect(invocations).toBeGreaterThanOrEqual(2);
+    expect(generateObject).toHaveBeenCalledTimes(1);
     expect(result.overall_score).toBe(7);
-  }, 5000);
+  });
 
-  it('throws after max retries exhausted', async () => {
-    // default maxRetries = 2 → 3 total attempts (0, 1, 2)
+  it('propagates the llm-client error verbatim (no internal retry)', async () => {
     vi.mocked(generateObject).mockRejectedValue(new Error('Persistent failure'));
 
     await expect(quickScore(SAMPLE_SCRIPT)).rejects.toThrow('Persistent failure');
-    expect(generateObject).toHaveBeenCalledTimes(3);
-  }, 10000);
+    // Single call — the llm-client owns the failover chain across providers.
+    expect(generateObject).toHaveBeenCalledTimes(1);
+  });
 });

@@ -8,10 +8,16 @@ export const EMOTION_VALUES = [
 
 export type Emotion = typeof EMOTION_VALUES[number];
 
+// IMPORTANT (Claude compatibility): do NOT use `.min()`/`.max()` constraints
+// on string/number fields in schemas passed to `generateObject` /
+// `generateStructuredOutput`. The AI SDK converts those to JSON Schema
+// `minLength`/`maxLength`/`minimum`/`maximum`, which Anthropic's structured-
+// output API rejects. Constraints belong in the prompt, with optional
+// server-side validation after the LLM responds.
 export const DialogueLineSchema = z.object({
   line_id: z.string(),
   character: z.string(),
-  text: z.string().min(1),
+  text: z.string().describe('Non-empty line of spoken dialogue'),
   voice_key: z.string(),
   emotion: z.string().optional(),
   // Metadata fields (only present on first line per character)
@@ -56,7 +62,7 @@ export const SceneSchema = z.object({
   scene_id: z.string(),
   summary: z.string().optional(),
   mood: z.string().optional(),
-  intensity: z.number().optional(),
+  intensity: z.number().describe('0.0-1.0 dramatic intensity').optional(),
   dialogue: z.array(DialogueLineSchema),
   music: z.array(AudioCueSchema).optional(),
   ambience: z.array(AudioCueSchema).optional(),
