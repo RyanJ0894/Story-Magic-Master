@@ -58,6 +58,34 @@ export interface AgentOptions {
  * "openai/gpt-4.1" }, which is exactly the model id OpenRouter expects. A bare
  * string with no slash defaults to the openai provider.
  */
+/**
+ * Anthropic prompt caching (Phase 2 cost optimization, issue #182).
+ *
+ * Director / script-score calls re-send the same ~5K-token system prompt
+ * dozens of times in a session. Marking it with cache_control: ephemeral
+ * lets Anthropic charge ~10% the normal input rate on cache hits within the
+ * 5-minute TTL. Non-Anthropic providers silently ignore the providerOptions.
+ *
+ * Disable by setting ENABLE_PROMPT_CACHE=false (e.g. while debugging cache
+ * invalidation or running an A/B baseline).
+ */
+const ENABLE_PROMPT_CACHE = process.env.ENABLE_PROMPT_CACHE !== 'false';
+
+function buildSystemMessages(systemPrompt: string): ModelMessage[] {
+  if (!ENABLE_PROMPT_CACHE) {
+    return [{ role: 'system', content: systemPrompt }];
+  }
+  return [
+    {
+      role: 'system',
+      content: systemPrompt,
+      providerOptions: {
+        anthropic: { cacheControl: { type: 'ephemeral' } },
+      },
+    },
+  ];
+}
+
 function providerEnvVar(provider: LLMProvider): string {
   switch (provider) {
     case 'anthropic':   return 'ANTHROPIC_API_KEY';
@@ -291,8 +319,10 @@ async function runAgentLoopCore(
     try {
       const result = await generateText({
         model: getModel(model),
-        system: systemPrompt,
-        messages,
+        // System prompt is sent as a leading system message (not the separate
+        // `system:` field) so we can attach Anthropic cache_control via
+        // providerOptions. See buildSystemMessages.
+        messages: [...buildSystemMessages(systemPrompt), ...messages],
         tools,
         // Use the expanded token budget for output iterations so large JSON is not truncated.
         maxOutputTokens: isOutputIteration ? MAX_OUTPUT_TOKENS : maxTokens,
@@ -411,8 +441,8 @@ async function runAgentLoopCore(
   try {
     const finalResult = await generateText({
       model: getModel(model),
-      system: systemPrompt,
-      messages,
+      // Same cached system message convention as the main loop above.
+      messages: [...buildSystemMessages(systemPrompt), ...messages],
       // No tools — forces pure text response. Use full token budget so
       // large script JSON is not truncated.
       maxOutputTokens: MAX_OUTPUT_TOKENS,
@@ -456,8 +486,15 @@ export async function generateStructuredOutput<T>(
     generateObject({
       model: getModel(model),
       schema: options.schema,
-      system: options.systemPrompt,
-      prompt,
+      // When a systemPrompt is provided, send it as a cached system message
+      // (Anthropic cache_control on the system content) followed by the user
+      // prompt. When no systemPrompt, behave as before.
+      messages: options.systemPrompt
+        ? [
+            ...buildSystemMessages(options.systemPrompt),
+            { role: 'user' as const, content: prompt },
+          ]
+        : [{ role: 'user' as const, content: prompt }],
       maxOutputTokens: options.maxTokens || 8192,
       temperature: options.temperature || 0.7,
     });

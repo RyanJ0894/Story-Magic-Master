@@ -214,3 +214,57 @@ describe('runAgentLoop', () => {
     expect(forcedCall.maxOutputTokens).toBe(32768);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Anthropic prompt caching contract (Phase 2 cost-opt, #182)
+// ---------------------------------------------------------------------------
+//
+// The system prompt MUST be sent as a leading system message with
+// cacheControl: ephemeral providerOptions so Anthropic discounts re-sends
+// within the 5-minute cache TTL. Non-Anthropic providers ignore the
+// providerOptions, so this is safe across the failover chain.
+
+describe('runAgentLoop prompt caching', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    ECHO_TOOL.execute.mockResolvedValue({ result: 'tool output' });
+  });
+
+  it('passes the system prompt as a cached system message (Anthropic cache_control)', async () => {
+    mockGenerateText.mockResolvedValueOnce(makeTextResult('{"ok":true}'));
+
+    await runAgentLoop('parse this', {
+      model: 'anthropic/claude-sonnet-4-6',
+      systemPrompt: 'You are a director.',
+      maxIterations: 5,
+    });
+
+    const callArgs = mockGenerateText.mock.calls[0][0];
+
+    // No separate `system:` field — system content lives in messages[0].
+    expect(callArgs.system).toBeUndefined();
+
+    const systemMessage = callArgs.messages[0];
+    expect(systemMessage.role).toBe('system');
+    expect(systemMessage.content).toBe('You are a director.');
+    expect(systemMessage.providerOptions?.anthropic?.cacheControl).toEqual({ type: 'ephemeral' });
+
+    // User input should still be present after the system message.
+    expect(callArgs.messages[1]).toMatchObject({ role: 'user', content: 'parse this' });
+  });
+
+  it('still wraps system as messages[0] even on non-Anthropic providers (no-op for them)', async () => {
+    mockGenerateText.mockResolvedValueOnce(makeTextResult('ok'));
+
+    await runAgentLoop('hello', {
+      model: 'openai/gpt-4o',
+      systemPrompt: 'sys',
+      maxIterations: 5,
+    });
+
+    const callArgs = mockGenerateText.mock.calls[0][0];
+    expect(callArgs.messages[0].role).toBe('system');
+    expect(callArgs.messages[0].content).toBe('sys');
+    // providerOptions.anthropic is harmless on OpenAI — the provider just ignores it.
+  });
+});

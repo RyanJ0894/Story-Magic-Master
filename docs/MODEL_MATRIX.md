@@ -98,3 +98,4 @@ Logic: `packages/orchestrator/src/lib/llm-client.ts::buildFailoverChain()`
 |------|--------|
 | 2026-06-08 | Initial matrix written. Migrated `script-score-service` off gpt-4o (4-6 OpenAI calls/analysis eliminated). Gated OpenAI Whisper fallback behind `ENABLE_OPENAI_WHISPER_FALLBACK`. Made `OPENAI_API_KEY` optional in env validation. |
 | 2026-06-09 | Audio director → Haiku 4.5 (was `openai/gpt-4.1`). PR A of cost-opt Phase 2 (issue #182). |
+| 2026-06-09 | Anthropic prompt caching on all `runAgentLoop` + `generateStructuredOutput` calls. System prompt now sent as a cached system message (cache_control: ephemeral, 5-min TTL). Disable via `ENABLE_PROMPT_CACHE=false`. PR B of cost-opt Phase 2 (issue #182). Estimated 40-70% input-token reduction on repeat calls within a `/analyze`. |
