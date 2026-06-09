@@ -64,6 +64,8 @@ export async function listProjects(prisma: PrismaClient, userId: string) {
     select: {
       id: true,
       name: true,
+      description: true,
+      status: true,
       scriptText: true,
       pageCount: true,
       voiceAssignments: true,
