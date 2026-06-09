@@ -111,21 +111,34 @@ function parseModelString(modelString: string): { provider: LLMProvider; modelNa
  * Returns the ordered failover chain for a given primary model.
  * Chain is tried left-to-right after the primary fails.
  *
- *   anthropic/* → openrouter/openai/gpt-4.1 (if key present) → openai/gpt-4.1
- *   openrouter/* → openai/gpt-4.1
- *   others       → [] (no fallback)
+ * For `anthropic/<model>` primaries (T3-3 of cost-opt Phase 2):
+ *   1. `openrouter/anthropic/<same model>` — keep us on Claude when direct
+ *      Anthropic throttles. OpenRouter has separate billing + rate limits
+ *      with Anthropic, so a 429/529 from direct Anthropic doesn't fan out
+ *      to OpenRouter. This is the actual "relief valve" — quality and cost
+ *      stay aligned with the Anthropic primary, just routed through a
+ *      different account.
+ *   2. `openai/gpt-4.1` — last-resort escape if both Anthropic paths are down.
+ *      Quality + cost shift here; this is meant to keep the user unblocked,
+ *      not as a default operating mode.
  *
- * OpenRouter sits between Anthropic and direct OpenAI — it uses a separate
- * billing account, so Anthropic credit exhaustion doesn't block it.
+ * For `openrouter/*` primaries (Groq, OpenAI proxied, etc.):
+ *   - `openai/gpt-4.1` only — no further relief valve.
+ *
+ * For other providers:
+ *   - No fallback. They're either intentionally chosen for their properties
+ *     (Groq for speed, Google for context window) or already last-resort.
  */
 export function buildFailoverChain(primaryModel: string): string[] {
-  const { provider } = parseModelString(primaryModel);
+  const { provider, modelName } = parseModelString(primaryModel);
   switch (provider) {
-    case 'anthropic':
-      return [
-        ...(process.env.OPENROUTER_API_KEY ? ['openrouter/openai/gpt-4.1'] : []),
-        'openai/gpt-4.1',
-      ];
+    case 'anthropic': {
+      const reliefValve = process.env.OPENROUTER_API_KEY
+        ? [`openrouter/anthropic/${modelName}`]
+        : [];
+      const lastResort = process.env.OPENAI_API_KEY ? ['openai/gpt-4.1'] : [];
+      return [...reliefValve, ...lastResort];
+    }
     case 'openrouter':
       return process.env.OPENAI_API_KEY ? ['openai/gpt-4.1'] : [];
     default:

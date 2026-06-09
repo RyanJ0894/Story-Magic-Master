@@ -51,9 +51,14 @@ Everything that calls `runAgentLoop()` or `generateStructuredOutput()` inherits 
 ```
 DIRECTOR_MODEL (anthropic/claude-sonnet-4-6 by default)
   ↓ (on 402/429/529 or "credit balance" / "overloaded" error)
-openrouter/openai/gpt-4.1     [if OPENROUTER_API_KEY set]
+openrouter/anthropic/<same Claude model>   [if OPENROUTER_API_KEY set]
+   ↓ (same Claude model via OpenRouter — preserves quality + cost tier;
+      OpenRouter has a separate billing account so direct-Anthropic
+      throttling doesn't cascade here)
   ↓ (on same conditions)
 openai/gpt-4.1                [if OPENAI_API_KEY set]
+   ↓ (last-resort escape — quality + cost shift here; meant to keep
+      the user unblocked, not as a default operating mode)
   ↓ (final attempt; rethrows on failure)
 ERROR
 ```
@@ -66,7 +71,7 @@ Logic: `packages/orchestrator/src/lib/llm-client.ts::buildFailoverChain()`
 
 ### Production
 1. **Anthropic is primary**: set `DIRECTOR_MODEL=anthropic/claude-sonnet-4-6`, ensure `ANTHROPIC_API_KEY` is set on Render. Already done.
-2. **OpenRouter as relief valve**: add `OPENROUTER_API_KEY` to absorb Anthropic billing spikes without hitting raw OpenAI. Not yet wired.
+2. **OpenRouter as relief valve**: set `OPENROUTER_API_KEY` and the failover chain routes Anthropic 429/529 to the SAME Claude model via OpenRouter (preserves quality + cost) before falling back to raw OpenAI. Wired 2026-06-09 (T3-3).
 3. **Cap script size**: `MAX_SCRIPT_PAGES=150`, `MAX_SCRIPT_CHARS=75000` — already enforced pre-flight.
 
 ### Testing / staging
@@ -103,4 +108,5 @@ Logic: `packages/orchestrator/src/lib/llm-client.ts::buildFailoverChain()`
 | 2026-06-09 | Embedding query cache: L1 in-process Map + L2 Upstash Redis (7-day TTL) for audio-search queries. Cross-worker + survives restart. Cache key namespaced by model + dimension to prevent cross-model bleed. Disable via `EMBEDDING_CACHE_DISABLED=true`. PR D of cost-opt Phase 2 Tier 2 (issue #186). |
 | 2026-06-09 | Tiered director-model selection: `/orchestrate` now routes scripts ≤ `TIER1_PAGE_THRESHOLD` pages (default 5) to `TIER1_MODEL` (Haiku 4.5 by default). Larger scripts use `DIRECTOR_MODEL` (Sonnet). Paid Advanced Analysis bypasses tiers (Opus). Disable with `TIER1_PAGE_THRESHOLD=0`. PR E of cost-opt Phase 2 Tier 2 (issue #186). Eliminates Sonnet rates on Peter's iteration loop of small test scripts. |
 | 2026-06-09 | Groq Whisper as middle alignment fallback. `whisper-align.ts` now tries: whisper.cpp → Groq Whisper (default on if `GROQ_API_KEY` set) → OpenAI Whisper (still opt-in via `ENABLE_OPENAI_WHISPER_FALLBACK=true`) → duration estimator. Groq Whisper is ~12× cheaper than OpenAI Whisper for the same `whisper-large-v3` model. Disable Groq path with `ENABLE_GROQ_WHISPER_FALLBACK=false`. PR F of cost-opt Phase 2 Tier 2 (issue #186). |
+| 2026-06-09 | OpenRouter relief valve properly wired. `buildFailoverChain` for `anthropic/<model>` primaries now returns `openrouter/anthropic/<same model>` as the first fallback — keeping us on the same Claude model when direct Anthropic 429/529s. Previously this slot was `openrouter/openai/gpt-4.1` (just GPT-4.1 in disguise), which defeated the "relief valve" intent. OpenAI gpt-4.1 stays as the last-resort fallback. T3-3 of cost-opt Phase 2. |
 | 2026-06-09 | Scene-level idempotency cache. `orchestrate()` now hashes each scene's render-defining inputs (dialogue + voice keys + emotion + audio cues + mix params) and short-circuits the alignment + cue + timeline + mix block when the hash matches a previously cached render. New `scene_renders` table (Prisma migration 0036). Disable via `SCENE_CACHE_DISABLED=true`. Sequential pipeline only this PR; parallel pipeline integration in a follow-up. T2-2 of cost-opt Phase 2 (issue #190). |

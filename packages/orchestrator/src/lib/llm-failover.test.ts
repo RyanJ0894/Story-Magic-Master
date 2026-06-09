@@ -19,16 +19,42 @@ describe('buildFailoverChain', () => {
     process.env = { ...ORIG };
   });
 
-  it('anthropic → openrouter → openai when OpenRouter key is present', () => {
+  // T3-3 (#186 follow-up): the OpenRouter slot now routes Claude THROUGH
+  // OpenRouter (keeping quality + cost aligned), not OpenAI. Previously the
+  // slot was `openrouter/openai/gpt-4.1` which was just GPT-4.1 in disguise.
+  it('anthropic → openrouter-Claude → openai when both keys present', () => {
     process.env.OPENROUTER_API_KEY = 'sk-or-test';
+    process.env.OPENAI_API_KEY = 'sk-test';
     expect(buildFailoverChain('anthropic/claude-sonnet-4-6')).toEqual([
-      'openrouter/openai/gpt-4.1',
+      'openrouter/anthropic/claude-sonnet-4-6',
       'openai/gpt-4.1',
     ]);
   });
 
+  it('anthropic → openrouter-Claude only when OpenAI key is absent', () => {
+    process.env.OPENROUTER_API_KEY = 'sk-or-test';
+    expect(buildFailoverChain('anthropic/claude-sonnet-4-6')).toEqual([
+      'openrouter/anthropic/claude-sonnet-4-6',
+    ]);
+  });
+
   it('anthropic → openai only when OpenRouter key is absent', () => {
+    process.env.OPENAI_API_KEY = 'sk-test';
     expect(buildFailoverChain('anthropic/claude-sonnet-4-6')).toEqual(['openai/gpt-4.1']);
+  });
+
+  it('anthropic → empty when neither key is set (Anthropic-only deployment)', () => {
+    expect(buildFailoverChain('anthropic/claude-sonnet-4-6')).toEqual([]);
+  });
+
+  it('relief valve preserves the EXACT same Claude model (Haiku stays Haiku)', () => {
+    process.env.OPENROUTER_API_KEY = 'sk-or-test';
+    expect(buildFailoverChain('anthropic/claude-haiku-4-5')).toEqual([
+      'openrouter/anthropic/claude-haiku-4-5',
+    ]);
+    expect(buildFailoverChain('anthropic/claude-opus-4-6')).toEqual([
+      'openrouter/anthropic/claude-opus-4-6',
+    ]);
   });
 
   it('openrouter → openai when OpenAI key is present', () => {
