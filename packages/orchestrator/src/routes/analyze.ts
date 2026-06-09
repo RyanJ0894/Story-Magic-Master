@@ -9,6 +9,11 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { analyzeScript, quickScore } from '../analysis/script-score-service.js';
 import { log } from '../lib/logger.js';
+import {
+  withWallClockBudget,
+  getWallClockBudgetMs,
+  BudgetExceededError,
+} from '../lib/wallclock-budget.js';
 
 const router = Router();
 
@@ -73,20 +78,31 @@ router.post('/analyze', async (req: Request, res: Response): Promise<void> => {
     includeStructuralAnalysis: include_structural_analysis,
   });
 
+  // T3-5 (#186 follow-up): cap total wall-clock time on /analyze. The LLM
+  // failover chain can retry across providers and burn tokens if things go
+  // sideways; this prevents one runaway request from sitting open for minutes
+  // while the model thrashes. Default 120s — comfortably above the p99 for a
+  // healthy run, but tight enough to surface real provider issues fast.
+  const budgetMs = getWallClockBudgetMs('ANALYZE_WALLCLOCK_BUDGET_MS', 120_000);
+
   try {
     const startTime = Date.now();
 
-    const result = await analyzeScript(
-      {
-        project_id,
-        script_text,
-        title,
-        include_dialogue_deep_dive,
-        include_structural_analysis,
-      },
-      (progress) => {
-        log.info('Analysis progress', { projectId: project_id, phase: progress.phase, percent: progress.percent, currentTask: progress.current_task });
-      }
+    const result = await withWallClockBudget(
+      analyzeScript(
+        {
+          project_id,
+          script_text,
+          title,
+          include_dialogue_deep_dive,
+          include_structural_analysis,
+        },
+        (progress) => {
+          log.info('Analysis progress', { projectId: project_id, phase: progress.phase, percent: progress.percent, currentTask: progress.current_task });
+        }
+      ),
+      budgetMs,
+      `/analyze project=${project_id}`,
     );
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -101,6 +117,17 @@ router.post('/analyze', async (req: Request, res: Response): Promise<void> => {
       },
     });
   } catch (error) {
+    if (error instanceof BudgetExceededError) {
+      log.warn('Script analysis exceeded wall-clock budget — returning 503', {
+        projectId: project_id,
+        budgetMs: error.budgetMs,
+      });
+      res.status(503).json({
+        status: 'error',
+        message: `Analysis took longer than ${Math.round(error.budgetMs / 1000)}s — please retry. If this keeps happening, the upstream LLM provider may be degraded.`,
+      });
+      return;
+    }
     log.error('Script analysis failed', error instanceof Error ? error : new Error(String(error)), { projectId: project_id });
     res.status(500).json({
       status: 'error',
