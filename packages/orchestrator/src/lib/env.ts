@@ -45,6 +45,11 @@ const envSchema = z.object({
   DIRECTOR_MODEL: z.string().default('anthropic/claude-sonnet-4-6'),
   DIRECTOR_MODEL_ADVANCED: z.string().default('anthropic/claude-opus-4-6'),
   AUDIO_DIRECTOR_MODEL: z.string().default('anthropic/claude-sonnet-4-6'),
+  // Voice assignment is a tool-heavy but shallow-decision path (search_voices,
+  // get_voice, commit_voice — each individual call needs little reasoning).
+  // Defaults to Haiku 4.5 (~1/12 the cost of Sonnet). Override to a stronger
+  // model if voice casting quality regresses on your scripts.
+  VOICE_ASSIGNMENT_MODEL: z.string().default('anthropic/claude-haiku-4-5'),
 
   // TTS
   ELEVENLABS_API_KEY: optionalString,
@@ -183,5 +188,6 @@ export function printEnvSummary(): void {
   console.log(`   Director Model: ${env.DIRECTOR_MODEL}`);
   console.log(`   Director Model (Advanced): ${env.DIRECTOR_MODEL_ADVANCED}`);
   console.log(`   Audio Director Model: ${env.AUDIO_DIRECTOR_MODEL}`);
+  console.log(`   Voice Assignment Model: ${env.VOICE_ASSIGNMENT_MODEL}`);
   console.log('');
 }
