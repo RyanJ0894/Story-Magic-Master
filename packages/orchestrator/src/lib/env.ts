@@ -193,5 +193,15 @@ export function printEnvSummary(): void {
   console.log(`   Director Model (Advanced): ${env.DIRECTOR_MODEL_ADVANCED}`);
   console.log(`   Audio Director Model: ${env.AUDIO_DIRECTOR_MODEL}`);
   console.log(`   Voice Assignment Model: ${env.VOICE_ASSIGNMENT_MODEL}`);
+
+  // T3-1: loud warning if TEST_MODE is on. We deliberately print this AFTER
+  // the model lines so it's the last thing the operator sees on startup.
+  if (process.env.TEST_MODE === 'mock') {
+    console.log('');
+    console.log('   🟡🟡🟡 TEST_MODE=mock IS ACTIVE 🟡🟡🟡');
+    console.log('   No real LLM calls will be made. Responses are stubbed/canned.');
+    console.log('   Disable by unsetting TEST_MODE before running anything that');
+    console.log('   should hit real providers (deploys, paid users, evals).');
+  }
   console.log('');
 }

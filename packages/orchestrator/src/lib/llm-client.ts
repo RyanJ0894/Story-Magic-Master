@@ -28,6 +28,11 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { google } from '@ai-sdk/google';
 import { z } from 'zod';
 import { log } from './logger.js';
+import {
+  isMockModeEnabled,
+  mockAgentResponse,
+  mockStructuredResponse,
+} from './mock-provider.js';
 
 export type LLMProvider = 'openai' | 'anthropic' | 'google' | 'groq' | 'openrouter';
 
@@ -244,6 +249,13 @@ export async function runAgentLoop(
   userInput: string,
   options: AgentOptions,
 ): Promise<string> {
+  // T3-1 (cost-opt): TEST_MODE=mock bypasses every provider and returns a
+  // canned (or stub) response. Zero token spend, zero API roundtrips.
+  // mock-provider.assertNotInProduction() throws if NODE_ENV=production.
+  if (isMockModeEnabled()) {
+    return mockAgentResponse(userInput, options.systemPrompt);
+  }
+
   const chain = [options.model, ...buildFailoverChain(options.model)];
 
   for (let i = 0; i < chain.length; i++) {
@@ -495,6 +507,11 @@ export async function generateStructuredOutput<T>(
     temperature?: number;
   },
 ): Promise<T> {
+  // T3-1 (cost-opt): TEST_MODE=mock bypass — see runAgentLoop comment.
+  if (isMockModeEnabled()) {
+    return mockStructuredResponse(prompt, options.schema);
+  }
+
   const run = async (model: string) =>
     generateObject({
       model: getModel(model),
