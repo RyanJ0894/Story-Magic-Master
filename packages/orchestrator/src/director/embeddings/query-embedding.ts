@@ -18,33 +18,33 @@ import { embed } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { log } from '../../lib/logger.js';
 import { EMBEDDING_MODEL, assertEmbeddingDimension } from '../../lib/embedding-config.js';
-
-// Cache for query embeddings to reduce API calls
-const embeddingCache = new Map<string, number[]>();
+import {
+  getOrFetchEmbedding,
+  getEmbeddingCacheStats as getCacheStats,
+} from '../../lib/embedding-cache.js';
 
 /**
- * Get embedding for a query string using OpenAI
+ * Get embedding for a query string using OpenAI.
+ *
+ * Cache lookup is delegated to `lib/embedding-cache.ts` which layers an
+ * Upstash Redis L2 over the existing in-process L1. A cold worker that
+ * receives a query already embedded by another worker now skips OpenAI
+ * entirely. Tier 2 of cost-opt Phase 2 (#186).
  */
 export async function getQueryEmbedding(query: string): Promise<number[]> {
-  // Check cache first
-  const cacheKey = query.toLowerCase().trim();
-  if (embeddingCache.has(cacheKey)) {
-    return embeddingCache.get(cacheKey)!;
-  }
-
   try {
-    const { embedding } = await embed({
-      model: openai.embedding(EMBEDDING_MODEL),
-      value: query,
+    return await getOrFetchEmbedding(query, async () => {
+      const { embedding } = await embed({
+        model: openai.embedding(EMBEDDING_MODEL),
+        value: query,
+      });
+
+      // Fail loudly if a future SDK upgrade silently changes dimensions —
+      // a 1024d vector matched against a 1536d catalog returns garbage scores.
+      assertEmbeddingDimension(embedding, `getQueryEmbedding("${query.slice(0, 40)}")`);
+
+      return embedding;
     });
-
-    // Fail loudly if a future SDK upgrade silently changes dimensions —
-    // a 1024d vector matched against a 1536d catalog returns garbage scores.
-    assertEmbeddingDimension(embedding, `getQueryEmbedding("${query.slice(0, 40)}")`);
-
-    embeddingCache.set(cacheKey, embedding);
-
-    return embedding;
   } catch (err) {
     log.error('Error getting query embedding', err instanceof Error ? err : undefined);
     throw err;
@@ -52,48 +52,26 @@ export async function getQueryEmbedding(query: string): Promise<number[]> {
 }
 
 /**
- * Get embeddings for multiple queries in batch
+ * Get embeddings for multiple queries in batch. Each query is looked up
+ * independently through `getQueryEmbedding`, which handles the cache layers
+ * — uncached entries are fetched in parallel.
  */
 export async function getQueryEmbeddings(queries: string[]): Promise<Map<string, number[]>> {
   const results = new Map<string, number[]>();
-
-  // Check cache and identify uncached queries
-  const uncachedQueries: string[] = [];
-  for (const query of queries) {
-    const cacheKey = query.toLowerCase().trim();
-    if (embeddingCache.has(cacheKey)) {
-      results.set(query, embeddingCache.get(cacheKey)!);
-    } else {
-      uncachedQueries.push(query);
-    }
-  }
-
-  // Fetch uncached embeddings in parallel
-  if (uncachedQueries.length > 0) {
-    const promises = uncachedQueries.map(async (query) => {
+  await Promise.all(
+    queries.map(async (query) => {
       const embedding = await getQueryEmbedding(query);
       results.set(query, embedding);
-    });
-
-    await Promise.all(promises);
-  }
-
+    }),
+  );
   return results;
 }
 
 /**
- * Clear the embedding cache
+ * Get cache statistics — used by health endpoints + tests. Delegates to the
+ * shared cache module so L1 size + L2 availability are visible.
  */
-export function clearEmbeddingCache(): void {
-  embeddingCache.clear();
-}
-
-/**
- * Get cache statistics
- */
-export function getEmbeddingCacheStats(): { size: number; keys: string[] } {
-  return {
-    size: embeddingCache.size,
-    keys: Array.from(embeddingCache.keys()),
-  };
+export function getEmbeddingCacheStats(): { size: number; redisConfigured: boolean } {
+  const s = getCacheStats();
+  return { size: s.l1Size, redisConfigured: s.redisConfigured };
 }
