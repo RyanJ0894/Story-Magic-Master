@@ -19,7 +19,28 @@ import {
   DIALOGUE_ANALYSIS_PROMPT,
   STRUCTURAL_ANALYSIS_PROMPT,
   SYNTHESIS_PROMPT,
+  ALL_DIMENSIONS_PROMPT,
 } from './prompts/script-score-prompts.js';
+
+/**
+ * Batched all-dimensions mode (Phase 2 cost-opt, issue #182).
+ *
+ * Default OFF — the existing four-call Promise.all path is well-tested. Set
+ * BATCHED_SCORING_ENABLED=true on the orchestrator to use the single combined
+ * call instead. Output quality should be A/B tested against the corpus before
+ * flipping production traffic.
+ *
+ * Cost win: the script text (typically 5-15K tokens) is sent once instead of
+ * four times. Even without prompt caching, that's a 3x reduction on the
+ * largest single input per call. With Anthropic prompt caching (PR B of #182)
+ * the savings compound — system prompt is also deduped across calls.
+ *
+ * Read at call time (not module load) so tests and feature-flag toggles take
+ * effect without restarting the orchestrator.
+ */
+function isBatchedScoringEnabled(): boolean {
+  return process.env.BATCHED_SCORING_ENABLED === 'true';
+}
 
 // =============================================================================
 // Types
@@ -290,6 +311,39 @@ async function analyzeWithRetry<T>(
 }
 
 // =============================================================================
+// Batched All-Dimensions Analysis (PR C of #182)
+// =============================================================================
+//
+// One LLM call returning all four core dimensions. Used when
+// BATCHED_SCORING_ENABLED=true. The output is then splatted back into the
+// same four variables the downstream code already uses, so the rest of the
+// pipeline doesn't need to change.
+
+const AllDimensionsScoreSchema = z.object({
+  writing_quality: WritingQualitySchema,
+  story_quality: StoryQualitySchema,
+  commercial_viability: CommercialViabilitySchema,
+  production_likelihood: ProductionLikelihoodSchema,
+});
+
+type AllDimensionsScore = z.infer<typeof AllDimensionsScoreSchema>;
+
+export async function analyzeAllDimensionsBatched(script: string): Promise<AllDimensionsScore> {
+  log.info('ScriptScore using batched all-dimensions mode (BATCHED_SCORING_ENABLED=true)');
+  return generateStructuredOutput<AllDimensionsScore>(
+    `${ALL_DIMENSIONS_PROMPT}\n\n---\n\nSCRIPT TO ANALYZE:\n\n${script}`,
+    {
+      model: getAnalysisModel(),
+      schema: AllDimensionsScoreSchema,
+      temperature: 0.3,
+      // Larger output budget than the per-dimension calls: this single call
+      // must return ~4x the JSON of any individual dimension.
+      maxTokens: 16384,
+    },
+  );
+}
+
+// =============================================================================
 // Main Analysis Service
 // =============================================================================
 
@@ -318,12 +372,27 @@ export async function analyzeScript(
 
   report('analyzing', 10, 'Analyzing writing quality...');
 
-  const [writingQuality, storyQuality, commercialViability, productionLikelihood] = await Promise.all([
-    analyzeWithRetry(WRITING_QUALITY_PROMPT, WritingQualitySchema, script_text),
-    analyzeWithRetry(STORY_QUALITY_PROMPT, StoryQualitySchema, script_text),
-    analyzeWithRetry(COMMERCIAL_VIABILITY_PROMPT, CommercialViabilitySchema, script_text),
-    analyzeWithRetry(PRODUCTION_LIKELIHOOD_PROMPT, ProductionLikelihoodSchema, script_text),
-  ]);
+  let writingQuality: z.infer<typeof WritingQualitySchema>;
+  let storyQuality: z.infer<typeof StoryQualitySchema>;
+  let commercialViability: z.infer<typeof CommercialViabilitySchema>;
+  let productionLikelihood: z.infer<typeof ProductionLikelihoodSchema>;
+
+  if (isBatchedScoringEnabled()) {
+    // One call returns all four dimensions. ~3x less script-text input than
+    // the parallel four-call path. Default off — flip via env after corpus A/B.
+    const batched = await analyzeAllDimensionsBatched(script_text);
+    writingQuality = batched.writing_quality;
+    storyQuality = batched.story_quality;
+    commercialViability = batched.commercial_viability;
+    productionLikelihood = batched.production_likelihood;
+  } else {
+    [writingQuality, storyQuality, commercialViability, productionLikelihood] = await Promise.all([
+      analyzeWithRetry(WRITING_QUALITY_PROMPT, WritingQualitySchema, script_text),
+      analyzeWithRetry(STORY_QUALITY_PROMPT, StoryQualitySchema, script_text),
+      analyzeWithRetry(COMMERCIAL_VIABILITY_PROMPT, CommercialViabilitySchema, script_text),
+      analyzeWithRetry(PRODUCTION_LIKELIHOOD_PROMPT, ProductionLikelihoodSchema, script_text),
+    ]);
+  }
 
   report('analyzing', 50, 'Core analysis complete');
 

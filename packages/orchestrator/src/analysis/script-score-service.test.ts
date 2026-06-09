@@ -3,7 +3,7 @@
  * Validates quickScore, analyzeScript, and the internal analyzeWithRetry logic.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Mocks - declared before any import that triggers module load
@@ -40,6 +40,7 @@ vi.mock('./prompts/script-score-prompts.js', () => ({
   DIALOGUE_ANALYSIS_PROMPT: 'DIALOGUE_ANALYSIS',
   STRUCTURAL_ANALYSIS_PROMPT: 'STRUCTURAL_ANALYSIS',
   SYNTHESIS_PROMPT: 'SYNTHESIS',
+  ALL_DIMENSIONS_PROMPT: 'ALL_DIMENSIONS',
 }));
 
 // ---------------------------------------------------------------------------
@@ -399,5 +400,74 @@ describe('analyzeWithRetry contract (via quickScore)', () => {
     await expect(quickScore(SAMPLE_SCRIPT)).rejects.toThrow('Persistent failure');
     // Single call — the llm-client owns the failover chain across providers.
     expect(generateObject).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Batched all-dimensions scoring (PR C of #182)
+// ---------------------------------------------------------------------------
+//
+// When BATCHED_SCORING_ENABLED=true, the four core dimensions come from a
+// SINGLE generateStructuredOutput call instead of four parallel ones. The
+// script text is sent once, saving ~3x on the dominant per-call token cost.
+// Default behavior (flag off) must remain unchanged.
+
+describe('analyzeScript — batched mode (BATCHED_SCORING_ENABLED=true)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.BATCHED_SCORING_ENABLED = 'true';
+  });
+
+  afterEach(() => {
+    delete process.env.BATCHED_SCORING_ENABLED;
+  });
+
+  it('uses ONE llm call for the four core dimensions instead of four', async () => {
+    const batched = {
+      writing_quality: makeWritingQuality(),
+      story_quality: makeStoryQuality(),
+      commercial_viability: makeCommercialViability(),
+      production_likelihood: makeProductionLikelihood(),
+    };
+
+    // First mock: the batched dimensions call. Second: the synthesis call.
+    vi.mocked(generateObject)
+      .mockResolvedValueOnce(batched as any)
+      .mockResolvedValueOnce(makeSynthesis() as any);
+
+    const result = await analyzeScript({
+      project_id: 'proj_batched_01',
+      script_text: SAMPLE_SCRIPT,
+    });
+
+    // 1 batched call + 1 synthesis = 2 total. Default path would be 5.
+    expect(generateObject).toHaveBeenCalledTimes(2);
+
+    // Result still carries all four dimensions, splatted from the batched call.
+    expect(result.writing_quality).toMatchObject({ overall: expect.any(Object) });
+    expect(result.story_quality).toMatchObject({ overall: expect.any(Object) });
+    expect(result.commercial_viability).toMatchObject({ overall: expect.any(Object) });
+    expect(result.production_likelihood).toMatchObject({ overall: expect.any(Object) });
+  });
+});
+
+describe('analyzeScript — default mode (flag off)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    delete process.env.BATCHED_SCORING_ENABLED;
+  });
+
+  it('still runs the four parallel calls when the flag is off (or unset)', async () => {
+    vi.mocked(generateObject)
+      .mockResolvedValueOnce(makeWritingQuality() as any)
+      .mockResolvedValueOnce(makeStoryQuality() as any)
+      .mockResolvedValueOnce(makeCommercialViability() as any)
+      .mockResolvedValueOnce(makeProductionLikelihood() as any)
+      .mockResolvedValueOnce(makeSynthesis() as any);
+
+    await analyzeScript({ project_id: 'proj_default_01', script_text: SAMPLE_SCRIPT });
+
+    // 4 dimension calls + 1 synthesis = 5 total.
+    expect(generateObject).toHaveBeenCalledTimes(5);
   });
 });

@@ -683,3 +683,67 @@ IMPROVEMENT ROADMAP PRIORITIES:
 
 Be direct, honest, and actionable. This is professional coverage, not encouragement.
 `;
+
+// =============================================================================
+// Batched All-Dimensions Analysis (Phase 2 cost-opt, issue #182)
+// =============================================================================
+//
+// One prompt that asks Claude to evaluate the screenplay across all four core
+// dimensions in a single call. Pairs with AllDimensionsScoreSchema in
+// script-score-service.ts. Sending the script text once instead of four times
+// is the biggest single token-volume win remaining after #178 / #179 / #181
+// (the script text typically dominates the per-call cost).
+//
+// This prompt is intentionally a meta-instruction — the four detailed rubrics
+// are too long to concatenate verbatim without exceeding context budgets.
+// Each section names the dimension and the sub-aspects so the model knows
+// what to evaluate; the JSON schema (passed via generateStructuredOutput)
+// constrains the output shape.
+
+export const ALL_DIMENSIONS_PROMPT = `
+You are an expert screenplay analyst. Analyze the following screenplay across
+FOUR dimensions in a single structured response.
+
+${SCORING_CALIBRATION}
+
+For each dimension, provide:
+- An overall score (1-10) with confidence (0.0-1.0), summary, strengths,
+  weaknesses, and suggestions
+- Sub-scores for each named aspect (1-10 each)
+- Concrete evidence drawn from the screenplay
+
+DIMENSION 1 — WRITING QUALITY
+Evaluate craft only (not story content). Cover:
+- dialogue (subtext_usage, voice_distinction, naturalism, economy)
+- action_lines (clarity, brevity, voice)
+- formatting (industry_standard, white_space, readability)
+
+DIMENSION 2 — STORY QUALITY
+Evaluate the story itself. Cover:
+- premise (originality, clarity, hook)
+- structure (three_act, pacing, beat_sheet, turning_points)
+- characters (protagonist_clarity, antagonist_strength, arc, supporting_cast, motivation)
+- conflict (central_conflict, stakes, escalation, resolution)
+- theme (presence, integration, resonance)
+
+DIMENSION 3 — COMMERCIAL VIABILITY
+Evaluate market potential. Cover:
+- market_fit (genre_clarity, target_audience, trend_alignment, comparables)
+- producibility (budget_tier [micro/low/medium/high/blockbuster], location_feasibility,
+  cast_requirements, vfx_demands, period_setting [boolean])
+- platform_fit (theatrical, streaming, limited_series, international — 1-10 each)
+- sales_hooks (logline_strength, poster_moment [boolean], trailer_beats, word_of_mouth)
+
+DIMENSION 4 — PRODUCTION LIKELIHOOD
+Evaluate readiness for production. Cover:
+- execution_readiness (script_polish, coverage_ready, director_attachment)
+- industry_factors (diversity_inclusion, cultural_relevance, controversy_risk, awards_potential)
+- practical_considerations (page_count, estimated_runtime_minutes, speaking_roles,
+  locations_count, major_set_pieces)
+
+Return the four dimensions in a single JSON object with keys:
+writing_quality, story_quality, commercial_viability, production_likelihood.
+
+Be honest and calibrated — most scripts are 5-7. Reserve 8+ for genuinely
+impressive work. Cite scene numbers or quoted lines as evidence.
+`;
