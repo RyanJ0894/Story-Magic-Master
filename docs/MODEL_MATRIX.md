@@ -1,6 +1,6 @@
 # Model Matrix — Story Magic LLM Usage
 
-**Last updated:** 2026-06-09
+**Last updated:** 2026-06-08
 **Owner:** chris@servicevision.net
 
 This is the single source of truth for which AI model each operation uses, how to swap it via env var, and the cost/quality rationale. Read this **before** adding a new LLM call.
@@ -34,8 +34,8 @@ The failover chain is implemented in `packages/orchestrator/src/lib/llm-client.t
 | **Script Score (writing/story/commercial/production)** | `anthropic/claude-sonnet-4-6` | `SCRIPT_SCORE_MODEL` → `DIRECTOR_MODEL` | **Was `openai/gpt-4o` until 2026-06-08** — caused dual billing on every analysis. Now uses Claude with full failover chain. |
 | **Script Score (dialogue/structural deep dive)** | `anthropic/claude-sonnet-4-6` | `SCRIPT_SCORE_MODEL` | Opt-in via `include_dialogue_deep_dive` / `include_structural_analysis` request flags. Expensive — keep off for tests. |
 | **Script Score (quick triage)** | `anthropic/claude-sonnet-4-6` | `SCRIPT_SCORE_MODEL` | Light single-call summary. |
-| **Story Adviser (web)** | `claude-sonnet-4-6` (via `lib/ai/providers.ts`) | `options.model` param | **Migrated 2026-06-09** (T3-2 of cost-opt Phase 2). Was raw OpenAI `gpt-4o`. Uses the same provider abstraction as scoring service. |
-| **Web `callLLMAndParse` utility** | _(removed 2026-06-09)_ | — | File deleted in T3-2 PR. Was unused; replaced by direct `providers.ts` calls in callers. |
+| **Story Adviser (web)** | `gpt-4o` (raw OpenAI SDK) | _(none yet — see TODO)_ | **Cost leak**. Should be migrated to `lib/ai/providers.ts` + Claude. Tracked but not fixed in this PR. |
+| **Web `callLLMAndParse` utility** | `gpt-4o` (raw OpenAI SDK) | passed-in `model` param | Currently unused based on grep. Migrate when reanimated. |
 | **Scoring service (web)** | `claude-sonnet-4-6` | `MODELS.PRODUCTION` | Already on Claude via `resolveModel()`. |
 | **Corpus batch scoring** | `gemini-2.5-flash` | `MODELS.BATCH` | 1M context + cheap. Right tool for the job. |
 | **Embeddings (comparables, queries)** | `openai/text-embedding-ada-002` | _(hardcoded)_ | **Anthropic does not offer embeddings.** OpenAI is mandatory here. |
@@ -51,14 +51,9 @@ Everything that calls `runAgentLoop()` or `generateStructuredOutput()` inherits 
 ```
 DIRECTOR_MODEL (anthropic/claude-sonnet-4-6 by default)
   ↓ (on 402/429/529 or "credit balance" / "overloaded" error)
-openrouter/anthropic/<same Claude model>   [if OPENROUTER_API_KEY set]
-   ↓ (same Claude model via OpenRouter — preserves quality + cost tier;
-      OpenRouter has a separate billing account so direct-Anthropic
-      throttling doesn't cascade here)
+openrouter/openai/gpt-4.1     [if OPENROUTER_API_KEY set]
   ↓ (on same conditions)
 openai/gpt-4.1                [if OPENAI_API_KEY set]
-   ↓ (last-resort escape — quality + cost shift here; meant to keep
-      the user unblocked, not as a default operating mode)
   ↓ (final attempt; rethrows on failure)
 ERROR
 ```
@@ -71,7 +66,7 @@ Logic: `packages/orchestrator/src/lib/llm-client.ts::buildFailoverChain()`
 
 ### Production
 1. **Anthropic is primary**: set `DIRECTOR_MODEL=anthropic/claude-sonnet-4-6`, ensure `ANTHROPIC_API_KEY` is set on Render. Already done.
-2. **OpenRouter as relief valve**: set `OPENROUTER_API_KEY` and the failover chain routes Anthropic 429/529 to the SAME Claude model via OpenRouter (preserves quality + cost) before falling back to raw OpenAI. Wired 2026-06-09 (T3-3).
+2. **OpenRouter as relief valve**: add `OPENROUTER_API_KEY` to absorb Anthropic billing spikes without hitting raw OpenAI. Not yet wired.
 3. **Cap script size**: `MAX_SCRIPT_PAGES=150`, `MAX_SCRIPT_CHARS=75000` — already enforced pre-flight.
 
 ### Testing / staging
@@ -108,11 +103,5 @@ Logic: `packages/orchestrator/src/lib/llm-client.ts::buildFailoverChain()`
 | 2026-06-09 | Embedding query cache: L1 in-process Map + L2 Upstash Redis (7-day TTL) for audio-search queries. Cross-worker + survives restart. Cache key namespaced by model + dimension to prevent cross-model bleed. Disable via `EMBEDDING_CACHE_DISABLED=true`. PR D of cost-opt Phase 2 Tier 2 (issue #186). |
 | 2026-06-09 | Tiered director-model selection: `/orchestrate` now routes scripts ≤ `TIER1_PAGE_THRESHOLD` pages (default 5) to `TIER1_MODEL` (Haiku 4.5 by default). Larger scripts use `DIRECTOR_MODEL` (Sonnet). Paid Advanced Analysis bypasses tiers (Opus). Disable with `TIER1_PAGE_THRESHOLD=0`. PR E of cost-opt Phase 2 Tier 2 (issue #186). Eliminates Sonnet rates on Peter's iteration loop of small test scripts. |
 | 2026-06-09 | Groq Whisper as middle alignment fallback. `whisper-align.ts` now tries: whisper.cpp → Groq Whisper (default on if `GROQ_API_KEY` set) → OpenAI Whisper (still opt-in via `ENABLE_OPENAI_WHISPER_FALLBACK=true`) → duration estimator. Groq Whisper is ~12× cheaper than OpenAI Whisper for the same `whisper-large-v3` model. Disable Groq path with `ENABLE_GROQ_WHISPER_FALLBACK=false`. PR F of cost-opt Phase 2 Tier 2 (issue #186). |
-| 2026-06-09 | OpenRouter relief valve properly wired. `buildFailoverChain` for `anthropic/<model>` primaries now returns `openrouter/anthropic/<same model>` as the first fallback — keeping us on the same Claude model when direct Anthropic 429/529s. Previously this slot was `openrouter/openai/gpt-4.1` (just GPT-4.1 in disguise), which defeated the "relief valve" intent. OpenAI gpt-4.1 stays as the last-resort fallback. T3-3 of cost-opt Phase 2. |
-| 2026-06-09 | TEST_MODE=mock provider. When set, `runAgentLoop` + `generateStructuredOutput` return canned/stubbed responses instead of hitting real providers. Zero token spend on Peter's iteration loop. Hard-stops in `NODE_ENV=production` via `assertNotInProduction`. Fixtures load from `packages/orchestrator/test-fixtures/canned-responses/{agent,structured}/<hash>.json`. T3-1 of cost-opt Phase 2. |
-| 2026-06-09 | Web Adviser migrated off raw `gpt-4o` to Claude Sonnet via `lib/ai/providers.ts` (`generateSuggestions` + `generateRewrites`). Unused `lib/ai/llm-call.ts` utility deleted. Eliminates the last raw-OpenAI bypass in the web package. Adviser callers can still override `options.model` for experiments. T3-2 of cost-opt Phase 2. |
-| 2026-06-09 | LLM call log table for per-call cost attribution. New `llm_call_log` table (Prisma migration 0037). Every `runAgentLoop` + `generateStructuredOutput` call writes one row with operation label, model, provider, token counts, duration, success, and USD cost estimate (lookup table in `lib/llm-call-log.ts`). Best-effort writes — DB failure is logged, never propagated. Disable via `LLM_CALL_LOG_DISABLED=true`. T3-4 of cost-opt Phase 2. |
+| 2026-06-09 | Snapshot guard for Anthropic-bound Zod schemas. `zod-anthropic-guard.test.ts` walks every schema passed to `generateObject` / `generateStructuredOutput` and fails if any contain `.min` / `.max` / `.length` / `.regex` chains (Anthropic 400s on the resulting JSON Schema constraints). Catches the regression class PR #178 had to chase across four schemas. T3-6 of cost-opt Phase 2. |
 | 2026-06-09 | Scene-level idempotency cache. `orchestrate()` now hashes each scene's render-defining inputs (dialogue + voice keys + emotion + audio cues + mix params) and short-circuits the alignment + cue + timeline + mix block when the hash matches a previously cached render. New `scene_renders` table (Prisma migration 0036). Disable via `SCENE_CACHE_DISABLED=true`. Sequential pipeline only this PR; parallel pipeline integration in a follow-up. T2-2 of cost-opt Phase 2 (issue #190). |
-| 2026-06-09 | Snapshot guard for Anthropic-bound Zod schemas. `zod-anthropic-guard.test.ts` walks every schema passed to `generateObject` / `generateStructuredOutput` and fails if any contain `.min` / `.max` / `.length` / `.regex` chains (Anthropic 400s on the resulting JSON Schema constraints). Catches the regression class PR #178 had to chase across four schemas. T3-6 of cost-opt Phase 2. Landed via unification PR (was originally PR #197). |
-| 2026-06-09 | Wall-clock budget on `/analyze`. New `withWallClockBudget(promise, ms, label)` helper races analysis against a timer; on timeout returns 503 instead of leaving the request hanging while the LLM client retries through the failover chain. Default 120s; override with `ANALYZE_WALLCLOCK_BUDGET_MS=N` env. Direct response to Peter's "shocking log volume on a 5-page script" report. T3-5 of cost-opt Phase 2. Landed via unification PR (was originally PR #193). |
-| 2026-06-09 | S3 audio storage env-schema scaffolding. `env.ts` now declares `STORAGE_PROVIDER` (`local` \| `s3`, default `local`) + `AWS_*` keys (all optional). Startup banner prints chosen backend. **Schema-only** — actual upload implementation comes in PR #173. Landed via unification PR. |
