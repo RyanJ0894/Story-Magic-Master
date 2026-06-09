@@ -50,11 +50,13 @@ then reuse the result for the alias. Include both as separate keys in the output
 
 ## Voice Quality Rules
 
+- **ONLY use voice IDs returned by search_voices or get_voice** — NEVER invent, guess, or use a voice ID you remember from training data. If a search returns no results, use the list_voice_labels tool to see all available voices and search again with broader criteria.
 - **Never assign the same voice to two different characters** (unless they are the same person via alias)
 - **Always call commit_voice** after choosing a voice — this is the enforcement mechanism, not just a suggestion
 - **Gender is a hard gate** — male characters must get male voices, female → female
 - **Age proximity matters** — prefer voices in the correct age range, adjacent ranges are acceptable
 - **Vocal contrast** — characters who share scenes should have distinct voices
+- **Demographic accuracy** — if ethnicity or race is specified in the character description, match the style field (e.g., "African American", "British", "Latina") using the style parameter in search_voices
 
 ## Output Format
 

@@ -20,6 +20,7 @@ import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { log } from '../../lib/logger.js';
+import { prisma } from '../../lib/prisma.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -211,15 +212,17 @@ export function scoreVoiceMatch(
 }
 
 /**
- * Load local voice catalog.
+ * Load voice catalog — DB-first with TTL cache, JSON fallback.
  *
- * Merges two sources:
- * 1. eleven_labs_voices_current.json — Ryan's full 80-voice curated library (primary)
- * 2. voices_metadata.json — 18 voices with rich descriptive names (supplement)
+ * Primary source: voice_catalog_entries DB table (runtime-configurable, no redeployment needed).
+ * Fallback: JSON files shipped with the orchestrator (eleven_labs_voices_current.json + voices_metadata.json).
+ * Last resort: hardcoded DEFAULT_VOICES.
  *
- * Voices that appear in both files use the richer metadata from voices_metadata.json.
+ * Cache TTL: 5 minutes. Cleared by clearVoiceCatalogCache() (used in tests and admin reloads).
  */
+const CATALOG_TTL_MS = 5 * 60 * 1000;
 let cachedVoiceCatalog: VoiceMetadata[] | null = null;
+let cacheLoadedAt: number | null = null;
 
 interface FullCatalogEntry {
   voice_id: string;
@@ -297,6 +300,52 @@ function loadLocalVoiceCatalog(): VoiceMetadata[] {
 
   cachedVoiceCatalog = Object.values(DEFAULT_VOICES);
   return cachedVoiceCatalog;
+}
+
+/**
+ * Load voice catalog from the DB (voice_catalog_entries table).
+ * Falls back to JSON files if the DB is unavailable or empty.
+ * Respects CATALOG_TTL_MS: re-queries after 5 minutes.
+ */
+async function loadVoiceCatalog(): Promise<VoiceMetadata[]> {
+  const now = Date.now();
+  if (cachedVoiceCatalog && cacheLoadedAt && now - cacheLoadedAt < CATALOG_TTL_MS) {
+    return cachedVoiceCatalog;
+  }
+
+  try {
+    const rows = await prisma.voiceCatalogEntry.findMany({
+      where: { isActive: true },
+      orderBy: { label: 'asc' },
+    });
+
+    if (rows.length > 0) {
+      cachedVoiceCatalog = rows.map((r) => ({
+        voice_id: r.voiceId,
+        name: r.name,
+        label: r.label,
+        gender: (r.gender === 'Female' ? 'Female' : 'Male') as 'Male' | 'Female',
+        style: r.style,
+        tone: r.tone ?? undefined,
+        description: r.description ?? undefined,
+      }));
+      cacheLoadedAt = now;
+      log.info('HybridVoiceSearch loaded catalog from DB', { count: cachedVoiceCatalog.length });
+      return cachedVoiceCatalog;
+    }
+
+    log.info('HybridVoiceSearch DB catalog empty, falling back to JSON files');
+  } catch (err) {
+    log.warn('HybridVoiceSearch DB catalog load failed, falling back to JSON files', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  // Fallback: JSON files
+  const fromFiles = loadLocalVoiceCatalog();
+  cachedVoiceCatalog = fromFiles;
+  cacheLoadedAt = now;
+  return fromFiles;
 }
 
 /**
@@ -406,8 +455,8 @@ export async function searchVoicesHybrid(params: VoiceSearchParams): Promise<Voi
     isNarrator,
   };
 
-  // Load local catalog
-  const localVoices = loadLocalVoiceCatalog();
+  // Load catalog (DB with TTL cache, JSON fallback)
+  const localVoices = await loadVoiceCatalog();
 
   // Single-pass: score every non-excluded voice
   const candidates = localVoices.filter((v) => !excludeVoiceIds.includes(v.voice_id));
@@ -473,8 +522,9 @@ export async function getBestVoiceForCharacter(params: VoiceSearchParams): Promi
 }
 
 /**
- * Clear the voice catalog cache (for testing)
+ * Clear the voice catalog cache (for testing and admin-triggered reloads)
  */
 export function clearVoiceCatalogCache(): void {
   cachedVoiceCatalog = null;
+  cacheLoadedAt = null;
 }
