@@ -1,3 +1,5 @@
+> **Updated by:** [REQUIREMENTS-2026-06-09.md](REQUIREMENTS-2026-06-09.md) — Incremental update (Section 25 cost-opt + status changes). This file remains the v3.3.0 baseline.
+
 # Story Magic — Product Requirements
 
 **Date:** 2026-06-03
