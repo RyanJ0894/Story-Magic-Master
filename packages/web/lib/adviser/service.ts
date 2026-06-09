@@ -2,11 +2,16 @@
  * Story-Adviser Service
  *
  * Handles suggestion generation, storage, and rewrite creation.
- * Uses OpenAI GPT-4o for fast, cost-effective generation.
+ * Uses Claude Sonnet via providers.ts (T3-2 of cost-opt Phase 2).
+ *
+ * Migrated from raw OpenAI gpt-4o on 2026-06-09. See MODEL_MATRIX.md
+ * history row for the rationale: Claude is materially cheaper per-token
+ * for the same quality bar, and the migration moves Adviser onto the
+ * same provider abstraction the rest of the web package uses.
  */
 
 import { log } from '@/lib/logger';
-import { getOpenAI } from '@/lib/ai/openai';
+import { generateText, resolveModel, MODELS } from '@/lib/ai/providers';
 import { prisma } from '@/lib/db';
 import { getLatestScore } from '@/lib/scoring';
 import {
@@ -28,6 +33,32 @@ import {
   validateRewriteResponse,
   findExcerptInScript,
 } from './prompts';
+
+// =============================================================================
+// Response cleaners
+// =============================================================================
+
+/**
+ * Extract the first top-level JSON object from `text`. Claude sometimes wraps
+ * JSON in ```json fences or includes a sentence of context before/after. We
+ * find the outermost `{...}` block by walking the braces.
+ *
+ * If we can't find a balanced object, return the original text and let
+ * `JSON.parse` produce the (informative) error.
+ */
+function extractJsonObject(text: string): string {
+  const start = text.indexOf('{');
+  if (start === -1) return text;
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === '{') depth++;
+    else if (text[i] === '}') {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return text;
+}
 
 // =============================================================================
 // Prisma-to-Row Adapters (type-safe camelCase → snake_case mapping)
@@ -94,7 +125,9 @@ export async function generateSuggestions(
     model?: string;
   }
 ): Promise<Suggestion[]> {
-  const model = options?.model || 'gpt-4o';
+  // T3-2 of cost-opt: was 'gpt-4o', now Claude Sonnet via providers.ts.
+  // Caller can still override `model` for one-off experiments.
+  const model = options?.model || MODELS.PRODUCTION;
   const maxSuggestions = options?.maxSuggestions || 15;
 
   // Get StoryScore if available (to focus on weak areas)
@@ -121,23 +154,27 @@ export async function generateSuggestions(
     options?.focusCategories
   );
 
-  // Call OpenAI
-  const response = await getOpenAI().chat.completions.create({
-    model,
+  // Call Claude via the providers.ts abstraction. Output is JSON wrapped in
+  // the prompt instructions; we parse + validate the text exactly as the
+  // legacy code did, only the upstream call shape changed.
+  const { text } = await generateText({
+    model: resolveModel(model),
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.4, // Slightly higher for varied suggestions
-    max_tokens: 8192,
-    response_format: { type: 'json_object' },
+    maxOutputTokens: 8192,
   });
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) {
+  if (!text) {
     throw new Error('No response from LLM');
   }
 
+  // Claude sometimes wraps JSON in ```json fences or includes prose around
+  // it. Strip fences + extract the first top-level JSON object.
+  const cleaned = extractJsonObject(text);
+
   let parsed: unknown;
   try {
-    parsed = JSON.parse(content);
+    parsed = JSON.parse(cleaned);
   } catch {
     throw new Error('Failed to parse LLM response as JSON');
   }
@@ -313,7 +350,8 @@ export async function generateRewrites(
     model?: string;
   }
 ): Promise<Rewrite[]> {
-  const model = options?.model || 'gpt-4o';
+  // T3-2 of cost-opt: was 'gpt-4o', now Claude Sonnet.
+  const model = options?.model || MODELS.PRODUCTION;
   const count = options?.count || 3;
   const style = options?.style || 'moderate';
 
@@ -345,23 +383,23 @@ export async function generateRewrites(
     style
   );
 
-  // Call OpenAI
-  const response = await getOpenAI().chat.completions.create({
-    model,
+  // Call Claude via providers.ts.
+  const { text } = await generateText({
+    model: resolveModel(model),
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.7, // Higher for creative rewrites
-    max_tokens: 4096,
-    response_format: { type: 'json_object' },
+    maxOutputTokens: 4096,
   });
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) {
+  if (!text) {
     throw new Error('No response from LLM');
   }
 
+  const cleaned = extractJsonObject(text);
+
   let parsed: unknown;
   try {
-    parsed = JSON.parse(content);
+    parsed = JSON.parse(cleaned);
   } catch {
     throw new Error('Failed to parse LLM response as JSON');
   }

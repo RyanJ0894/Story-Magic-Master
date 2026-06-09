@@ -8,11 +8,25 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
+// T3-2 of cost-opt Phase 2: Adviser migrated from raw OpenAI SDK to
+// providers.ts (Claude via Vercel AI SDK). Tests now mock generateText
+// from providers.ts. `mockChatCreate` is kept as a back-compat shim —
+// when test bodies set `mockChatCreate.mockResolvedValue({ choices: [...] })`,
+// the helper below re-shapes that into the `{ text }` envelope
+// generateText returns. New tests should prefer `mockGenerateText.mockResolvedValue({ text })`.
 const mockChatCreate = vi.fn();
-const mockGetOpenAI = vi.fn(() => ({
-  chat: { completions: { create: mockChatCreate } },
+const mockGenerateText = vi.fn(async () => {
+  // Look at the most-recently configured chat-create return value and
+  // unwrap its choices[0].message.content into a generateText-shaped
+  // envelope. If mockChatCreate has no configured value, return empty.
+  const legacy = await mockChatCreate();
+  return { text: legacy?.choices?.[0]?.message?.content ?? null };
+});
+vi.mock('@/lib/ai/providers', () => ({
+  generateText: (...args: unknown[]) => mockGenerateText(...args),
+  resolveModel: (id: string) => `mock-model:${id}`,
+  MODELS: { PRODUCTION: 'claude-sonnet-4-6', BATCH: 'gemini-2.5-flash', FALLBACK: 'gpt-4o' },
 }));
-vi.mock('@/lib/ai/openai', () => ({ getOpenAI: () => mockGetOpenAI() }));
 
 const mockPrisma = {
   storyScore: { findFirst: vi.fn() },
