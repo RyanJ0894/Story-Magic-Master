@@ -30,7 +30,7 @@ The failover chain is implemented in `packages/orchestrator/src/lib/llm-client.t
 | **Director: scene construction** | `anthropic/claude-sonnet-4-6` | `DIRECTOR_MODEL` | Heaviest call (~18K tokens of JSON per chunk). Needs Sonnet. |
 | **Director: legacy single-pass** | `anthropic/claude-sonnet-4-6` | `DIRECTOR_MODEL` | Fallback path only; rarely hit. |
 | **Director: Advanced Analysis (paid)** | `anthropic/claude-opus-4-6` | `DIRECTOR_MODEL_ADVANCED` | Paid $9.99 add-on. Opus only for users who paid for the upgrade. Server-side gated. |
-| **Audio director** | `anthropic/claude-sonnet-4-6` | `AUDIO_DIRECTOR_MODEL` | Music/SFX selection requires creative reasoning. |
+| **Audio director** | `anthropic/claude-haiku-4-5` | `AUDIO_DIRECTOR_MODEL` | Tool-heavy + shallow per-decision (each `search_music/ambience/sfx` picks from a short ranked list). Haiku 4.5 = ~1/12 the cost of Sonnet. **Was `openai/gpt-4.1` until 2026-06-09** — another raw-OpenAI bypass missed in #178. |
 | **Script Score (writing/story/commercial/production)** | `anthropic/claude-sonnet-4-6` | `SCRIPT_SCORE_MODEL` → `DIRECTOR_MODEL` | **Was `openai/gpt-4o` until 2026-06-08** — caused dual billing on every analysis. Now uses Claude with full failover chain. |
 | **Script Score (dialogue/structural deep dive)** | `anthropic/claude-sonnet-4-6` | `SCRIPT_SCORE_MODEL` | Opt-in via `include_dialogue_deep_dive` / `include_structural_analysis` request flags. Expensive — keep off for tests. |
 | **Script Score (quick triage)** | `anthropic/claude-sonnet-4-6` | `SCRIPT_SCORE_MODEL` | Light single-call summary. |
@@ -97,3 +97,4 @@ Logic: `packages/orchestrator/src/lib/llm-client.ts::buildFailoverChain()`
 | Date | Change |
 |------|--------|
 | 2026-06-08 | Initial matrix written. Migrated `script-score-service` off gpt-4o (4-6 OpenAI calls/analysis eliminated). Gated OpenAI Whisper fallback behind `ENABLE_OPENAI_WHISPER_FALLBACK`. Made `OPENAI_API_KEY` optional in env validation. |
+| 2026-06-09 | Audio director → Haiku 4.5 (was `openai/gpt-4.1`). PR A of cost-opt Phase 2 (issue #182). |

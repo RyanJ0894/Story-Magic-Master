@@ -23,8 +23,12 @@ import {
 } from '../../schemas/director-json.js';
 import { parseJSONSafely, extractJSON, repairJSON } from '../../lib/json-repair.js';
 
-// Default model from environment
-const DEFAULT_MODEL = process.env.AUDIO_DIRECTOR_MODEL || 'openai/gpt-4.1';
+// Default model from environment.
+// Haiku 4.5 is intentional — audio search is tool-heavy but each individual
+// decision (music/ambience/SFX selection) is shallow. Mirrors the voice-assignment
+// shift in PR #179. Does NOT fall through to DIRECTOR_MODEL so the cheaper default
+// holds even when DIRECTOR_MODEL is overridden to Sonnet for reasoning paths.
+const DEFAULT_MODEL = process.env.AUDIO_DIRECTOR_MODEL || 'anthropic/claude-haiku-4-5';
 
 export interface AudioDirectorAgentOptions {
   model?: string;

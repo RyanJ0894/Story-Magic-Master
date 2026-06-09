@@ -44,7 +44,11 @@ const envSchema = z.object({
   GROQ_API_KEY: optionalString,
   DIRECTOR_MODEL: z.string().default('anthropic/claude-sonnet-4-6'),
   DIRECTOR_MODEL_ADVANCED: z.string().default('anthropic/claude-opus-4-6'),
-  AUDIO_DIRECTOR_MODEL: z.string().default('anthropic/claude-sonnet-4-6'),
+  // Audio director (music/ambience/SFX selection) is tool-heavy but shallow-
+  // decision: each search_music/ambience/sfx call picks from a small ranked list.
+  // Haiku 4.5 (~1/12 the cost of Sonnet). Mirrors VOICE_ASSIGNMENT_MODEL rationale.
+  // Override to Sonnet if audio selection quality regresses.
+  AUDIO_DIRECTOR_MODEL: z.string().default('anthropic/claude-haiku-4-5'),
   // Voice assignment is a tool-heavy but shallow-decision path (search_voices,
   // get_voice, commit_voice — each individual call needs little reasoning).
   // Defaults to Haiku 4.5 (~1/12 the cost of Sonnet). Override to a stronger
