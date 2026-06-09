@@ -469,8 +469,26 @@ export async function removeMember(
     throw new TeamServiceError('Team not found or not authorized', 'NOT_FOUND', 404);
   }
 
+  // Capture member identity BEFORE marking removed so the notification
+  // can show the right name even if the row's other columns shift.
+  const member = await prisma.teamMember.findFirst({
+    where: { id: memberId, teamId },
+    select: { userId: true, user: { select: { fullName: true } } },
+  });
+
   await prisma.teamMember.updateMany({
     where: { id: memberId, teamId },
     data: { status: 'removed' },
   });
+
+  // #174 PR β: emit team_member_left to the master account. Producer
+  // swallows DB errors so a logging hiccup never blocks the removal.
+  if (member?.userId) {
+    const { emitTeamMemberLeft } = await import('@/lib/notifications/producers');
+    await emitTeamMemberLeft(prisma, {
+      teamId,
+      memberUserId: member.userId,
+      memberName: member.user?.fullName ?? null,
+    });
+  }
 }

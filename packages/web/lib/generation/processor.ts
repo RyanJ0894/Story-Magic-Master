@@ -100,6 +100,18 @@ async function markJobFailed(
     data: { status: 'failed' },
   });
 
+  // #174 PR β: master notification — script generation failed.
+  // Fire-and-forget; can't fail the failure handler.
+  try {
+    const { emitScriptGenerationFailed } = await import('@/lib/notifications/producers');
+    await emitScriptGenerationFailed(prisma, {
+      projectId,
+      errorSummary: errorMessage.slice(0, 300),
+    });
+  } catch {
+    // swallow
+  }
+
   logProgress(jobId, 'error', `Job marked as failed: ${errorMessage}`);
 }
 
@@ -513,6 +525,21 @@ export async function processGenerationJob(
         segments: JSON.parse(JSON.stringify(segmentStatuses)),
       },
     });
+
+    // #174 PR β: master notification — script generation completed.
+    // Fire-and-forget; producer swallows errors so it can't fail the job.
+    try {
+      const { emitScriptGenerationComplete } = await import('@/lib/notifications/producers');
+      await emitScriptGenerationComplete(prisma, {
+        projectId,
+        // `userId` here is the function param — the Clerk ID of whoever
+        // kicked off this generation. For team-owned projects this is
+        // typically the sub-account that ran it.
+        triggeredByUserId: userId,
+      });
+    } catch {
+      // swallow — completion already persisted; logging is best-effort
+    }
 
     log.info('[PIPELINE] complete', { jobId: jobId.slice(0, 8), totalSec: elapsed(), pageCount, segments: chunks.length });
     logProgress(jobId, 'done', `Generation completed in ${elapsed()}s`);
