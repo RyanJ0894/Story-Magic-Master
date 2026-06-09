@@ -40,9 +40,25 @@ export default async function ProjectPage(
     notFound();
   }
 
-  // Fetch project — scope to userId to prevent IDOR
-  const project = await prisma.project.findUnique({
-    where: { id: params.id, userId },
+  // Fetch project — user must own it OR be an active member of a team it's shared with
+  const project = await prisma.project.findFirst({
+    where: {
+      id: params.id,
+      OR: [
+        { userId },
+        {
+          teamShares: {
+            some: {
+              team: {
+                members: {
+                  some: { userId, acceptedAt: { not: null } },
+                },
+              },
+            },
+          },
+        },
+      ],
+    },
   });
 
   if (!project) {

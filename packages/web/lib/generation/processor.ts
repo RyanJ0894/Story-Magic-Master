@@ -13,6 +13,34 @@ import { triggerHumanReviewIfPurchased } from '@/lib/human-review/trigger';
 import { chunkScenes, segmentProgressLabel } from '@/lib/generation/chunk-script';
 
 // =============================================================================
+// Error Sanitization
+// =============================================================================
+
+/**
+ * Convert a raw orchestrator HTTP response body to a user-safe error message.
+ * Internal details (project IDs, raw API errors, stack traces) stay in logs only.
+ */
+function sanitizeOrchestratorError(rawBody: string, context: string): string {
+  try {
+    const parsed = JSON.parse(rawBody) as Record<string, unknown>;
+    // Extract message if present and it's a plain string
+    if (typeof parsed.message === 'string' && parsed.message.length < 200) {
+      return `${context}: ${parsed.message}`;
+    }
+    if (typeof parsed.error === 'string' && parsed.error.length < 200) {
+      return `${context}: ${parsed.error}`;
+    }
+  } catch {
+    // Not JSON — check if it's a short plain-text error (< 200 chars, no JSON/stack noise)
+    const trimmed = rawBody.trim();
+    if (trimmed.length > 0 && trimmed.length < 200 && !trimmed.includes('{') && !trimmed.includes('Error:')) {
+      return `${context}: ${trimmed}`;
+    }
+  }
+  return `${context}. Please try again or contact support if the issue persists.`;
+}
+
+// =============================================================================
 // Logging Helpers
 // =============================================================================
 
@@ -171,7 +199,7 @@ export async function processGenerationJob(
         const errorBody = await directorResponse.text();
         log.error('[PIPELINE] director failed', undefined, { jobId: jobId.slice(0, 8), directorSec, errorBody: errorBody.slice(0, 500) });
         await logJobEvent(jobId, projectId, 'error', 'parsing', `Director Agent failed after ${directorSec}s`, { directorSec }, errorBody.slice(0, 500));
-        throw new Error(`Director Agent failed: ${errorBody}`);
+        throw new Error(sanitizeOrchestratorError(errorBody, 'Script parsing failed'));
       }
 
       const directorResponse_json = await directorResponse.json();
@@ -393,10 +421,13 @@ export async function processGenerationJob(
 
     // Guard: at least one chunk must have produced audio
     if (audioOutputsCreated === 0) {
+      log.error('[PIPELINE] no audio produced', undefined, {
+        jobId: jobId.slice(0, 8),
+        chunksAttempted: chunks.length,
+        lastAudioUrls: JSON.stringify(orchestratorResult?.audio_urls ?? []),
+      });
       throw new Error(
-        'Orchestrator returned no usable audio URLs across all segments. ' +
-        `Segments attempted: ${chunks.length}. ` +
-        `Last result: ${JSON.stringify(orchestratorResult?.audio_urls ?? [])}`
+        'Audio generation failed: no audio was produced. Please try again or contact support.'
       );
     }
 
@@ -521,5 +552,10 @@ export async function processGenerationJob(
     });
 
     dispatchWebhooks('job.failed', userId, jobId, projectId, { error: errorMessage }).catch(() => {});
+
+    // Rethrow so the queue worker's catch branch runs instead of completeJob().
+    // Without this the worker marks the job 'completed' immediately after the
+    // processor marks it 'failed', overwriting the failed status.
+    throw error;
   }
 }

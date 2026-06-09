@@ -56,7 +56,7 @@ export const SceneSchema = z.object({
   scene_id: z.string(),
   summary: z.string().optional(),
   mood: z.string().optional(),
-  intensity: z.number().min(0).max(1).optional(),
+  intensity: z.number().optional(),
   dialogue: z.array(DialogueLineSchema),
   music: z.array(AudioCueSchema).optional(),
   ambience: z.array(AudioCueSchema).optional(),
@@ -146,7 +146,7 @@ export const OrchestrateRequestSchema = z.object({
   // Optional: user emotion overrides — { [line_id]: emotion }
   emotion_overrides: z.record(z.string(), z.string()).optional(),
   // Sprint K: when set, writes episode-{chunk_index}.m4a instead of episode.m4a
-  chunk_index: z.number().int().min(0).optional(),
+  chunk_index: z.number().int().optional(),
 });
 
 export type OrchestrateRequest = z.infer<typeof OrchestrateRequestSchema>;

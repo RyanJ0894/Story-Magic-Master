@@ -12,6 +12,7 @@ import { HelpCircle } from 'lucide-react';
 import { SignOutButton } from '@/components/auth/sign-out-button';
 import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
 import { DashboardTabs } from './dashboard-tabs';
+import { listProjects } from '@/lib/services/projects';
 
 const TIER_LIMITS: Record<string, number> = {
   free: 3,
@@ -38,10 +39,7 @@ export default async function DashboardPage() {
   }
 
   const [projects, profile] = await Promise.all([
-    prisma.project.findMany({
-      where: { userId },
-      orderBy: { updatedAt: 'desc' },
-    }),
+    listProjects(prisma, userId),
     ensureProfile(userId),
   ]);
 

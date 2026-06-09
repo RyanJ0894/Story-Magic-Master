@@ -21,7 +21,7 @@ import {
   buildSceneConstructionUserMessage,
 } from '../prompts/scene-construction-prompt.js';
 import { chunkScript, type ScriptChunk } from '../utils/script-chunker.js';
-import { SceneSchema, type Scene } from '../../schemas/director-json.js';
+import { DialogueLineSchema, type Scene } from '../../schemas/director-json.js';
 import type { VoiceMap } from '../../schemas/voice-map.js';
 import { z } from 'zod';
 
@@ -33,10 +33,39 @@ const SCENE_CONSTRUCTION_MAX_TOKENS = 16384;
 // 3 means a 90-scene script processes in 2 waves of 3 rather than 6 at once.
 const MAX_CONCURRENT_CHUNKS = 3;
 
+// Trimmed AudioCue schema for LLM output. Omits `reasoning` and `fade_out`
+// (internal fields the LLM need not produce) so the total optional-parameter
+// count stays under the Anthropic API limit of 24 across the full chunk schema.
+// AudioCueSchema appears 3 times (music/ambience/sfx), so each dropped field
+// saves 3 toward the budget.
+const LLMAudioCueSchema = z.object({
+  file: z.string(),
+  start_at: z.union([z.string(), z.number()]).optional(),
+  end_at: z.number().optional(),
+  duration: z.number().optional(),
+  volume: z.number().optional(),
+});
+
+// Trimmed Scene schema for LLM output. Omits `mix` (per-scene mix overrides
+// are set by the audio pipeline post-construction, not by the director LLM).
+// Dropping `mix` removes 6 optional parameters (1 for the field + 5 MixParams).
+const LLMSceneSchema = z.object({
+  scene_id: z.string(),
+  summary: z.string().optional(),
+  mood: z.string().optional(),
+  intensity: z.number().optional(),
+  dialogue: z.array(DialogueLineSchema),
+  music: z.array(LLMAudioCueSchema).optional(),
+  ambience: z.array(LLMAudioCueSchema).optional(),
+  sfx: z.array(LLMAudioCueSchema).optional(),
+});
+
 // Output schema for one chunk: an object wrapping the scenes array.
 // Using z.object (not z.array) at the top level works better with generateObject.
+// Total optional parameters: 6 (LLMSceneSchema) + 4 (DialogueLine) +
+// 4×3 (LLMAudioCue × 3 arrays) = 22, within the API limit of 24.
 const ChunkOutputSchema = z.object({
-  scenes: z.array(SceneSchema),
+  scenes: z.array(LLMSceneSchema),
 });
 
 export interface SceneConstructionOptions {
@@ -168,6 +197,6 @@ export class SceneConstructionAgent {
       });
     }
 
-    return scenes;
+    return scenes as Scene[];
   }
 }

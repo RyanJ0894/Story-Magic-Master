@@ -418,9 +418,13 @@ export function ProjectWorkflow({
   const isProcessing = project.status === 'processing' && !allJobs.some(j => j.status === 'completed');
   // Also check enriched jobs in case project.status hasn't propagated yet when router.refresh() fires
   const hasAnyCompletedRunWithAudio = allJobs.some(j => j.status === 'completed' && j.hasAudio);
-  const isCompleted = (project.status === 'completed' || hasAnyCompletedRunWithAudio)
+  // A failed latest job must always surface the error — never let a prior completed run mask it
+  const latestEnrichedJob = allJobs[0] ?? null;
+  const latestJobFailed = latestEnrichedJob?.status === 'failed';
+  const isCompleted = !latestJobFailed
+    && (project.status === 'completed' || hasAnyCompletedRunWithAudio)
     && ((audioOutputs?.length ?? 0) > 0 || hasAnyCompletedRunWithAudio);
-  const hasFailed = project.status === 'failed' && !isCompleted;
+  const hasFailed = latestJobFailed;
   const isAutomatic = selectedMode === 'automatic';
 
   // Helper to determine status considering skips
