@@ -3,9 +3,9 @@ import { OrchestrateRequestSchema, DirectorJSONSchema, OrchestrateResponse, type
 import { processScript } from '../director/pipeline.js';
 import { orchestrate, orchestrateParallel, type PipelineProgress } from '../orchestrator/pipeline.js';
 import { log } from '../lib/logger.js';
-import { getEnv } from '../lib/env.js';
 import { prisma } from '../lib/prisma.js';
 import { checkAIProviders } from '../lib/ai-health.js';
+import { selectDirectorModel } from '../lib/select-director-model.js';
 
 const router = Router();
 
@@ -113,12 +113,22 @@ router.post('/orchestrate', async (req: Request, res: Response): Promise<void> =
     log.warn('orchestrate: advanced analysis purchase check skipped (DB unavailable)', { projectId: project_id });
   }
 
-  const { DIRECTOR_MODEL, DIRECTOR_MODEL_ADVANCED } = getEnv();
-  const directorModel = useAdvancedModel ? DIRECTOR_MODEL_ADVANCED : DIRECTOR_MODEL;
+  // Tier 2 (#186 PR E): route by script complexity. Small scripts (≤
+  // TIER1_PAGE_THRESHOLD pages) run on TIER1_MODEL (Haiku by default);
+  // larger scripts use the standard DIRECTOR_MODEL (Sonnet). Paid
+  // Advanced Analysis purchases bypass the tier and use Opus regardless.
+  const modelSelection = selectDirectorModel({
+    scriptText: script_text ?? '',
+    useAdvanced: useAdvancedModel,
+  });
+  const directorModel = modelSelection.model;
 
-  if (useAdvancedModel) {
-    log.info('orchestrate: Advanced Analysis active — using upgraded model', { projectId: project_id, model: directorModel });
-  }
+  log.info('orchestrate: director model selected', {
+    projectId: project_id,
+    tier: modelSelection.tier,
+    estimatedPages: modelSelection.estimatedPages,
+    model: directorModel,
+  });
 
   let directorJSON: DirectorJSON;
 
