@@ -69,6 +69,11 @@ export interface OrchestrationResult {
 
 // concatenateDialogueStems extracted to shared/concat-stems.ts
 import { concatenateDialogueStems } from './shared/concat-stems.js';
+import {
+  computeSceneRenderHash,
+  findCachedSceneRender,
+  recordSceneRender,
+} from '../lib/scene-cache.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -140,6 +145,35 @@ export async function orchestrate(directorJSON: unknown, options: { chunkIndex?:
       totalScenes: director.scenes.length,
       sceneId: scene.scene_id,
     });
+
+    // T2-2 (#190): scene-level idempotency cache. If this scene's inputs
+    // hash to a previously rendered output AND the file still exists,
+    // skip the entire alignment + cue + timeline + mix block.
+    const sceneContentHash = computeSceneRenderHash(scene);
+    const cachedScenePath = await findCachedSceneRender(
+      director.project_id,
+      scene.scene_id,
+      sceneContentHash,
+    );
+    if (cachedScenePath) {
+      log.info('[scene-cache] HIT — reusing cached scene render', {
+        sceneId: scene.scene_id,
+        scenePath: cachedScenePath,
+        contentHash: sceneContentHash.slice(0, 12),
+      });
+      // Timeline / alignment / cues are not consumed downstream of this
+      // function — only `path` is used for concatenation + manifest. We
+      // surface empty placeholders to keep the SceneOutput shape stable
+      // for external consumers.
+      sceneOutputs.push({
+        scene_id: scene.scene_id,
+        path: cachedScenePath,
+        timeline: { events: [] } as unknown as Timeline,
+        alignment: { lines: [] } as unknown as SceneAlignment,
+        cues: { music: [], ambience: [], sfx: [] } as unknown as SceneCues,
+      });
+      continue;
+    }
 
     log.generation(director.project_id, 'tts-start', {
       sceneId: scene.scene_id,
@@ -228,6 +262,16 @@ export async function orchestrate(directorJSON: unknown, options: { chunkIndex?:
       alignment,
       cues,
     });
+
+    // T2-2: record the cache entry for next time. Failure here is non-fatal
+    // — the current render is already committed to disk and surfaced to the
+    // caller, only the cache row is missing.
+    await recordSceneRender(
+      director.project_id,
+      scene.scene_id,
+      sceneContentHash,
+      sceneOutput,
+    );
   }
 
   log.generation(director.project_id, 'all-scenes-processed', {

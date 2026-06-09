@@ -1197,6 +1197,30 @@ model TtsStem {
   @@map("tts_stems")
 }
 
+/// Scene-level render cache (T2-2 of cost-opt Phase 2, issue #190).
+///
+/// When the orchestrator pipeline renders a scene, it hashes the scene's
+/// content-defining inputs (dialogue text, voice assignments, audio cues,
+/// mix params) into `contentHash` and stores the resulting scene .m4a path
+/// here. On a subsequent run, a matching `contentHash` short-circuits the
+/// expensive alignment + cue + timeline + mix steps for that scene.
+///
+/// Keyed on (projectId, sceneId) — a single row per scene per project, and
+/// `contentHash` is the validation token. Index on `contentHash` exists for
+/// a potential future "cross-project reuse" feature; the current pipeline
+/// only checks within the same project.
+model SceneRender {
+  projectId   String   @map("project_id")
+  sceneId     String   @map("scene_id")
+  contentHash String   @map("content_hash")
+  scenePath   String   @map("scene_path")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@id([projectId, sceneId])
+  @@index([contentHash], map: "scene_renders_content_hash_idx")
+  @@map("scene_renders")
+}
+
 model VoiceMap {
   projectId  String @map("project_id")
   character  String
