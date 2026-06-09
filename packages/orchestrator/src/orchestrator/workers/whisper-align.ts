@@ -80,23 +80,48 @@ export async function whisperAlign(
     log.debug('Whisper alignment complete', { wordCount: words.length });
     return words;
   } catch (err) {
-    // Cost note: OpenAI's Whisper API is billed per-second of audio and is
-    // expensive at scale. Default behavior is to fall through to the duration-
-    // based estimator (no extra cost) when whisper.cpp is unavailable. Opt in
-    // explicitly via ENABLE_OPENAI_WHISPER_FALLBACK=true if you need the
-    // higher-quality alignment in production.
-    const fallbackEnabled = process.env.ENABLE_OPENAI_WHISPER_FALLBACK === 'true';
+    // Fallback chain (Tier 2 of #186 PR F):
+    //   1. Groq Whisper (default ON if GROQ_API_KEY set) — ~12x cheaper than
+    //      OpenAI Whisper for the same whisper-large-v3 model. Disable with
+    //      ENABLE_GROQ_WHISPER_FALLBACK=false.
+    //   2. OpenAI Whisper (default OFF — opt in via ENABLE_OPENAI_WHISPER_FALLBACK=true).
+    //   3. Duration-based estimator (free, lower quality).
+    //
+    // Both API paths transcribe via OpenAI-compatible `/audio/transcriptions`,
+    // so they share `transcribeViaApi`.
+    const errMsg = (err as Error).message;
 
-    if (fallbackEnabled && process.env.OPENAI_API_KEY) {
-      log.warn('whisper.cpp failed; falling back to OpenAI Whisper API (billed)', {
-        error: (err as Error).message,
-      });
-      return await whisperAPIAlign(audioPath, expectedText);
+    const groqEnabled = process.env.ENABLE_GROQ_WHISPER_FALLBACK !== 'false';
+    if (groqEnabled && process.env.GROQ_API_KEY) {
+      log.warn('whisper.cpp failed; falling back to Groq Whisper (cheap)', { error: errMsg });
+      try {
+        return await transcribeViaApi(audioPath, {
+          url: 'https://api.groq.com/openai/v1/audio/transcriptions',
+          apiKey: process.env.GROQ_API_KEY,
+          model: process.env.GROQ_WHISPER_MODEL || 'whisper-large-v3',
+          providerLabel: 'groq',
+        });
+      } catch (groqErr) {
+        log.warn('Groq Whisper failed; trying next fallback', {
+          error: (groqErr as Error).message,
+        });
+      }
     }
 
-    log.warn('whisper.cpp failed; using duration-based estimator (no OpenAI cost)', {
-      error: (err as Error).message,
-      hint: 'Set ENABLE_OPENAI_WHISPER_FALLBACK=true to opt into the paid OpenAI Whisper API fallback.',
+    const openaiEnabled = process.env.ENABLE_OPENAI_WHISPER_FALLBACK === 'true';
+    if (openaiEnabled && process.env.OPENAI_API_KEY) {
+      log.warn('falling back to OpenAI Whisper API (billed)', { error: errMsg });
+      return await transcribeViaApi(audioPath, {
+        url: 'https://api.openai.com/v1/audio/transcriptions',
+        apiKey: process.env.OPENAI_API_KEY,
+        model: 'whisper-1',
+        providerLabel: 'openai',
+      });
+    }
+
+    log.warn('whisper.cpp + API fallbacks unavailable; using duration-based estimator', {
+      error: errMsg,
+      hint: 'Set GROQ_API_KEY for cheap Whisper, or ENABLE_OPENAI_WHISPER_FALLBACK=true for paid OpenAI Whisper.',
     });
     return null;
   }
@@ -159,27 +184,30 @@ function parseWhisperCppOutput(jsonString: string, expectedText: string): WordTi
 }
 
 /**
- * Use OpenAI Whisper API for word-level timestamps
+ * Generic OpenAI-compatible `/audio/transcriptions` client. Used for both
+ * Groq Whisper (cheap, via api.groq.com/openai/v1) and OpenAI Whisper
+ * (expensive, opt-in). The wire format is identical between the two — only
+ * URL, key, and model name differ.
+ *
+ * `providerLabel` is logging-only.
  */
-async function whisperAPIAlign(
+export async function transcribeViaApi(
   audioPath: string,
-  expectedText: string
+  config: { url: string; apiKey: string; model: string; providerLabel: string },
 ): Promise<WordTimestamp[]> {
-  const apiKey = process.env.OPENAI_API_KEY;
-
   return withRetry(
     async () => {
       const form = new FormData();
 
       form.append('file', fs.createReadStream(audioPath));
-      form.append('model', 'whisper-1');
+      form.append('model', config.model);
       form.append('response_format', 'verbose_json');
       form.append('timestamp_granularities[]', 'word');
 
-      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      const response = await fetch(config.url, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${config.apiKey}`,
           ...form.getHeaders(),
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -188,7 +216,9 @@ async function whisperAPIAlign(
 
       if (!response.ok) {
         const error = await response.text();
-        throw new Error(`Whisper API failed: ${response.status} - ${error}`);
+        throw new Error(
+          `Whisper API (${config.providerLabel}) failed: ${response.status} - ${error}`,
+        );
       }
 
       const data = (await response.json()) as { words?: WordTimestamp[] };
@@ -196,22 +226,22 @@ async function whisperAPIAlign(
       const words: WordTimestamp[] = [];
       if (data.words) {
         for (const w of data.words) {
-          words.push({
-            word: w.word,
-            start: w.start,
-            end: w.end,
-          });
+          words.push({ word: w.word, start: w.start, end: w.end });
         }
       }
 
-      log.debug('Whisper API alignment complete', { wordCount: words.length });
+      log.debug('Whisper API alignment complete', {
+        provider: config.providerLabel,
+        model: config.model,
+        wordCount: words.length,
+      });
       return words;
     },
     {
       maxRetries: 3,
       initialDelayMs: 1000,
       retryableStatuses: [429, 500, 502, 503, 504],
-    }
+    },
   );
 }
 
