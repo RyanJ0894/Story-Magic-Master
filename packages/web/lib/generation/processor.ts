@@ -552,5 +552,10 @@ export async function processGenerationJob(
     });
 
     dispatchWebhooks('job.failed', userId, jobId, projectId, { error: errorMessage }).catch(() => {});
+
+    // Rethrow so the queue worker's catch branch runs instead of completeJob().
+    // Without this the worker marks the job 'completed' immediately after the
+    // processor marks it 'failed', overwriting the failed status.
+    throw error;
   }
 }
