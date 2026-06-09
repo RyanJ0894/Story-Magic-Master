@@ -44,7 +44,7 @@ async function getAccessibleProject(projectId: string, userId: string) {
   if (project.userId === userId) return project;
 
   const teamShare = await prisma.teamShare.findFirst({
-    where: { projectId, team: { members: { some: { userId, status: 'accepted' } } } },
+    where: { projectId, team: { members: { some: { userId, acceptedAt: { not: null } } } } },
     select: { id: true },
   });
   if (teamShare) return project;

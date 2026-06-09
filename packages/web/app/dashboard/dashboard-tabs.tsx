@@ -7,9 +7,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import {
-  Plus, FileText, Folder, Mic, Users,
+  Plus, FileText, Folder, Mic, Users, MoreHorizontal, Trash2,
   CheckCircle, Loader2, XCircle, ChevronRight, ChevronDown, BarChart2, Building2, Star,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { useRouter } from 'next/navigation';
 import { PRICING_TIERS } from '@/lib/stripe/config';
 
 interface Project {
@@ -47,6 +54,21 @@ export function DashboardTabs({
 }: DashboardTabsProps) {
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
   const [expandedStat, setExpandedStat] = useState<string | null>(null);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
+  const router = useRouter();
+
+  async function handleDeleteProject(projectId: string, projectName: string) {
+    if (!window.confirm(`Delete "${projectName}"? This cannot be undone.`)) return;
+    setDeletingProjectId(projectId);
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' });
+      if (res.ok) {
+        router.refresh();
+      }
+    } finally {
+      setDeletingProjectId(null);
+    }
+  }
 
   const toggleStat = (key: string) =>
     setExpandedStat((prev) => (prev === key ? null : key));
@@ -355,8 +377,8 @@ export function DashboardTabs({
                 const s = STATUS_CONFIG[project.status] || STATUS_CONFIG.draft;
                 const StatusIcon = s.icon;
                 return (
-                  <Link key={project.id} href={`/projects/${project.id}`}>
-                    <Card className="h-full transition-all hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700 cursor-pointer" data-testid="project-card">
+                  <Card key={project.id} className="h-full transition-all hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700" data-testid="project-card">
+                    <Link href={`/projects/${project.id}`} className="block cursor-pointer">
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between">
                           <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
@@ -376,8 +398,31 @@ export function DashboardTabs({
                           <span suppressHydrationWarning>{new Date(project.updatedAt).toLocaleDateString()}</span>
                         </div>
                       </CardContent>
-                    </Card>
-                  </Link>
+                    </Link>
+                    <div className="px-6 pb-3 flex justify-end" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="w-7 h-7" aria-label="Project actions">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            disabled={deletingProjectId === project.id}
+                            onClick={() => void handleDeleteProject(project.id, project.name)}
+                          >
+                            {deletingProjectId === project.id ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4 mr-2" />
+                            )}
+                            Delete Project
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </Card>
                 );
               })}
             </div>

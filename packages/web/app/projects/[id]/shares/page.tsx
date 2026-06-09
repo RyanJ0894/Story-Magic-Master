@@ -4,6 +4,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api/fetch';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
   Card,
   CardContent,
   CardDescription,
@@ -134,6 +144,15 @@ export default function ShareDashboardPage() {
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null);
   const [deactivatingAll, setDeactivatingAll] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    recipientName: '',
+    recipientEmail: '',
+    accessLevel: 'stream',
+    expiresAt: '',
+  });
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -204,6 +223,39 @@ export default function ShareDashboardPage() {
     await navigator.clipboard.writeText(shareUrl);
     setCopiedCode(shareCode);
     setTimeout(() => setCopiedCode(null), 2000);
+  }
+
+  async function createShare() {
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const body: Record<string, unknown> = {
+        project_id: projectId,
+        access_level: createForm.accessLevel,
+      };
+      if (createForm.recipientName.trim()) body.recipient_name = createForm.recipientName.trim();
+      if (createForm.recipientEmail.trim()) body.recipient_email = createForm.recipientEmail.trim();
+      if (createForm.expiresAt) body.expires_at = new Date(createForm.expiresAt).toISOString();
+
+      const res = await apiFetch('/api/shares', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json() as { error?: string };
+      if (!res.ok) {
+        setCreateError(json.error ?? 'Failed to create share');
+        return;
+      }
+      setShowCreateDialog(false);
+      setCreateForm({ recipientName: '', recipientEmail: '', accessLevel: 'stream', expiresAt: '' });
+      await fetchData();
+      toast({ title: 'Share link created' });
+    } catch {
+      setCreateError('Network error — please try again');
+    } finally {
+      setCreating(false);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -277,7 +329,7 @@ export default function ShareDashboardPage() {
           </Button>
           <Button
             size="sm"
-            onClick={() => router.push(`/projects/${projectId}`)}
+            onClick={() => { setCreateError(null); setShowCreateDialog(true); }}
           >
             <Plus className="w-4 h-4 mr-2" />
             New Share
@@ -446,6 +498,70 @@ export default function ShareDashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Create Share Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={(open) => { if (!creating) setShowCreateDialog(open); }}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>Create Share Link</DialogTitle>
+            <DialogDescription>
+              Generate a shareable link for this project&apos;s audio.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-2">
+              <Label htmlFor="share-name">Recipient name (optional)</Label>
+              <Input
+                id="share-name"
+                placeholder="e.g. Jane Smith"
+                value={createForm.recipientName}
+                onChange={(e) => setCreateForm((f) => ({ ...f, recipientName: e.target.value }))}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="share-email">Recipient email (optional)</Label>
+              <Input
+                id="share-email"
+                type="email"
+                placeholder="jane@example.com"
+                value={createForm.recipientEmail}
+                onChange={(e) => setCreateForm((f) => ({ ...f, recipientEmail: e.target.value }))}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="share-access">Access level</Label>
+              <select
+                id="share-access"
+                className="px-3 py-2 border rounded-md bg-background text-sm"
+                value={createForm.accessLevel}
+                onChange={(e) => setCreateForm((f) => ({ ...f, accessLevel: e.target.value }))}
+              >
+                <option value="stream">Stream only</option>
+                <option value="download">Stream + Download</option>
+                <option value="full">Full access</option>
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="share-expires">Expires (optional)</Label>
+              <Input
+                id="share-expires"
+                type="date"
+                value={createForm.expiresAt}
+                onChange={(e) => setCreateForm((f) => ({ ...f, expiresAt: e.target.value }))}
+              />
+            </div>
+            {createError && <p className="text-sm text-destructive">{createError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)} disabled={creating}>
+              Cancel
+            </Button>
+            <Button onClick={createShare} disabled={creating}>
+              {creating ? 'Creating…' : 'Create Link'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
