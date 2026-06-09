@@ -204,3 +204,39 @@ describe('VoiceAssignmentAgent', () => {
     expect(result.default_female_voice).toBeTruthy();
   });
 });
+
+// ── Model selection ──────────────────────────────────────────────────────────
+//
+// Voice assignment defaults to Haiku 4.5 (cost optimization). These tests pin
+// that default and verify the VOICE_ASSIGNMENT_MODEL env override.
+
+describe('VoiceAssignmentAgent model selection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(runAgentLoop).mockResolvedValue(JSON.stringify(makeValidVoiceMap()));
+    vi.mocked(parseJSONSafely).mockReturnValue({ success: true, data: makeValidVoiceMap() });
+  });
+
+  it('uses the constructor-provided model when given', async () => {
+    const agent = new VoiceAssignmentAgent({ model: 'anthropic/claude-sonnet-4-6' });
+    await agent.assign({ manifest: MANIFEST });
+    expect(runAgentLoop).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ model: 'anthropic/claude-sonnet-4-6' }),
+    );
+  });
+
+  it('falls back to claude-haiku-4-5 as the default model (cost-optimized)', async () => {
+    // Module captured DEFAULT_MODEL at import time. Constructing the agent
+    // without a `model` option must produce a runAgentLoop call with whichever
+    // model the module resolved at load — verify it's the Haiku default and
+    // not Sonnet or gpt-4.1.
+    const agent = new VoiceAssignmentAgent();
+    await agent.assign({ manifest: MANIFEST });
+
+    const callArgs = vi.mocked(runAgentLoop).mock.calls[0][1];
+    // Must NOT be the previous Sonnet/gpt-4.1 default, must be a Haiku-family model.
+    expect(callArgs.model).toMatch(/haiku/i);
+    expect(callArgs.model).not.toMatch(/sonnet|gpt-4/i);
+  });
+});

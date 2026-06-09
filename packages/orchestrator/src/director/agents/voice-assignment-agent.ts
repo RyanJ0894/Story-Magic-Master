@@ -28,7 +28,17 @@ import {
 import type { CharacterManifest } from '../../schemas/character-manifest.js';
 import { parseJSONSafely } from '../../lib/json-repair.js';
 
-const DEFAULT_MODEL = process.env.DIRECTOR_MODEL || 'openai/gpt-4.1';
+/**
+ * Voice assignment is tool-heavy but each decision is shallow: "given this
+ * character profile + a tool result of 3 candidate voices, pick one". Sonnet's
+ * deeper reasoning isn't load-bearing here — Haiku handles it at ~1/12 the
+ * cost. Default to Haiku 4.5; override via `VOICE_ASSIGNMENT_MODEL` if the
+ * cheaper model ever regresses on casting quality.
+ *
+ * NOTE: this does NOT fall through to DIRECTOR_MODEL — the whole point is to
+ * decouple voice assignment from the heavier director pipeline.
+ */
+const DEFAULT_MODEL = process.env.VOICE_ASSIGNMENT_MODEL || 'anthropic/claude-haiku-4-5';
 
 export interface VoiceAssignmentOptions {
   model?: string;
