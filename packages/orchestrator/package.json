@@ -17,6 +17,8 @@
     "lint": "eslint . --ext .ts",
     "typecheck": "tsc --noEmit",
     "refresh:voices": "tsx scripts/refresh-voice-catalog.ts",
+    "regen:embeddings": "tsx scripts/regenerate-audio-embeddings.ts",
+    "smoke:audio-search": "tsx scripts/smoke-test-audio-search.ts",
     "clean:stems": "rm -rf data/stems && echo 'Stems cache cleared \u2014 next run will regenerate all TTS audio'"
   },
   "dependencies": {

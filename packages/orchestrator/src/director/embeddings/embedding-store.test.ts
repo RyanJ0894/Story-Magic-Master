@@ -12,6 +12,16 @@ vi.mock('fs', () => ({
   default: { readFileSync: mockReadFileSync },
 }));
 
+// These tests use 3-dim mock vectors to keep fixtures readable. The runtime
+// embedding-config guard enforces 1536-dim (text-embedding-3-small) for real
+// catalogs; mocking it to a no-op here lets us isolate the cosine-similarity
+// math without committing the test to a specific embedding dimension.
+vi.mock('../../lib/embedding-config.js', () => ({
+  EMBEDDING_MODEL: 'mock-test-embedding',
+  EMBEDDING_DIMENSIONS: 3,
+  assertEmbeddingDimension: vi.fn(),
+}));
+
 // We need to import after mocking
 const mockEmbeddings = [
   [1.0, 0.0, 0.0], // First vector

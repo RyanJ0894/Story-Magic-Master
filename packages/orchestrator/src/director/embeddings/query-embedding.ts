@@ -1,21 +1,23 @@
 /**
- * Query Embedding - Get embeddings for search queries using OpenAI
+ * Query Embedding — get embeddings for audio-catalog search queries.
  *
- * Since we don't have sentence-transformers in TypeScript, we use OpenAI's
- * embedding API to get query vectors. The pre-computed embeddings were created
- * with all-MiniLM-L6-v2 (384-dim), but OpenAI embeddings work well for semantic
- * similarity despite the different embedding space.
+ * Uses the same OpenAI model + dimensions as the stored catalog vectors so
+ * cosine similarity makes sense. See `lib/embedding-config.ts` for the
+ * canonical constants; **never** call `openai.embedding('...')` directly
+ * with a different model — it WILL silently break similarity scoring or
+ * trip the dimension guard in `embedding-store.ts`.
  *
- * For better accuracy, we could:
- * 1. Pre-compute common query embeddings
- * 2. Use a JS port of sentence-transformers (transformers.js)
- *
- * For MVP, OpenAI embeddings provide good enough results.
+ * Historical note: the prototype catalogs were 384-dim MiniLM-L6-v2 from the
+ * Python codebase. The query path quietly produced 1536-dim OpenAI vectors,
+ * so every search threw `Vector length mismatch: 1536 vs 384`. Fixed by
+ * re-embedding the catalogs with text-embedding-3-small and unifying through
+ * `EMBEDDING_MODEL` / `EMBEDDING_DIMENSIONS`.
  */
 
 import { embed } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { log } from '../../lib/logger.js';
+import { EMBEDDING_MODEL, assertEmbeddingDimension } from '../../lib/embedding-config.js';
 
 // Cache for query embeddings to reduce API calls
 const embeddingCache = new Map<string, number[]>();
@@ -32,11 +34,14 @@ export async function getQueryEmbedding(query: string): Promise<number[]> {
 
   try {
     const { embedding } = await embed({
-      model: openai.embedding('text-embedding-3-small'),
+      model: openai.embedding(EMBEDDING_MODEL),
       value: query,
     });
 
-    // Cache the result
+    // Fail loudly if a future SDK upgrade silently changes dimensions —
+    // a 1024d vector matched against a 1536d catalog returns garbage scores.
+    assertEmbeddingDimension(embedding, `getQueryEmbedding("${query.slice(0, 40)}")`);
+
     embeddingCache.set(cacheKey, embedding);
 
     return embedding;

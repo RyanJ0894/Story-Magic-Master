@@ -1,14 +1,18 @@
 /**
- * Embedding Store - Semantic search using pre-computed embeddings
+ * Embedding Store — semantic search using pre-computed catalog embeddings.
  *
- * This is the TypeScript port of Python's VoiceEmbeddingStore and AudioEmbeddingStore.
- * Embeddings are pre-computed (384-dimensional from all-MiniLM-L6-v2) and stored as JSON.
+ * Catalog vectors live as JSON next to the metadata files. The expected
+ * model + dimension is set in `lib/embedding-config.ts` — load-time and
+ * search-time guards ensure stored vectors actually match it. To swap the
+ * model, update embedding-config.ts AND regenerate the catalog JSONs via
+ * `scripts/regenerate-audio-embeddings.ts`.
  */
 
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { log } from '../../lib/logger.js';
+import { assertEmbeddingDimension } from '../../lib/embedding-config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -82,7 +86,15 @@ export class EmbeddingStore<T extends Record<string, unknown>> {
     try {
       const embeddingsJson = readFileSync(embeddingsPath, 'utf-8');
       this.embeddings = JSON.parse(embeddingsJson);
-      log.info('EmbeddingStore loaded embeddings', { count: this.embeddings.length, dimensions: this.embeddings[0]?.length || 0 });
+      const dims = this.embeddings[0]?.length || 0;
+      log.info('EmbeddingStore loaded embeddings', { count: this.embeddings.length, dimensions: dims });
+
+      // Catch silent model drift at boot: if the catalog file was regenerated
+      // with a different model, every cosineSimilarity call will throw or
+      // produce nonsense scores. Fail at startup instead.
+      if (this.embeddings.length > 0) {
+        assertEmbeddingDimension(this.embeddings[0], `${embeddingsPath} (first vector)`);
+      }
 
       const metadataJson = readFileSync(metadataPath, 'utf-8');
       this.metadata = JSON.parse(metadataJson);
@@ -222,9 +234,15 @@ export class AudioEmbeddingStore extends EmbeddingStore<AudioMetadata> {
   readonly audioType: 'music' | 'ambience' | 'sfx';
 
   constructor(audioType: 'music' | 'ambience' | 'sfx') {
+    // audioType is a literal-union typed parameter — only the three values
+    // can ever flow here (enforced by TS at compile time, and the singletons
+    // at the bottom of this file pass hard-coded strings). Not user input.
+    // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
     const basePath = join(KNOWLEDGE_BASE_PATH, 'audio_embeddings_store', audioType);
     super(
+      // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
       join(basePath, `${audioType}_embeddings.json`),
+      // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
       join(basePath, `${audioType}_metadata.json`)
     );
     this.audioType = audioType;
