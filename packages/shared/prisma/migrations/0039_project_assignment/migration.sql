@@ -1,4 +1,4 @@
--- Migration 0035: project_assignment
+-- Migration 0039: project_assignment
 -- Explicit per-user project access for sub-accounts within a team.
 --
 -- Sub-accounts (team members who are not team owners) must have a
