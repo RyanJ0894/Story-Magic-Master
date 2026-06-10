@@ -132,27 +132,38 @@ export function withProjectAuth(
       return errorResponse('Project ID required', 400, { code: 'MISSING_PROJECT_ID' });
     }
 
-    // BL-014: Allow access if user owns the project OR is an accepted member
-    // of a team that has a TeamShare for this project.
+    // BL-014/BL-015: Three access paths:
+    // 1. User owns the project directly.
+    // 2. User is the team owner (master account) — full access to any project
+    //    shared with their team.
+    // 3. User is an accepted team member (sub-account) — requires an explicit
+    //    ProjectAssignment record for this project (seeded from existing shares
+    //    in migration 0035; new shares also create an assignment row).
     const project = await prisma.project.findFirst({
       where: {
         id: projectId,
         OR: [
           { userId },
+          { teamShares: { some: { team: { ownerId: userId } } } },
           {
-            teamShares: {
-              some: {
-                team: {
-                  members: {
-                    some: {
-                      userId,
-                      acceptedAt: { not: null },
-                      deactivatedAt: null,
+            AND: [
+              {
+                teamShares: {
+                  some: {
+                    team: {
+                      members: {
+                        some: {
+                          userId,
+                          acceptedAt: { not: null },
+                          deactivatedAt: null,
+                        },
+                      },
                     },
                   },
                 },
               },
-            },
+              { projectAssignments: { some: { userId } } },
+            ],
           },
         ],
       },

@@ -72,6 +72,8 @@ model Profile {
   webhookEndpoints      WebhookEndpoint[]
   podcastFeeds          PodcastFeed[]
   humanReviews          HumanReview[]
+  projectAssignments    ProjectAssignment[]   @relation("ProjectAssignmentUser")
+  projectAssignmentsGiven ProjectAssignment[] @relation("ProjectAssignmentAssigner")
 
   @@index([stripeCustomerId])
   @@index([stripeSubscriptionId])
@@ -121,13 +123,14 @@ model Project {
   storyScores       StoryScore[]
   suggestions       Suggestion[]
   revisions         Revision[]
-  teamShares        TeamShare[]
-  alerts            Alert[]
-  activityLogs      ActivityLog[]
-  projectNotes      ProjectNote[]
-  projectComments   ProjectComment[]
-  scriptReviews     ScriptReview[]
-  humanReviews      HumanReview[]
+  teamShares          TeamShare[]
+  alerts              Alert[]
+  activityLogs        ActivityLog[]
+  projectNotes        ProjectNote[]
+  projectComments     ProjectComment[]
+  scriptReviews       ScriptReview[]
+  humanReviews        HumanReview[]
+  projectAssignments  ProjectAssignment[]
 
   @@index([userId])
   @@index([status])
@@ -673,11 +676,12 @@ model Team {
   updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
-  owner        Profile       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  members      TeamMember[]
-  teamShares   TeamShare[]
-  alerts       Alert[]
-  activityLogs ActivityLog[]
+  owner              Profile             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members            TeamMember[]
+  teamShares         TeamShare[]
+  alerts             Alert[]
+  activityLogs       ActivityLog[]
+  projectAssignments ProjectAssignment[]
 
   @@index([ownerId])
   @@map("teams")
@@ -814,6 +818,33 @@ model TeamShare {
   @@index([teamId])
   @@index([projectId])
   @@map("team_shares")
+}
+
+// =============================================================================
+// SUB-ACCOUNT PROJECT ISOLATION
+// Explicit per-user project access for team members (sub-accounts).
+// Team owners access via Team.ownerId; team members require a record here.
+// Seeded from existing team_shares × team_members on migration 0035.
+// =============================================================================
+
+model ProjectAssignment {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId  String   @map("project_id") @db.Uuid
+  userId     String   @map("user_id")
+  teamId     String   @map("team_id") @db.Uuid
+  assignedBy String?  @map("assigned_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user     Profile  @relation("ProjectAssignmentUser", fields: [userId], references: [id], onDelete: Cascade)
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  assigner Profile? @relation("ProjectAssignmentAssigner", fields: [assignedBy], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, userId, teamId])
+  @@index([userId])
+  @@index([projectId])
+  @@map("project_assignments")
 }
 
 // =============================================================================
