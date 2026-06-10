@@ -350,7 +350,9 @@ registerProcessor('scene_regeneration', async (job, context) => {
     if (!audioUrl) continue;
     const fileName = audioUrl.split('/').pop() || 'output.mp3';
     const pathMatch = audioUrl.match(/\/storage\/v1\/object\/public\/(.+)$/);
-    const filePath = pathMatch ? pathMatch[1] : `audio/${job.projectId}/${fileName}`;
+    const filePath = /^https?:\/\//i.test(audioUrl)
+      ? audioUrl
+      : pathMatch ? pathMatch[1] : `audio/${job.projectId}/${fileName}`;
     await prisma.audioOutput.create({
       data: {
         projectId: job.projectId,
