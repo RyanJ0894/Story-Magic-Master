@@ -402,6 +402,24 @@ export async function POST(request: Request) {
               });
             }
           }
+
+          // #174 PR β: master notification — subscription renewed.
+          // Fire-and-forget; webhook is idempotent and must always 200.
+          try {
+            if (typeof invoice.customer === 'string') {
+              const { emitSubscriptionRenewed } = await import('@/lib/notifications/producers');
+              await emitSubscriptionRenewed(prisma, {
+                stripeCustomerId: invoice.customer,
+                amountCents: invoice.amount_paid ?? 0,
+                currency: invoice.currency ?? 'usd',
+                nextRenewal: invoice.period_end
+                  ? new Date(invoice.period_end * 1000)
+                  : null,
+              });
+            }
+          } catch {
+            // swallow — already-200'd webhook side
+          }
         }
         break;
       }
@@ -424,6 +442,26 @@ export async function POST(request: Request) {
               data: { status: 'past_due' },
             }),
           ]);
+
+          // #174 PR β: master notification — subscription renewal failed.
+          try {
+            if (typeof invoice.customer === 'string') {
+              const { emitSubscriptionFailed } = await import('@/lib/notifications/producers');
+              await emitSubscriptionFailed(prisma, {
+                stripeCustomerId: invoice.customer,
+                amountCents: invoice.amount_due ?? null,
+                currency: invoice.currency ?? null,
+                failureReason:
+                  // Stripe's typed last_finalization_error / collection_method context isn't always typed
+                  // on the invoice surface. Surface the next-payment-attempt instead, which is operator-friendly.
+                  invoice.next_payment_attempt
+                    ? `Next retry: ${new Date(invoice.next_payment_attempt * 1000).toLocaleString('en-US')}`
+                    : null,
+              });
+            }
+          } catch {
+            // swallow
+          }
         }
         break;
       }
