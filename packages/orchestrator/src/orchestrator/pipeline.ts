@@ -401,6 +401,7 @@ export async function orchestrateParallel(
     alignment: SceneAlignment;
     cues: SceneCues;
     duration_ms: number;
+    mix_warnings: string[];
   }> = [];
   const freshScenes: typeof sceneHashes = [];
 
@@ -424,6 +425,7 @@ export async function orchestrateParallel(
           alignment: { lines: [] } as unknown as SceneAlignment,
           cues: { music: [], ambience: [], sfx: [] } as unknown as SceneCues,
           duration_ms: 0,
+          mix_warnings: [],
         });
       } else {
         freshScenes.push(sh);
@@ -443,7 +445,7 @@ export async function orchestrateParallel(
     cachedScenes: cachedResults.length,
   });
 
-  let stitchResult: { scenes: typeof cachedResults; total_duration_ms: number };
+  let stitchResult: { scenes: typeof cachedResults; total_duration_ms: number; mix_warnings: string[] };
   // TTS counters used in the final report. Default to zero for full-cache-hit
   // runs (no TTS was invoked).
   let ttsCachedLines = 0;
@@ -455,6 +457,7 @@ export async function orchestrateParallel(
     stitchResult = {
       scenes: [...cachedResults].sort((a, b) => a.scene_index - b.scene_index),
       total_duration_ms: 0,
+      mix_warnings: [],
     };
     if (onProgress) {
       onProgress({ step: 'assembling', percent: 85, message: 'All scenes cached — skipping render' });
@@ -536,6 +539,7 @@ export async function orchestrateParallel(
         (a, b) => a.scene_index - b.scene_index,
       ),
       total_duration_ms: partialStitch.total_duration_ms,
+      mix_warnings: partialStitch.mix_warnings,
     };
 
     // Surface TTS counters for the final report.
