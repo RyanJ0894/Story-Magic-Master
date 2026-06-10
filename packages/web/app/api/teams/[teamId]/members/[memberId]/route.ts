@@ -76,6 +76,16 @@ export const PATCH = withAuth(async (request, { userId, prisma, params }) => {
       }).catch((err) => log.error('[TeamMember] deactivation email failed', err));
     }
 
+    // Fire-and-forget in-app notification for the master account
+    if (member.userId) {
+      const { emitTeamMemberDeactivated } = await import('@/lib/notifications/producers');
+      await emitTeamMemberDeactivated(prisma, {
+        teamId,
+        memberUserId: member.userId,
+        memberName: member.user?.fullName ?? null,
+      }).catch((err) => log.error('[TeamMember] deactivation notification failed', err));
+    }
+
     log.info('[TeamMember] deactivated', { teamId, memberId, by: userId });
     return NextResponse.json({ memberId, status: 'deactivated' });
   }
