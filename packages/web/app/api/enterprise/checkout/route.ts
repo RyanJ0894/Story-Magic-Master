@@ -31,7 +31,7 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
       priceId,
       userId,
       userEmail: profile?.email || '',
-      successUrl: `${origin}/enterprise?upgraded=true`,
+      successUrl: `${origin}/enterprise/dashboard?upgraded=true`,
       cancelUrl: `${origin}/enterprise/contact?canceled=true`,
     });
 
