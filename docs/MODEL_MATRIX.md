@@ -1,6 +1,6 @@
 # Model Matrix — Story Magic LLM Usage
 
-**Last updated:** 2026-06-08
+**Last updated:** 2026-06-09
 **Owner:** chris@servicevision.net
 
 This is the single source of truth for which AI model each operation uses, how to swap it via env var, and the cost/quality rationale. Read this **before** adding a new LLM call.
@@ -113,3 +113,6 @@ Logic: `packages/orchestrator/src/lib/llm-client.ts::buildFailoverChain()`
 | 2026-06-09 | Web Adviser migrated off raw `gpt-4o` to Claude Sonnet via `lib/ai/providers.ts` (`generateSuggestions` + `generateRewrites`). Unused `lib/ai/llm-call.ts` utility deleted. Eliminates the last raw-OpenAI bypass in the web package. Adviser callers can still override `options.model` for experiments. T3-2 of cost-opt Phase 2. |
 | 2026-06-09 | LLM call log table for per-call cost attribution. New `llm_call_log` table (Prisma migration 0037). Every `runAgentLoop` + `generateStructuredOutput` call writes one row with operation label, model, provider, token counts, duration, success, and USD cost estimate (lookup table in `lib/llm-call-log.ts`). Best-effort writes — DB failure is logged, never propagated. Disable via `LLM_CALL_LOG_DISABLED=true`. T3-4 of cost-opt Phase 2. |
 | 2026-06-09 | Scene-level idempotency cache. `orchestrate()` now hashes each scene's render-defining inputs (dialogue + voice keys + emotion + audio cues + mix params) and short-circuits the alignment + cue + timeline + mix block when the hash matches a previously cached render. New `scene_renders` table (Prisma migration 0036). Disable via `SCENE_CACHE_DISABLED=true`. Sequential pipeline only this PR; parallel pipeline integration in a follow-up. T2-2 of cost-opt Phase 2 (issue #190). |
+| 2026-06-09 | Snapshot guard for Anthropic-bound Zod schemas. `zod-anthropic-guard.test.ts` walks every schema passed to `generateObject` / `generateStructuredOutput` and fails if any contain `.min` / `.max` / `.length` / `.regex` chains (Anthropic 400s on the resulting JSON Schema constraints). Catches the regression class PR #178 had to chase across four schemas. T3-6 of cost-opt Phase 2. Landed via unification PR (was originally PR #197). |
+| 2026-06-09 | Wall-clock budget on `/analyze`. New `withWallClockBudget(promise, ms, label)` helper races analysis against a timer; on timeout returns 503 instead of leaving the request hanging while the LLM client retries through the failover chain. Default 120s; override with `ANALYZE_WALLCLOCK_BUDGET_MS=N` env. Direct response to Peter's "shocking log volume on a 5-page script" report. T3-5 of cost-opt Phase 2. Landed via unification PR (was originally PR #193). |
+| 2026-06-09 | S3 audio storage env-schema scaffolding. `env.ts` now declares `STORAGE_PROVIDER` (`local` \| `s3`, default `local`) + `AWS_*` keys (all optional). Startup banner prints chosen backend. **Schema-only** — actual upload implementation comes in PR #173. Landed via unification PR. |
