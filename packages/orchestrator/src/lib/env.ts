@@ -74,6 +74,15 @@ const envSchema = z.object({
 
   // Storage
   AUDIO_OUTPUT_DIR: optionalString, // Defaults to process.cwd()/output
+  // S3 audio storage — set STORAGE_PROVIDER=s3 to upload final episode files to S3
+  // instead of serving from local Render disk (required for horizontal scaling).
+  STORAGE_PROVIDER: z.preprocess(emptyToUndefined, z.enum(['local', 's3']).default('local')),
+  AWS_ACCESS_KEY_ID: optionalString,
+  AWS_SECRET_ACCESS_KEY: optionalString,
+  AWS_S3_BUCKET: optionalString,
+  AWS_S3_REGION: optionalString,
+  AWS_S3_ENDPOINT: optionalUrl,   // custom endpoint for R2 / MinIO
+  AWS_S3_PUBLIC_URL: optionalUrl,
 
   // Script size limits (pre-flight guards against LLM context overflow)
   // Defaults: 150 pages / 75_000 chars. Both limits trigger a 400 before any LLM call.
@@ -193,6 +202,7 @@ export function printEnvSummary(): void {
   console.log(`   Director Model (Advanced): ${env.DIRECTOR_MODEL_ADVANCED}`);
   console.log(`   Audio Director Model: ${env.AUDIO_DIRECTOR_MODEL}`);
   console.log(`   Voice Assignment Model: ${env.VOICE_ASSIGNMENT_MODEL}`);
+  console.log(`   Storage: ${env.STORAGE_PROVIDER === 's3' && env.AWS_S3_BUCKET ? `✅ S3 (${env.AWS_S3_BUCKET})` : '📁 local disk'}`);
 
   // T3-1: loud warning if TEST_MODE is on. We deliberately print this AFTER
   // the model lines so it's the last thing the operator sees on startup.
