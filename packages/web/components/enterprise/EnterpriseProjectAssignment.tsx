@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { FolderOpen, Plus, Minus } from 'lucide-react';
+import { FolderOpen, Plus, Minus, Trash2 } from 'lucide-react';
 
 interface Project {
   id: string;
@@ -48,6 +48,28 @@ export function EnterpriseProjectAssignment({ teamId, allProjects, assignedProje
       startTransition(() => router.refresh());
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to assign project');
+    } finally {
+      setLoading(projectId, false);
+    }
+  };
+
+  const deleteProject = async (projectId: string, projectName: string) => {
+    if (loadingIds.has(projectId)) return;
+    if (!confirm(
+      `Delete "${projectName}" permanently? This removes the project for you and all teams it's shared with. This cannot be undone.`,
+    )) return;
+    setLoading(projectId, true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? 'Failed to delete');
+      }
+      setAssigned(prev => { const s = new Set(prev); s.delete(projectId); return s; });
+      toast.success('Project deleted');
+      startTransition(() => router.refresh());
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete project');
     } finally {
       setLoading(projectId, false);
     }
@@ -122,6 +144,17 @@ export function EnterpriseProjectAssignment({ teamId, allProjects, assignedProje
                   >
                     <Minus className="w-4 h-4" />
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    data-testid={`enterprise-delete-project-${project.id}`}
+                    disabled={loadingIds.has(project.id) || pending}
+                    onClick={() => void deleteProject(project.id, project.name)}
+                    className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-9 w-9 p-0"
+                    title="Delete project permanently"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
             ))}
@@ -147,16 +180,29 @@ export function EnterpriseProjectAssignment({ teamId, allProjects, assignedProje
                     {new Date(project.createdAt).toLocaleDateString('en-US')}
                   </p>
                 </Link>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={loadingIds.has(project.id) || pending}
-                  onClick={() => void assign(project.id)}
-                  className="text-muted-foreground hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 h-9 w-9 p-0 shrink-0"
-                  title="Add to team"
-                >
-                  <Plus className="w-4 h-4" />
-                </Button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={loadingIds.has(project.id) || pending}
+                    onClick={() => void assign(project.id)}
+                    className="text-muted-foreground hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 h-9 w-9 p-0"
+                    title="Add to team"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    data-testid={`enterprise-delete-project-${project.id}`}
+                    disabled={loadingIds.has(project.id) || pending}
+                    onClick={() => void deleteProject(project.id, project.name)}
+                    className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-9 w-9 p-0"
+                    title="Delete project permanently"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
