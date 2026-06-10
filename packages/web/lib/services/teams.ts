@@ -75,6 +75,7 @@ export async function listTeams(prisma: PrismaClient, userId: string) {
           role: true,
           memberType: true,
           status: true,
+          deactivatedAt: true,
           user: {
             select: {
               id: true,

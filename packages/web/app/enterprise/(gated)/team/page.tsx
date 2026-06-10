@@ -107,7 +107,7 @@ export default function EnterpriseTeamPage() {
     if (!selectedTeam || !inviteEmail.trim()) return;
     setInviting(true);
     try {
-      const res = await fetch(`/api/teams/${selectedTeam.id}/members`, {
+      const res = await apiFetch(`/api/teams/${selectedTeam.id}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -134,7 +134,7 @@ export default function EnterpriseTeamPage() {
   const removeMember = async (memberId: string) => {
     if (!selectedTeam) return;
     try {
-      const res = await fetch(`/api/teams/${selectedTeam.id}/members`, {
+      const res = await apiFetch(`/api/teams/${selectedTeam.id}/members`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ memberId }),
@@ -150,7 +150,7 @@ export default function EnterpriseTeamPage() {
   const patchMember = async (memberId: string, action: 'deactivate' | 'reactivate') => {
     if (!selectedTeam) return;
     try {
-      const res = await fetch(`/api/teams/${selectedTeam.id}/members/${memberId}`, {
+      const res = await apiFetch(`/api/teams/${selectedTeam.id}/members/${memberId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
@@ -351,13 +351,13 @@ export default function EnterpriseTeamPage() {
                   <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2">
                       <Users className="w-4 h-4" />
-                      Members ({(selectedTeam.members ?? []).filter(m => m.status === 'accepted').length})
+                      Members ({(selectedTeam.members ?? []).filter(m => m.status === 'accepted' && !m.deactivatedAt).length})
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Active members */}
                     {(() => {
-                      const active = (selectedTeam.members ?? []).filter(m => m.status === 'accepted');
+                      const active = (selectedTeam.members ?? []).filter(m => m.status === 'accepted' && !m.deactivatedAt);
                       return active.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-4">
                           No active members yet. Invite your first team member.

@@ -122,7 +122,7 @@ export async function sendSubAccountDeactivationEmail(params: {
     });
 
     if (error) {
-      log.error('[Email] Sub-account deactivation failed', error);
+      log.error('[Email] Sub-account deactivation failed', { message: error.message, name: error.name });
       return { success: false, error: error.message };
     }
     log.info('[Email] Sub-account deactivation sent', { id: data?.id, to });
@@ -154,7 +154,7 @@ export async function sendSubAccountReactivationEmail(params: {
     });
 
     if (error) {
-      log.error('[Email] Sub-account reactivation failed', error);
+      log.error('[Email] Sub-account reactivation failed', { message: error.message, name: error.name });
       return { success: false, error: error.message };
     }
     log.info('[Email] Sub-account reactivation sent', { id: data?.id, to });

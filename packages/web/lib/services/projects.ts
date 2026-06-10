@@ -32,13 +32,13 @@ export interface UpdateProjectInput {
 
 /**
  * Canonical predicate for "user is an active team member".
- * acceptedAt: { not: null } mirrors the check in withProjectAuth.
- * NOTE: deactivatedAt guard added in migration 0034 (PR #171) — update then.
+ * Mirrors the checks in withProjectAuth: accepted and not deactivated.
  */
 export const activeMemberWhere = (userId: string) =>
   ({
     userId,
     acceptedAt: { not: null as Date | null },
+    deactivatedAt: null,
   }) as const;
 
 export async function listProjects(prisma: PrismaClient, userId: string) {
