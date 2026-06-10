@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { concatScenesWithCrossfade } from '../orchestrator/workers/export.js';
 import { getOutputDir } from '../lib/env.js';
 import { log } from '../lib/logger.js';
+import { maybeUploadEpisodeToS3 } from '../lib/s3.js';
 
 const router = Router();
 
@@ -84,8 +85,10 @@ router.post('/stitch-segments', async (req: Request, res: Response): Promise<voi
     const episodePath = path.join(projectDir, 'episode.m4a');
     await concatScenesWithCrossfade(segmentPaths, episodePath, { fadeDuration: 1.5, fadeType: 'tri' });
 
-    const audioUrl = `/audio/${path.basename(project_id)}/episode.m4a`;
-    log.info('stitch-segments: complete', { projectId: project_id, audioUrl });
+    const safeId = path.basename(project_id);
+    const s3Url = await maybeUploadEpisodeToS3(episodePath, safeId);
+    const audioUrl = s3Url ?? `/audio/${safeId}/episode.m4a`;
+    log.info('stitch-segments: complete', { projectId: project_id, audioUrl, storage: s3Url ? 's3' : 'local' });
 
     res.json({ status: 'success', audio_url: audioUrl });
   } catch (error) {

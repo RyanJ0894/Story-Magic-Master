@@ -127,7 +127,26 @@ export function validateEnv(): EnvConfig {
     throw new Error('Environment validation failed');
   }
 
-  cachedEnv = result.data;
+  const env = result.data;
+
+  // When STORAGE_PROVIDER=s3, all S3 vars are required. Missing any means uploads
+  // will silently fall back to local paths — fail loudly at startup instead.
+  if (env.STORAGE_PROVIDER === 's3') {
+    const missing: string[] = [];
+    if (!env.AWS_ACCESS_KEY_ID) missing.push('AWS_ACCESS_KEY_ID');
+    if (!env.AWS_SECRET_ACCESS_KEY) missing.push('AWS_SECRET_ACCESS_KEY');
+    if (!env.AWS_S3_BUCKET) missing.push('AWS_S3_BUCKET');
+    if (!env.AWS_S3_PUBLIC_URL) missing.push('AWS_S3_PUBLIC_URL');
+    if (!env.AWS_S3_ENDPOINT) missing.push('AWS_S3_ENDPOINT');
+    if (missing.length > 0) {
+      console.error('❌ STORAGE_PROVIDER=s3 but required S3 vars are missing:');
+      console.error(`   ${missing.join(', ')}`);
+      console.error('   Set all S3 vars or unset STORAGE_PROVIDER to use local disk.');
+      throw new Error(`S3 storage misconfigured — missing: ${missing.join(', ')}`);
+    }
+  }
+
+  cachedEnv = env;
   return cachedEnv;
 }
 

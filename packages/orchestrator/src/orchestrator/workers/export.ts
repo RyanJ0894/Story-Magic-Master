@@ -9,6 +9,7 @@ import path from 'path';
 import { audioDurationSec } from '../../lib/audio.js';
 import { getOutputDir } from '../../lib/env.js';
 import { log } from '../../lib/logger.js';
+import { maybeUploadEpisodeToS3 } from '../../lib/s3.js';
 
 const ffmpeg = ffmpegStatic as unknown as string;
 
@@ -198,9 +199,12 @@ export async function makePlaybackManifest(
     );
   }
 
-  // Use the local file path as the URL — served via the orchestrator's static file route
-  const publicUrl = `/audio/${safeProjectId}/episode.m4a`;
-  log.info('Episode available at local path', { projectId: project_id, publicUrl });
+  // Upload to S3 when configured (STORAGE_PROVIDER=s3) so the file is accessible
+  // across multiple orchestrator instances on Render horizontal scale.
+  // Falls back to the local orchestrator URL when S3 is not configured (dev / single-instance).
+  const s3Url = await maybeUploadEpisodeToS3(episodePath, safeProjectId);
+  const publicUrl = s3Url ?? `/audio/${safeProjectId}/episode.m4a`;
+  log.info('Episode ready', { projectId: project_id, publicUrl, storage: s3Url ? 's3' : 'local' });
 
   // MP3 conversion intentionally skipped in the main pipeline path.
   // For long scripts (60-100+ min), synchronous FFmpeg MP3 conversion blocks

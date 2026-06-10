@@ -30,6 +30,17 @@ const isProtectedRoute = createRouteMatcher([
 function addSecurityHeaders(response: NextResponse, nonce: string): void {
   const isDev = process.env.NODE_ENV === 'development';
   const localhostOrchestrator = isDev ? ' http://localhost:22002' : '';
+  // Extract origin from AWS_S3_PUBLIC_URL (e.g. https://pub-xxx.r2.dev) for CSP allowlisting.
+  // Falls back to empty string when S3 storage is not configured (local dev without R2).
+  const s3PublicOrigin = (() => {
+    try {
+      const raw = process.env.AWS_S3_PUBLIC_URL;
+      return raw ? new URL(raw).origin : '';
+    } catch {
+      return '';
+    }
+  })();
+  const s3CspEntry = s3PublicOrigin ? ` ${s3PublicOrigin}` : '';
   const csp = [
     "default-src 'self'",
     // unsafe-eval required by Clerk JS SDK (uses new Function during init — CSP policy, not our code).
@@ -40,9 +51,9 @@ function addSecurityHeaders(response: NextResponse, nonce: string): void {
     // story-magic-orchestrator.onrender.com required in connect-src so the
     // service worker can fetch() audio files (fetch is governed by connect-src,
     // not media-src — both are needed).
-    `connect-src 'self' https://api.stripe.com https://api.elevenlabs.io https://api.openai.com https://*.sentry.io https://clerk.storymagicapp.net https://accounts.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://*.clerk.dev https://clerk-telemetry.com https://story-magic-orchestrator.onrender.com${localhostOrchestrator}`,
+    `connect-src 'self' https://api.stripe.com https://api.elevenlabs.io https://api.openai.com https://*.sentry.io https://clerk.storymagicapp.net https://accounts.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://*.clerk.dev https://clerk-telemetry.com https://story-magic-orchestrator.onrender.com${localhostOrchestrator}${s3CspEntry}`,
     "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://accounts.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com",
-    `media-src 'self' blob: https://story-magic-orchestrator.onrender.com${localhostOrchestrator}`,
+    `media-src 'self' blob: https://story-magic-orchestrator.onrender.com${localhostOrchestrator}${s3CspEntry}`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",

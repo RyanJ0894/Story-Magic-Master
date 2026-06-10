@@ -6,6 +6,11 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
     exclude: ['node_modules', 'dist'],
+    deps: {
+      // Force @aws-sdk packages through Vite's transform pipeline so vi.mock()
+      // intercepts them correctly across all module boundaries (CJS/ESM interop).
+      inline: [/@aws-sdk/],
+    },
     env: {
       // Prisma requires DATABASE_URL at initialization — provide a dummy for tests.
       // Real DB calls are mocked; this just prevents PrismaClientInitializationError.

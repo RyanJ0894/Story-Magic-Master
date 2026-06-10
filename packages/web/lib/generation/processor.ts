@@ -331,7 +331,10 @@ export async function processGenerationJob(
       const orchestratorResponse = await orchestratorGenerate('/orchestrate', {
         project_id: projectId,
         scenes: chunk.scenes,
-        chunk_index: chunk.index,
+        // Only set chunk_index for multi-chunk jobs. Without it the orchestrator
+        // runs the full pipeline (makePlaybackManifest + S3 upload). With it, the
+        // orchestrator skips the manifest/S3 step and returns a local path.
+        ...(isChunked ? { chunk_index: chunk.index } : {}),
       });
       const chunkSec = Math.round((Date.now() - chunkStart) / 1000);
 
@@ -373,11 +376,14 @@ export async function processGenerationJob(
         const localMatch = audioUrl.match(/^\/audio\/(.+)$/);
         // For local /audio/... paths, store the absolute orchestrator URL so the
         // browser AudioPlayer can load it directly without needing NEXT_PUBLIC_ORCHESTRATOR_URL.
-        const filePath = supabaseMatch
-          ? supabaseMatch[1]
-          : localMatch
-            ? (orchestratorBase ? `${orchestratorBase}/audio/${localMatch[1]}` : localMatch[1])
-            : (orchestratorBase ? `${orchestratorBase}/audio/${projectId}/${fileName}` : `${projectId}/${fileName}`);
+        // Absolute URLs (S3/R2) are stored as-is — resolveAudioUrl passes them through unchanged.
+        const filePath = /^https?:\/\//i.test(audioUrl)
+          ? audioUrl
+          : supabaseMatch
+            ? supabaseMatch[1]
+            : localMatch
+              ? (orchestratorBase ? `${orchestratorBase}/audio/${localMatch[1]}` : localMatch[1])
+              : (orchestratorBase ? `${orchestratorBase}/audio/${projectId}/${fileName}` : `${projectId}/${fileName}`);
         await prisma.audioOutput.create({
           data: {
             projectId,
@@ -447,6 +453,20 @@ export async function processGenerationJob(
           if (typeof stitchResult.audio_url === 'string') {
             const raw = stitchResult.audio_url;
             finalAudioUrl = raw.startsWith('/') ? `${orchestratorBase}${raw}` : raw;
+            // Replace the per-chunk audioOutput records with a single record for
+            // the final stitched episode. The chunk files are intermediate artifacts;
+            // the player reads audioOutput.filePath so this must point to the final URL.
+            await prisma.audioOutput.deleteMany({ where: { jobId } });
+            await prisma.audioOutput.create({
+              data: {
+                projectId,
+                jobId,
+                fileName: 'episode.m4a',
+                filePath: finalAudioUrl,
+                durationSeconds: typeof lastManifest?.total === 'number' ? lastManifest.total : null,
+                format: 'm4a',
+              },
+            });
           }
         } else {
           log.warn('[PIPELINE] stitch-segments failed — using first segment URL', {

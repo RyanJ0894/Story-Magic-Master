@@ -28,6 +28,9 @@ importers:
       '@ai-sdk/openai':
         specifier: ^3.0.53
         version: 3.0.53(zod@3.25.76)
+      '@aws-sdk/client-s3':
+        specifier: ^3.1021.0
+        version: 3.1021.0
       '@clerk/backend':
         specifier: ^2.30.1
         version: 2.30.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)

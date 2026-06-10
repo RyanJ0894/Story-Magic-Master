@@ -42,6 +42,13 @@ export default function AudioPlayer({ outputs, directUrl, segmentUrls, showBuffe
   const currentOutput = outputs[currentTrack];
   const isSegmentMode = !!segmentUrls && segmentUrls.length > 0;
 
+  // Compute audioUrl early (before hooks) so effects can depend on it.
+  // currentOutput may be undefined on first render if outputs is empty — guard with ''.
+  const activeSegmentUrl = isSegmentMode ? segmentUrls?.[activeSegmentIndex] : undefined;
+  const audioUrl = currentOutput
+    ? (activeSegmentUrl || directUrl || resolveAudioUrl(currentOutput.filePath))
+    : '';
+
   const handleEnded = useCallback(() => {
     if (isSegmentMode && segmentUrls && activeSegmentIndex < segmentUrls.length - 1) {
       setActiveSegmentIndex((i) => i + 1);
@@ -58,10 +65,16 @@ export default function AudioPlayer({ outputs, directUrl, segmentUrls, showBuffe
 
     if (isPlaying) {
       audioRef.current.pause();
+      setIsPlaying(false);
     } else {
-      audioRef.current.play();
+      audioRef.current.play().catch((err: Error) => {
+        console.error('[AudioPlayer] play() failed:', err.name, err.message,
+          '| src:', audioRef.current?.src,
+          '| networkState:', audioRef.current?.networkState,
+          '| error.code:', audioRef.current?.error?.code);
+        setIsPlaying(false);
+      });
     }
-    setIsPlaying(!isPlaying);
   }, [isPlaying]);
 
   const handleTimeUpdate = () => {
@@ -162,6 +175,14 @@ export default function AudioPlayer({ outputs, directUrl, segmentUrls, showBuffe
     setIsPlaying(true);
   }, [activeSegmentIndex]);
 
+  // Reload the audio element when audioUrl changes. React updates the src attribute
+  // but the browser media element requires an explicit load() call to rescan sources
+  // after a src change — without it, play() throws "no supported sources".
+  useEffect(() => {
+    if (!audioRef.current || !audioUrl) return;
+    audioRef.current.load();
+  }, [audioUrl]);
+
   // Resume from buffering when new segment arrives
   useEffect(() => {
     if (!isBuffering || !segmentUrls) return;
@@ -217,10 +238,6 @@ export default function AudioPlayer({ outputs, directUrl, segmentUrls, showBuffe
       </div>
     );
   }
-
-  // Construct the playback URL — active segment URL takes highest precedence, then directUrl, then constructed path
-  const activeSegmentUrl = isSegmentMode ? segmentUrls?.[activeSegmentIndex] : undefined;
-  const audioUrl = activeSegmentUrl || directUrl || resolveAudioUrl(currentOutput.filePath);
 
   return (
     <div className="space-y-4">
