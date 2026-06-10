@@ -780,6 +780,7 @@ model TeamMember {
   invitedBy    String?   @map("invited_by")
   invitedAt    DateTime  @default(now()) @map("invited_at") @db.Timestamptz
   acceptedAt   DateTime? @map("accepted_at") @db.Timestamptz
+  deactivatedAt DateTime? @map("deactivated_at") @db.Timestamptz
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 

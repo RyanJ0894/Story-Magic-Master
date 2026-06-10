@@ -75,6 +75,7 @@ export async function listTeams(prisma: PrismaClient, userId: string) {
           role: true,
           memberType: true,
           status: true,
+          deactivatedAt: true,
           user: {
             select: {
               id: true,
@@ -304,14 +305,17 @@ export async function listMembers(
       userId: true,
       invitedEmail: true,
       role: true,
+      memberType: true,
       status: true,
       invitedAt: true,
       acceptedAt: true,
+      deactivatedAt: true,
       user: {
         select: {
           fullName: true,
           avatarUrl: true,
           id: true,
+          email: true,
         },
       },
       inviter: {

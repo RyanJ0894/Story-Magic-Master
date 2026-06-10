@@ -438,6 +438,7 @@ describe('withProjectAuth', () => {
                     some: {
                       userId: USER_ID,
                       acceptedAt: { not: null },
+                      deactivatedAt: null,
                     },
                   },
                 },

@@ -15,6 +15,7 @@ function getTierFromPriceId(priceId: string): string {
     [process.env.STRIPE_PRICE_PRO_YEARLY || '']: 'pro',
     [process.env.STRIPE_PRICE_STUDIO_MONTHLY || '']: 'studio',
     [process.env.STRIPE_PRICE_STUDIO_YEARLY || '']: 'studio',
+    [process.env.STRIPE_ENTERPRISE_PRICE_ID || '']: 'enterprise',
   };
 
   return priceToTier[priceId] || 'free';
@@ -22,10 +23,11 @@ function getTierFromPriceId(priceId: string): string {
 
 // Generation and download limits per tier
 const TIER_LIMITS: Record<string, { generations: number; downloads: number }> = {
-  free:    { generations: 1,  downloads: 0 },
-  creator: { generations: 5,  downloads: 1 },
-  pro:     { generations: 20, downloads: 5 },
-  studio:  { generations: 100, downloads: 50 },
+  free:       { generations: 1,    downloads: 0 },
+  creator:    { generations: 5,    downloads: 1 },
+  pro:        { generations: 20,   downloads: 5 },
+  studio:     { generations: 100,  downloads: 50 },
+  enterprise: { generations: 1000, downloads: 500 },
 };
 
 export async function POST(request: Request) {
