@@ -40,40 +40,40 @@ model Profile {
   updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
-  projects              Project[]
-  jobs                  Job[]
-  usage                 Usage[]
-  subscriptions         Subscription[]
-  scriptSharesBy        ScriptShare[]         @relation("SharedBy")
-  scriptSharesWith      ScriptShare[]         @relation("SharedWith")
-  readerLibrary         ReaderLibrary[]
-  purchases             Purchase[]
-  contentAccessLogs     ContentAccessLog[]
-  teamsOwned            Team[]
-  teamMemberships       TeamMember[]          @relation("MemberUser")
-  teamInvitesSent       TeamMember[]          @relation("InvitedBy")
-  teamSharesBy          TeamShare[]
-  activityLogs          ActivityLog[]
-  projectNotes          ProjectNote[]
-  projectComments       ProjectComment[]
-  alerts                Alert[]               @relation("AlertUser")
-  alertsRelated         Alert[]               @relation("RelatedUser")
-  alertPreferences      AlertPreference?
-  revisions             Revision[]
-  scriptCorpus          ScriptCorpus[]
-  auditLogs             AuditLog[]
-  impactStories         ImpactStory[]
-  scriptReviews         ScriptReview[]        @relation("Reviewer")
-  writerSubscriptions   WriterSubscription[]  @relation("WriterSubs")
-  readerSubscriptions   WriterSubscription[]  @relation("SubscriberSubs")
-  creditTransactions    CreditTransaction[]
-  voiceClones           VoiceClone[]
-  apiKeys               ApiKey[]
-  webhookEndpoints      WebhookEndpoint[]
-  podcastFeeds          PodcastFeed[]
-  humanReviews          HumanReview[]
-  projectAssignments    ProjectAssignment[]   @relation("ProjectAssignmentUser")
-  projectAssignmentsGiven ProjectAssignment[] @relation("ProjectAssignmentAssigner")
+  projects                Project[]
+  jobs                    Job[]
+  usage                   Usage[]
+  subscriptions           Subscription[]
+  scriptSharesBy          ScriptShare[]        @relation("SharedBy")
+  scriptSharesWith        ScriptShare[]        @relation("SharedWith")
+  readerLibrary           ReaderLibrary[]
+  purchases               Purchase[]
+  contentAccessLogs       ContentAccessLog[]
+  teamsOwned              Team[]
+  teamMemberships         TeamMember[]         @relation("MemberUser")
+  teamInvitesSent         TeamMember[]         @relation("InvitedBy")
+  teamSharesBy            TeamShare[]
+  activityLogs            ActivityLog[]
+  projectNotes            ProjectNote[]
+  projectComments         ProjectComment[]
+  alerts                  Alert[]              @relation("AlertUser")
+  alertsRelated           Alert[]              @relation("RelatedUser")
+  alertPreferences        AlertPreference?
+  revisions               Revision[]
+  scriptCorpus            ScriptCorpus[]
+  auditLogs               AuditLog[]
+  impactStories           ImpactStory[]
+  scriptReviews           ScriptReview[]       @relation("Reviewer")
+  writerSubscriptions     WriterSubscription[] @relation("WriterSubs")
+  readerSubscriptions     WriterSubscription[] @relation("SubscriberSubs")
+  creditTransactions      CreditTransaction[]
+  voiceClones             VoiceClone[]
+  apiKeys                 ApiKey[]
+  webhookEndpoints        WebhookEndpoint[]
+  podcastFeeds            PodcastFeed[]
+  humanReviews            HumanReview[]
+  projectAssignments      ProjectAssignment[]  @relation("ProjectAssignmentUser")
+  projectAssignmentsGiven ProjectAssignment[]  @relation("ProjectAssignmentAssigner")
 
   @@index([stripeCustomerId])
   @@index([stripeSubscriptionId])
@@ -86,51 +86,59 @@ model Profile {
 // =============================================================================
 
 model Project {
-  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId                String   @map("user_id")
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String    @map("user_id")
   name                  String
   description           String?
-  status                String   @default("draft")
-  scriptText            String?  @map("script_text")
-  pageCount             Int      @default(0) @map("page_count")
-  directorJson          Json?    @map("director_json")
-  directorNotes         Json?    @map("director_notes")
-  preferredWorkflowMode String   @default("automatic") @map("preferred_workflow_mode")
-  currentRunNumber      Int      @default(0) @map("current_run_number")
-  voiceAssignments      Json     @default("[]") @map("voice_assignments")
-  audioOverrides        Json     @default("[]") @map("audio_overrides")
-  emotionOverrides      Json?    @map("emotion_overrides")
+  status                String    @default("draft")
+  scriptText            String?   @map("script_text")
+  pageCount             Int       @default(0) @map("page_count")
+  directorJson          Json?     @map("director_json")
+  directorNotes         Json?     @map("director_notes")
+  preferredWorkflowMode String    @default("automatic") @map("preferred_workflow_mode")
+  currentRunNumber      Int       @default(0) @map("current_run_number")
+  voiceAssignments      Json      @default("[]") @map("voice_assignments")
+  audioOverrides        Json      @default("[]") @map("audio_overrides")
+  emotionOverrides      Json?     @map("emotion_overrides")
   // Exchange listing fields
-  exchangeIsPublic      Boolean  @default(false) @map("exchange_is_public")
+  exchangeIsPublic      Boolean   @default(false) @map("exchange_is_public")
   exchangeListedAt      DateTime? @map("exchange_listed_at") @db.Timestamptz
-  exchangeSlug          String?  @unique @map("exchange_slug")
-  exchangeTagline       String?  @map("exchange_tagline")
-  exchangeGenre         String?  @map("exchange_genre")
-  page1PreviewUrl       String?  @map("page1_preview_url")
-  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  exchangeSlug          String?   @unique @map("exchange_slug")
+  exchangeTagline       String?   @map("exchange_tagline")
+  exchangeGenre         String?   @map("exchange_genre")
+  page1PreviewUrl       String?   @map("page1_preview_url")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
-  user              Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobs              Job[]
-  jobLogs           JobLog[]
-  audioOutputs      AudioOutput[]
-  scriptShares      ScriptShare[]
-  readerLibrary     ReaderLibrary[]
-  purchases         Purchase[]
-  podcastFeed       PodcastFeed?
-  contentAccessLogs ContentAccessLog[]
-  storyScores       StoryScore[]
-  suggestions       Suggestion[]
-  revisions         Revision[]
-  teamShares          TeamShare[]
-  alerts              Alert[]
-  activityLogs        ActivityLog[]
-  projectNotes        ProjectNote[]
-  projectComments     ProjectComment[]
-  scriptReviews       ScriptReview[]
-  humanReviews        HumanReview[]
-  projectAssignments  ProjectAssignment[]
+  user               Profile             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs               Job[]
+  jobLogs            JobLog[]
+  audioOutputs       AudioOutput[]
+  scriptShares       ScriptShare[]
+  readerLibrary      ReaderLibrary[]
+  purchases          Purchase[]
+  podcastFeed        PodcastFeed?
+  contentAccessLogs  ContentAccessLog[]
+  storyScores        StoryScore[]
+  suggestions        Suggestion[]
+  revisions          Revision[]
+  teamShares         TeamShare[]
+  alerts             Alert[]
+  activityLogs       ActivityLog[]
+  projectNotes       ProjectNote[]
+  projectComments    ProjectComment[]
+  scriptReviews      ScriptReview[]
+  humanReviews       HumanReview[]
+  projectAssignments ProjectAssignment[]
+  // Pipeline tables — orchestrator owns the rows; FK + cascade closed by
+  // migration 0040 (DT-31-H-1).
+  mixManifests       MixManifest[]
+  timelines          Timeline[]
+  alignments         Alignment[]
+  ttsStems           TtsStem[]
+  sceneRenders       SceneRender[]
+  voiceMap           VoiceMap[]
 
   @@index([userId])
   @@index([status])
@@ -311,8 +319,8 @@ model Purchase {
 model CreditTransaction {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   profileId       String   @map("profile_id")
-  amount          Int      // positive = credit, negative = debit
-  reason          String   // signup_bonus | purchase | scene_generation | refund
+  amount          Int // positive = credit, negative = debit
+  reason          String // signup_bonus | purchase | scene_generation | refund
   jobId           String?  @map("job_id") @db.Uuid
   stripeSessionId String?  @unique @map("stripe_session_id")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
@@ -326,17 +334,17 @@ model CreditTransaction {
 }
 
 model PodcastFeed {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  projectId     String    @unique @map("project_id") @db.Uuid
-  userId        String    @map("user_id")
-  episodeTitle  String    @map("episode_title")
-  description   String    @db.Text
-  coverArtUrl   String?   @map("cover_art_url")
-  rssFeedSlug   String    @unique @map("rss_feed_slug")
-  published     Boolean   @default(false)
-  publishedAt   DateTime? @map("published_at") @db.Timestamptz
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId    String    @unique @map("project_id") @db.Uuid
+  userId       String    @map("user_id")
+  episodeTitle String    @map("episode_title")
+  description  String    @db.Text
+  coverArtUrl  String?   @map("cover_art_url")
+  rssFeedSlug  String    @unique @map("rss_feed_slug")
+  published    Boolean   @default(false)
+  publishedAt  DateTime? @map("published_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user    Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -618,16 +626,16 @@ model ScriptCorpus {
   updatedAt         DateTime                     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Training dataset fields
-  scriptText        String?                      @map("script_text")
-  datasetCategory   String?                      @map("dataset_category") // Oscar Winner, Black List, Produced Benchmark, Weak Film, TV Benchmark
-  act1BreakPage     Int?                         @map("act1_break_page")
-  act2BreakPage     Int?                         @map("act2_break_page")
-  dialoguePct       Decimal?                     @map("dialogue_pct") @db.Decimal(5, 2)
-  sceneCount        Int?                         @map("scene_count")
-  conflictDensity   Decimal?                     @map("conflict_density") @db.Decimal(5, 3)
-  emotionalArcScore Decimal?                     @map("emotional_arc_score") @db.Decimal(4, 2)
-  pageCount         Int?                         @map("page_count")
-  pdfFilename       String?                      @map("pdf_filename")
+  scriptText        String?  @map("script_text")
+  datasetCategory   String?  @map("dataset_category") // Oscar Winner, Black List, Produced Benchmark, Weak Film, TV Benchmark
+  act1BreakPage     Int?     @map("act1_break_page")
+  act2BreakPage     Int?     @map("act2_break_page")
+  dialoguePct       Decimal? @map("dialogue_pct") @db.Decimal(5, 2)
+  sceneCount        Int?     @map("scene_count")
+  conflictDensity   Decimal? @map("conflict_density") @db.Decimal(5, 3)
+  emotionalArcScore Decimal? @map("emotional_arc_score") @db.Decimal(4, 2)
+  pageCount         Int?     @map("page_count")
+  pdfFilename       String?  @map("pdf_filename")
 
   // Relations
   uploader     Profile?      @relation(fields: [uploadedBy], references: [id])
@@ -640,19 +648,19 @@ model ScriptCorpus {
 }
 
 model CorpusScore {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  corpusScriptId  String   @map("corpus_script_id") @db.Uuid
-  modelVersion    String   @map("model_version")
-  overallScore    Decimal  @map("overall_score") @db.Decimal(4, 2)
-  conceptScore    Decimal  @map("concept_score") @db.Decimal(4, 2)
-  structureScore  Decimal  @map("structure_score") @db.Decimal(4, 2)
-  characterScore  Decimal  @map("character_score") @db.Decimal(4, 2)
-  craftScore      Decimal  @map("craft_score") @db.Decimal(4, 2)
-  dimensions      Json     // Full 12-dimension scores + reasoning
-  strengths       String[]
-  weaknesses      String[]
-  confidence      Decimal  @map("confidence") @db.Decimal(4, 2)
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  corpusScriptId String   @map("corpus_script_id") @db.Uuid
+  modelVersion   String   @map("model_version")
+  overallScore   Decimal  @map("overall_score") @db.Decimal(4, 2)
+  conceptScore   Decimal  @map("concept_score") @db.Decimal(4, 2)
+  structureScore Decimal  @map("structure_score") @db.Decimal(4, 2)
+  characterScore Decimal  @map("character_score") @db.Decimal(4, 2)
+  craftScore     Decimal  @map("craft_score") @db.Decimal(4, 2)
+  dimensions     Json // Full 12-dimension scores + reasoning
+  strengths      String[]
+  weaknesses     String[]
+  confidence     Decimal  @map("confidence") @db.Decimal(4, 2)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   corpusScript ScriptCorpus @relation(fields: [corpusScriptId], references: [id], onDelete: Cascade)
 
@@ -711,6 +719,9 @@ model ActivityLog {
   @@index([teamId, userId])
   @@index([teamId, projectId])
   @@index([userId, projectId])
+  // PR #200 notification producers read recent activity by user; without this
+  // the query table-scans as activity_logs grows (DT-32-M-1, migration 0040).
+  @@index([userId, createdAt(sort: Desc)])
   @@map("activity_logs")
 }
 
@@ -720,14 +731,14 @@ model ActivityLog {
 // =============================================================================
 
 model ProjectNote {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  projectId   String   @map("project_id") @db.Uuid
-  authorId    String   @map("author_id")
-  lineId      String?  @map("line_id")          // director_json line reference
-  timestamp   Int?                               // seconds offset in audio
-  noteText    String   @map("note_text") @db.Text
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId String   @map("project_id") @db.Uuid
+  authorId  String   @map("author_id")
+  lineId    String?  @map("line_id") // director_json line reference
+  timestamp Int? // seconds offset in audio
+  noteText  String   @map("note_text") @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -773,20 +784,20 @@ model ProjectComment {
 }
 
 model TeamMember {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId       String    @map("team_id") @db.Uuid
-  userId       String?   @map("user_id")
-  invitedEmail String?   @map("invited_email")
-  role         String    @default("member")
-  memberType   String?   @map("member_type")
-  status       String    @default("pending")
-  inviteToken  String?   @unique @map("invite_token")
-  invitedBy    String?   @map("invited_by")
-  invitedAt    DateTime  @default(now()) @map("invited_at") @db.Timestamptz
-  acceptedAt   DateTime? @map("accepted_at") @db.Timestamptz
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId        String    @map("team_id") @db.Uuid
+  userId        String?   @map("user_id")
+  invitedEmail  String?   @map("invited_email")
+  role          String    @default("member")
+  memberType    String?   @map("member_type")
+  status        String    @default("pending")
+  inviteToken   String?   @unique @map("invite_token")
+  invitedBy     String?   @map("invited_by")
+  invitedAt     DateTime  @default(now()) @map("invited_at") @db.Timestamptz
+  acceptedAt    DateTime? @map("accepted_at") @db.Timestamptz
   deactivatedAt DateTime? @map("deactivated_at") @db.Timestamptz
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
   team    Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
@@ -937,30 +948,30 @@ model PlatformSetting {
 // =============================================================================
 
 model ImpactStory {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId       String?   @map("user_id")
-  sessionId    String?   @map("session_id")
-  title        String
-  category     String    // justice | system | trauma | homelessness | recovery | other
-  storyText    String    @map("story_text") @db.Text
-  expandedText String?   @map("expanded_text") @db.Text
-  voiceId      String?   @map("voice_id")
-  voiceName    String?   @map("voice_name")
-  audioUrl     String?   @map("audio_url")
-  isPublic     Boolean   @default(false) @map("is_public")
-  isApproved   Boolean   @default(false) @map("is_approved")
-  prizeEligible Boolean  @default(true) @map("prize_eligible")
-  authorName   String?   @map("author_name")
-  authorCity   String?   @map("author_city")
-  status       String    @default("draft") // draft | processing | complete
-  jobId        String?   @map("job_id") @db.Uuid
-  attestedAt   DateTime? @map("attested_at") // timestamp user accepted Impact program terms @db.Timestamptz
-  viewCount    Int       @default(0) @map("view_count")
-  playCount    Int       @default(0) @map("play_count")
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String?   @map("user_id")
+  sessionId     String?   @map("session_id")
+  title         String
+  category      String // justice | system | trauma | homelessness | recovery | other
+  storyText     String    @map("story_text") @db.Text
+  expandedText  String?   @map("expanded_text") @db.Text
+  voiceId       String?   @map("voice_id")
+  voiceName     String?   @map("voice_name")
+  audioUrl      String?   @map("audio_url")
+  isPublic      Boolean   @default(false) @map("is_public")
+  isApproved    Boolean   @default(false) @map("is_approved")
+  prizeEligible Boolean   @default(true) @map("prize_eligible")
+  authorName    String?   @map("author_name")
+  authorCity    String?   @map("author_city")
+  status        String    @default("draft") // draft | processing | complete
+  jobId         String?   @map("job_id") @db.Uuid
+  attestedAt    DateTime? @map("attested_at") // timestamp user accepted Impact program terms @db.Timestamptz
+  viewCount     Int       @default(0) @map("view_count")
+  playCount     Int       @default(0) @map("play_count")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  user         Profile?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user         Profile?          @relation(fields: [userId], references: [id], onDelete: SetNull)
   prizeEntries ImpactPrizeDraw[]
 
   @@index([userId])
@@ -971,21 +982,21 @@ model ImpactStory {
 }
 
 model ImpactPartner {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyName   String    @map("company_name")
-  tier          String    // community | impact | sustaining
-  logoUrl       String?   @map("logo_url")
-  websiteUrl    String?   @map("website_url")
-  contactName   String?   @map("contact_name")
-  contactEmail  String?   @map("contact_email")
-  annualAmount  Decimal   @map("annual_amount") @db.Decimal(10, 2)
-  creditsGranted Int      @default(0) @map("credits_granted")
-  activeFrom    DateTime  @map("active_from") @db.Timestamptz
-  activeTo      DateTime? @map("active_to") @db.Timestamptz
-  isActive      Boolean   @default(true) @map("is_active")
-  notes         String?   @db.Text
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyName    String    @map("company_name")
+  tier           String // community | impact | sustaining
+  logoUrl        String?   @map("logo_url")
+  websiteUrl     String?   @map("website_url")
+  contactName    String?   @map("contact_name")
+  contactEmail   String?   @map("contact_email")
+  annualAmount   Decimal   @map("annual_amount") @db.Decimal(10, 2)
+  creditsGranted Int       @default(0) @map("credits_granted")
+  activeFrom     DateTime  @map("active_from") @db.Timestamptz
+  activeTo       DateTime? @map("active_to") @db.Timestamptz
+  isActive       Boolean   @default(true) @map("is_active")
+  notes          String?   @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   @@index([tier])
   @@index([isActive])
@@ -1009,15 +1020,15 @@ model ImpactPrizeDraw {
 }
 
 model ImpactDonation {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  stripeSessionId  String    @unique @map("stripe_session_id")
-  amountCents      Int       @map("amount_cents")
-  currency         String    @default("usd")
-  donorEmail       String?   @map("donor_email")
-  donorName        String?   @map("donor_name")
-  message          String?   @db.Text
-  status           String    @default("completed") // completed | refunded
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  stripeSessionId String   @unique @map("stripe_session_id")
+  amountCents     Int      @map("amount_cents")
+  currency        String   @default("usd")
+  donorEmail      String?  @map("donor_email")
+  donorName       String?  @map("donor_name")
+  message         String?  @db.Text
+  status          String   @default("completed") // completed | refunded
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@index([createdAt(sort: Desc)])
   @@index([stripeSessionId])
@@ -1025,13 +1036,13 @@ model ImpactDonation {
 }
 
 model VoiceMarketplaceInterest {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email         String
-  name          String?
-  role          String   // "actor" | "producer" | "both"
-  notes         String?  @db.Text
-  demoAudioUrl  String?  @map("demo_audio_url")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String
+  name         String?
+  role         String // "actor" | "producer" | "both"
+  notes        String?  @db.Text
+  demoAudioUrl String?  @map("demo_audio_url")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@unique([email])
   @@index([createdAt(sort: Desc)])
@@ -1085,11 +1096,11 @@ model WriterSubscription {
 // =============================================================================
 
 model VoiceClone {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId             String   @map("user_id")
-  name               String
-  elevenLabsVoiceId  String   @unique @map("elevenlabs_voice_id")
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String   @map("user_id")
+  name              String
+  elevenLabsVoiceId String   @unique @map("elevenlabs_voice_id")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1106,7 +1117,7 @@ model ApiKey {
   userId     String    @map("user_id")
   name       String
   keyHash    String    @unique @map("key_hash") // SHA-256 of the raw key
-  keyPrefix  String    @map("key_prefix")       // first 8 chars of raw key for display
+  keyPrefix  String    @map("key_prefix") // first 8 chars of raw key for display
   lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
@@ -1120,7 +1131,7 @@ model WebhookEndpoint {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String   @map("user_id")
   url       String
-  secret    String   // HMAC-SHA256 signing secret (stored plaintext — needed for signing)
+  secret    String // HMAC-SHA256 signing secret (stored plaintext — needed for signing)
   events    String[] // e.g. ["job.completed", "job.failed"]
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
@@ -1155,18 +1166,18 @@ model WebhookDeliveryLog {
 // =============================================================================
 
 model HumanReview {
-  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  projectId            String    @map("project_id") @db.Uuid
-  jobId                String    @map("job_id") @db.Uuid
-  userId               String    @map("user_id")       // customer
-  status               String    @default("pending")   // pending | approved | rejected
-  reviewerNotes        String?   @map("reviewer_notes") @db.Text
-  reviewedAt           DateTime? @map("reviewed_at") @db.Timestamptz
-  reviewedBy           String?   @map("reviewed_by")   // admin Clerk ID
-  notifiedReviewerAt   DateTime? @map("notified_reviewer_at") @db.Timestamptz
-  notifiedCustomerAt   DateTime? @map("notified_customer_at") @db.Timestamptz
-  amountCents          Int       @default(9900) @map("amount_cents")
-  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId          String    @map("project_id") @db.Uuid
+  jobId              String    @map("job_id") @db.Uuid
+  userId             String    @map("user_id") // customer
+  status             String    @default("pending") // pending | approved | rejected
+  reviewerNotes      String?   @map("reviewer_notes") @db.Text
+  reviewedAt         DateTime? @map("reviewed_at") @db.Timestamptz
+  reviewedBy         String?   @map("reviewed_by") // admin Clerk ID
+  notifiedReviewerAt DateTime? @map("notified_reviewer_at") @db.Timestamptz
+  notifiedCustomerAt DateTime? @map("notified_customer_at") @db.Timestamptz
+  amountCents        Int       @default(9900) @map("amount_cents")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   job     Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
@@ -1179,7 +1190,6 @@ model HumanReview {
   @@map("human_reviews")
 }
 
-
 // =============================================================================
 // ORCHESTRATOR PIPELINE TABLES
 // Owned by packages/orchestrator, accessed via raw SQL in production.
@@ -1187,43 +1197,55 @@ model HumanReview {
 // =============================================================================
 
 model MixManifest {
-  projectId       String   @map("project_id")
+  projectId       String   @map("project_id") @db.Uuid
   sceneId         String   @map("scene_id")
   mixManifestJson Json     @map("mix_manifest_json")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Migration 0040 added FK + cascade (DT-31-H-1).
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, sceneId])
   @@map("mix_manifests")
 }
 
 model Timeline {
-  projectId    String   @map("project_id")
+  projectId    String   @map("project_id") @db.Uuid
   sceneId      String   @map("scene_id")
   timelineJson Json     @map("timeline_json")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Migration 0040 added FK + cascade (DT-31-H-1).
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, sceneId])
   @@map("timelines")
 }
 
 model Alignment {
-  projectId     String   @map("project_id")
+  projectId     String   @map("project_id") @db.Uuid
   sceneId       String   @map("scene_id")
   alignmentJson Json     @map("alignment_json")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Migration 0040 added FK + cascade (DT-31-H-1).
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, sceneId])
   @@map("alignments")
 }
 
 model TtsStem {
-  projectId String  @map("project_id")
+  projectId String  @map("project_id") @db.Uuid
   sceneId   String  @map("scene_id")
   lineId    String  @map("line_id")
   textHash  String? @map("text_hash")
   voiceHash String? @map("voice_hash")
   path      String?
   durationS Float?  @map("duration_s")
+
+  // Migration 0040 added FK + cascade (DT-31-H-1).
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, sceneId, lineId])
   @@map("tts_stems")
@@ -1247,8 +1269,8 @@ model LlmCallLog {
   model           String
   provider        String
   inputTokens     Int?     @map("input_tokens")
-  outputTokens   Int?     @map("output_tokens")
-  costEstimateUsd Decimal? @db.Decimal(10, 6) @map("cost_estimate_usd")
+  outputTokens    Int?     @map("output_tokens")
+  costEstimateUsd Decimal? @map("cost_estimate_usd") @db.Decimal(10, 6)
   durationMs      Int      @map("duration_ms")
   succeeded       Boolean
   errorMessage    String?  @map("error_message")
@@ -1273,11 +1295,14 @@ model LlmCallLog {
 /// a potential future "cross-project reuse" feature; the current pipeline
 /// only checks within the same project.
 model SceneRender {
-  projectId   String   @map("project_id")
+  projectId   String   @map("project_id") @db.Uuid
   sceneId     String   @map("scene_id")
   contentHash String   @map("content_hash")
   scenePath   String   @map("scene_path")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Migration 0040 added FK + cascade (DT-31-H-1).
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, sceneId])
   @@index([contentHash], map: "scene_renders_content_hash_idx")
@@ -1285,11 +1310,14 @@ model SceneRender {
 }
 
 model VoiceMap {
-  projectId  String @map("project_id")
+  projectId  String @map("project_id") @db.Uuid
   character  String
   voiceId    String @map("voice_id")
   provider   String @default("elevenlabs")
   paramsJson Json   @default("{}") @map("params_json")
+
+  // Migration 0040 added FK + cascade (DT-31-H-1).
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, character])
   @@map("voice_map")
@@ -1301,9 +1329,9 @@ model VoiceMap {
 
 model AiHealthLog {
   id           String   @id @default(cuid())
-  provider     String                       // 'anthropic' | 'openai' | 'elevenlabs' | 'google'
-  status       String                       // 'healthy' | 'degraded' | 'down'
-  errorCode    String?  @map("error_code")  // 'INVALID_KEY' | 'QUOTA_EXCEEDED' | 'RATE_LIMITED' | 'TIMEOUT' | 'UNREACHABLE'
+  provider     String // 'anthropic' | 'openai' | 'elevenlabs' | 'google'
+  status       String // 'healthy' | 'degraded' | 'down'
+  errorCode    String?  @map("error_code") // 'INVALID_KEY' | 'QUOTA_EXCEEDED' | 'RATE_LIMITED' | 'TIMEOUT' | 'UNREACHABLE'
   errorMessage String?  @map("error_message")
   latencyMs    Int?     @map("latency_ms")
   triggeredBy  String   @default("preflight") @map("triggered_by")
