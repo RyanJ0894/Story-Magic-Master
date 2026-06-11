@@ -384,52 +384,168 @@ export async function orchestrateParallel(
   fs.mkdirSync(projectDir, { recursive: true });
   fs.mkdirSync(scenesDir, { recursive: true });
 
-  // Step 1: Parallel TTS Generation
-  log.generation(director.project_id, 'parallel-tts-start', {
-    totalLines,
+  // T2-2 (#190 / PR H of #186 follow-up): partition scenes by cache state
+  // BEFORE running TTS or assembly. Cached scenes skip the entire pipeline;
+  // uncached scenes get the full TTS → stitch treatment.
+  const sceneHashes = director.scenes.map((scene, idx) => ({
+    scene,
+    sceneIndex: idx,
+    contentHash: computeSceneRenderHash(scene),
+  }));
+
+  const cachedResults: Array<{
+    scene_id: string;
+    scene_index: number;
+    path: string;
+    timeline: Timeline;
+    alignment: SceneAlignment;
+    cues: SceneCues;
+    duration_ms: number;
+    mix_warnings: string[];
+  }> = [];
+  const freshScenes: typeof sceneHashes = [];
+
+  await Promise.all(
+    sceneHashes.map(async (sh) => {
+      const cachedPath = await findCachedSceneRender(
+        director.project_id,
+        sh.scene.scene_id,
+        sh.contentHash,
+      );
+      if (cachedPath) {
+        cachedResults.push({
+          scene_id: sh.scene.scene_id,
+          scene_index: sh.sceneIndex,
+          path: cachedPath,
+          // Timeline / alignment / cues are not consumed downstream of this
+          // function — only `path` feeds concatenation + manifest (which
+          // ffprobes duration directly from the file). Empty placeholders
+          // preserve the SceneAssemblyResult shape.
+          timeline: { events: [] } as unknown as Timeline,
+          alignment: { lines: [] } as unknown as SceneAlignment,
+          cues: { music: [], ambience: [], sfx: [] } as unknown as SceneCues,
+          duration_ms: 0,
+          mix_warnings: [],
+        });
+      } else {
+        freshScenes.push(sh);
+      }
+    }),
+  );
+
+  log.info('[scene-cache] parallel pipeline partition', {
+    cached: cachedResults.length,
+    fresh: freshScenes.length,
+    total: sceneHashes.length,
   });
 
-  const ttsResult = await parallelTTSGenerate(
-    director,
-    (ttsProgress) => {
-      if (onProgress) {
-        onProgress({
-          step: 'tts',
-          percent: Math.round(ttsProgress.percent * 0.6), // TTS is 60% of work
-          message: `Generating TTS: ${ttsProgress.completed_lines}/${ttsProgress.total_lines} lines`,
-          details: ttsProgress,
-        });
-      }
-    },
-    parseInt(process.env.TTS_CONCURRENCY || '6', 10), // Configurable; reduce for memory-constrained envs
-    emotionOverrides
-  );
+  // Step 1: Parallel TTS Generation — only on uncached scenes.
+  log.generation(director.project_id, 'parallel-tts-start', {
+    totalLines,
+    cachedScenes: cachedResults.length,
+  });
 
-  // Step 2: Progressive Scene Assembly
-  log.generation(director.project_id, 'progressive-assembly-start');
+  let stitchResult: { scenes: typeof cachedResults; total_duration_ms: number; mix_warnings: string[] };
+  // TTS counters used in the final report. Default to zero for full-cache-hit
+  // runs (no TTS was invoked).
+  let ttsCachedLines = 0;
+  let ttsGeneratedLines = 0;
 
-  if (onProgress) {
-    onProgress({ step: 'assembling', percent: 60, message: 'Assembling scenes...' });
-  }
-
-  const stitchResult = await progressiveStitch(
-    director,
-    ttsResult.stems_by_scene,
-    projectDir,
-    3, // Scene concurrency
-    (stitchProgress) => {
-      if (onProgress) {
-        const basePercent = 60;
-        const assemblyPercent = (stitchProgress.percent / 100) * 25; // Assembly is 25% of work
-        onProgress({
-          step: 'assembling',
-          percent: Math.round(basePercent + assemblyPercent),
-          message: `Assembling scene ${stitchProgress.current_scene}...`,
-          details: stitchProgress,
-        });
-      }
+  if (freshScenes.length === 0) {
+    // Full cache hit — skip TTS + assembly entirely.
+    log.info('[scene-cache] all scenes cached — skipping TTS and assembly');
+    stitchResult = {
+      scenes: [...cachedResults].sort((a, b) => a.scene_index - b.scene_index),
+      total_duration_ms: 0,
+      mix_warnings: [],
+    };
+    if (onProgress) {
+      onProgress({ step: 'assembling', percent: 85, message: 'All scenes cached — skipping render' });
     }
-  );
+  } else {
+    // Build a subset director for the cache-miss scenes only. The director's
+    // shape is preserved so parallelTTSGenerate / progressiveStitch see a
+    // normal-looking DirectorJSON.
+    const subsetDirector = { ...director, scenes: freshScenes.map((s) => s.scene) };
+
+    const ttsResult = await parallelTTSGenerate(
+      subsetDirector,
+      (ttsProgress) => {
+        if (onProgress) {
+          onProgress({
+            step: 'tts',
+            percent: Math.round(ttsProgress.percent * 0.6), // TTS is 60% of work
+            message: `Generating TTS: ${ttsProgress.completed_lines}/${ttsProgress.total_lines} lines`,
+            details: ttsProgress,
+          });
+        }
+      },
+      parseInt(process.env.TTS_CONCURRENCY || '6', 10), // Configurable; reduce for memory-constrained envs
+      emotionOverrides
+    );
+
+    // Step 2: Progressive Scene Assembly — on the same subset.
+    log.generation(director.project_id, 'progressive-assembly-start');
+
+    if (onProgress) {
+      onProgress({ step: 'assembling', percent: 60, message: 'Assembling scenes...' });
+    }
+
+    const partialStitch = await progressiveStitch(
+      subsetDirector,
+      ttsResult.stems_by_scene,
+      projectDir,
+      3, // Scene concurrency
+      (stitchProgress) => {
+        if (onProgress) {
+          const basePercent = 60;
+          const assemblyPercent = (stitchProgress.percent / 100) * 25; // Assembly is 25% of work
+          onProgress({
+            step: 'assembling',
+            percent: Math.round(basePercent + assemblyPercent),
+            message: `Assembling scene ${stitchProgress.current_scene}...`,
+            details: stitchProgress,
+          });
+        }
+      }
+    );
+
+    // Record cache entries for the freshly-rendered scenes so the next run
+    // gets a hit. Failure is non-fatal (see scene-cache.ts).
+    await Promise.all(
+      partialStitch.scenes.map(async (stitchedScene) => {
+        const entry = freshScenes.find((f) => f.scene.scene_id === stitchedScene.scene_id);
+        if (entry) {
+          await recordSceneRender(
+            director.project_id,
+            stitchedScene.scene_id,
+            entry.contentHash,
+            stitchedScene.path,
+          );
+        }
+      }),
+    );
+
+    // Merge cached + freshly-rendered scenes back into original scene order.
+    // Need scene_index on the fresh results — re-attach by finding the
+    // original index from the freshScenes list.
+    const freshWithIndex = partialStitch.scenes.map((s) => {
+      const entry = freshScenes.find((f) => f.scene.scene_id === s.scene_id);
+      return { ...s, scene_index: entry?.sceneIndex ?? 0 };
+    });
+
+    stitchResult = {
+      scenes: [...cachedResults, ...freshWithIndex].sort(
+        (a, b) => a.scene_index - b.scene_index,
+      ),
+      total_duration_ms: partialStitch.total_duration_ms,
+      mix_warnings: partialStitch.mix_warnings,
+    };
+
+    // Surface TTS counters for the final report.
+    ttsCachedLines = ttsResult.cached_lines;
+    ttsGeneratedLines = ttsResult.generated_lines;
+  }
 
   // Step 3: Final Concatenation
   log.generation(director.project_id, 'final-concatenation-start');
@@ -500,8 +616,8 @@ export async function orchestrateParallel(
     manifestFile: 'manifest.json',
     totalDurationSec: parseFloat(manifest.total.toFixed(2)),
     totalDurationMin: parseFloat((manifest.total / 60).toFixed(2)),
-    ttsCachedLines: ttsResult.cached_lines,
-    ttsGeneratedLines: ttsResult.generated_lines,
+    ttsCachedLines: ttsCachedLines,
+    ttsGeneratedLines: ttsGeneratedLines,
     scenesProcessed: stitchResult.scenes.length,
     pipeline: 'parallel',
   });
