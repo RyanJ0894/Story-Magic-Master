@@ -82,7 +82,8 @@ export default async function EnterpriseDashboardPage({
     where: { id: resolvedTeamId },
     include: {
       members: {
-        where: { status: 'accepted' },
+        // Exclude deactivated sub-accounts from the master's view (DT-32-C-1).
+        where: { status: 'accepted', deactivatedAt: null },
         include: { user: { select: { id: true, fullName: true, email: true } } },
         orderBy: { acceptedAt: 'asc' },
       },

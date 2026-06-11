@@ -69,9 +69,10 @@ export const POST = withAuth(async (request, { userId, prisma, params }) => {
   const { projectId, eventType, metadata = {} } = parsed.data;
 
   try {
-    // Verify membership
+    // Verify membership. Deactivated sub-accounts must not access team activity
+    // (DT-32-C-1 — the deactivation handler does not flip status away from accepted).
     const member = await prisma.teamMember.findFirst({
-      where: { teamId, userId, status: 'accepted' },
+      where: { teamId, userId, status: 'accepted', deactivatedAt: null },
     });
     const isOwner = (await prisma.team.findUnique({ where: { id: teamId }, select: { ownerId: true } }))?.ownerId === userId;
 
