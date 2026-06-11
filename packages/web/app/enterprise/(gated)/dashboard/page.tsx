@@ -11,7 +11,6 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, FolderOpen, Activity, ThumbsUp, ThumbsDown, MessageSquare, Play, Clock, Headphones, Plus, Crown } from 'lucide-react';
 import { SignOutButton } from '@/components/auth/sign-out-button';
-import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { TeamNotesTab } from '@/components/enterprise/TeamNotesTab';
 import { EnterpriseProjectAssignment } from '@/components/enterprise/EnterpriseProjectAssignment';
@@ -173,9 +172,13 @@ export default async function EnterpriseDashboardPage({
             </Badge>
           </div>
           <div className="flex items-center gap-2">
-            {/* #174: Master notification feed bell (right of legacy alerts). */}
+            {/* #174: Master notification feed — sole bell on the enterprise dashboard.
+                The legacy AlertsDropdown stays on /dashboard, /writer/dashboard, and
+                /reader/dashboard for non-master roles; here NotificationBell surfaces
+                the master-account subset (sub-account joins/leaves/quota, script
+                generation status, billing events). If granular collaboration alerts
+                (script_comment etc.) need master visibility, extend feed-types.ts. */}
             <NotificationBell />
-            <AlertsDropdown />
             <div className="hidden sm:flex flex-col items-end text-right leading-tight">
               <span className="text-xs font-medium text-foreground truncate max-w-[140px]">{profile?.fullName || 'My Account'}</span>
               <span className="text-xs text-muted-foreground truncate max-w-[140px]">{profile?.email || ''}</span>
