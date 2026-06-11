@@ -193,6 +193,94 @@ describe('getStemsDir', () => {
 });
 
 // =============================================================================
+// STORAGE_PROVIDER=s3 validation (PR #173)
+// =============================================================================
+
+describe('validateEnv — STORAGE_PROVIDER=s3', () => {
+  const fullS3 = {
+    STORAGE_PROVIDER: 's3',
+    AWS_ACCESS_KEY_ID: 'AKIATEST',
+    AWS_SECRET_ACCESS_KEY: 'secret',
+    AWS_S3_BUCKET: 'my-bucket',
+    AWS_S3_PUBLIC_URL: 'https://audio.example.com',
+  };
+
+  it('accepts pure AWS S3 config without AWS_S3_ENDPOINT (endpoint is R2-only)', async () => {
+    // Real AWS S3 does NOT need a custom endpoint — the AWS SDK derives it from region.
+    // AWS_S3_ENDPOINT is documented in s3.ts as "optional; custom endpoint for R2 / MinIO".
+    // Requiring it in validation forces every prod deployment to use R2 or fake the value.
+    const { validateEnv } = await freshEnv({ ...fullS3, AWS_S3_ENDPOINT: undefined });
+    expect(() => validateEnv()).not.toThrow();
+  });
+
+  it('accepts R2 config with AWS_S3_ENDPOINT', async () => {
+    const { validateEnv } = await freshEnv({
+      ...fullS3,
+      AWS_S3_ENDPOINT: 'https://acct.r2.cloudflarestorage.com',
+    });
+    expect(() => validateEnv()).not.toThrow();
+  });
+
+  it('throws with the missing key listed when AWS_ACCESS_KEY_ID is absent', async () => {
+    const { validateEnv } = await freshEnv({ ...fullS3, AWS_ACCESS_KEY_ID: undefined });
+    expect(() => validateEnv()).toThrow(/AWS_ACCESS_KEY_ID/);
+  });
+
+  it('throws when AWS_SECRET_ACCESS_KEY is absent', async () => {
+    const { validateEnv } = await freshEnv({ ...fullS3, AWS_SECRET_ACCESS_KEY: undefined });
+    expect(() => validateEnv()).toThrow(/AWS_SECRET_ACCESS_KEY/);
+  });
+
+  it('throws when AWS_S3_BUCKET is absent', async () => {
+    const { validateEnv } = await freshEnv({ ...fullS3, AWS_S3_BUCKET: undefined });
+    expect(() => validateEnv()).toThrow(/AWS_S3_BUCKET/);
+  });
+
+  it('throws when AWS_S3_PUBLIC_URL is absent', async () => {
+    const { validateEnv } = await freshEnv({ ...fullS3, AWS_S3_PUBLIC_URL: undefined });
+    expect(() => validateEnv()).toThrow(/AWS_S3_PUBLIC_URL/);
+  });
+
+  it('lists every missing key in a single error (not just the first)', async () => {
+    const { validateEnv } = await freshEnv({
+      STORAGE_PROVIDER: 's3',
+      AWS_ACCESS_KEY_ID: undefined,
+      AWS_SECRET_ACCESS_KEY: undefined,
+      AWS_S3_BUCKET: undefined,
+      AWS_S3_PUBLIC_URL: undefined,
+    });
+    let err: Error | undefined;
+    try {
+      validateEnv();
+    } catch (e) {
+      err = e as Error;
+    }
+    expect(err).toBeDefined();
+    expect(err!.message).toMatch(/AWS_ACCESS_KEY_ID/);
+    expect(err!.message).toMatch(/AWS_SECRET_ACCESS_KEY/);
+    expect(err!.message).toMatch(/AWS_S3_BUCKET/);
+    expect(err!.message).toMatch(/AWS_S3_PUBLIC_URL/);
+  });
+
+  it('does NOT validate S3 vars when STORAGE_PROVIDER=local (default)', async () => {
+    const { validateEnv } = await freshEnv({
+      STORAGE_PROVIDER: undefined,
+      AWS_ACCESS_KEY_ID: undefined,
+      AWS_S3_BUCKET: undefined,
+    });
+    expect(() => validateEnv()).not.toThrow();
+  });
+
+  it('does NOT validate S3 vars when STORAGE_PROVIDER is explicitly local', async () => {
+    const { validateEnv } = await freshEnv({
+      STORAGE_PROVIDER: 'local',
+      AWS_ACCESS_KEY_ID: undefined,
+    });
+    expect(() => validateEnv()).not.toThrow();
+  });
+});
+
+// =============================================================================
 // printEnvSummary
 // =============================================================================
 
