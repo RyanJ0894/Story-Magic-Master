@@ -35,9 +35,11 @@ export default async function ListenPage({ params }: PageProps) {
   let initialReadStatus: 'like' | 'pass' | 'undecided' = 'undecided';
 
   if (!isOwner) {
-    // Find the team this user belongs to that has this project shared
+    // Find the team this user belongs to that has this project shared.
+    // Deactivated sub-accounts must lose access — status alone is insufficient
+    // because the deactivation handler only writes deactivatedAt (DT-32-C-1).
     const membership = await prisma.teamMember.findFirst({
-      where: { userId, status: 'accepted' },
+      where: { userId, status: 'accepted', deactivatedAt: null },
       include: {
         team: {
           include: {

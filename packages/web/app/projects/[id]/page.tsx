@@ -13,6 +13,7 @@ import { StoryExplorerSection } from '@/components/story-explorer';
 import { ScriptEditorWrapper } from '@/components/script-editor';
 import { AdvancedAnalysisUpgrade } from '@/components/project/AdvancedAnalysisUpgrade';
 import { AdvancedAnalysisSuccessBanner } from '@/components/project/AdvancedAnalysisSuccessBanner';
+import { activeMemberWhere } from '@/lib/services/projects';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -51,7 +52,9 @@ export default async function ProjectPage(
             some: {
               team: {
                 members: {
-                  some: { userId, acceptedAt: { not: null } },
+                  // Use the canonical helper so the deactivation filter never drifts again
+                  // (regression caught by automated security review 2026-06-10).
+                  some: activeMemberWhere(userId),
                 },
               },
             },

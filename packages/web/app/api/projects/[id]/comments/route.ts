@@ -18,6 +18,7 @@ import { errorResponse } from '@/lib/api/error-response';
 import { log } from '@/lib/logger';
 import { notifyNewComment } from '@/lib/comments/notify';
 import { ensureProfile } from '@/lib/ensure-profile';
+import { activeMemberWhere } from '@/lib/services/projects';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -43,8 +44,10 @@ async function getAccessibleProject(projectId: string, userId: string) {
   if (!project) return null;
   if (project.userId === userId) return project;
 
+  // Use the canonical helper so the deactivation filter never drifts again
+  // (regression caught by automated security review 2026-06-10).
   const teamShare = await prisma.teamShare.findFirst({
-    where: { projectId, team: { members: { some: { userId, acceptedAt: { not: null } } } } },
+    where: { projectId, team: { members: { some: activeMemberWhere(userId) } } },
     select: { id: true },
   });
   if (teamShare) return project;

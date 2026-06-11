@@ -90,11 +90,13 @@ export async function listTeams(prisma: PrismaClient, userId: string) {
     orderBy: { createdAt: 'desc' },
   });
 
-  // Get teams user is a member of
+  // Get teams user is a member of. Deactivated sub-accounts must not see
+  // the teams they were removed from (DT-32-C-1).
   const memberships = await prisma.teamMember.findMany({
     where: {
       userId,
       status: 'accepted',
+      deactivatedAt: null,
     },
     select: {
       id: true,
@@ -194,7 +196,8 @@ export async function getTeam(
   const isOwner = team.ownerId === userId;
   if (!isOwner) {
     const membership = await prisma.teamMember.findFirst({
-      where: { teamId, userId, status: 'accepted' },
+      // Reject deactivated sub-accounts (DT-32-C-1).
+      where: { teamId, userId, status: 'accepted', deactivatedAt: null },
       select: { id: true },
     });
 
@@ -289,7 +292,8 @@ export async function listMembers(
   const isOwner = team.ownerId === userId;
   if (!isOwner) {
     const membership = await prisma.teamMember.findFirst({
-      where: { teamId, userId, status: 'accepted' },
+      // Reject deactivated sub-accounts (DT-32-C-1).
+      where: { teamId, userId, status: 'accepted', deactivatedAt: null },
       select: { id: true },
     });
 
