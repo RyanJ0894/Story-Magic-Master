@@ -122,5 +122,11 @@ jobs:
       - name: Build web
         run: pnpm --filter @story-magic/web build
         env:
+          # The Next.js + Sentry + Prisma build of the web package recently
+          # crossed Node's default ~2 GB heap on GitHub-hosted runners
+          # (`FATAL ERROR: Ineffective mark-compacts near heap limit Allocation
+          # failed - JavaScript heap out of memory`). Bumping to 4 GB clears it
+          # with headroom; ubuntu-latest runners ship with ~7 GB of memory.
+          NODE_OPTIONS: --max-old-space-size=4096
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_placeholder
           NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder
