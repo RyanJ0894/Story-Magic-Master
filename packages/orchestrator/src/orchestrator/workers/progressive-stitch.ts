@@ -87,7 +87,7 @@ async function processScene(
 
   // 3. Build timeline
   log.debug('Building timeline', { sceneId: scene_id });
-  const timeline = await buildTimeline(scene, alignment, cues);
+  const timeline = await buildTimeline(scene, alignment, cues, project_id);
 
   // 4. Concatenate dialogue stems
   // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal

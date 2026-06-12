@@ -149,7 +149,7 @@ export async function generatePreview(
 
   // Step 6: Build timeline
   log.debug('Preview: building timeline');
-  const timeline = await buildTimeline(truncatedScene, alignment, cues);
+  const timeline = await buildTimeline(truncatedScene, alignment, cues, projectId);
 
   // Step 7: Mix scene
   log.debug('Preview: mixing scene');

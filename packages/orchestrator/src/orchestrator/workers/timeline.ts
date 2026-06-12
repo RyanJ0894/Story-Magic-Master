@@ -19,12 +19,17 @@ import type { SceneCues } from './cues.js';
 
 /**
  * Build scene timeline from alignment and cue choices
- * Validates for overlaps and conflicts
+ * Validates for overlaps and conflicts.
+ *
+ * `project_id` is required (since migration 0040 added a FK on the timelines
+ * table). Pass the project's UUID — saveTimeline uses it to attribute the row
+ * to the right project.
  */
 export async function buildTimeline(
   scene: Scene,
   alignment: SceneAlignment,
-  cueChoices: SceneCues
+  cueChoices: SceneCues,
+  project_id: string,
 ): Promise<Timeline> {
   const events: TimelineEvent[] = [];
 
@@ -152,6 +157,7 @@ export async function buildTimeline(
 
   const timeline: Timeline = {
     scene_id: scene.scene_id,
+    project_id,
     events: events.sort((a, b) => a.at - b.at),
   };
 
@@ -190,9 +196,18 @@ export async function buildTimeline(
  * Save timeline to database via Prisma raw SQL
  */
 async function saveTimeline(scene_id: string, timeline: Timeline): Promise<Timeline> {
-  try {
-    const project_id = timeline.project_id || '00000000-0000-0000-0000-000000000001';
+  // Migration 0040 added a FK on timelines.project_id → projects(id). The previous
+  // implementation had a sentinel UUID fallback ('00000000-...001') that worked
+  // before the FK existed — it would silently insert an orphan row. With the FK,
+  // that path now fails with PG 23503. The caller (buildTimeline) requires
+  // project_id to be set; fail loudly if somehow it isn't.
+  const project_id = timeline.project_id;
+  if (!project_id) {
+    log.error('saveTimeline called without project_id — skipping DB write', undefined, { scene_id });
+    return timeline;
+  }
 
+  try {
     // ${project_id}::uuid — see migration 0040; the column is UUID, Prisma binds TEXT.
     await prisma.$executeRaw`
       INSERT INTO timelines (project_id, scene_id, timeline_json, created_at)
@@ -202,7 +217,7 @@ async function saveTimeline(scene_id: string, timeline: Timeline): Promise<Timel
     `;
   } catch (err) {
     log.error('Failed to save timeline to DB', err instanceof Error ? err : undefined, {
-      scene_id,
+      project_id, scene_id,
     });
   }
 

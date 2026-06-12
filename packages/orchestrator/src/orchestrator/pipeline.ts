@@ -204,7 +204,7 @@ export async function orchestrate(directorJSON: unknown, options: { chunkIndex?:
     });
 
     log.generation(director.project_id, 'timeline-start', { sceneId: scene.scene_id });
-    const timeline = await buildTimeline(scene, alignment, cues);
+    const timeline = await buildTimeline(scene, alignment, cues, director.project_id);
     log.generation(director.project_id, 'timeline-complete', {
       sceneId: scene.scene_id,
       eventCount: timeline.events ? timeline.events.length : 0,
