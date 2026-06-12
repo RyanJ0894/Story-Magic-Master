@@ -1,10 +1,22 @@
 /**
  * Whisper ASR Worker - Word-level alignment using Whisper
+ *
+ * Fallback chain (cheapest first):
+ *   1. whisper.cpp local binary (free) — only attempted when WHISPER_CPP_PATH
+ *      is explicitly set to an existing file. Default behavior is to SKIP
+ *      this step because the Render container doesn't ship the binary.
+ *      Previously the code defaulted WHISPER_CPP_PATH to 'whisper' and tried
+ *      to spawn it from PATH, getting ENOENT on every line and flooding logs.
+ *   2. Groq Whisper API (cheap — ~12× cheaper than OpenAI Whisper) — default
+ *      ON when GROQ_API_KEY is set. Disable via ENABLE_GROQ_WHISPER_FALLBACK=false.
+ *   3. OpenAI Whisper API (expensive — opt in via
+ *      ENABLE_OPENAI_WHISPER_FALLBACK=true).
+ *   4. Duration-based estimator (free, lower quality).
  */
 
 import { execa } from 'execa';
 import fs from 'fs';
-import FormData from 'form-data';
+import path from 'path';
 import { withRetry } from '../../lib/retry.js';
 import { log } from '../../lib/logger.js';
 
@@ -36,7 +48,7 @@ export async function whisperAlign(
 ): Promise<WordTimestamp[] | null> {
   log.debug('Running Whisper ASR for word-level alignment');
 
-  const whisperCppPath = process.env.WHISPER_CPP_PATH || 'whisper';
+  const whisperCppPath = process.env.WHISPER_CPP_PATH;
   const modelPath = process.env.WHISPER_MODEL_PATH || 'models/ggml-base.en.bin';
 
   // Create a specific path for the JSON output file
@@ -44,7 +56,20 @@ export async function whisperAlign(
   const jsonOutputPath = `${outputBase}.json`;
 
   try {
-    if (whisperCppPath !== 'whisper' && !fs.existsSync(whisperCppPath)) {
+    // Only attempt the local binary when it's explicitly configured AND
+    // either an absolute file path that exists, or any value that
+    // execa can resolve from PATH. Previously this defaulted to 'whisper'
+    // and tried to spawn it on every line in prod (where the binary
+    // isn't installed), generating ENOENT noise per TTS line.
+    if (!whisperCppPath) {
+      throw new Error(
+        'WHISPER_CPP_PATH not set — skipping local whisper.cpp (this is normal in environments without the binary; falling through to API)',
+      );
+    }
+    // If the path looks like an absolute or relative file path, verify it
+    // exists before trying to spawn. PATH-style names (no slash) are left to
+    // execa to resolve.
+    if (whisperCppPath.includes(path.sep) && !fs.existsSync(whisperCppPath)) {
       throw new Error(`Local whisper binary not found at: ${whisperCppPath}`);
     }
 
@@ -80,20 +105,19 @@ export async function whisperAlign(
     log.debug('Whisper alignment complete', { wordCount: words.length });
     return words;
   } catch (err) {
-    // Fallback chain (Tier 2 of #186 PR F):
-    //   1. Groq Whisper (default ON if GROQ_API_KEY set) — ~12x cheaper than
-    //      OpenAI Whisper for the same whisper-large-v3 model. Disable with
-    //      ENABLE_GROQ_WHISPER_FALLBACK=false.
-    //   2. OpenAI Whisper (default OFF — opt in via ENABLE_OPENAI_WHISPER_FALLBACK=true).
-    //   3. Duration-based estimator (free, lower quality).
-    //
+    const errMsg = (err as Error).message;
     // Both API paths transcribe via OpenAI-compatible `/audio/transcriptions`,
     // so they share `transcribeViaApi`.
-    const errMsg = (err as Error).message;
 
     const groqEnabled = process.env.ENABLE_GROQ_WHISPER_FALLBACK !== 'false';
     if (groqEnabled && process.env.GROQ_API_KEY) {
-      log.warn('whisper.cpp failed; falling back to Groq Whisper (cheap)', { error: errMsg });
+      // Use log.debug for the routine "whisper.cpp not configured" case; only
+      // warn when something less expected happened (e.g. a configured binary
+      // failed at runtime). Otherwise prod logs are flooded with one of these
+      // per TTS line in a normal generation.
+      const routineSkip = !whisperCppPath || errMsg.includes('WHISPER_CPP_PATH not set');
+      const logFn = routineSkip ? log.debug : log.warn;
+      logFn.call(log, 'falling back to Groq Whisper for alignment', { error: errMsg });
       try {
         return await transcribeViaApi(audioPath, {
           url: 'https://api.groq.com/openai/v1/audio/transcriptions',
@@ -197,21 +221,41 @@ export async function transcribeViaApi(
 ): Promise<WordTimestamp[]> {
   return withRetry(
     async () => {
-      const form = new FormData();
+      // Use the native browser-style FormData + Blob (Node 18+) instead of
+      // the `form-data` package piped into native fetch(). The previous
+      // approach failed against Groq with "multipart: NextPart: EOF" because
+      // form-data streams without a Content-Length, and Node's fetch doesn't
+      // automatically serialize the multipart envelope from a third-party
+      // form-data instance — Groq's parser hit EOF on the boundary.
+      //
+      // Reading the WAV into a Buffer is fine here: TTS stems are short (one
+      // dialogue line ≈ 50 KB-2 MB). For long audio this would need streaming,
+      // but the call site only passes per-line stems.
+      const audioBuffer = await fs.promises.readFile(audioPath);
+      const audioName = path.basename(audioPath);
+      const ext = path.extname(audioName).slice(1).toLowerCase() || 'wav';
+      const audioMimeType =
+        ext === 'mp3' ? 'audio/mpeg'
+        : ext === 'm4a' ? 'audio/mp4'
+        : ext === 'flac' ? 'audio/flac'
+        : 'audio/wav';
 
-      form.append('file', fs.createReadStream(audioPath));
+      const form = new FormData();
+      form.append('file', new Blob([audioBuffer], { type: audioMimeType }), audioName);
       form.append('model', config.model);
       form.append('response_format', 'verbose_json');
       form.append('timestamp_granularities[]', 'word');
 
+      // Do NOT manually set Content-Type — native fetch derives the
+      // multipart boundary from the FormData and sets the right header.
+      // Setting it manually would yield a stale boundary that doesn't
+      // match the body's actual boundary.
       const response = await fetch(config.url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${config.apiKey}`,
-          ...form.getHeaders(),
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        body: form as any,
+        body: form,
       });
 
       if (!response.ok) {

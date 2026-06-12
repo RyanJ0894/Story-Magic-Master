@@ -19,9 +19,16 @@ vi.mock('execa', () => ({
 
 vi.mock('fs', async () => {
   const actual = await vi.importActual<typeof import('fs')>('fs');
+  // Return a fake audio buffer so the API path doesn't need a real WAV.
+  const fakeAudioBuffer = Buffer.from('fake-wav-bytes');
+  const promises = {
+    ...actual.promises,
+    readFile: vi.fn(async () => fakeAudioBuffer),
+  };
   return {
     ...actual,
-    default: { ...actual, existsSync: vi.fn(() => false), createReadStream: vi.fn() },
+    promises,
+    default: { ...actual, existsSync: vi.fn(() => false), createReadStream: vi.fn(), promises },
     existsSync: vi.fn(() => false),
     createReadStream: vi.fn(),
   };
