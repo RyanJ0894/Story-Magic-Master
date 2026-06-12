@@ -58,7 +58,12 @@ const envSchema = z.object({
   // TTS
   ELEVENLABS_API_KEY: optionalString,
 
-  // Rate Limiting (Upstash Redis)
+  // Rate Limiting (Render Key Value via ioredis — migrated from Upstash in
+  // PR #226/#227 because Upstash went away). The legacy UPSTASH_REDIS_REST_*
+  // vars are still accepted as optional to keep older local .env files
+  // booting, but only REDIS_URL is consulted at runtime by the rate-limit
+  // middleware.
+  REDIS_URL: optionalString,
   UPSTASH_REDIS_REST_URL: optionalUrl,
   UPSTASH_REDIS_REST_TOKEN: optionalString,
 
@@ -181,7 +186,10 @@ export function isServiceConfigured(service: 'database' | 'elevenlabs' | 'openai
     case 'openai':
       return !!env.OPENAI_API_KEY;
     case 'redis':
-      return !!(env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN);
+      // PR #227 migrated to Render Key Value via ioredis; only REDIS_URL
+      // is consulted at runtime. Fall back to the legacy Upstash pair so
+      // an older .env still reports "configured" until it's updated.
+      return !!(env.REDIS_URL || (env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN));
     default:
       return false;
   }
