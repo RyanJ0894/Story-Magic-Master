@@ -34,7 +34,18 @@ const nextConfig = {
   },
   // pdf-parse uses Node.js fs internals and must not be bundled by webpack —
   // when bundled it tries to open its test fixture file at runtime and crashes.
-  serverExternalPackages: ['pdf-parse'],
+  //
+  // rate-limiter-flexible uses dynamic require() to load optional backend
+  // drivers (Drizzle, MongoDB, Memcached, etc.) it'll never actually
+  // instantiate. Webpack can't statically follow the dynamic require, so it
+  // emits "Critical dependency: the request of a dependency is an expression"
+  // warnings — benign at runtime, but they obscure real build issues. Letting
+  // Node resolve at runtime silences the warning and slightly shrinks the
+  // serverless bundle.
+  //
+  // ioredis has similar dynamic-require patterns for its cluster/sentinel
+  // resolvers; the same logic applies.
+  serverExternalPackages: ['pdf-parse', 'rate-limiter-flexible', 'ioredis'],
   images: {
     remotePatterns: [
       {
