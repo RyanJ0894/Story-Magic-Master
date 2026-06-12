@@ -1,13 +1,18 @@
 /**
  * Rate Limiting for Web API Routes
  *
- * Uses Upstash Redis in production (distributed), falls back to in-memory
- * sliding window when Redis env vars are missing (local dev).
+ * Uses Render Redis (via ioredis + rate-limiter-flexible) in production
+ * (distributed across web instances), falls back to in-memory sliding window
+ * when `REDIS_URL` is unset (local dev, or before the Redis migration).
  *
  * Three tiers:
  *   strict  — 5 req/min  (password guessing, expensive LLM/TTS calls)
  *   normal  — 20 req/min (default for authenticated routes)
  *   loose   — 60 req/min (health, public reads)
+ *
+ * History: previously used Upstash REST (@upstash/redis + @upstash/ratelimit).
+ * Migrated to Render Redis TCP after the Upstash account was deleted
+ * (see PR opening this file).
  */
 
 import { NextResponse } from 'next/server';
@@ -113,46 +118,74 @@ const memoryLimiters: Record<RateLimitTier, InMemoryRateLimiter> = {
   loose: new InMemoryRateLimiter(TIER_CONFIGS.loose.maxRequests, TIER_CONFIGS.loose.windowMs),
 };
 
-// Upstash Redis limiters (lazy-initialized)
-let upstashLimiters: Record<RateLimitTier, unknown> | null = null;
+// Render Redis (ioredis) limiters — lazy-initialized.
+// rate-limiter-flexible.RateLimiterRedis is a fixed-window counter, which is
+// functionally equivalent to Upstash's sliding-window for our 1-minute windows.
+interface RedisLimiterCtx {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  limiter: any;
+}
+let redisLimiters: Record<RateLimitTier, RedisLimiterCtx> | null = null;
+let redisInitFailed = false;
 
-async function getUpstashLimiter(tier: RateLimitTier) {
-  const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
-  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+async function getRedisLimiter(tier: RateLimitTier): Promise<RedisLimiterCtx['limiter'] | null> {
+  const redisUrl = process.env.REDIS_URL;
+  if (!redisUrl) return null;
+  if (redisInitFailed) return null;
 
-  if (!redisUrl || !redisToken) return null;
-
-  if (!upstashLimiters) {
+  if (!redisLimiters) {
     try {
-      const { Ratelimit } = await import('@upstash/ratelimit');
-      const { Redis } = await import('@upstash/redis');
+      // Dynamic imports keep these out of the bundle when REDIS_URL is unset
+      // (e.g. local dev). The Render build still tree-shakes them per route.
+      const { default: IORedis } = await import('ioredis');
+      const { RateLimiterRedis } = await import('rate-limiter-flexible');
 
-      const redis = new Redis({ url: redisUrl, token: redisToken });
+      // ioredis options:
+      //  - tls/rediss handled automatically when the URL scheme is rediss://
+      //  - lazyConnect avoids hanging the process if Redis is briefly unreachable;
+      //    the limiter falls back via `insuranceLimiter` (we use in-memory below)
+      //  - maxRetriesPerRequest cap so one bad request can't hang for minutes
+      const redis = new IORedis(redisUrl, {
+        lazyConnect: false,
+        maxRetriesPerRequest: 1,
+        connectTimeout: 5_000,
+      });
 
-      upstashLimiters = {
-        strict: new Ratelimit({
-          redis,
-          limiter: Ratelimit.slidingWindow(TIER_CONFIGS.strict.maxRequests, '1 m'),
-          prefix: 'sm-web-strict',
-        }),
-        normal: new Ratelimit({
-          redis,
-          limiter: Ratelimit.slidingWindow(TIER_CONFIGS.normal.maxRequests, '1 m'),
-          prefix: 'sm-web-normal',
-        }),
-        loose: new Ratelimit({
-          redis,
-          limiter: Ratelimit.slidingWindow(TIER_CONFIGS.loose.maxRequests, '1 m'),
-          prefix: 'sm-web-loose',
-        }),
+      redis.on('error', (err) => {
+        log.warn('Redis client error (rate-limit)', { msg: err.message });
+      });
+
+      const makeLimiter = (cfg: TierConfig, prefix: string) =>
+        new RateLimiterRedis({
+          storeClient: redis,
+          keyPrefix: prefix,
+          points: cfg.maxRequests,
+          duration: Math.round(cfg.windowMs / 1000),
+          // If Redis becomes unreachable mid-request, fall back to in-memory
+          // immediately rather than waiting for the timeout. The catch block
+          // in rateLimit() handles the actual fallback.
+          inMemoryBlockOnConsumed: cfg.maxRequests,
+          inMemoryBlockDuration: Math.round(cfg.windowMs / 1000),
+        });
+
+      redisLimiters = {
+        strict: { limiter: makeLimiter(TIER_CONFIGS.strict, 'sm-web-strict') },
+        normal: { limiter: makeLimiter(TIER_CONFIGS.normal, 'sm-web-normal') },
+        loose: { limiter: makeLimiter(TIER_CONFIGS.loose, 'sm-web-loose') },
       };
-    } catch {
-      // Upstash packages not available — stay with in-memory
+
+      log.info('Rate limiter: Render Redis active', { url: redisUrl.replace(/:[^@]+@/, ':***@') });
+    } catch (err) {
+      // Module missing OR Redis init error → never retry this process lifetime
+      redisInitFailed = true;
+      log.warn('Rate limiter: Redis init failed; using in-memory only', {
+        msg: err instanceof Error ? err.message : String(err),
+      });
       return null;
     }
   }
 
-  return upstashLimiters?.[tier] ?? null;
+  return redisLimiters?.[tier]?.limiter ?? null;
 }
 
 // =============================================================================
@@ -172,22 +205,37 @@ export async function rateLimit(
   if (process.env.RATE_LIMIT_DISABLED === 'true') return null;
 
   try {
-    // Try Upstash first
-    const upstash = await getUpstashLimiter(tier);
-    if (upstash) {
-      const result = await (upstash as { limit(id: string): Promise<{ success: boolean; reset: number }> }).limit(identifier);
-      if (!result.success) {
-        const retryAfter = Math.ceil((result.reset - Date.now()) / 1000);
-        log.warn('Rate limit exceeded (redis)', { identifier, tier, retryAfter });
-        return NextResponse.json(
-          { error: 'Too many requests', code: 'RATE_LIMITED', retryAfter },
-          { status: 429, headers: { 'Retry-After': String(retryAfter) } },
-        );
+    const redis = await getRedisLimiter(tier);
+    if (redis) {
+      try {
+        const result = await redis.consume(identifier);
+        // RateLimiterRes on success — request allowed
+        const remaining = result.remainingPoints ?? 0;
+        if (remaining < 0) {
+          // Defensive: rate-limiter-flexible normally throws on block,
+          // but a negative remaining means we ran out.
+          throw result;
+        }
+        return null;
+      } catch (rejected) {
+        // rate-limiter-flexible throws a RateLimiterRes when blocked
+        if (rejected && typeof rejected === 'object' && 'msBeforeNext' in rejected) {
+          const msBeforeNext = (rejected as { msBeforeNext: number }).msBeforeNext;
+          const retryAfter = Math.ceil(msBeforeNext / 1000);
+          log.warn('Rate limit exceeded (redis)', { identifier, tier, retryAfter });
+          return NextResponse.json(
+            { error: 'Too many requests', code: 'RATE_LIMITED', retryAfter },
+            { status: 429, headers: { 'Retry-After': String(retryAfter) } },
+          );
+        }
+        // Not a known limiter rejection — rethrow to the outer catch
+        throw rejected;
       }
-      return null;
     }
   } catch (error) {
-    log.error('Redis rate limit error, falling back to in-memory', error);
+    log.warn('Redis rate limit unavailable, using in-memory fallback', {
+      msg: error instanceof Error ? error.message : String(error),
+    });
   }
 
   // In-memory fallback
