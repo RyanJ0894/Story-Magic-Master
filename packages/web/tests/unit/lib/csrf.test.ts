@@ -101,6 +101,21 @@ describe('CSRF Protection', () => {
       const result = validateCsrf(request);
       expect(result).toBeNull();
     });
+
+    // Regression for #211 — Render auto-promoted www.storymagicapp.net to
+    // the primary URL; without these in ALLOWED_ORIGINS every browser POST
+    // gets 403 and the screenplay-reader silently dropped notes.
+    it.each([
+      ['https://www.storymagicapp.net'],
+      ['https://storymagicapp.net'],
+      ['https://app.storymagicapp.net'],
+    ])('should accept POSTs from production origin %s', (origin) => {
+      const request = new Request('https://example.com/api/test', {
+        method: 'POST',
+        headers: { origin },
+      });
+      expect(validateCsrf(request)).toBeNull();
+    });
   });
 
   describe('withCsrfProtection', () => {

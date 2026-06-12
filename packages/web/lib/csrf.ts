@@ -9,7 +9,13 @@ const ALLOWED_ORIGINS = [
   process.env.NEXT_PUBLIC_APP_URL,
   process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
   process.env.RENDER_EXTERNAL_URL, // Render.com sets this automatically
-  // Production custom domain — hardcoded so CSRF works even if NEXT_PUBLIC_APP_URL is misconfigured
+  // Production custom domains — hardcoded so CSRF works even if
+  // NEXT_PUBLIC_APP_URL is misconfigured. All three are live primary URLs
+  // on the Render web service (see #211, #219). Render auto-promoted www
+  // and apex when the service was upgraded; without this allowlist, every
+  // POST from www returns 403 and the screenplay-reader silently drops it.
+  'https://www.storymagicapp.net',
+  'https://storymagicapp.net',
   'https://app.storymagicapp.net',
   'https://story-magic-web.onrender.com',
   // Local development
