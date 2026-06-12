@@ -111,11 +111,22 @@ install_model() {
     return 1
   fi
 
-  # Verify checksum (best-effort; skip if the hash isn't set or sha256sum is missing)
-  if [[ -n "${EXPECTED_SHA256}" ]] && command -v sha256sum >/dev/null 2>&1; then
-    if ! echo "${EXPECTED_SHA256}  ${MODEL_PATH}.tmp" | sha256sum -c - >/dev/null 2>&1; then
-      log "WARN: model checksum mismatch — keeping the file anyway (Hugging Face occasionally re-uploads), but flagging"
+  # Verify checksum when MODEL_SHA256 is set. Fail closed on mismatch — a
+  # download that doesn't match the expected hash is either corrupt or
+  # tampered with, and we refuse to install it. (When MODEL_SHA256 is unset
+  # the check is skipped — Groq fallback still covers the alignment path.)
+  if [[ -n "${EXPECTED_SHA256}" ]]; then
+    if ! command -v sha256sum >/dev/null 2>&1; then
+      log "ERROR: MODEL_SHA256 is set but sha256sum is not on PATH — refusing to install unverified model"
+      rm -f "${MODEL_PATH}.tmp"
+      return 1
     fi
+    if ! echo "${EXPECTED_SHA256}  ${MODEL_PATH}.tmp" | sha256sum -c - >/dev/null 2>&1; then
+      log "ERROR: model checksum mismatch — refusing to install. Expected ${EXPECTED_SHA256}"
+      rm -f "${MODEL_PATH}.tmp"
+      return 1
+    fi
+    log "model checksum verified"
   fi
 
   mv "${MODEL_PATH}.tmp" "${MODEL_PATH}"
