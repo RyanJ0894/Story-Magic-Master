@@ -7,7 +7,8 @@ import { log } from '../lib/logger.js';
 const router = Router();
 
 const PreviewRequestSchema = z.object({
-  project_id: z.string(),
+  // Strict UUID — see OrchestrateRequestSchema for rationale.
+  project_id: z.string().uuid('project_id must be a valid UUID'),
   scene: SceneSchema,
 });
 

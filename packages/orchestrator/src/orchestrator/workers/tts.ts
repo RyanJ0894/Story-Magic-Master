@@ -77,9 +77,10 @@ export async function ttsForScene(project_id: string, scene: Scene): Promise<Ste
           const textHash = hash(line.text);
           const voiceHash = hash(voice.voice_id + JSON.stringify(voice.params_json));
 
+          // ${project_id}::uuid — see migration 0040; the column is UUID, Prisma binds TEXT.
           await prisma.$executeRaw`
             INSERT INTO tts_stems (project_id, scene_id, line_id, text_hash, voice_hash, path, duration_s)
-            VALUES (${project_id}, ${scene.scene_id}, ${line.line_id}, ${textHash}, ${voiceHash}, ${stemPath}, NULL)
+            VALUES (${project_id}::uuid, ${scene.scene_id}, ${line.line_id}, ${textHash}, ${voiceHash}, ${stemPath}, NULL)
             ON CONFLICT (project_id, scene_id, line_id)
             DO UPDATE SET text_hash = ${textHash}, voice_hash = ${voiceHash}, path = ${stemPath}, duration_s = NULL
           `;

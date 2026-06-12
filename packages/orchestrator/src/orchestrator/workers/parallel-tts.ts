@@ -209,9 +209,12 @@ export async function parallelTTSGenerate(
           const textHash = hash(line.text);
           const voiceHash = hash(voice.voice_id + JSON.stringify(voice.params_json));
 
+          // ${project_id}::uuid is required since migration 0040 changed the
+          // column type from TEXT to UUID. Prisma binds JS strings as TEXT;
+          // the cast happens server-side.
           await prisma.$executeRaw`
             INSERT INTO tts_stems (project_id, scene_id, line_id, text_hash, voice_hash, path, duration_s)
-            VALUES (${project_id}, ${scene_id}, ${line.line_id}, ${textHash}, ${voiceHash}, ${stemPath}, NULL)
+            VALUES (${project_id}::uuid, ${scene_id}, ${line.line_id}, ${textHash}, ${voiceHash}, ${stemPath}, NULL)
             ON CONFLICT (project_id, scene_id, line_id)
             DO UPDATE SET text_hash = ${textHash}, voice_hash = ${voiceHash}, path = ${stemPath}, duration_s = NULL
           `;

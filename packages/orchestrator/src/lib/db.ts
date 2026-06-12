@@ -45,10 +45,11 @@ export async function getVoiceForCharacter(
   character: string
 ): Promise<VoiceMapEntry | null> {
   try {
+    // ${project_id}::uuid — see migration 0040; the column is UUID, Prisma binds TEXT.
     const rows = await prisma.$queryRaw<VoiceMapEntry[]>`
       SELECT project_id, character, voice_id, provider, params_json
       FROM voice_map
-      WHERE project_id = ${project_id}
+      WHERE project_id = ${project_id}::uuid
         AND character = ${character}
       LIMIT 1
     `;
@@ -82,9 +83,10 @@ export async function upsertVoiceMap(
   };
 
   try {
+    // ${row.project_id}::uuid — see migration 0040; the column is UUID, Prisma binds TEXT.
     await prisma.$executeRaw`
       INSERT INTO voice_map (project_id, character, voice_id, provider, params_json)
-      VALUES (${row.project_id}, ${row.character}, ${row.voice_id}, ${row.provider}, ${JSON.stringify(row.params_json)}::jsonb)
+      VALUES (${row.project_id}::uuid, ${row.character}, ${row.voice_id}, ${row.provider}, ${JSON.stringify(row.params_json)}::jsonb)
       ON CONFLICT (project_id, character)
       DO UPDATE SET voice_id = ${row.voice_id}, provider = ${row.provider}, params_json = ${JSON.stringify(row.params_json)}::jsonb
     `;
@@ -93,7 +95,7 @@ export async function upsertVoiceMap(
     const rows = await prisma.$queryRaw<VoiceMapEntry[]>`
       SELECT project_id, character, voice_id, provider, params_json
       FROM voice_map
-      WHERE project_id = ${row.project_id}
+      WHERE project_id = ${row.project_id}::uuid
         AND character = ${row.character}
       LIMIT 1
     `;

@@ -127,9 +127,10 @@ async function saveAlignment(
   alignment: SceneAlignment
 ): Promise<void> {
   try {
+    // ${project_id}::uuid — see migration 0040; the column is UUID, Prisma binds TEXT.
     await prisma.$executeRaw`
       INSERT INTO alignments (project_id, scene_id, alignment_json, created_at)
-      VALUES (${project_id}, ${scene_id}, ${JSON.stringify(alignment)}::jsonb, NOW())
+      VALUES (${project_id}::uuid, ${scene_id}, ${JSON.stringify(alignment)}::jsonb, NOW())
       ON CONFLICT (project_id, scene_id)
       DO UPDATE SET alignment_json = ${JSON.stringify(alignment)}::jsonb, created_at = NOW()
     `;

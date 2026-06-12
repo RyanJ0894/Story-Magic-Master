@@ -55,8 +55,12 @@ const DEFAULT_ENV = {
   DIRECTOR_MODEL_ADVANCED: 'anthropic/claude-opus-4-6',
 };
 
+// GenerateScenesRequestSchema requires project_id to be a valid UUID since the
+// hotfix that closed the migration-0040 raw-SQL drift. Use a stable test UUID.
+const TEST_PROJECT_ID = '11111111-1111-4111-8111-111111111111';
+
 const VALID_DIRECTOR_JSON = {
-  project_id: 'test-proj',
+  project_id: TEST_PROJECT_ID,
   scenes: [
     { scene_id: 's1', scene_heading: 'INT. OFFICE - DAY', dialogue: [], audio_cues: [] },
   ],
@@ -125,7 +129,7 @@ describe('generate-scenes pre-flight: char limit', () => {
 
   it('returns 400 when script exceeds MAX_SCRIPT_CHARS', async () => {
     const { status, body } = await post(
-      { project_id: 'proj-1', script_text: 'A'.repeat(75_001) }
+      { project_id: TEST_PROJECT_ID, script_text: 'A'.repeat(75_001) }
     );
     expect(status).toBe(400);
     expect(body.success).toBe(false);
@@ -136,14 +140,14 @@ describe('generate-scenes pre-flight: char limit', () => {
   it('accepts script at exactly MAX_SCRIPT_CHARS', async () => {
     mockProcessScript.mockResolvedValue({ director_json: VALID_DIRECTOR_JSON, validation_report: {} });
     const { body } = await post(
-      { project_id: 'proj-1', script_text: 'A'.repeat(75_000) }
+      { project_id: TEST_PROJECT_ID, script_text: 'A'.repeat(75_000) }
     );
     expect(String(body.message ?? '')).not.toMatch(/character limit/i);
   });
 
   it('custom MAX_SCRIPT_CHARS is respected', async () => {
     const { status, body } = await post(
-      { project_id: 'proj-1', script_text: 'A'.repeat(1_001) },
+      { project_id: TEST_PROJECT_ID, script_text: 'A'.repeat(1_001) },
       { MAX_SCRIPT_CHARS: 1_000, MAX_SCRIPT_PAGES: 150 }
     );
     expect(status).toBe(400);
@@ -162,7 +166,7 @@ describe('generate-scenes pre-flight: page limit', () => {
     // Real screenplay density: ~2,200 chars/page.
     // 11 pages × 2,200 chars/page = 24,200 chars → ~11 estimated pages; limit = 10.
     const { status, body } = await post(
-      { project_id: 'proj-1', script_text: 'A'.repeat(24_200) },
+      { project_id: TEST_PROJECT_ID, script_text: 'A'.repeat(24_200) },
       { MAX_SCRIPT_CHARS: 200_000, MAX_SCRIPT_PAGES: 10 }
     );
     expect(status).toBe(400);
@@ -175,7 +179,7 @@ describe('generate-scenes pre-flight: page limit', () => {
     mockProcessScript.mockResolvedValue({ director_json: VALID_DIRECTOR_JSON, validation_report: {} });
     // 9 pages × 2,200 chars = 19,800 chars → ~9 estimated pages ≤ 10
     const { status, body } = await post(
-      { project_id: 'proj-1', script_text: 'A'.repeat(19_800) },
+      { project_id: TEST_PROJECT_ID, script_text: 'A'.repeat(19_800) },
       { MAX_SCRIPT_CHARS: 200_000, MAX_SCRIPT_PAGES: 10 }
     );
     expect(String(body.message ?? '')).not.toMatch(/page limit/i);
@@ -189,7 +193,7 @@ describe('generate-scenes pre-flight: page limit', () => {
     mockProcessScript.mockResolvedValue({ director_json: VALID_DIRECTOR_JSON, validation_report: {} });
     const thirtyPageScript = 'A'.repeat(66_000);
     const { status, body } = await post(
-      { project_id: 'proj-1', script_text: thirtyPageScript },
+      { project_id: TEST_PROJECT_ID, script_text: thirtyPageScript },
       { MAX_SCRIPT_CHARS: 200_000, MAX_SCRIPT_PAGES: 35 }, // 35-page limit → 30-page script must pass
     );
     expect(status).toBe(200);
@@ -209,14 +213,14 @@ describe('generate-scenes happy path', () => {
     mockProcessScript.mockResolvedValue({ director_json: VALID_DIRECTOR_JSON, validation_report: {} });
 
     const { status, body } = await post(
-      { project_id: 'proj-1', script_text: 'INT. ROOM - DAY\n\nJOHN\nHi.' }
+      { project_id: TEST_PROJECT_ID, script_text: 'INT. ROOM - DAY\n\nJOHN\nHi.' }
     );
 
     expect(status).toBe(200);
     expect(body.success).toBe(true);
     expect(body.scene_count).toBe(1);
     expect(mockProcessScript).toHaveBeenCalledWith(
-      expect.objectContaining({ project_id: 'proj-1' }),
+      expect.objectContaining({ project_id: TEST_PROJECT_ID }),
       expect.objectContaining({ directorModel: expect.any(String) })
     );
   });
@@ -231,7 +235,7 @@ describe('generate-scenes happy path', () => {
     mockProcessScript.mockRejectedValue(new Error('LLM timeout'));
 
     const { status, body } = await post(
-      { project_id: 'proj-1', script_text: 'INT. ROOM - DAY\n\nJOHN\nHi.' }
+      { project_id: TEST_PROJECT_ID, script_text: 'INT. ROOM - DAY\n\nJOHN\nHi.' }
     );
 
     expect(status).toBe(500);
@@ -251,7 +255,7 @@ describe('generate-scenes: ownership check (BL-013)', () => {
     mockPrisma.project.findUnique.mockResolvedValue(null);
 
     const { status, body } = await post(
-      { project_id: 'ghost-proj', script_text: 'INT. ROOM - DAY' },
+      { project_id: TEST_PROJECT_ID, script_text: 'INT. ROOM - DAY' },
       DEFAULT_ENV,
       'user-abc',
     );
@@ -266,7 +270,7 @@ describe('generate-scenes: ownership check (BL-013)', () => {
     mockPrisma.project.findUnique.mockResolvedValue({ userId: 'owner-xyz' });
 
     const { status, body } = await post(
-      { project_id: 'proj-owned-by-xyz', script_text: 'INT. ROOM - DAY' },
+      { project_id: TEST_PROJECT_ID, script_text: 'INT. ROOM - DAY' },
       DEFAULT_ENV,
       'attacker-abc',
     );
@@ -282,7 +286,7 @@ describe('generate-scenes: ownership check (BL-013)', () => {
     mockProcessScript.mockResolvedValue({ director_json: VALID_DIRECTOR_JSON, validation_report: {} });
 
     const { status, body } = await post(
-      { project_id: 'my-proj', script_text: 'INT. ROOM - DAY' },
+      { project_id: TEST_PROJECT_ID, script_text: 'INT. ROOM - DAY' },
       DEFAULT_ENV,
       'user-abc',
     );
@@ -290,7 +294,7 @@ describe('generate-scenes: ownership check (BL-013)', () => {
     expect(status).toBe(200);
     expect(body.success).toBe(true);
     expect(mockPrisma.project.findUnique).toHaveBeenCalledWith({
-      where: { id: 'my-proj' },
+      where: { id: TEST_PROJECT_ID },
       select: { userId: true },
     });
   });
@@ -299,7 +303,7 @@ describe('generate-scenes: ownership check (BL-013)', () => {
     mockProcessScript.mockResolvedValue({ director_json: VALID_DIRECTOR_JSON, validation_report: {} });
 
     const { status, body } = await post(
-      { project_id: 'any-proj', script_text: 'INT. ROOM - DAY' },
+      { project_id: TEST_PROJECT_ID, script_text: 'INT. ROOM - DAY' },
       DEFAULT_ENV,
       // no userId
     );
@@ -314,7 +318,7 @@ describe('generate-scenes: ownership check (BL-013)', () => {
     mockProcessScript.mockResolvedValue({ director_json: VALID_DIRECTOR_JSON, validation_report: {} });
 
     const { status, body } = await post(
-      { project_id: 'any-proj', script_text: 'INT. ROOM - DAY' },
+      { project_id: TEST_PROJECT_ID, script_text: 'INT. ROOM - DAY' },
       DEFAULT_ENV,
       'user-abc',
     );

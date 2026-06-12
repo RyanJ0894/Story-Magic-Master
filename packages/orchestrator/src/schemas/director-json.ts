@@ -133,7 +133,8 @@ export type PipelineResult = z.infer<typeof PipelineResultSchema>;
 
 // Request schemas for API endpoints
 export const GenerateScenesRequestSchema = z.object({
-  project_id: z.string(),
+  // Strict UUID — see OrchestrateRequestSchema below for the full rationale.
+  project_id: z.string().uuid('project_id must be a valid UUID'),
   script_text: z.string().min(1),
   // Optional: character_name -> voice_id mapping for user-selected voices
   voice_overrides: z.record(z.string(), z.string()).optional(),
@@ -144,7 +145,12 @@ export const GenerateScenesRequestSchema = z.object({
 export type GenerateScenesRequest = z.infer<typeof GenerateScenesRequestSchema>;
 
 export const OrchestrateRequestSchema = z.object({
-  project_id: z.string(),
+  // Strict UUID — migration 0040 made the pipeline tables' project_id columns
+  // FK to projects(id) with UUID type. Downstream raw-SQL writes use ${id}::uuid
+  // casts. Failing fast here returns a clean 400 instead of letting bad input
+  // flow through to the cache-write step where it would silently log an error
+  // and degrade the pipeline (no scene cache write).
+  project_id: z.string().uuid('project_id must be a valid UUID'),
   // Scenes can be omitted if script_text is provided (director runs first)
   scenes: z.array(SceneSchema).optional(),
   // Optional: allow passing script_text to run director internally

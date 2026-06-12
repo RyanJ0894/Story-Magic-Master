@@ -193,9 +193,10 @@ async function saveTimeline(scene_id: string, timeline: Timeline): Promise<Timel
   try {
     const project_id = timeline.project_id || '00000000-0000-0000-0000-000000000001';
 
+    // ${project_id}::uuid — see migration 0040; the column is UUID, Prisma binds TEXT.
     await prisma.$executeRaw`
       INSERT INTO timelines (project_id, scene_id, timeline_json, created_at)
-      VALUES (${project_id}, ${scene_id}, ${JSON.stringify(timeline)}::jsonb, NOW())
+      VALUES (${project_id}::uuid, ${scene_id}, ${JSON.stringify(timeline)}::jsonb, NOW())
       ON CONFLICT (project_id, scene_id)
       DO UPDATE SET timeline_json = ${JSON.stringify(timeline)}::jsonb, created_at = NOW()
     `;

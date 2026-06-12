@@ -496,9 +496,10 @@ async function loudnormTwoPass(
 async function saveMixManifest(project_id: string, scene_id: string, manifest: MixManifest): Promise<void> {
   // Save to database via Prisma raw SQL
   try {
+    // ${project_id}::uuid — see migration 0040; the column is UUID, Prisma binds TEXT.
     await prisma.$executeRaw`
       INSERT INTO mix_manifests (project_id, scene_id, mix_manifest_json, created_at)
-      VALUES (${project_id}, ${scene_id}, ${JSON.stringify(manifest)}::jsonb, NOW())
+      VALUES (${project_id}::uuid, ${scene_id}, ${JSON.stringify(manifest)}::jsonb, NOW())
       ON CONFLICT (project_id, scene_id)
       DO UPDATE SET mix_manifest_json = ${JSON.stringify(manifest)}::jsonb, created_at = NOW()
     `;
