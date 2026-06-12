@@ -142,8 +142,10 @@ if (isProdOrStaging) {
 
 if (isProdOrStaging) {
   warnIfMissing('SENTRY_DSN', 'error tracking will be disabled');
-  warnIfMissing('UPSTASH_REDIS_REST_URL', 'rate limiting will fall back to in-memory (not shared across instances)');
-  warnIfMissing('UPSTASH_REDIS_REST_TOKEN', 'rate limiting will fall back to in-memory');
+  // Migrated from Upstash REST → Render Key Value in PR #227. New canonical
+  // env var is REDIS_URL (rediss://). Without it, rate limiting falls back to
+  // per-instance in-memory limits.
+  warnIfMissing('REDIS_URL', 'rate limiting will fall back to in-memory (not shared across instances)');
   warnIfMissing('ORCHESTRATOR_PUBLIC_URL', 'audio download URLs in responses may be incorrect');
   warnIfMissing('CHECKLY_PING_URL', 'uptime heartbeat monitoring will be disabled');
   warnIfValue('LOG_LEVEL', 'debug', 'debug logging in production generates excessive noise — set to info');

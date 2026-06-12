@@ -99,10 +99,13 @@ if (env.SERVICE_SECRET_KEY && env.SERVICE_SECRET_KEY.length < 32) {
 
 required('ORCHESTRATOR_URL', 'Internal URL for orchestrator — e.g. https://story-magic-orchestrator.onrender.com');
 
-// ── Redis (Upstash) ──────────────────────────────────────────────────────────
+// ── Redis (Render Key Value) ─────────────────────────────────────────────────
+// Migrated from Upstash REST in PR #226/#227. REDIS_URL is now the canonical
+// Render Key Value connection string (rediss:// with TLS). If unset, rate
+// limiting falls back to in-memory (per-instance, not aggregated) — acceptable
+// at our current scale so we warn rather than fail.
 
-required('UPSTASH_REDIS_REST_URL', 'Upstash Redis REST URL — required for job queue and rate limiting');
-required('UPSTASH_REDIS_REST_TOKEN', 'Upstash Redis REST token — required for job queue and rate limiting');
+warnIfMissing('REDIS_URL', 'Render Key Value rediss:// URL — rate limiting will fall back to in-memory if unset');
 
 // ── Stripe ───────────────────────────────────────────────────────────────────
 
