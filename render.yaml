@@ -249,6 +249,7 @@ services:
       echo "04f1ff30ed162d7af1dba7f11ad6a37ef35099de86a7ec6e261b64b1b337a3f3  /tmp/doppler.tgz" | sha256sum -c - &&
       tar -xzf /tmp/doppler.tgz -C /usr/local/bin doppler &&
       pnpm install --frozen-lockfile &&
+      bash scripts/install-whisper.sh &&
       doppler run -- sh -c "node scripts/check-env-orchestrator.js && pnpm --filter @story-magic/shared exec prisma generate && pnpm --filter @story-magic/orchestrator build"
     startCommand: doppler run -- pnpm --filter @story-magic/orchestrator start
 
