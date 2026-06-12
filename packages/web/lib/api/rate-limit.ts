@@ -118,6 +118,49 @@ const memoryLimiters: Record<RateLimitTier, InMemoryRateLimiter> = {
   loose: new InMemoryRateLimiter(TIER_CONFIGS.loose.maxRequests, TIER_CONFIGS.loose.windowMs),
 };
 
+// =============================================================================
+// Runtime circuit breaker — guard against Redis becoming unreachable AFTER init.
+// =============================================================================
+// Init-time failures are caught by `redisInitFailed`. Runtime failures are
+// handled here: count consecutive Redis errors and, after a threshold, open
+// the circuit for a cool-down. While open we bypass Redis entirely (one warn
+// when opening, one info when closing). After the cool-down we probe once.
+
+const CIRCUIT_OPEN_THRESHOLD = 3;
+const CIRCUIT_OPEN_DURATION_MS = 60_000;
+
+class CircuitBreaker {
+  private consecutiveFailures = 0;
+  private openUntil = 0;
+
+  isOpen(): boolean {
+    if (this.openUntil === 0) return false;
+    if (Date.now() < this.openUntil) return true;
+    log.info('Rate-limit circuit closing — probing Redis again');
+    this.openUntil = 0;
+    this.consecutiveFailures = 0;
+    return false;
+  }
+
+  recordSuccess(): void {
+    if (this.consecutiveFailures > 0) this.consecutiveFailures = 0;
+  }
+
+  recordFailure(err: unknown): void {
+    this.consecutiveFailures += 1;
+    if (this.consecutiveFailures >= CIRCUIT_OPEN_THRESHOLD && this.openUntil === 0) {
+      this.openUntil = Date.now() + CIRCUIT_OPEN_DURATION_MS;
+      log.warn(
+        `Rate-limit circuit opened after ${CIRCUIT_OPEN_THRESHOLD} consecutive Redis failures — ` +
+        `using in-memory only for ${CIRCUIT_OPEN_DURATION_MS / 1000}s`,
+        { lastError: err instanceof Error ? err.message : String(err) },
+      );
+    }
+  }
+}
+
+const circuit = new CircuitBreaker();
+
 // Render Redis (ioredis) limiters — lazy-initialized.
 // rate-limiter-flexible.RateLimiterRedis is a fixed-window counter, which is
 // functionally equivalent to Upstash's sliding-window for our 1-minute windows.
@@ -204,38 +247,49 @@ export async function rateLimit(
   // Disabled via env
   if (process.env.RATE_LIMIT_DISABLED === 'true') return null;
 
-  try {
-    const redis = await getRedisLimiter(tier);
-    if (redis) {
-      try {
-        const result = await redis.consume(identifier);
-        // RateLimiterRes on success — request allowed
-        const remaining = result.remainingPoints ?? 0;
-        if (remaining < 0) {
-          // Defensive: rate-limiter-flexible normally throws on block,
-          // but a negative remaining means we ran out.
-          throw result;
+  // Skip Redis entirely while the circuit is open (runtime failure cool-down).
+  if (!circuit.isOpen()) {
+    try {
+      const redis = await getRedisLimiter(tier);
+      if (redis) {
+        try {
+          const result = await redis.consume(identifier);
+          circuit.recordSuccess();
+          // RateLimiterRes on success — request allowed
+          const remaining = result.remainingPoints ?? 0;
+          if (remaining < 0) {
+            // Defensive: rate-limiter-flexible normally throws on block,
+            // but a negative remaining means we ran out.
+            throw result;
+          }
+          return null;
+        } catch (rejected) {
+          // rate-limiter-flexible throws a RateLimiterRes when blocked.
+          // That's a legitimate 429, NOT a Redis failure.
+          if (rejected && typeof rejected === 'object' && 'msBeforeNext' in rejected) {
+            circuit.recordSuccess(); // The limiter served us a real answer.
+            const msBeforeNext = (rejected as { msBeforeNext: number }).msBeforeNext;
+            const retryAfter = Math.ceil(msBeforeNext / 1000);
+            log.warn('Rate limit exceeded (redis)', { identifier, tier, retryAfter });
+            return NextResponse.json(
+              { error: 'Too many requests', code: 'RATE_LIMITED', retryAfter },
+              { status: 429, headers: { 'Retry-After': String(retryAfter) } },
+            );
+          }
+          // Genuine Redis failure — trip the circuit so we stop trying.
+          circuit.recordFailure(rejected);
+          throw rejected;
         }
-        return null;
-      } catch (rejected) {
-        // rate-limiter-flexible throws a RateLimiterRes when blocked
-        if (rejected && typeof rejected === 'object' && 'msBeforeNext' in rejected) {
-          const msBeforeNext = (rejected as { msBeforeNext: number }).msBeforeNext;
-          const retryAfter = Math.ceil(msBeforeNext / 1000);
-          log.warn('Rate limit exceeded (redis)', { identifier, tier, retryAfter });
-          return NextResponse.json(
-            { error: 'Too many requests', code: 'RATE_LIMITED', retryAfter },
-            { status: 429, headers: { 'Retry-After': String(retryAfter) } },
-          );
-        }
-        // Not a known limiter rejection — rethrow to the outer catch
-        throw rejected;
+      }
+    } catch (error) {
+      // Already counted in circuit.recordFailure above. Only log once per call
+      // until the circuit opens (then the open warn takes over).
+      if (!circuit.isOpen()) {
+        log.warn('Redis rate limit transient error, using in-memory for this request', {
+          msg: error instanceof Error ? error.message : String(error),
+        });
       }
     }
-  } catch (error) {
-    log.warn('Redis rate limit unavailable, using in-memory fallback', {
-      msg: error instanceof Error ? error.message : String(error),
-    });
   }
 
   // In-memory fallback

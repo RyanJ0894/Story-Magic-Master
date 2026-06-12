@@ -91,6 +91,9 @@ importers:
       hpp:
         specifier: ^0.2.3
         version: 0.2.3
+      ioredis:
+        specifier: ^5.11.1
+        version: 5.11.1
       p-limit:
         specifier: ^5.0.0
         version: 5.0.0
@@ -103,6 +106,9 @@ importers:
       prisma:
         specifier: ^6.19.2
         version: 6.19.2(typescript@5.9.3)
+      rate-limiter-flexible:
+        specifier: ^11.2.0
+        version: 11.2.0
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
