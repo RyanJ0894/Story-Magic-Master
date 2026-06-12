@@ -35,8 +35,47 @@ export const VoiceMapSchema = z.object({
   default_female_voice: z.string().describe('Non-empty ElevenLabs voice ID for female fallback'),
 });
 
+/**
+ * LLM-facing variant of VoiceMap.
+ *
+ * Anthropic's structured-output (`output_config.format.schema`) rejects
+ * `additionalProperties: <object>`, which is exactly what `z.record(string,
+ * object)` serializes to. So when we ask the model to repair / structure a
+ * VoiceMap, we present `assignments` as an array of `{ character_name,
+ * ... }` entries (closed-shape objects) and reshape to a record in code.
+ *
+ * The in-memory shape (`VoiceMap`) is unchanged — every consumer still reads
+ * `voiceMap.assignments[CHARACTER]`.
+ */
+export const VoiceMapLLMSchema = z.object({
+  project_id: z.string(),
+  assignments: z
+    .array(VoiceAssignmentSchema.extend({ character_name: z.string() }))
+    .describe('One entry per normalized character name (canonical + alias).'),
+  default_narrator_voice: z.string().describe('Non-empty ElevenLabs voice ID for narration'),
+  default_male_voice: z.string().describe('Non-empty ElevenLabs voice ID for male fallback'),
+  default_female_voice: z.string().describe('Non-empty ElevenLabs voice ID for female fallback'),
+});
+
 export type VoiceAssignment = z.infer<typeof VoiceAssignmentSchema>;
 export type VoiceMap = z.infer<typeof VoiceMapSchema>;
+export type VoiceMapLLM = z.infer<typeof VoiceMapLLMSchema>;
+
+/** Reshape the LLM array variant into the in-memory record form. */
+export function llmVoiceMapToVoiceMap(llm: VoiceMapLLM): VoiceMap {
+  const assignments: VoiceMap['assignments'] = {};
+  for (const entry of llm.assignments) {
+    const { character_name, ...rest } = entry;
+    assignments[character_name.toUpperCase().trim()] = rest;
+  }
+  return {
+    project_id: llm.project_id,
+    assignments,
+    default_narrator_voice: llm.default_narrator_voice,
+    default_male_voice: llm.default_male_voice,
+    default_female_voice: llm.default_female_voice,
+  };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Default fallback voice IDs (ElevenLabs curated catalog)

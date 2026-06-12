@@ -74,6 +74,21 @@ function makeValidVoiceMap() {
   };
 }
 
+// LLM-array variant — what `structureTextAsJSON` now returns since the
+// record-shape variant was incompatible with Anthropic's structured output.
+function makeValidVoiceMapLLM() {
+  return {
+    project_id: PROJECT_ID,
+    assignments: [
+      { character_name: 'NARRATOR', canonical_name: 'NARRATOR', voice_key: 'JBFqnCBsd6RMkjVDRZzb', voice_name: 'George' },
+      { character_name: 'JOHN', canonical_name: 'JOHN', voice_key: 'bIHbv24MWmeRgasZH58o', voice_name: 'Will', gender: 'Male' as const },
+    ],
+    default_narrator_voice: 'JBFqnCBsd6RMkjVDRZzb',
+    default_male_voice: 'bIHbv24MWmeRgasZH58o',
+    default_female_voice: 'cgSgspJ2msm6clMCkdW9',
+  };
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('VoiceAssignmentAgent', () => {
@@ -104,7 +119,8 @@ describe('VoiceAssignmentAgent', () => {
   it('falls back to structureTextAsJSON when JSON parse fails', async () => {
     vi.mocked(runAgentLoop).mockResolvedValue('bad output');
     vi.mocked(parseJSONSafely).mockReturnValue({ success: false, error: 'parse error' });
-    vi.mocked(structureTextAsJSON).mockResolvedValue(makeValidVoiceMap());
+    // structureTextAsJSON now returns the LLM array shape (Anthropic-safe).
+    vi.mocked(structureTextAsJSON).mockResolvedValue(makeValidVoiceMapLLM());
 
     const agent = new VoiceAssignmentAgent();
     const result = await agent.assign({ manifest: MANIFEST });
@@ -191,8 +207,12 @@ describe('VoiceAssignmentAgent', () => {
     };
     vi.mocked(runAgentLoop).mockResolvedValue(JSON.stringify(partialMap));
     vi.mocked(parseJSONSafely).mockReturnValue({ success: true, data: partialMap });
+    // structureTextAsJSON now returns the LLM array shape.
     vi.mocked(structureTextAsJSON).mockResolvedValue({
-      ...partialMap,
+      project_id: PROJECT_ID,
+      assignments: [
+        { character_name: 'NARRATOR', canonical_name: 'NARRATOR', voice_key: 'abc123' },
+      ],
       default_narrator_voice: 'abc123',
       default_male_voice: DEFAULT_MALE_VOICE,
       default_female_voice: DEFAULT_FEMALE_VOICE,
