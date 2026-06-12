@@ -217,6 +217,95 @@ export async function orchestratorHealthCheck(
   return response;
 }
 
+// =============================================================================
+// Deploy-window mitigation
+// =============================================================================
+
+/**
+ * Thrown when the orchestrator was unreachable during a transient network
+ * outage (Render deploy rollout, brief 5xx storm, DNS hiccup). Distinct from
+ * a "real" generation failure (script validation, quota, etc.) so callers
+ * can apply longer backoff instead of burning the user's retry budget.
+ */
+export class OrchestratorUnreachableError extends Error {
+  constructor(message: string, public readonly cause?: unknown) {
+    super(message);
+    this.name = 'OrchestratorUnreachableError';
+  }
+}
+
+/**
+ * True when an error or HTTP status looks like a transient orchestrator
+ * unavailability (Render rolling deploy, brief 5xx, network blip) rather
+ * than a real failure that won't resolve by waiting.
+ *
+ * - 502/503/504 — Render load balancer is between containers, retry helps
+ * - 408 / network errors / aborts — fetch never got an answer
+ */
+export function isTransientOrchestratorError(err: unknown): boolean {
+  if (err instanceof OrchestratorUnreachableError) return true;
+  if (err instanceof TypeError) return true; // network-level (DNS, ECONNREFUSED, ECONNRESET)
+  if (err instanceof DOMException && err.name === 'AbortError') return true;
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    if (msg.includes('http 502') || msg.includes('http 503') || msg.includes('http 504') || msg.includes('http 408')) return true;
+    if (msg.includes('fetch failed') || msg.includes('econnrefused') || msg.includes('enotfound')) return true;
+  }
+  return false;
+}
+
+/**
+ * Wait up to `maxWaitMs` for the orchestrator to respond healthy on `/health`.
+ * Polls every `pollIntervalMs` until either:
+ *   - a successful 2xx response → resolves
+ *   - the timeout elapses without success → throws OrchestratorUnreachableError
+ *
+ * Use this at the *start* of long-running jobs to avoid wasting a director
+ * pass when the orchestrator is mid-deploy. ~30s of polling fits inside the
+ * typical Render rolling-deploy window (15-60s per container).
+ *
+ * Cheap: each poll is a 10s-timeout HEAD/GET that returns 200 in <100ms on
+ * a healthy service. If we're already healthy, this returns in ~50ms.
+ */
+export async function waitForOrchestratorReady(
+  maxWaitMs: number = 30_000,
+  pollIntervalMs: number = 3_000,
+): Promise<void> {
+  const start = Date.now();
+  let lastError: unknown;
+  let probeCount = 0;
+
+  while (Date.now() - start < maxWaitMs) {
+    probeCount++;
+    try {
+      const response = await orchestratorHealthCheck('/health');
+      if (response.ok) {
+        if (probeCount > 1) {
+          log.info('[waitForOrchestratorReady] orchestrator ready', {
+            probeCount,
+            waitedMs: Date.now() - start,
+          });
+        }
+        return;
+      }
+      // Got a response but not OK — record + keep polling
+      lastError = new Error(`orchestrator /health returned HTTP ${response.status}`);
+    } catch (err) {
+      lastError = err;
+    }
+
+    // Don't sleep past the deadline
+    const remaining = maxWaitMs - (Date.now() - start);
+    if (remaining <= 0) break;
+    await sleep(Math.min(pollIntervalMs, remaining));
+  }
+
+  throw new OrchestratorUnreachableError(
+    `orchestrator did not become ready within ${maxWaitMs}ms (probed ${probeCount}x)`,
+    lastError,
+  );
+}
+
 /**
  * POST to orchestrator for long-running generation tasks (20 min timeout, 1 retry).
  * 20 minutes accommodates 100-page scripts: TTS + assembly + concatenation.

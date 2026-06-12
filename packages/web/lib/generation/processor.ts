@@ -7,7 +7,12 @@
 
 import { prisma } from '@/lib/db';
 import { log } from '@/lib/logger';
-import { orchestratorGenerate } from '@/lib/orchestrator-fetch';
+import {
+  orchestratorGenerate,
+  waitForOrchestratorReady,
+  isTransientOrchestratorError,
+  OrchestratorUnreachableError,
+} from '@/lib/orchestrator-fetch';
 import { dispatchWebhooks } from '@/lib/webhooks/deliver';
 import { triggerHumanReviewIfPurchased } from '@/lib/human-review/trigger';
 import { chunkScenes, segmentProgressLabel } from '@/lib/generation/chunk-script';
@@ -164,6 +169,25 @@ export async function processGenerationJob(
 
     log.info('[PIPELINE] start', { jobId: jobId.slice(0, 8), projectId, pageCount, scriptLength: scriptText.length });
     await updateJobProgress('initializing', 5, 'Starting generation pipeline...');
+
+    // Wait up to 30s for the orchestrator to be ready before spending an LLM
+    // call. This bridges Render's rolling-deploy window so users who happen
+    // to click Generate during a deploy don't get a "Director Agent failed"
+    // 92s after their request. If the orchestrator is healthy, this returns
+    // in ~50ms; if it's mid-deploy, we wait and probe instead of burning
+    // their retry budget.
+    try {
+      await waitForOrchestratorReady(30_000);
+    } catch (err) {
+      if (err instanceof OrchestratorUnreachableError) {
+        await logJobEvent(jobId, projectId, 'error', 'initializing',
+          'Orchestrator unreachable — likely mid-deploy. Retrying with backoff.', {},
+          err.message);
+        // Re-throw so the queue worker classifies + applies the longer backoff.
+        throw err;
+      }
+      throw err;
+    }
 
     // Step 2: Parse script via Director Agent (skip if a prior run already produced directorJson)
     const existingProject = await prisma.project.findUnique({

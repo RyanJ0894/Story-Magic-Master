@@ -17,6 +17,7 @@ import {
 import { DequeueResult, WorkerConfig, WorkerStatus, JobType } from './types';
 import { prisma } from '@/lib/db';
 import { processGenerationJob } from '@/lib/generation/processor';
+import { isTransientOrchestratorError } from '@/lib/orchestrator-fetch';
 import { generateScore } from '@/lib/scoring/service';
 import { generateSuggestions } from '@/lib/adviser/service';
 import { log } from '@/lib/logger';
@@ -246,15 +247,33 @@ async function processJob(job: DequeueResult): Promise<void> {
     log.info('Job completed successfully', { jobId: job.jobId });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    log.error('Job failed', error, { jobId: job.jobId });
+    const transient = isTransientOrchestratorError(error);
+
+    // For transient orchestrator failures (deploy rollout, brief 5xx, network
+    // blips), sleep before letting the queue mark the job failed. This gives
+    // the orchestrator time to come back without burning the user's retry
+    // budget. 30s comfortably covers Render's per-container rolling-deploy
+    // window. For real failures, fail immediately so users see the error
+    // promptly.
+    if (transient) {
+      log.warn('Job hit transient orchestrator error — sleeping before fail/retry', {
+        jobId: job.jobId,
+        errorMessage,
+      });
+      // 30s back-off; the queue will re-dequeue this job after fail_job() if
+      // retries remain. Real time-to-recovery is `30s + dequeue lag` ≈ 35-40s.
+      await new Promise((r) => setTimeout(r, 30_000));
+    } else {
+      log.error('Job failed', error, { jobId: job.jobId });
+    }
 
     // Mark as failed (with retry if applicable)
     const { retrying, retryCount } = await failJob(job.jobId, errorMessage);
 
     if (retrying) {
-      log.info('Job will retry', { jobId: job.jobId, retryCount });
+      log.info('Job will retry', { jobId: job.jobId, retryCount, transient });
     } else {
-      log.warn('Job permanently failed', { jobId: job.jobId });
+      log.warn('Job permanently failed', { jobId: job.jobId, transient });
     }
   } finally {
     // Clear lock renewal timer

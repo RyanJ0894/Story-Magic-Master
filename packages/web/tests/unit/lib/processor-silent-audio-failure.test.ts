@@ -23,6 +23,10 @@ const { mockPrisma, mockOrchestratorGenerate } = vi.hoisted(() => {
 vi.mock('@/lib/db', () => ({ prisma: mockPrisma }));
 vi.mock('@/lib/orchestrator-fetch', () => ({
   orchestratorGenerate: (...args: unknown[]) => mockOrchestratorGenerate(...args),
+  // No-op the deploy-window guard — tests don't exercise the real orchestrator.
+  waitForOrchestratorReady: vi.fn().mockResolvedValue(undefined),
+  isTransientOrchestratorError: vi.fn().mockReturnValue(false),
+  OrchestratorUnreachableError: class extends Error { constructor(msg: string) { super(msg); this.name = 'OrchestratorUnreachableError'; } },
 }));
 vi.mock('@/lib/logger', () => ({
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
