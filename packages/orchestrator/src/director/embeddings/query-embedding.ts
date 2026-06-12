@@ -22,6 +22,7 @@ import {
   getOrFetchEmbedding,
   getEmbeddingCacheStats as getCacheStats,
 } from '../../lib/embedding-cache.js';
+import { isQuotaExhaustedError, EmbeddingQuotaExhaustedError } from '../../lib/retry.js';
 
 /**
  * Get embedding for a query string using OpenAI.
@@ -46,6 +47,16 @@ export async function getQueryEmbedding(query: string): Promise<number[]> {
       return embedding;
     });
   } catch (err) {
+    if (isQuotaExhaustedError(err)) {
+      log.error(
+        'OpenAI embedding quota exhausted — halting audio search',
+        err instanceof Error ? err : undefined,
+        { query: query.slice(0, 80), model: EMBEDDING_MODEL },
+      );
+      throw new EmbeddingQuotaExhaustedError(
+        err instanceof Error ? err.message : String(err),
+      );
+    }
     log.error('Error getting query embedding', err instanceof Error ? err : undefined);
     throw err;
   }

@@ -10,6 +10,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { log } from '../../lib/logger.js';
+import { EmbeddingQuotaExhaustedError } from '../../lib/retry.js';
 import {
   getMusicStore,
   getAmbienceStore,
@@ -100,6 +101,7 @@ Use group filter to narrow results.`,
         items: results.map(formatAudioResult),
       };
     } catch (err) {
+      if (err instanceof EmbeddingQuotaExhaustedError) throw err;
       log.error('searchMusic error', err instanceof Error ? err : undefined);
       return {
         status: 'error',
@@ -174,6 +176,7 @@ Groups available: "People in the City", "Suburbs & Countryside", "Interior Space
         items: results.map(formatAudioResult),
       };
     } catch (err) {
+      if (err instanceof EmbeddingQuotaExhaustedError) throw err;
       log.error('searchAmbience error', err instanceof Error ? err : undefined);
       return {
         status: 'error',
@@ -243,6 +246,7 @@ Groups available: "Fighting", "Explosions", "Doors & Impacts", "Vehicles", etc.`
         items: results.map(formatAudioResult),
       };
     } catch (err) {
+      if (err instanceof EmbeddingQuotaExhaustedError) throw err;
       log.error('searchSfx error', err instanceof Error ? err : undefined);
       return {
         status: 'error',

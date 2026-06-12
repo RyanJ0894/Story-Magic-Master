@@ -5,6 +5,33 @@
 
 import { log } from './logger.js';
 
+/**
+ * Thrown when an OpenAI embedding call fails due to quota exhaustion.
+ * Unlike transient rate limits, this won't resolve with retries — the key's
+ * billing limit is reached. Propagates through tool catch blocks so the agent
+ * loop aborts instead of calling the tool 20 more times.
+ */
+export class EmbeddingQuotaExhaustedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EmbeddingQuotaExhaustedError';
+  }
+}
+
+/**
+ * Returns true when an error indicates an OpenAI quota exhaustion (not a
+ * transient rate limit). Used to distinguish "retry later" from "stop now".
+ */
+export function isQuotaExhaustedError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message.toLowerCase();
+  return (
+    msg.includes('exceeded your current quota') ||
+    msg.includes('insufficient_quota') ||
+    msg.includes('quota has been exceeded')
+  );
+}
+
 export interface RetryOptions {
   maxRetries?: number;
   initialDelayMs?: number;

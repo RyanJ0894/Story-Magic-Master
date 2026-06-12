@@ -34,6 +34,7 @@ import {
   mockStructuredResponse,
 } from './mock-provider.js';
 import { recordLlmCall } from './llm-call-log.js';
+import { EmbeddingQuotaExhaustedError } from './retry.js';
 
 export type LLMProvider = 'openai' | 'anthropic' | 'google' | 'groq' | 'openrouter';
 
@@ -167,6 +168,10 @@ export function buildFailoverChain(primaryModel: string): string[] {
  */
 export function isFailoverableError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
+
+  // Embedding quota errors can't be resolved by switching LLM providers — the
+  // OpenAI embedding key is exhausted regardless of which LLM we call.
+  if (err instanceof EmbeddingQuotaExhaustedError) return false;
 
   const msg = err.message.toLowerCase();
 
@@ -458,6 +463,9 @@ async function runAgentLoopCore(
             output: { type: 'json' as const, value: toolResult as Parameters<typeof JSON.parse>[0] },
           });
         } catch (err) {
+          // Quota exhaustion can't be resolved by the LLM retrying the tool.
+          // Re-throw to abort the iteration loop immediately.
+          if (err instanceof EmbeddingQuotaExhaustedError) throw err;
           log.error('LLM tool execution error', err instanceof Error ? err : undefined, { toolName });
           toolResults.push({
             type: 'tool-result',
