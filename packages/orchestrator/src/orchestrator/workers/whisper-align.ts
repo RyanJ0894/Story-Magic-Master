@@ -19,6 +19,7 @@ import fs from 'fs';
 import path from 'path';
 import { withRetry } from '../../lib/retry.js';
 import { log } from '../../lib/logger.js';
+import { dedupedWarn } from '../../lib/dedup-logger.js';
 
 export interface WordTimestamp {
   word: string;
@@ -111,13 +112,16 @@ export async function whisperAlign(
 
     const groqEnabled = process.env.ENABLE_GROQ_WHISPER_FALLBACK !== 'false';
     if (groqEnabled && process.env.GROQ_API_KEY) {
-      // Use log.debug for the routine "whisper.cpp not configured" case; only
-      // warn when something less expected happened (e.g. a configured binary
-      // failed at runtime). Otherwise prod logs are flooded with one of these
-      // per TTS line in a normal generation.
+      // The "whisper.cpp not configured/missing" case fires once per TTS line
+      // in a normal generation — was producing thousands of identical warns.
+      // dedupedWarn emits at debug for every hit, but warns at most once per
+      // category per 60s and tags the suppressed count on the next warn.
       const routineSkip = !whisperCppPath || errMsg.includes('WHISPER_CPP_PATH not set');
-      const logFn = routineSkip ? log.debug : log.warn;
-      logFn.call(log, 'falling back to Groq Whisper for alignment', { error: errMsg });
+      if (routineSkip) {
+        dedupedWarn('whisper-cpp-skipped', 'falling back to Groq Whisper for alignment', { error: errMsg });
+      } else {
+        dedupedWarn('whisper-cpp-runtime-error', 'whisper.cpp failed; falling back to Groq Whisper', { error: errMsg });
+      }
       try {
         return await transcribeViaApi(audioPath, {
           url: 'https://api.groq.com/openai/v1/audio/transcriptions',
@@ -126,7 +130,7 @@ export async function whisperAlign(
           providerLabel: 'groq',
         });
       } catch (groqErr) {
-        log.warn('Groq Whisper failed; trying next fallback', {
+        dedupedWarn('groq-whisper-failed', 'Groq Whisper failed; trying next fallback', {
           error: (groqErr as Error).message,
         });
       }
@@ -134,7 +138,7 @@ export async function whisperAlign(
 
     const openaiEnabled = process.env.ENABLE_OPENAI_WHISPER_FALLBACK === 'true';
     if (openaiEnabled && process.env.OPENAI_API_KEY) {
-      log.warn('falling back to OpenAI Whisper API (billed)', { error: errMsg });
+      dedupedWarn('openai-whisper-fallback', 'falling back to OpenAI Whisper API (billed)', { error: errMsg });
       return await transcribeViaApi(audioPath, {
         url: 'https://api.openai.com/v1/audio/transcriptions',
         apiKey: process.env.OPENAI_API_KEY,
@@ -143,7 +147,7 @@ export async function whisperAlign(
       });
     }
 
-    log.warn('whisper.cpp + API fallbacks unavailable; using duration-based estimator', {
+    dedupedWarn('whisper-all-fallbacks-unavailable', 'whisper.cpp + API fallbacks unavailable; using duration-based estimator', {
       error: errMsg,
       hint: 'Set GROQ_API_KEY for cheap Whisper, or ENABLE_OPENAI_WHISPER_FALLBACK=true for paid OpenAI Whisper.',
     });

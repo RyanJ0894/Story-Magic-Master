@@ -52,4 +52,18 @@ export function clearUserContext() {
   Sentry.setUser(null);
 }
 
+/**
+ * Tag the current Sentry scope with the project (and optionally job) the
+ * request is operating on. Called by each route handler after it parses the
+ * request body so subsequent errors are filterable in Sentry by project_id
+ * + job_id.
+ *
+ * Sentry's Express integration scopes tags per-request, so concurrent
+ * requests don't see each other's project_id.
+ */
+export function setProjectScope(projectId: string, jobId?: string): void {
+  Sentry.setTag('project_id', projectId);
+  if (jobId) Sentry.setTag('job_id', jobId);
+}
+
 export { Sentry };

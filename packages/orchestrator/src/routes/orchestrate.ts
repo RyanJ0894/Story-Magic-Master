@@ -6,6 +6,7 @@ import { log } from '../lib/logger.js';
 import { prisma } from '../lib/prisma.js';
 import { checkAIProviders } from '../lib/ai-health.js';
 import { selectDirectorModel } from '../lib/select-director-model.js';
+import { setProjectScope } from '../lib/sentry.js';
 
 const router = Router();
 
@@ -42,6 +43,7 @@ router.post('/orchestrate', async (req: Request, res: Response): Promise<void> =
   }
 
   let { project_id, scenes, script_text, emotion_overrides, chunk_index } = parsed.data;
+  setProjectScope(project_id);
 
   // Ownership check (BL-013): authenticated user must own this project.
   const requestingUserId = req.user?.id;

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { SceneSchema } from '../schemas/director-json.js';
 import { generatePreview } from '../orchestrator/preview-pipeline.js';
 import { log } from '../lib/logger.js';
+import { setProjectScope } from '../lib/sentry.js';
 
 const router = Router();
 
@@ -39,6 +40,7 @@ router.post('/preview', async (req: Request, res: Response): Promise<void> => {
   }
 
   const { project_id, scene } = parsed.data;
+  setProjectScope(project_id);
 
   try {
     log.info('Generating scene preview', { projectId: project_id, sceneId: scene.scene_id });

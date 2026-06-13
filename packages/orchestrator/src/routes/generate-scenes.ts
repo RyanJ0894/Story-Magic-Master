@@ -5,6 +5,7 @@ import { log } from '../lib/logger.js';
 import { getEnv } from '../lib/env.js';
 import { prisma } from '../lib/prisma.js';
 import { checkAIProviders } from '../lib/ai-health.js';
+import { setProjectScope } from '../lib/sentry.js';
 
 const router = Router();
 
@@ -41,6 +42,7 @@ router.post('/generate-scenes', async (req: Request, res: Response): Promise<voi
   }
 
   const { project_id, script_text, voice_overrides, director_notes } = parsed.data;
+  setProjectScope(project_id);
 
   // Ownership check (BL-013): authenticated user must own this project.
   // req.user is populated by authMiddleware; AUTH_DISABLED skips this safely

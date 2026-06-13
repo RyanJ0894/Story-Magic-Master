@@ -16,7 +16,63 @@
  */
 
 import { NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { log } from '@/lib/logger';
+
+// ----------------------------------------------------------------------------
+// Sentry signalling for 429s
+// ----------------------------------------------------------------------------
+//
+// Every 429 → Sentry breadcrumb (cheap, attached to whatever event triggers
+// next on the same request). Per-identifier counter wraps that: once an
+// identifier crosses ABUSE_THRESHOLD hits inside ABUSE_WINDOW_MS, we emit a
+// single Sentry message (not a per-hit event) and silence further messages
+// for the same identifier for ABUSE_COOLDOWN_MS so the issue doesn't flood.
+// Tuned for the symptom we just hit: Peter saw ~12 hits in ~30s before he
+// could even start /api/generate. 5 hits in 5 min is a reliable abuse
+// signal without firing on the occasional brief burst.
+//
+const ABUSE_THRESHOLD = 5;
+const ABUSE_WINDOW_MS = 5 * 60_000;
+const ABUSE_COOLDOWN_MS = 5 * 60_000;
+
+interface AbuseEntry { hits: number[]; lastReported: number }
+const abuseTracker = new Map<string, AbuseEntry>();
+
+function recordRateLimitHit(identifier: string, tier: string, retryAfter: number, via: 'redis' | 'in-memory'): void {
+  Sentry.addBreadcrumb({
+    category: 'rate-limit',
+    level: 'warning',
+    message: `Rate limit hit (${via})`,
+    data: { identifier, tier, retryAfter },
+  });
+
+  const now = Date.now();
+  const entry = abuseTracker.get(identifier) ?? { hits: [], lastReported: 0 };
+  // Drop hits older than the window
+  entry.hits = entry.hits.filter((t) => now - t < ABUSE_WINDOW_MS);
+  entry.hits.push(now);
+
+  if (entry.hits.length >= ABUSE_THRESHOLD && now - entry.lastReported >= ABUSE_COOLDOWN_MS) {
+    entry.lastReported = now;
+    Sentry.captureMessage(`Rate-limit abuse: ${identifier} (${entry.hits.length} hits in ${Math.round(ABUSE_WINDOW_MS / 60_000)}m)`, {
+      level: 'warning',
+      tags: { kind: 'rate-limit-abuse', tier, via },
+      extra: { identifier, tier, retryAfter, hits: entry.hits.length, windowMs: ABUSE_WINDOW_MS },
+    });
+  }
+  abuseTracker.set(identifier, entry);
+
+  // Cleanup pass — drop entries whose newest hit is older than the window so
+  // the map can't grow unbounded on long-running processes.
+  if (abuseTracker.size > 5_000) {
+    for (const [k, v] of abuseTracker) {
+      if (v.hits.length === 0 || now - v.hits[v.hits.length - 1] > ABUSE_WINDOW_MS) {
+        abuseTracker.delete(k);
+      }
+    }
+  }
+}
 
 // =============================================================================
 // Types
@@ -271,6 +327,7 @@ export async function rateLimit(
             const msBeforeNext = (rejected as { msBeforeNext: number }).msBeforeNext;
             const retryAfter = Math.ceil(msBeforeNext / 1000);
             log.warn('Rate limit exceeded (redis)', { identifier, tier, retryAfter });
+            recordRateLimitHit(identifier, tier, retryAfter, 'redis');
             return NextResponse.json(
               { error: 'Too many requests', code: 'RATE_LIMITED', retryAfter },
               { status: 429, headers: { 'Retry-After': String(retryAfter) } },
@@ -297,6 +354,7 @@ export async function rateLimit(
   if (!result.success) {
     const retryAfter = Math.ceil((result.reset - Date.now()) / 1000);
     log.warn('Rate limit exceeded (in-memory)', { identifier, tier, retryAfter });
+    recordRateLimitHit(identifier, tier, retryAfter, 'in-memory');
     return NextResponse.json(
       { error: 'Too many requests', code: 'RATE_LIMITED', retryAfter },
       { status: 429, headers: { 'Retry-After': String(retryAfter) } },

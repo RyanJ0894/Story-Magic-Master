@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '@clerk/backend';
-import { captureError } from '../lib/sentry.js';
+import { captureError, Sentry } from '../lib/sentry.js';
 import { log } from '../lib/logger.js';
 
 // Extend Request type to include user
@@ -86,6 +86,15 @@ export async function authMiddleware(
       id: claims.sub,
       email: (claims as Record<string, unknown>).email as string | undefined,
     };
+
+    // Tag Sentry so every event emitted during this request (and the project
+    // tag set by the route handler, see lib/sentry.ts::setProjectScope) carries
+    // user attribution. Sentry's Express integration scopes this per-request,
+    // so it doesn't bleed across concurrent requests.
+    Sentry.setUser({
+      id: req.user.id,
+      email: req.user.email,
+    });
 
     // Log successful auth (minimal info)
     log.info('Auth: user verified', { userId: claims.sub.slice(0, 8) + '...' });

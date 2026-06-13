@@ -9,6 +9,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { analyzeScript, quickScore } from '../analysis/script-score-service.js';
 import { log } from '../lib/logger.js';
+import { setProjectScope } from '../lib/sentry.js';
 import {
   withWallClockBudget,
   getWallClockBudgetMs,
@@ -69,6 +70,7 @@ router.post('/analyze', async (req: Request, res: Response): Promise<void> => {
 
   const { project_id, script_text, title, include_dialogue_deep_dive, include_structural_analysis } =
     parsed.data;
+  setProjectScope(project_id);
 
   log.info('Starting full script analysis', {
     projectId: project_id,
