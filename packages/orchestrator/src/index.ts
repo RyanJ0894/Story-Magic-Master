@@ -30,6 +30,7 @@ import { startMonitoring, stopMonitoring } from './lib/monitoring.js';
 
 // Audio storage cleanup
 import { startCleanupSchedule, stopCleanupSchedule } from './lib/cleanup.js';
+import { seedVoiceCatalogIfEmpty } from './lib/seed-voice-catalog.js';
 
 // Middleware
 import { authMiddleware, optionalAuthMiddleware, serviceAuthMiddleware } from './middleware/auth.js';
@@ -233,6 +234,17 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 
   // Start audio storage cleanup schedule (every 6 hours)
   startCleanupSchedule();
+
+  // Seed voice catalog if the DB table is empty. Deferred 2 seconds so it
+  // doesn't block port binding / health checks; idempotent so repeat boots
+  // are cheap. See lib/seed-voice-catalog.ts for the why.
+  setTimeout(() => {
+    seedVoiceCatalogIfEmpty().catch((err) => {
+      log.warn('[seed-voice-catalog] uncaught error during seed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }, 2_000);
 });
 
 // Disable socket idle timeout so long-running generation requests (15+ pages, 10+ min)
