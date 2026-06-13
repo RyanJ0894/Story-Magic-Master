@@ -129,6 +129,31 @@ So the three earlier options were diagnosing the wrong thing. Corrected remediat
 
 Re-pointing the apex DNS is a higher-blast-radius action than a proxy flip — it changes where global traffic for `storymagicapp.net` lands. Not taken autonomously; waiting on Chris's call. (Open question: was the Vercel IP intentional from an older deploy, or stale config? `www` was correctly migrated to Render but the apex never was.)
 
+### 03:30 PT — apex 525 RESOLVED ✅
+
+Chris approved proceeding. Executed:
+
+1. Backed up the apex A record (`76.76.21.21` Vercel, proxied) to `/tmp/sm-apex-A-backup-*.json`.
+2. Deleted the apex A.
+3. Created CNAME at apex → `story-magic-web.onrender.com` (CF auto-flattens CNAMEs at apex). Initial state: proxied = true.
+4. Re-triggered Render `/verify`. Status stayed `unverified`, apex began returning 403 (Render service reachable but didn't recognize the Host).
+5. Temporarily gray-clouded the apex CNAME so Render's verifier could reach the origin directly. DNS resolved to Render's apex anycast `216.24.57.8` / `.9`.
+6. Re-triggered Render `/verify`. Status flipped to **`verified`** within ~60 s.
+7. Render reissued/installed the cert (Let's Encrypt R7 → R7 with the intermediate this time — chain validates against system roots, `Verify return code: 0 (ok)`).
+8. Re-oranged the CNAME (proxied = true).
+9. End-to-end smoke: `https://storymagicapp.net/` → **301** → `https://www.storymagicapp.net/` → **200**. apex/www/app all healthy.
+
+Total wall time from first CF API call to verified+oranged: ~7 min.
+
+**Why HTTP-01 needed gray cloud here even after the DNS was correct:** Render's HTTP-01 challenge requires reaching Render's origin directly during the verification window. With CF orange-clouded *and* the hostname unverified at Render, Render returned 403 for the challenge path — chicken-and-egg. Gray-clouding broke the cycle. Once verified, re-oranging is safe because Render now recognizes the Host and CF Full(strict) accepts the new chained cert.
+
+**Lessons:**
+- The standard CF/Render apex setup should be CNAME-at-apex (CF flattens) rather than A record — survives Render IP changes.
+- HTTP-01 + orange cloud + first-time verification is always going to need a brief gray-cloud window. DNS-01 would avoid this, but for a one-time setup it's not worth changing.
+- The stale Vercel A record had survived a platform migration silently for an unknown period because `www` worked. A smoke check on `dig +short <apex>` against a Render-owned CIDR would have caught this earlier.
+
+Final DNS, Render, and CF state captured. PR with this log update follows.
+
 ### 01:25 PT — H1 SHIPPED (PR #250)
 
 Handler-duration instrumentation in `withAuth` + `withProjectAuth`. Sentry breadcrumb every request; `captureMessage` warning at 5s, error at 15s. 1317 / 1317 tests pass. Admin-merged.
