@@ -4,6 +4,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
 import { ensureProfile } from '@/lib/ensure-profile';
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,6 +23,18 @@ export default async function BillingPage(
   const { userId } = await auth();
   if (!userId) {
     redirect('/login?redirect=/billing');
+  }
+
+  // When Stripe redirects back with ?success=true, the user's subscriptionTier
+  // has been updated by the webhook but every other RSC payload Next has
+  // already prefetched (notably /dashboard, which the header links to) still
+  // holds the pre-upgrade tier. Without explicit revalidation, clicking
+  // "Dashboard" from the billing header serves the cached "Free" badge.
+  // See: chris@servicevision.net upgrade 2026-06-13 07:36Z; DB updated
+  // immediately but dashboard kept rendering the old plan until a hard reload.
+  if (searchParams.success === 'true') {
+    revalidatePath('/dashboard');
+    revalidatePath('/billing');
   }
 
   // Fetch (or auto-create) user's profile
