@@ -10,9 +10,23 @@ vi.mock('@/lib/logger', () => ({
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-// pdf-parse mock — returns controlled numpages + text
+// unpdf mock (replaced pdf-parse — the prior library hung indefinitely on
+// certain screenwriting-tool exports). The test handle stays `mockPdfParse`
+// for continuity; each mock function calls into it so tests can keep using
+// mockPdfParse.mockResolvedValue({ text, numpages }) verbatim. A rejection
+// on `getDocumentProxy` correctly simulates the "corrupted file" path —
+// pdfjs-dist raises during document parsing, before extractText is called.
 const mockPdfParse = vi.fn();
-vi.mock('pdf-parse', () => ({ default: (...args: unknown[]) => mockPdfParse(...args) }));
+vi.mock('unpdf', () => ({
+  getDocumentProxy: vi.fn(async (_buf: Uint8Array) => {
+    const result = await mockPdfParse();
+    return { numPages: result.numpages ?? 1 };
+  }),
+  extractText: vi.fn(async () => {
+    const result = await mockPdfParse();
+    return { text: result.text };
+  }),
+}));
 
 // ── Import after mocks ────────────────────────────────────────────────────────
 

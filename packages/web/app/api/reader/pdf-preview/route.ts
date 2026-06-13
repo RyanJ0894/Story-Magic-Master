@@ -7,7 +7,7 @@
  * needed by the reader upload wizard: page count and whether the
  * document is likely scanned (no extractable text → OCR surcharge).
  *
- * Uses pdf-parse (server-side only) — must not be imported in browser code.
+ * Uses unpdf (server-side only) — must not be imported in browser code.
  */
 
 import { auth } from '@clerk/nextjs/server';
@@ -48,13 +48,15 @@ export async function POST(request: Request) {
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // Dynamic import prevents pdf-parse from loading its test fixtures at module init.
-    const mod = await import('pdf-parse');
-    const pdfParse = (typeof mod === 'function' ? mod : (mod.default ?? mod)) as (
-      buf: Buffer,
-    ) => Promise<{ text: string; numpages: number }>;
-
-    const { text, numpages } = await pdfParse(buffer);
+    // Migrated from pdf-parse to unpdf in fix/upload-unpdf — pdf-parse
+    // (unmaintained since ~2018) hung indefinitely on certain screenplay
+    // exports. unpdf wraps modern pdfjs-dist with Node-friendly defaults.
+    const { extractText, getDocumentProxy } = await import('unpdf');
+    const uint8 = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+    const pdf = await getDocumentProxy(uint8);
+    const numpages = pdf.numPages;
+    const extracted = await extractText(pdf, { mergePages: true });
+    const text = Array.isArray(extracted.text) ? extracted.text.join('\n') : extracted.text;
 
     log.info('[PDFPreview] Analyzed PDF', {
       userId,

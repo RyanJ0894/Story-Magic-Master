@@ -10,10 +10,20 @@ vi.mock('mammoth', () => ({
   default: { extractRawText: (...args: unknown[]) => mockExtractRawText(...args) },
 }));
 
-// Mock pdf-parse
+// Mock unpdf. The implementation does:
+//   const { extractText, getDocumentProxy } = await import('unpdf');
+//   const pdf = await getDocumentProxy(uint8);
+//   const { text } = await extractText(pdf, { mergePages: true });
+// mockPdfParse keeps the existing test-handle name from the pdf-parse era —
+// existing test cases drive it the same way (mockResolvedValue / never-
+// settling for the timeout test).
 const mockPdfParse = vi.fn();
-vi.mock('pdf-parse', () => ({
-  default: (...args: unknown[]) => mockPdfParse(...args),
+vi.mock('unpdf', () => ({
+  getDocumentProxy: vi.fn(async (_buf: Uint8Array) => ({ numPages: 1 })),
+  extractText: vi.fn(async () => {
+    const result = await mockPdfParse();
+    return { text: result.text };
+  }),
 }));
 
 import {
@@ -59,14 +69,18 @@ describe('parseScreenplay', () => {
     expect(result.text).toBe(extractedText);
   });
 
-  it('parses a .pdf file using pdf-parse', async () => {
+  it('parses a .pdf file via unpdf and returns extracted text', async () => {
     const pdfText = 'INT. COURTROOM - DAY\n\nThe judge speaks.';
     mockPdfParse.mockResolvedValue({ text: pdfText });
     const buffer = Buffer.from('fake-pdf-bytes');
 
     const result = await parseScreenplay(buffer, 'script.pdf');
 
-    expect(mockPdfParse).toHaveBeenCalledWith(buffer);
+    // unpdf is called with a Uint8Array view over the buffer — we assert on
+    // the textual output rather than the precise argument shape, since
+    // getDocumentProxy receives a Uint8Array and extractText receives a
+    // document proxy (both mocked).
+    expect(mockPdfParse).toHaveBeenCalled();
     expect(result.text).toBe(pdfText);
     expect(result.pageCount).toBe(1);
   });
@@ -333,11 +347,17 @@ describe('parseScreenplay PDF timeout (#chris-2026-06-13)', () => {
   });
 
   it('rejects with a friendly error when pdf-parse hangs past 20s', async () => {
-    // Simulate pdf-parse never resolving — the exact failure mode chris hit.
+    // Simulate the underlying library never resolving — the exact failure
+    // mode chris hit. unpdf's mock-extractText awaits mockPdfParse, so a
+    // never-settling promise here propagates through.
     mockPdfParse.mockImplementation(() => new Promise(() => {}));
 
     const buffer = Buffer.from('%PDF-1.4 fake');
     const parsePromise = parseScreenplay(buffer, 'stuck.pdf');
+    // Attach a no-op catch before advancing timers so the rejection
+    // doesn't surface as an unhandled error in the microtask queue before
+    // expect.rejects gets a chance to attach its own handler.
+    parsePromise.catch(() => {});
 
     // Advance fake timers past the 20s timeout.
     await vi.advanceTimersByTimeAsync(20_000);

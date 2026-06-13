@@ -65,31 +65,49 @@ export async function parseScreenplay(
       break;
     }
     case '.pdf': {
-      // Dynamic import to avoid pdf-parse loading test fixtures at module init
-      const mod = await import('pdf-parse');
-      // Handle CJS default export interop
-      const pdfParse = (typeof mod === 'function' ? mod : mod.default ?? mod) as
-        (buf: Buffer) => Promise<{ text: string }>;
-      // pdf-parse has no internal timeout and is known to hang on certain
-      // structures (form fields, embedded JS, malformed cross-references).
-      // chris@servicevision.net hit this 2026-06-13: a 12 KB "3-page sample"
-      // hung the upload until the proxy 499'd at 2 min. Race against a 20 s
-      // timeout so the user gets a clear failure instead of an infinite
-      // spinner; downstream callers can suggest paste-text or another format.
-      // The timer is cleared on the happy path so it doesn't outlive the
-      // request and trigger a phantom rejection on the next tick.
+      // unpdf (a Node-friendly wrapper around modern pdfjs-dist) replaced
+      // pdf-parse, which was unmaintained since ~2018 and hung indefinitely
+      // on certain screenplay-tool exports — chris@servicevision.net hit
+      // this 2026-06-13 with a 12 KB sample that 524'd at 100s. Dynamic
+      // import keeps cold-start fast and matches the prior pattern.
+      const { extractText, getDocumentProxy } = await import('unpdf');
+      // pdfjs-dist wants a Uint8Array; build one off the underlying buffer
+      // without copying.
+      const uint8 = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+      // 20s timeout race stays as defense-in-depth — any PDF library can
+      // have pathological cases. unpdf claims no hangs but we'd rather
+      // fail fast with a clear message than let Cloudflare 524 us out at
+      // 100s. Timer is cleared on the happy path so it doesn't outlive
+      // the request and trigger a phantom rejection.
+      // Race-with-sentinel pattern: the timeout RESOLVES (with a unique
+      // symbol) rather than rejecting. That keeps the losing side from
+      // surfacing as an unhandled rejection regardless of which branch
+      // wins — a plain Promise.race with a rejecting timer flagged the
+      // other promise's eventual settlement as unhandled (vitest fails
+      // CI on that).
+      const TIMEOUT = Symbol('pdf-parse-timeout');
+      const parsePromise = (async () => {
+        const pdf = await getDocumentProxy(uint8);
+        const extracted = await extractText(pdf, { mergePages: true });
+        return Array.isArray(extracted.text) ? extracted.text.join('\n') : extracted.text;
+      })();
+      // Suppress the parse promise's eventual rejection if the timeout
+      // wins — pdfjs-dist may throw during teardown after we move on.
+      parsePromise.catch(() => {});
+
       let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+      const timeoutPromise = new Promise<typeof TIMEOUT>((resolve) => {
+        timeoutHandle = setTimeout(() => resolve(TIMEOUT), 20_000);
+      });
+
       try {
-        const pdfResult = await Promise.race([
-          pdfParse(buffer),
-          new Promise<never>((_, reject) => {
-            timeoutHandle = setTimeout(
-              () => reject(new Error('PDF parse timed out after 20s — the file may be corrupt, scanned, or contain unsupported features. Try pasting the text directly, exporting as .txt/.docx, or saving the PDF as plain text.')),
-              20_000,
-            );
-          }),
-        ]);
-        text = pdfResult.text;
+        const result = await Promise.race([parsePromise, timeoutPromise]);
+        if (result === TIMEOUT) {
+          throw new Error(
+            'PDF parse timed out after 20s — the file may be corrupt, scanned, or contain unsupported features. Try pasting the text directly, exporting as .txt/.docx, or saving the PDF as plain text.',
+          );
+        }
+        text = result;
       } finally {
         if (timeoutHandle) clearTimeout(timeoutHandle);
       }
