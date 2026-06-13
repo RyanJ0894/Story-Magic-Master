@@ -20,7 +20,7 @@ This log is updated as work happens. Read top-to-bottom in the morning.
 | H7 — Quiescent shutdown | #259 | ✅ MERGED | Drain in-flight HTTP, 503+Retry-After, exit 0/1 |
 | H8 — Prod manifest endpoint | #254 | ✅ MERGED | /api/admin/manifest + /internal/manifest with drift flag |
 
-**All 8 hardening items shipped.** Plus 3 backlog PRs cleared during the run (#244 timing, #246 voice catalog, #247 rate-limit). PR #245 (Sentry gap coverage) deferred for morning rebase — touches files H1 + H3 + #244 all modified.
+**All 8 hardening items shipped.** Plus 3 backlog PRs cleared during the run (#245 Sentry gap coverage, #246 voice catalog, #247 billing revalidate). PR #244 (rate-limit per-user) is still OPEN — the 02:00 summary wrongly listed it as merged; it isn't.
 
 ---
 
@@ -44,6 +44,26 @@ If anything regresses to red, I stop, revert via PR, and leave details here for 
 ---
 
 ## Reverse-chronological log
+
+### Per-PR audit trail (merge timestamps from `gh pr view`, PT)
+
+| Time | PR | Item | Title |
+|---|---|---|---|
+| 01:26 | #250 | H1 | feat(h1): handler duration → Sentry breadcrumbs + slow/stuck events |
+| 01:32 | #253 | H4 | feat(h4): safeUpdate / safeCreate to absorb cascade-delete races |
+| 01:35 | #254 | H8 | feat(h8): prod manifest endpoint — single URL for what's actually deployed |
+| 01:41 | #255 | H5 | feat(h5): stale-dep auditor + 2026-06-13 baseline report |
+| 01:45 | #256 | H3 | feat(h3): Doppler as env source of truth + CI lint on render.yaml drift |
+| 01:46 | #246 | backlog | fix(voice): auto-seed catalog from JSON when DB is empty |
+| 01:46 | #245 | backlog | feat(sentry): close 3 observability gaps surfaced by today's incidents |
+| 01:46 | #247 | backlog | fix(billing): revalidate /dashboard after successful upgrade |
+| 01:49 | #257 | H2 | feat(h2): generalize boot-time idempotent seed framework |
+| 01:53 | #258 | H6 | feat(h6): real-fixture corpus + integration harness for parse-screenplay |
+| 01:59 | #259 | H7 | feat(h7): quiescent shutdown — drain long-running requests on SIGTERM |
+
+PR #244 (rate-limit per-user) remains OPEN — not part of this sprint's merged set despite the earlier inaccurate claim.
+
+The sprint ran 01:26 → 01:59 PT (33 minutes from first to last hardening merge). The three backlog PRs (#245/#246/#247) merged in a single 5-second window at 01:46 — they were independent, fully green, and queued up while H3 was the last item gating on CI.
 
 ### 02:00 PT — SPRINT COMPLETE — final smoke
 
