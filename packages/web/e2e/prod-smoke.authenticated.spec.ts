@@ -95,6 +95,30 @@ test.describe('prod smoke — full generation (opt-in)', () => {
   // path, voice assignment tool calls, TTS). 5 min is a generous ceiling.
   test.setTimeout(5 * 60_000);
 
+  // Track the project id so afterEach can delete it even when the test
+  // body throws midway (assertion failure, timeout, etc). Reset per test.
+  let createdProjectId: string | null = null;
+
+  test.afterEach(async ({ page }) => {
+    if (!createdProjectId) return;
+    const id = createdProjectId;
+    createdProjectId = null; // reset before the request so a retry doesn't double-delete
+    try {
+      const res = await page.request.delete(`/api/projects/${id}`, {
+        headers: { 'X-Requested-With': 'story-magic' },
+      });
+      if (res.ok()) {
+        console.log(`[prod-smoke] cleaned up project ${id}`);
+      } else {
+        // Don't fail the test on cleanup error — just leave a breadcrumb so
+        // it can be reaped manually if it starts piling up.
+        console.warn(`[prod-smoke] cleanup failed for project ${id}: HTTP ${res.status()}`);
+      }
+    } catch (err) {
+      console.warn(`[prod-smoke] cleanup threw for project ${id}: ${(err as Error).message}`);
+    }
+  });
+
   test('end-to-end: create project → generate → audio output exists', async ({ page, request }) => {
     // 1) Authenticated create-project via the same API the UI uses. Bypassing
     //    the UI keeps the test deterministic — UI selectors drift across deploys.
@@ -111,6 +135,7 @@ test.describe('prod smoke — full generation (opt-in)', () => {
     const created = await createRes.json();
     const projectId: string = created.id ?? created.project?.id;
     expect(projectId, 'create-project response missing id').toBeTruthy();
+    createdProjectId = projectId; // arm afterEach cleanup
     console.log(`[prod-smoke] created project ${projectId}`);
 
     // 2) Kick off generation via the same endpoint the UI's generate-button
