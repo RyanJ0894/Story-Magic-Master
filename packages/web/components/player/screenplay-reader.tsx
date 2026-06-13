@@ -25,6 +25,8 @@ import {
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { resolveAudioUrl } from '@/lib/resolve-audio-url';
+import { apiFetch } from '@/lib/api/fetch';
+import { useToast } from '@/hooks/use-toast';
 
 // =============================================================================
 // Types
@@ -101,6 +103,7 @@ export function ScreenplayReader({
   orchestratorUrl,
   isOwner,
 }: ScreenplayReaderProps) {
+  const { toast } = useToast();
   // Audio state
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -363,7 +366,10 @@ export function ScreenplayReader({
     const timing = notingLineId ? timingMap.current.get(notingLineId) : null;
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/notes`, {
+      // apiFetch sets X-Requested-With so CSRF passes even when the browser
+      // strips Origin/Referer headers. Raw fetch was the root cause of #211's
+      // 404/403 silent failures.
+      const res = await apiFetch(`/api/projects/${projectId}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -378,9 +384,20 @@ export function ScreenplayReader({
         setNotes((prev) => [...prev, note]);
         cancelNote();
         await logActivity('note_added', { noteSnippet: noteInput.trim().slice(0, 100) });
+      } else {
+        // Surface the failure — silent drop was #211's debugging nightmare.
+        toast({
+          title: 'Could not save note',
+          description: `Server returned ${res.status}. Please try again.`,
+          variant: 'destructive',
+        });
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      toast({
+        title: 'Could not save note',
+        description: err instanceof Error ? err.message : 'Network error',
+        variant: 'destructive',
+      });
     } finally {
       setSavingNote(false);
     }
@@ -390,9 +407,22 @@ export function ScreenplayReader({
     const prev = notes;
     setNotes((n) => n.filter((note) => note.id !== noteId));
     try {
-      await fetch(`/api/projects/${projectId}/notes?noteId=${noteId}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/projects/${projectId}/notes?noteId=${noteId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        setNotes(prev);
+        toast({
+          title: 'Could not delete note',
+          description: `Server returned ${res.status}.`,
+          variant: 'destructive',
+        });
+      }
     } catch {
       setNotes(prev);
+      toast({
+        title: 'Could not delete note',
+        description: 'Network error.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -441,10 +471,15 @@ export function ScreenplayReader({
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <Link href="/reader/dashboard">
+            <Link href={isOwner ? `/projects/${projectId}` : '/reader/dashboard'}>
               <Button variant="ghost" size="sm" className="gap-1.5">
                 <ChevronLeft className="w-4 h-4" />
-                Library
+                {isOwner ? 'Project' : 'Library'}
+              </Button>
+            </Link>
+            <Link href="/dashboard">
+              <Button variant="ghost" size="sm" className="gap-1.5 hidden sm:inline-flex">
+                Dashboard
               </Button>
             </Link>
             <span className="text-sm font-semibold truncate">{projectName}</span>

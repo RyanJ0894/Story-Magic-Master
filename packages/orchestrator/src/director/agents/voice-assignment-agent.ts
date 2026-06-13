@@ -20,10 +20,13 @@ import {
 import { createVoiceTools } from '../tools/voice-search.js';
 import {
   VoiceMapSchema,
+  VoiceMapLLMSchema,
+  llmVoiceMapToVoiceMap,
   DEFAULT_NARRATOR_VOICE,
   DEFAULT_MALE_VOICE,
   DEFAULT_FEMALE_VOICE,
   type VoiceMap,
+  type VoiceMapLLM,
 } from '../../schemas/voice-map.js';
 import type { CharacterManifest } from '../../schemas/character-manifest.js';
 import { parseJSONSafely } from '../../lib/json-repair.js';
@@ -131,13 +134,14 @@ export class VoiceAssignmentAgent {
         error: parseResult.error,
       });
       try {
-        parsed = await structureTextAsJSON(rawText, {
+        // Use the LLM-array variant — Anthropic structured output rejects the
+        // record-shape `additionalProperties: <object>` of VoiceMapSchema.
+        const llm = await structureTextAsJSON(rawText, {
           model: this.model,
-          schema: VoiceMapSchema,
-          context: `Convert to a valid VoiceMap. project_id: "${projectId}".`,
+          schema: VoiceMapLLMSchema,
+          context: `Convert to a valid VoiceMap. project_id: "${projectId}". Return assignments as an array; one entry per character name.`,
         });
-        // structureTextAsJSON already validates against schema — return directly
-        return this.addDefaults(parsed as VoiceMap, projectId);
+        return this.addDefaults(llmVoiceMapToVoiceMap(llm as VoiceMapLLM), projectId);
       } catch (err) {
         log.error('[VoiceAssignment] structureTextAsJSON fallback failed', err instanceof Error ? err : undefined);
         throw new Error(
@@ -156,10 +160,10 @@ export class VoiceAssignmentAgent {
       try {
         const fixed = await structureTextAsJSON(JSON.stringify(parsed), {
           model: this.model,
-          schema: VoiceMapSchema,
-          context: `Fix this JSON to match VoiceMap schema. project_id: "${projectId}".`,
+          schema: VoiceMapLLMSchema,
+          context: `Fix this JSON to match the VoiceMap schema. project_id: "${projectId}". Return assignments as an array; one entry per character name.`,
         });
-        return this.addDefaults(fixed as VoiceMap, projectId);
+        return this.addDefaults(llmVoiceMapToVoiceMap(fixed as VoiceMapLLM), projectId);
       } catch {
         throw new Error(
           'VoiceAssignment failed: agent produced an invalid VoiceMap that could not be repaired. ' +

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { stripParentheticals } from '../director/utils/strip-parentheticals.js';
 
 // Dialogue line schema - represents a single line of dialogue or narration
 export const EMOTION_VALUES = [
@@ -17,7 +18,16 @@ export type Emotion = typeof EMOTION_VALUES[number];
 export const DialogueLineSchema = z.object({
   line_id: z.string(),
   character: z.string(),
-  text: z.string().describe('Non-empty line of spoken dialogue'),
+  // Strip parentheticals at the validation boundary as a defense layer:
+  // the director prompts tell the model to remove (angrily)/(O.S.)/etc.
+  // from `text`, but compliance isn't 100%. Issue #218: a leaked
+  // parenthetical was spoken aloud by TTS. Transform runs after Zod
+  // accepts the string, so every downstream consumer (TTS, alignment,
+  // scoring) sees clean text.
+  text: z
+    .string()
+    .describe('Non-empty line of spoken dialogue')
+    .transform((s) => stripParentheticals(s)),
   voice_key: z.string(),
   emotion: z.string().optional(),
   // Metadata fields (only present on first line per character)
