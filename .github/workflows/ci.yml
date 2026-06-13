@@ -43,6 +43,17 @@ jobs:
       - name: Lint web
         run: pnpm --filter @story-magic/web lint
 
+      # H3 — fail the build if a PR adds envVars: or changes
+      # buildCommand: in render.yaml. Doppler owns env vars, the Render
+      # service dashboard owns build commands. See docs/ENV-SOURCE-OF-TRUTH.md.
+      - name: Env source-of-truth check (self-tests)
+        run: node scripts/check-env-source.test.js
+
+      - name: Env source-of-truth check (render.yaml diff)
+        run: |
+          git fetch origin main --depth=1 || true
+          node scripts/check-env-source.js --diff
+
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
