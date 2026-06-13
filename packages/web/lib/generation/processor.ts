@@ -7,6 +7,7 @@
 
 import { prisma } from '@/lib/db';
 import { log } from '@/lib/logger';
+import { safeUpdate, safeCreate } from '@/lib/db/safe-write';
 import {
   orchestratorGenerate,
   waitForOrchestratorReady,
@@ -63,8 +64,13 @@ async function logJobEvent(
   errorMessage?: string,
   errorStack?: string
 ) {
-  try {
-    await prisma.jobLog.create({
+  // H4: safeCreate swallows the P2003 / P2025 races where the project (and
+  // its cascade-deleted job rows) was already gone by the time this log
+  // tries to write. Today's incident: e2e teardown deleted the project
+  // mid-flight; the worker hit `job_logs_job_id_fkey` violation.
+  await safeCreate(
+    prisma.jobLog,
+    {
       data: {
         jobId,
         projectId,
@@ -75,10 +81,9 @@ async function logJobEvent(
         errorMessage: errorMessage ?? null,
         errorStack: errorStack ?? null,
       },
-    });
-  } catch (error) {
-    log.error('Failed to write job log', error);
-  }
+    },
+    { jobId, projectId, step },
+  );
 }
 
 async function markJobFailed(
@@ -91,19 +96,32 @@ async function markJobFailed(
 
   await logJobEvent(jobId, projectId, 'error', 'failed', errorMessage, {}, errorMessage, errorStack);
 
-  await prisma.job.update({
-    where: { id: jobId },
-    data: {
-      status: 'failed',
-      error: errorMessage,
-      progress: { step: 'failed', percent: 0, details: errorMessage, updated_at: now },
+  // H4: safeUpdate — if the project was deleted while this job was running
+  // (e2e teardown, manual admin delete), the cascade already removed the
+  // job row. Today's incident was exactly this: e2e cleanup raced the
+  // worker's failure path, producing P2025.
+  await safeUpdate(
+    prisma.job,
+    {
+      where: { id: jobId },
+      data: {
+        status: 'failed',
+        error: errorMessage,
+        progress: { step: 'failed', percent: 0, details: errorMessage, updated_at: now },
+      },
     },
-  });
+    { jobId, projectId, action: 'markJobFailed' },
+  );
 
-  await prisma.project.update({
-    where: { id: projectId },
-    data: { status: 'failed' },
-  });
+  // H4: same race as the job update above — project may have been deleted.
+  await safeUpdate(
+    prisma.project,
+    {
+      where: { id: projectId },
+      data: { status: 'failed' },
+    },
+    { projectId, action: 'markJobFailed-project' },
+  );
 
   // #174 PR β: master notification — script generation failed.
   // Fire-and-forget; can't fail the failure handler.
