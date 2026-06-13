@@ -32,6 +32,7 @@ import { startMonitoring, stopMonitoring } from './lib/monitoring.js';
 import { startCleanupSchedule, stopCleanupSchedule } from './lib/cleanup.js';
 import { registerSeeder, runBootSeeds } from './lib/seed/index.js';
 import { seedVoiceCatalogIfEmpty } from './lib/seed-voice-catalog.js';
+import { trackInFlight, quiescentShutdown } from './lib/shutdown.js';
 
 // H2: register all idempotent boot-time seeders here. Add new entries
 // the same way — one register call, one async function. See
@@ -87,6 +88,11 @@ app.use(express.json({ limit: '2mb' }));
 
 // Structured request logging with Pino
 app.use(httpLogger);
+
+// H7: track in-flight long-running requests so SIGTERM can drain them.
+// Returns 503 with Retry-After once draining starts. Disable via
+// SHUTDOWN_DRAIN_DISABLED=true.
+app.use(trackInFlight);
 
 // Static audio preview - serves catalog files for frontend preview player
 app.use('/audio-preview', express.static(path.join(__dirname, '../catalog')));
@@ -260,18 +266,21 @@ server.setTimeout(0);
 // so the load balancer doesn't recycle sockets between chunked requests.
 server.keepAliveTimeout = 65000;
 
-// Graceful shutdown
-const shutdown = () => {
-  log.info('Shutting down gracefully...');
-  stopMonitoring();
-  stopCleanupSchedule();
-  server.close(() => {
-    log.info('Server closed');
-    process.exit(0);
+// H7: quiescent shutdown — drains in-flight long-running requests before
+// the server closes. See lib/shutdown.ts for the contract.
+let shuttingDown = false;
+const shutdown = async (signal: string) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  log.info('Received shutdown signal', { signal });
+  const exitCode = await quiescentShutdown(server, () => {
+    stopMonitoring();
+    stopCleanupSchedule();
   });
+  process.exit(exitCode);
 };
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
 
 export default app;
