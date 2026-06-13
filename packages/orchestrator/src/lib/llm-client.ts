@@ -154,6 +154,22 @@ export function buildFailoverChain(primaryModel: string): string[] {
     }
     case 'openrouter':
       return process.env.OPENAI_API_KEY ? ['openai/gpt-4.1'] : [];
+    case 'openai': {
+      // Issue #215: when an OpenAI primary's key was quota-exhausted, every
+      // call retried 3× inside the AI SDK and then threw with no failover —
+      // producing the "Loads and loads" log spam Ryan reported during the
+      // PR #214 verification. Mirror the anthropic chain in reverse so any
+      // raw-OpenAI bypass site (e.g. lib/adviser/service.ts) gets the same
+      // resilience: OpenRouter-Claude as the relief valve, direct Anthropic
+      // as the last resort. Both are quality-neutral or better than gpt-4.1.
+      const reliefValve = process.env.OPENROUTER_API_KEY
+        ? ['openrouter/anthropic/claude-sonnet-4-6']
+        : [];
+      const lastResort = process.env.ANTHROPIC_API_KEY
+        ? ['anthropic/claude-sonnet-4-6']
+        : [];
+      return [...reliefValve, ...lastResort];
+    }
     default:
       return [];
   }

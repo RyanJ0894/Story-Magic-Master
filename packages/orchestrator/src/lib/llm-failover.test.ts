@@ -14,6 +14,7 @@ describe('buildFailoverChain', () => {
   beforeEach(() => {
     delete process.env.OPENROUTER_API_KEY;
     delete process.env.OPENAI_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
   });
   afterEach(() => {
     process.env = { ...ORIG };
@@ -66,8 +67,41 @@ describe('buildFailoverChain', () => {
     expect(buildFailoverChain('openrouter/openai/gpt-4.1')).toEqual([]);
   });
 
+  // #215: OpenAI primaries previously returned [] — when the OpenAI key
+  // was quota-exhausted, the AI SDK retried 3× and threw, with no fallback.
+  // Ryan saw "Loads and loads" of the same error in logs. Same chain shape
+  // as anthropic, just inverted: relief valve via OpenRouter, last resort
+  // via direct Anthropic.
+  describe('openai primary failover (#215)', () => {
+    it('openai → openrouter-Claude → anthropic when both keys present', () => {
+      process.env.OPENROUTER_API_KEY = 'sk-or-test';
+      process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+      expect(buildFailoverChain('openai/gpt-4o')).toEqual([
+        'openrouter/anthropic/claude-sonnet-4-6',
+        'anthropic/claude-sonnet-4-6',
+      ]);
+    });
+
+    it('openai → openrouter-Claude only when Anthropic key is absent', () => {
+      process.env.OPENROUTER_API_KEY = 'sk-or-test';
+      expect(buildFailoverChain('openai/gpt-4o')).toEqual([
+        'openrouter/anthropic/claude-sonnet-4-6',
+      ]);
+    });
+
+    it('openai → anthropic only when OpenRouter key is absent', () => {
+      process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+      expect(buildFailoverChain('openai/gpt-4o')).toEqual([
+        'anthropic/claude-sonnet-4-6',
+      ]);
+    });
+
+    it('openai → empty when neither relief key is set (OpenAI-only deployment)', () => {
+      expect(buildFailoverChain('openai/gpt-4o')).toEqual([]);
+    });
+  });
+
   it('non-failover providers have no fallback', () => {
-    expect(buildFailoverChain('openai/gpt-4.1')).toEqual([]);
     expect(buildFailoverChain('groq/llama-3.3-70b-versatile')).toEqual([]);
     expect(buildFailoverChain('google/gemini-1.5-pro')).toEqual([]);
   });
