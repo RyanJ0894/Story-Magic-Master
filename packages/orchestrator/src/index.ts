@@ -44,6 +44,7 @@ import previewRouter from './routes/preview.js';
 import impactRouter from './routes/impact.js';
 import stemsRouter from './routes/stems.js';
 import stitchSegmentsRouter from './routes/stitch-segments.js';
+import internalManifestRouter from './routes/internal-manifest.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '22002', 10);
@@ -101,6 +102,10 @@ app.use('/impact-audio', express.static(path.join(getOutputDir(), 'impact'), {
 // Routes
 // Health check - no auth required
 app.use('/', healthRouter);
+
+// H8: prod manifest endpoint, gated by the same service-to-service auth as
+// other internal routes so the web's /api/admin/manifest can aggregate.
+app.use('/', serviceAuthMiddleware, internalManifestRouter);
 
 // Protected routes - require authentication and rate limiting
 // Generation routes accept either service-to-service key (X-Service-Key) or Clerk JWT
