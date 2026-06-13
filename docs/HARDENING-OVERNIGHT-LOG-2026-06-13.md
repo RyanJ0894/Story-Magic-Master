@@ -67,9 +67,29 @@ Both suites green. Typecheck clean across the monorepo.
 - `packages/web/tests/fixtures/screenplay/README.md` — how to add real customer PDFs
 
 **Deferred:**
-- PR #245 (Sentry gap coverage) — merge conflicts vs H1+H3+#244, needs 5-min rebase
+- PR #245 (Sentry gap coverage) — **actually MERGED**, my note at 02:00 was stale; verified via `gh pr view 245` (state=MERGED). Nothing to rebase.
 - Real customer PDF fixtures (H6) — Chris's DIG sample etc., need permission to commit
-- Web 525 — pre-existing CF/origin issue (not caused or worsened by this sprint)
+
+**Web 525 — root cause identified (needs Chris's call to fix):**
+
+`storymagicapp.net` apex returns 525 via Cloudflare while `https://story-magic-web.onrender.com/` direct returns 200 and `https://www.storymagicapp.net/` returns 200. Render API shows:
+
+| Domain | Type | Status |
+|---|---|---|
+| `storymagicapp.net` | apex | ❌ `unverified` |
+| `www.storymagicapp.net` | subdomain | ✅ `verified` |
+| `app.storymagicapp.net` | subdomain | ✅ `verified` |
+
+The www cert is issued by Google Trust Services with a full chain (modern Render flow). The apex cert is leaf-only Let's Encrypt (CN=E7, no intermediate), which CF Full(strict) cannot validate → 525.
+
+I POSTed `…/custom-domains/cdm-d8bnrp57vvec73f66l90/verify` (HTTP 202 accepted) and polled for 90 s; status stayed `unverified`. **Root cause of the verification failure: the apex is orange-clouded in CF**, so CF answers Render's HTTP-01 challenge itself instead of forwarding it to Render's origin. Verification will never complete while that's the proxy state.
+
+Three options for Chris (none taken autonomously — all affect user-visible CF state):
+1. Gray-cloud the apex DNS in CF for 5 min, wait for Render verify=verified + cert reissue, then re-orange. Lowest-risk.
+2. Configure Render apex with DNS-01 (TXT) verification — survives orange cloud.
+3. Drop the apex domain in Render; rely on the existing CF page rule that 301s `storymagicapp.net/*` → `www.storymagicapp.net/*`. Then there's no apex cert to break.
+
+Recommendation: option 1 during low-traffic window. Render reverify endpoint is idempotent so retries are safe.
 
 ### 01:25 PT — H1 SHIPPED (PR #250)
 
