@@ -12,13 +12,15 @@ This log is updated as work happens. Read top-to-bottom in the morning.
 | Item | PR | State | Notes |
 |---|---|---|---|
 | H1 — Handler timing | #250 | ✅ MERGED | Sentry breadcrumbs every request, warning >5s, error >15s |
-| H2 — Boot-seed framework | — | ⏳ pending | |
-| H3 — Env SoT (Doppler) | — | ⏳ pending | Doc + CI lint |
-| H4 — Defensive prisma writes | — | 🔄 in progress | |
-| H5 — Stale deps audit | — | ⏳ pending | Script + report |
-| H6 — Real-user fixtures | — | ⏳ pending | Infra only; real PDFs deferred |
-| H7 — Quiescent shutdown | — | ⏳ pending | Last (highest risk; e2e smoke after) |
-| H8 — Prod manifest endpoint | — | 🔄 in progress | |
+| H2 — Boot-seed framework | #257 | ✅ MERGED | registerSeeder + runBootSeeds, per-seeder timeout |
+| H3 — Env SoT (Doppler) | #256 | ✅ MERGED | Doc + CI lint blocks render.yaml envVars: drift |
+| H4 — Defensive prisma writes | #253 | ✅ MERGED | safeUpdate/safeCreate → null on P2025/P2003 |
+| H5 — Stale deps audit | #255 | ✅ MERGED | audit-stale-deps.js + DEPS-AUDIT doc; hpp removed |
+| H6 — Real-user fixtures | #258 | ✅ MERGED | Synth corpus + harness shipped; real PDFs in follow-ups |
+| H7 — Quiescent shutdown | #259 | ✅ MERGED | Drain in-flight HTTP, 503+Retry-After, exit 0/1 |
+| H8 — Prod manifest endpoint | #254 | ✅ MERGED | /api/admin/manifest + /internal/manifest with drift flag |
+
+**All 8 hardening items shipped.** Plus 3 backlog PRs cleared during the run (#244 timing, #246 voice catalog, #247 rate-limit). PR #245 (Sentry gap coverage) deferred for morning rebase — touches files H1 + H3 + #244 all modified.
 
 ---
 
@@ -42,6 +44,32 @@ If anything regresses to red, I stop, revert via PR, and leave details here for 
 ---
 
 ## Reverse-chronological log
+
+### 02:00 PT — SPRINT COMPLETE — final smoke
+
+H7 deployed cleanly. Orchestrator restarted on Render, came back up in 17 s
+with `/health` 200. `/internal/manifest` correctly returns 401 unauthenticated
+(middleware mounted). Web /  returns 525 — pre-existing Cloudflare-origin SSL
+issue (separate from this sprint), not a regression.
+
+**What landed (8 hardening + 3 backlog = 11 PRs):**
+
+Hardening: #250 H1, #253 H4, #254 H8, #255 H5, #256 H3, #257 H2, #258 H6, #259 H7
+Backlog: #244 timing, #246 voice catalog, #247 rate-limit
+
+**Test counts at end:** 861 orch (+88 over the night) · 1330 web (+13).
+Both suites green. Typecheck clean across the monorepo.
+
+**Files for morning review:**
+- `docs/HARDENING-APPRAISAL-2026-06-13.md` — the 8-cause structural analysis
+- `docs/DEPS-AUDIT-2026-06-13.md` — H5 baseline (6 red, 6 yellow, 100 green)
+- `docs/ENV-SOURCE-OF-TRUTH.md` — H3 contract
+- `packages/web/tests/fixtures/screenplay/README.md` — how to add real customer PDFs
+
+**Deferred:**
+- PR #245 (Sentry gap coverage) — merge conflicts vs H1+H3+#244, needs 5-min rebase
+- Real customer PDF fixtures (H6) — Chris's DIG sample etc., need permission to commit
+- Web 525 — pre-existing CF/origin issue (not caused or worsened by this sprint)
 
 ### 01:25 PT — H1 SHIPPED (PR #250)
 
