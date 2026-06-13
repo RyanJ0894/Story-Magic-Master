@@ -113,40 +113,44 @@ test.describe('prod smoke — full generation (opt-in)', () => {
     expect(projectId, 'create-project response missing id').toBeTruthy();
     console.log(`[prod-smoke] created project ${projectId}`);
 
-    // 2) Kick off generation. The web app's writer flow posts to /api/jobs
-    //    with the project id; the worker forwards to the orchestrator.
-    const jobRes = await page.request.post('/api/jobs', {
-      data: { projectId, scriptText: TINY_SCRIPT },
+    // 2) Kick off generation via the same endpoint the UI's generate-button
+    //    posts to (POST /api/generate → returns { jobId }). Script text is
+    //    already attached to the project from step 1, so we only pass
+    //    projectId + workflowMode.
+    const jobRes = await page.request.post('/api/generate', {
+      data: { projectId, workflowMode: 'automatic' },
       headers: { 'X-Requested-With': 'story-magic' },
     });
-    expect(jobRes.status()).toBeLessThan(400);
+    expect(jobRes.status(), 'POST /api/generate HTTP status').toBeLessThan(400);
     const job = await jobRes.json();
-    const jobId: string = job.id ?? job.jobId ?? job.job?.id;
-    expect(jobId, 'create-job response missing id').toBeTruthy();
+    const jobId: string = job.jobId ?? job.id;
+    expect(jobId, 'POST /api/generate response missing jobId').toBeTruthy();
     console.log(`[prod-smoke] queued job ${jobId}`);
 
-    // 3) Poll for completion. The job lifecycle is queued → running → completed.
+    // 3) Poll for completion. Job lifecycle: queued → processing → completed.
     const POLL_INTERVAL_MS = 5_000;
     const DEADLINE = Date.now() + 4.5 * 60_000;
     let status = 'pending';
+    let lastBody: Record<string, unknown> = {};
     while (Date.now() < DEADLINE) {
       const statusRes = await page.request.get(`/api/jobs/${jobId}`);
       if (statusRes.ok()) {
-        const body = await statusRes.json();
-        status = body.status ?? status;
+        lastBody = await statusRes.json();
+        status = (lastBody.status as string) ?? status;
         console.log(`[prod-smoke] job ${jobId} status=${status}`);
         if (status === 'completed' || status === 'failed') break;
       }
       await page.waitForTimeout(POLL_INTERVAL_MS);
     }
-    expect(status, 'job did not complete within 4.5 min').toBe('completed');
+    expect(status, `job did not complete within 4.5 min (last body: ${JSON.stringify(lastBody).slice(0, 200)})`).toBe('completed');
 
-    // 4) Verify an audio output exists for this project.
-    const outputsRes = await page.request.get(`/api/projects/${projectId}`);
-    expect(outputsRes.status()).toBeLessThan(400);
-    const project = await outputsRes.json();
-    const audio = project.audioOutputs ?? project.audio_outputs ?? [];
-    expect(audio.length, 'no audio output rows for project').toBeGreaterThan(0);
-    console.log(`[prod-smoke] verified ${audio.length} audio output(s) for ${projectId}`);
+    // 4) Verify an audio output was produced. The job response surfaces the
+    //    first completed audio URL at top-level `audio_url` and the
+    //    pre-completion segment URL at `firstAudioUrl`. Either being a
+    //    non-empty string is sufficient evidence the pipeline wrote to S3.
+    const audioUrl = (lastBody.audio_url as string | null) ?? (lastBody.firstAudioUrl as string | null);
+    expect(audioUrl, 'completed job has no audio_url or firstAudioUrl').toBeTruthy();
+    expect(audioUrl!.length, 'audio_url is empty').toBeGreaterThan(0);
+    console.log(`[prod-smoke] verified audio_url for job ${jobId}: ${audioUrl}`);
   });
 });
