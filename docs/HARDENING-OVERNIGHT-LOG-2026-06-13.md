@@ -154,6 +154,23 @@ Total wall time from first CF API call to verified+oranged: ~7 min.
 
 Final DNS, Render, and CF state captured. PR with this log update follows.
 
+### 14:20 PT — H7-followup: docs-only PRs no longer redeploy orchestrator
+
+While shipping the apex resolution + hardening log corrections this morning I admin-merged four docs-only PRs in a ~10 min window (#262 #263 #264 #265). Render's `autoDeploy: commit` triggers on every main commit regardless of path, so each docs merge tore down and rebuilt both the web AND orchestrator services. Chris hit Generate at 21:03:47 inside one of those deploy windows — the web's orchestrator readiness probe ran 7 attempts over 30 s, all hitting an orchestrator that was mid-cold-start, and surfaced as "orchestrator did not become ready within 30000ms (probed 7x)" on the dashboard.
+
+The orchestrator itself wasn't broken. It just wasn't *up yet* when the user attempted to use it.
+
+Fix: added `buildFilter.ignoredPaths` to both `story-magic-web` and `story-magic-orchestrator` in `render.yaml`. Skipped paths:
+
+- `docs/**`
+- `**/*.md` (root README, package READMEs, etc.)
+- `code-review/**`
+- `.github/**` (workflow-only PRs don't redeploy app services)
+
+After this lands, a docs PR commits cleanly to main and Render leaves both services running. The orchestrator readiness window is no longer at the mercy of doc-PR cadence.
+
+This closes the incident class. If a future docs-PR storm somehow still bounces a service (e.g. someone adds a `docs/embedded-app/` build artifact), the manifest endpoint (H8) shows exactly what commit is live so we can spot the rebuild.
+
 ### 01:25 PT — H1 SHIPPED (PR #250)
 
 Handler-duration instrumentation in `withAuth` + `withProjectAuth`. Sentry breadcrumb every request; `captureMessage` warning at 5s, error at 15s. 1317 / 1317 tests pass. Admin-merged.

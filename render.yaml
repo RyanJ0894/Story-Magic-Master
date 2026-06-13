@@ -29,6 +29,17 @@ services:
     autoDeploy: true
     numInstances: 1
 
+    # Skip rebuilds for docs/markdown-only changes. Without this, every doc PR
+    # tears down both services — caused the 2026-06-13 21:03 incident where a
+    # generation attempt hit during a docs-triggered redeploy and the web's
+    # orchestrator readiness probe timed out.
+    buildFilter:
+      ignoredPaths:
+        - docs/**
+        - "**/*.md"
+        - code-review/**
+        - .github/**
+
     # Node/pnpm versions
     buildCommand: |
       npm install -g pnpm@9.1.0 &&
@@ -241,6 +252,14 @@ services:
     # Scale up: increase numInstances when traffic demands.
     # No in-process state - jobs are tracked in PostgreSQL, audio in persistent disk.
     numInstances: 1
+
+    # Same docs-skip filter as the web service. See the web buildFilter comment.
+    buildFilter:
+      ignoredPaths:
+        - docs/**
+        - "**/*.md"
+        - code-review/**
+        - .github/**
 
     # Node/pnpm versions
     buildCommand: |
