@@ -1,0 +1,32 @@
+{
+  "$comment": "See README.md for schema. Add one entry per fixture file in this dir.",
+  "fixtures": [
+    {
+      "file": "synth-text.txt",
+      "format": "txt",
+      "source": "synthesised",
+      "expectedMinPageCount": 1,
+      "expectedTextContains": ["INT. KITCHEN", "ANNA", "FADE OUT"],
+      "anonymised": false,
+      "notes": "Baseline plain text — proves the harness runs end-to-end."
+    },
+    {
+      "file": "synth-fountain.fountain",
+      "format": "fountain",
+      "source": "synthesised",
+      "expectedMinPageCount": 1,
+      "expectedTextContains": ["INT. KITCHEN", "ANNA", "EXT. SIDEWALK"],
+      "anonymised": false,
+      "notes": "Baseline Fountain — exercises title-page stripping."
+    },
+    {
+      "file": "synth-fdx.fdx",
+      "format": "fdx",
+      "source": "synthesised",
+      "expectedMinPageCount": 1,
+      "expectedTextContains": ["INT. KITCHEN", "ANNA"],
+      "anonymised": false,
+      "notes": "Baseline FDX XML — exercises Paragraph/Text extraction."
+    }
+  ]
+}

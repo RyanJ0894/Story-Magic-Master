@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FinalDraft DocumentType="Script" Template="No" Version="3">
+  <Content>
+    <Paragraph Type="Scene Heading"><Text>INT. KITCHEN - MORNING</Text></Paragraph>
+    <Paragraph Type="Action"><Text>ANNA pours coffee.</Text></Paragraph>
+    <Paragraph Type="Character"><Text>ANNA</Text></Paragraph>
+    <Paragraph Type="Dialogue"><Text>Today is the day.</Text></Paragraph>
+    <Paragraph Type="Scene Heading"><Text>EXT. SIDEWALK - CONTINUOUS</Text></Paragraph>
+    <Paragraph Type="Action"><Text>ANNA walks briskly. BOB approaches.</Text></Paragraph>
+    <Paragraph Type="Character"><Text>BOB</Text></Paragraph>
+    <Paragraph Type="Dialogue"><Text>You're up early.</Text></Paragraph>
+  </Content>
+</FinalDraft>

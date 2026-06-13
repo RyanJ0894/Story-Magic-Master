@@ -8,7 +8,12 @@ export default defineConfig({
     environment: 'node', // Use node for unit tests, jsdom causes ESM issues
     globals: true,
     setupFiles: ['./tests/setup-unit.ts'],
-    include: ['tests/unit/**/*.{test,spec}.{ts,tsx}'],
+    include: [
+      'tests/unit/**/*.{test,spec}.{ts,tsx}',
+      // H6 — real-fixture integration tests for the upload pipeline.
+      // Same vitest invocation so a single `pnpm test` covers both.
+      'tests/integration/**/*.{test,spec}.{ts,tsx}',
+    ],
     exclude: ['node_modules', '.next', 'tests/e2e'],
     pool: 'threads', // Use threads instead of forks to avoid ESM issues
     coverage: {
