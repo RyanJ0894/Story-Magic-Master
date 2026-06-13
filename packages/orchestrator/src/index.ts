@@ -30,7 +30,13 @@ import { startMonitoring, stopMonitoring } from './lib/monitoring.js';
 
 // Audio storage cleanup
 import { startCleanupSchedule, stopCleanupSchedule } from './lib/cleanup.js';
+import { registerSeeder, runBootSeeds } from './lib/seed/index.js';
 import { seedVoiceCatalogIfEmpty } from './lib/seed-voice-catalog.js';
+
+// H2: register all idempotent boot-time seeders here. Add new entries
+// the same way — one register call, one async function. See
+// lib/seed/index.ts for the framework contract.
+registerSeeder('voice-catalog', seedVoiceCatalogIfEmpty);
 
 // Middleware
 import { authMiddleware, optionalAuthMiddleware, serviceAuthMiddleware } from './middleware/auth.js';
@@ -235,14 +241,14 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   // Start audio storage cleanup schedule (every 6 hours)
   startCleanupSchedule();
 
-  // Seed voice catalog if the DB table is empty. Deferred 2 seconds so it
-  // doesn't block port binding / health checks; idempotent so repeat boots
-  // are cheap. See lib/seed-voice-catalog.ts for the why.
+  // H2: run all registered boot seeders. Deferred 2 seconds so they
+  // don't block port binding / health checks. Each seeder is idempotent;
+  // failures are logged but don't affect subsequent seeders or crash
+  // the process. See lib/seed/index.ts for the framework contract.
   setTimeout(() => {
-    seedVoiceCatalogIfEmpty().catch((err) => {
-      log.warn('[seed-voice-catalog] uncaught error during seed', {
-        error: err instanceof Error ? err.message : String(err),
-      });
+    runBootSeeds().then((results) => {
+      const summary = results.map((r) => `${r.name}=${r.status}`).join(' ');
+      log.info('[seed] boot seeders complete', { summary, count: results.length });
     });
   }, 2_000);
 });
