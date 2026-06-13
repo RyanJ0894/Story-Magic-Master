@@ -471,10 +471,15 @@ export function ScreenplayReader({
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <Link href="/reader/dashboard">
+            <Link href={isOwner ? `/projects/${projectId}` : '/reader/dashboard'}>
               <Button variant="ghost" size="sm" className="gap-1.5">
                 <ChevronLeft className="w-4 h-4" />
-                Library
+                {isOwner ? 'Project' : 'Library'}
+              </Button>
+            </Link>
+            <Link href="/dashboard">
+              <Button variant="ghost" size="sm" className="gap-1.5 hidden sm:inline-flex">
+                Dashboard
               </Button>
             </Link>
             <span className="text-sm font-semibold truncate">{projectName}</span>

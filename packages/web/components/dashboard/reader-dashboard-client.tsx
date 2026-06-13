@@ -45,6 +45,16 @@ interface ReaderDashboardClientProps {
   };
 }
 
+// Format the "% complete" label for a Recently Played card. Guards the bug
+// where duration_seconds is null/0 (e.g., job didn't write durations on early
+// runs) and the prior `|| 1` fallback produced values like "30000% complete".
+function formatPercentComplete(positionSec: number, durationSec: number | null | undefined): string {
+  if (!durationSec || durationSec <= 0) return 'In progress';
+  const pct = Math.round((positionSec / durationSec) * 100);
+  const clamped = Math.max(0, Math.min(100, pct));
+  return `${clamped}% complete`;
+}
+
 export function ReaderDashboardClient({
   entries,
   readerCode,
@@ -455,7 +465,7 @@ export function ReaderDashboardClient({
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{entry.script_name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {Math.round((entry.play_position_seconds / (entry.duration_seconds || 1)) * 100)}% complete
+                            {formatPercentComplete(entry.play_position_seconds, entry.duration_seconds)}
                           </p>
                         </div>
                       </div>

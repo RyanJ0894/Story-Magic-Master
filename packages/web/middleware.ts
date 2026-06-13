@@ -51,13 +51,13 @@ function addSecurityHeaders(response: NextResponse, nonce: string): void {
     // story-magic-orchestrator.onrender.com required in connect-src so the
     // service worker can fetch() audio files (fetch is governed by connect-src,
     // not media-src — both are needed).
-    `connect-src 'self' https://api.stripe.com https://api.elevenlabs.io https://api.openai.com https://*.sentry.io https://clerk.storymagicapp.net https://accounts.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://*.clerk.dev https://clerk-telemetry.com https://story-magic-orchestrator.onrender.com${localhostOrchestrator}${s3CspEntry}`,
-    "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://accounts.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com",
+    `connect-src 'self' https://api.stripe.com https://api.elevenlabs.io https://api.openai.com https://*.sentry.io https://clerk.storymagicapp.net https://accounts.storymagicapp.net https://www.storymagicapp.net https://storymagicapp.net https://*.accounts.dev https://*.clerk.com https://*.clerk.dev https://clerk-telemetry.com https://story-magic-orchestrator.onrender.com${localhostOrchestrator}${s3CspEntry}`,
+    "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://accounts.storymagicapp.net https://www.storymagicapp.net https://storymagicapp.net https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com",
     `media-src 'self' blob: https://story-magic-orchestrator.onrender.com${localhostOrchestrator}${s3CspEntry}`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self' https://accounts.storymagicapp.net https://*.accounts.dev",
+    "form-action 'self' https://accounts.storymagicapp.net https://www.storymagicapp.net https://storymagicapp.net https://*.accounts.dev",
     "frame-ancestors 'self'",
     "upgrade-insecure-requests",
   ].join('; ');
