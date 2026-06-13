@@ -111,6 +111,24 @@ Three options for Chris (none taken autonomously — all affect user-visible CF 
 
 Recommendation: option 1 during low-traffic window. Render reverify endpoint is idempotent so retries are safe.
 
+### 02:30 PT — deeper root cause: apex DNS points at Vercel, not Render
+
+While prepping to gray-cloud the apex for option 1, I checked the actual DNS state and found the *real* root cause is worse than "orange cloud blocks HTTP-01":
+
+| Hostname | Record | Content | Proxied |
+|---|---|---|---|
+| `www.storymagicapp.net` | CNAME | `story-magic-web.onrender.com` | True (works, 200) |
+| `storymagicapp.net` (apex) | A | `76.76.21.21` | True ❌ |
+
+`76.76.21.21` is **Vercel's anycast IP**, not Render's apex IP (`216.24.57.1`). The apex has never pointed at Render. Render's HTTP-01 challenge can't succeed even with gray cloud because the IP doesn't resolve to a Render edge.
+
+So the three earlier options were diagnosing the wrong thing. Corrected remediation:
+1. Update apex A record from `76.76.21.21` → Render's apex IP (per Render's "Custom Domains" docs for the service), keep proxied. Then re-trigger verify. Once verified, CF Full(strict) sees the chained GTS cert and 525 clears.
+2. Replace apex A with a CNAME flattening to `story-magic-web.onrender.com` (CF supports CNAME at apex). Same effect, less coupling to a specific IP.
+3. Same as before: drop apex in Render, rely on a CF page rule to 301 to www.
+
+Re-pointing the apex DNS is a higher-blast-radius action than a proxy flip — it changes where global traffic for `storymagicapp.net` lands. Not taken autonomously; waiting on Chris's call. (Open question: was the Vercel IP intentional from an older deploy, or stale config? `www` was correctly migrated to Render but the apex never was.)
+
 ### 01:25 PT — H1 SHIPPED (PR #250)
 
 Handler-duration instrumentation in `withAuth` + `withProjectAuth`. Sentry breadcrumb every request; `captureMessage` warning at 5s, error at 15s. 1317 / 1317 tests pass. Admin-merged.
