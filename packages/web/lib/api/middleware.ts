@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { validateCsrf } from '@/lib/csrf';
 import { rateLimit, getClientIp, type RateLimitTier } from '@/lib/api/rate-limit';
+import { recordTiming } from '@/lib/api/timing';
 import { prisma } from '@/lib/db';
 import type { PrismaClient } from '@story-magic/shared';
 import { errorResponse } from '@/lib/api/error-response';
@@ -62,6 +63,14 @@ export function withAuth(
   options: WithAuthOptions = {},
 ) {
   return async (request: Request, route: RouteParams) => {
+    // H1 (hardening): record handler duration on every request. Slow paths
+    // hit Sentry as warnings, stuck paths (>15s, within 15s of the
+    // Cloudflare 524 cutoff) hit as errors. Route name is derived from the
+    // pathname which is good enough for the breadcrumb/event tag.
+    const startedAt = Date.now();
+    const routeName = new URL(request.url).pathname;
+    let finalStatus = 0;
+    try {
     // CSRF: default to checking on mutation methods
     const method = request.method.toUpperCase();
     const shouldCheckCsrf = options.csrf ?? ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
@@ -69,6 +78,7 @@ export function withAuth(
     if (shouldCheckCsrf) {
       const csrfError = validateCsrf(request);
       if (csrfError) {
+        finalStatus = 403;
         return errorResponse('CSRF validation failed', 403, { code: 'CSRF_ERROR' });
       }
     }
@@ -78,17 +88,31 @@ export function withAuth(
       const tier = options.rateLimit || 'normal';
       const ip = getClientIp(request);
       const limited = await rateLimit(`api:${ip}`, tier);
-      if (limited) return limited;
+      if (limited) {
+        finalStatus = 429;
+        return limited;
+      }
     }
 
     const { userId } = await auth();
 
     if (!userId) {
+      finalStatus = 401;
       return errorResponse('Unauthorized', 401, { code: 'AUTH_REQUIRED' });
     }
 
     const params = (route?.params ? await route.params : {}) as Record<string, string>;
-    return handler(request, { userId, prisma, params });
+    const response = await handler(request, { userId, prisma, params });
+    finalStatus = (response as Response).status ?? 200;
+    return response;
+    } finally {
+      recordTiming({
+        route: routeName,
+        method: request.method,
+        duration_ms: Date.now() - startedAt,
+        status: finalStatus,
+      });
+    }
   };
 }
 
@@ -101,12 +125,17 @@ export function withProjectAuth(
   options: WithAuthOptions = {},
 ) {
   return async (request: Request, route: RouteParams) => {
+    const startedAt = Date.now();
+    const routeName = new URL(request.url).pathname;
+    let finalStatus = 0;
+    try {
     const method = request.method.toUpperCase();
     const shouldCheckCsrf = options.csrf ?? ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
 
     if (shouldCheckCsrf) {
       const csrfError = validateCsrf(request);
       if (csrfError) {
+        finalStatus = 403;
         return errorResponse('CSRF validation failed', 403, { code: 'CSRF_ERROR' });
       }
     }
@@ -116,12 +145,16 @@ export function withProjectAuth(
       const tier = options.rateLimit || 'normal';
       const ip = getClientIp(request);
       const limited = await rateLimit(`api:${ip}`, tier);
-      if (limited) return limited;
+      if (limited) {
+        finalStatus = 429;
+        return limited;
+      }
     }
 
     const { userId } = await auth();
 
     if (!userId) {
+      finalStatus = 401;
       return errorResponse('Unauthorized', 401, { code: 'AUTH_REQUIRED' });
     }
 
@@ -129,6 +162,7 @@ export function withProjectAuth(
     const projectId = params.id;
 
     if (!projectId) {
+      finalStatus = 400;
       return errorResponse('Project ID required', 400, { code: 'MISSING_PROJECT_ID' });
     }
 
@@ -170,10 +204,21 @@ export function withProjectAuth(
     });
 
     if (!project) {
+      finalStatus = 404;
       return errorResponse('Project not found', 404, { code: 'PROJECT_NOT_FOUND' });
     }
 
-    return handler(request, { userId, prisma, params, projectId, project: project as unknown as Record<string, unknown> });
+    const response = await handler(request, { userId, prisma, params, projectId, project: project as unknown as Record<string, unknown> });
+    finalStatus = (response as Response).status ?? 200;
+    return response;
+    } finally {
+      recordTiming({
+        route: routeName,
+        method: request.method,
+        duration_ms: Date.now() - startedAt,
+        status: finalStatus,
+      });
+    }
   };
 }
 
