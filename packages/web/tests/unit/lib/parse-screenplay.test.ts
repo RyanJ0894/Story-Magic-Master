@@ -2,7 +2,7 @@
  * Tests for lib/upload/parse-screenplay.ts
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock mammoth
 const mockExtractRawText = vi.fn();
@@ -319,5 +319,36 @@ describe('getProjectNameFromFilename', () => {
 
   it('handles filename with no extension', () => {
     expect(getProjectNameFromFilename('README')).toBe('README');
+  });
+});
+
+describe('parseScreenplay PDF timeout (#chris-2026-06-13)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('rejects with a friendly error when pdf-parse hangs past 20s', async () => {
+    // Simulate pdf-parse never resolving — the exact failure mode chris hit.
+    mockPdfParse.mockImplementation(() => new Promise(() => {}));
+
+    const buffer = Buffer.from('%PDF-1.4 fake');
+    const parsePromise = parseScreenplay(buffer, 'stuck.pdf');
+
+    // Advance fake timers past the 20s timeout.
+    await vi.advanceTimersByTimeAsync(20_000);
+
+    await expect(parsePromise).rejects.toThrow(/timed out after 20s/);
+  });
+
+  it('still returns parsed text when pdf-parse completes in time', async () => {
+    mockPdfParse.mockResolvedValue({ text: 'INT. KITCHEN — DAY\nANNA enters.' });
+    const buffer = Buffer.from('%PDF-1.4 ok');
+    const result = await parseScreenplay(buffer, 'ok.pdf');
+    expect(result.text).toContain('ANNA');
   });
 });

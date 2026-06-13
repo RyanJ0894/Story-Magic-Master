@@ -70,8 +70,29 @@ export async function parseScreenplay(
       // Handle CJS default export interop
       const pdfParse = (typeof mod === 'function' ? mod : mod.default ?? mod) as
         (buf: Buffer) => Promise<{ text: string }>;
-      const pdfResult = await pdfParse(buffer);
-      text = pdfResult.text;
+      // pdf-parse has no internal timeout and is known to hang on certain
+      // structures (form fields, embedded JS, malformed cross-references).
+      // chris@servicevision.net hit this 2026-06-13: a 12 KB "3-page sample"
+      // hung the upload until the proxy 499'd at 2 min. Race against a 20 s
+      // timeout so the user gets a clear failure instead of an infinite
+      // spinner; downstream callers can suggest paste-text or another format.
+      // The timer is cleared on the happy path so it doesn't outlive the
+      // request and trigger a phantom rejection on the next tick.
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const pdfResult = await Promise.race([
+          pdfParse(buffer),
+          new Promise<never>((_, reject) => {
+            timeoutHandle = setTimeout(
+              () => reject(new Error('PDF parse timed out after 20s — the file may be corrupt, scanned, or contain unsupported features. Try pasting the text directly, exporting as .txt/.docx, or saving the PDF as plain text.')),
+              20_000,
+            );
+          }),
+        ]);
+        text = pdfResult.text;
+      } finally {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+      }
       break;
     }
     case '.fountain':
