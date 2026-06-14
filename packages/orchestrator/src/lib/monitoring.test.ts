@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import fs from 'fs';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,13 @@ vi.mock('./logger.js', () => ({
 
 vi.mock('./cleanup.js', () => ({
   getDiskUsage: vi.fn(() => ({ available_gb: 10, total_gb: 100, used_percent: 10 })),
+}));
+
+// child_process.execFileSync is mocked so we can simulate the three states
+// the whisper-binary spawn probe needs to distinguish: success (any exit),
+// shared-libs loader failure, and "binary doesn't exist".
+vi.mock('child_process', () => ({
+  execFileSync: vi.fn(),
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -226,5 +234,186 @@ describe('getHealthData', () => {
     const { getHealthData } = await import('./monitoring.js');
     const data = getHealthData();
     expect(data.monitoring.checkly).toBe(false);
+  });
+
+  describe('alignment block (#243 followup)', () => {
+    // Spy fs so we can deterministically present "binary is here / executable"
+    // for one path and "absent" for another, without depending on the real
+    // permissions of test files on the dev machine. The execFileSync mock
+    // controls the spawn outcome independently.
+    const PRESENT = '/fake/bin/whisper';
+    const ABSENT = '/tmp/__does_not_exist_for_health_test__/whisper';
+    const MODEL_PRESENT = '/fake/models/ggml-base.en.bin';
+
+    const saved = {
+      WHISPER_CPP_PATH: process.env.WHISPER_CPP_PATH,
+      WHISPER_MODEL_PATH: process.env.WHISPER_MODEL_PATH,
+      GROQ_API_KEY: process.env.GROQ_API_KEY,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    };
+
+    let existsSpy: ReturnType<typeof vi.spyOn>;
+    let accessSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(async () => {
+      // PRESENT and MODEL_PRESENT "exist"; everything else doesn't.
+      existsSpy = vi.spyOn(fs, 'existsSync').mockImplementation((p: fs.PathLike) =>
+        p === PRESENT || p === MODEL_PRESENT,
+      );
+      // X_OK is satisfied for PRESENT; throws for anything else (matching
+      // node's behavior of access() throwing on a path that doesn't exist
+      // or lacks the bit).
+      accessSpy = vi.spyOn(fs, 'accessSync').mockImplementation((p: fs.PathLike) => {
+        if (p === PRESENT) return undefined;
+        throw new Error(`ENOENT or EACCES on ${p}`);
+      });
+
+      // Reset the spawn-probe cache between tests.
+      const mod = await import('./monitoring.js');
+      mod._resetWhisperProbeCacheForTests();
+
+      // Default execFileSync: spawn succeeds → represents a healthy binary.
+      // mockReset clears both implementation and call history so we don't
+      // inherit either from a previous test in this describe block.
+      const { execFileSync } = await import('child_process');
+      vi.mocked(execFileSync).mockReset();
+      vi.mocked(execFileSync).mockReturnValue(Buffer.from('usage: whisper ...'));
+    });
+
+    afterEach(() => {
+      existsSpy?.mockRestore();
+      accessSpy?.mockRestore();
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    });
+
+    it('reports primary=whisper-local when both binary and model are present and runnable', async () => {
+      process.env.WHISPER_CPP_PATH = PRESENT;
+      process.env.WHISPER_MODEL_PATH = MODEL_PRESENT;
+      process.env.GROQ_API_KEY = 'gk_test';
+      const { getHealthData } = await import('./monitoring.js');
+      const data = getHealthData() as any;
+      expect(data.alignment.primary).toBe('whisper-local');
+      expect(data.alignment.whisperLocal.ready).toBe(true);
+      expect(data.alignment.whisperLocal.binaryRunnable).toBe(true);
+      expect(data.alignment.anyTierReady).toBe(true);
+    });
+
+    it('reports primary=groq-whisper when binary path missing but Groq key set', async () => {
+      process.env.WHISPER_CPP_PATH = ABSENT;
+      process.env.WHISPER_MODEL_PATH = ABSENT;
+      process.env.GROQ_API_KEY = 'gk_test';
+      delete process.env.OPENAI_API_KEY;
+      const { getHealthData } = await import('./monitoring.js');
+      const data = getHealthData() as any;
+      expect(data.alignment.primary).toBe('groq-whisper');
+      expect(data.alignment.whisperLocal.ready).toBe(false);
+      expect(data.alignment.whisperLocal.binaryExists).toBe(false);
+      expect(data.alignment.whisperLocal.binaryPresent).toBe(false);
+      expect(data.alignment.groq.ready).toBe(true);
+    });
+
+    it('reports primary=openai-whisper when neither local nor Groq available', async () => {
+      delete process.env.WHISPER_CPP_PATH;
+      delete process.env.WHISPER_MODEL_PATH;
+      delete process.env.GROQ_API_KEY;
+      process.env.OPENAI_API_KEY = 'sk_test';
+      const { getHealthData } = await import('./monitoring.js');
+      const data = getHealthData() as any;
+      expect(data.alignment.primary).toBe('openai-whisper');
+      expect(data.alignment.anyTierReady).toBe(true);
+    });
+
+    it('reports primary=duration-estimator and anyTierReady=false in the fully-degraded case', async () => {
+      delete process.env.WHISPER_CPP_PATH;
+      delete process.env.WHISPER_MODEL_PATH;
+      delete process.env.GROQ_API_KEY;
+      delete process.env.OPENAI_API_KEY;
+      const { getHealthData } = await import('./monitoring.js');
+      const data = getHealthData() as any;
+      expect(data.alignment.primary).toBe('duration-estimator');
+      expect(data.alignment.anyTierReady).toBe(false);
+    });
+
+    it('treats only-binary-present as not-ready (the model file is also required)', async () => {
+      process.env.WHISPER_CPP_PATH = PRESENT;
+      process.env.WHISPER_MODEL_PATH = ABSENT;
+      process.env.GROQ_API_KEY = 'gk_test';
+      const { getHealthData } = await import('./monitoring.js');
+      const data = getHealthData() as any;
+      expect(data.alignment.whisperLocal.binaryPresent).toBe(true);
+      expect(data.alignment.whisperLocal.modelPresent).toBe(false);
+      expect(data.alignment.whisperLocal.ready).toBe(false);
+      expect(data.alignment.primary).toBe('groq-whisper');
+    });
+
+    // -------------------------------------------------------------------
+    // 2026-06-13 followup: the binary-spawn probe. Pure fs.existsSync was
+    // false-positive when whisper.cpp built dynamically and couldn't find
+    // libwhisper.so.1 at runtime. /health now spawns `--help` once per
+    // probe window to confirm the binary actually loads.
+    // -------------------------------------------------------------------
+
+    it('treats binary as NOT runnable when execFileSync throws a shared-libs loader error', async () => {
+      process.env.WHISPER_CPP_PATH = PRESENT;
+      process.env.WHISPER_MODEL_PATH = MODEL_PRESENT;
+      process.env.GROQ_API_KEY = 'gk_test';
+      const { execFileSync } = await import('child_process');
+      const err = new Error('spawn failed') as Error & { stderr: Buffer; status: number };
+      err.stderr = Buffer.from(
+        '/opt/render/project/src/bin/whisper: error while loading shared libraries: libwhisper.so.1: cannot open shared object file: No such file or directory',
+      );
+      err.status = 127;
+      vi.mocked(execFileSync).mockImplementation(() => {
+        throw err;
+      });
+
+      const { getHealthData } = await import('./monitoring.js');
+      const data = getHealthData() as any;
+
+      expect(data.alignment.whisperLocal.binaryExists).toBe(true);
+      expect(data.alignment.whisperLocal.binaryExecutable).toBe(true);
+      expect(data.alignment.whisperLocal.binaryRunnable).toBe(false);
+      expect(data.alignment.whisperLocal.binaryProbeError).toContain('libwhisper');
+      expect(data.alignment.whisperLocal.ready).toBe(false);
+      expect(data.alignment.primary).toBe('groq-whisper');
+    });
+
+    it('treats binary as RUNNABLE when execFileSync throws but stderr is empty (--help typically exits non-zero)', async () => {
+      process.env.WHISPER_CPP_PATH = PRESENT;
+      process.env.WHISPER_MODEL_PATH = MODEL_PRESENT;
+      process.env.GROQ_API_KEY = 'gk_test';
+      const { execFileSync } = await import('child_process');
+      const err = new Error('Command failed') as Error & { stderr: Buffer; status: number };
+      err.stderr = Buffer.from('');
+      err.status = 1;
+      vi.mocked(execFileSync).mockImplementation(() => {
+        throw err;
+      });
+
+      const { getHealthData } = await import('./monitoring.js');
+      const data = getHealthData() as any;
+
+      // Spawn happened (status=1 with empty stderr ≠ loader error) → runnable.
+      expect(data.alignment.whisperLocal.binaryRunnable).toBe(true);
+      expect(data.alignment.primary).toBe('whisper-local');
+    });
+
+    it('caches the spawn-probe result — second /health within the TTL does NOT re-spawn', async () => {
+      process.env.WHISPER_CPP_PATH = PRESENT;
+      process.env.WHISPER_MODEL_PATH = MODEL_PRESENT;
+      process.env.GROQ_API_KEY = 'gk_test';
+      const { execFileSync } = await import('child_process');
+
+      const { getHealthData } = await import('./monitoring.js');
+      getHealthData();
+      getHealthData();
+      getHealthData();
+
+      // Only one spawn for the same WHISPER_CPP_PATH within the TTL window.
+      expect(vi.mocked(execFileSync)).toHaveBeenCalledTimes(1);
+    });
   });
 });
