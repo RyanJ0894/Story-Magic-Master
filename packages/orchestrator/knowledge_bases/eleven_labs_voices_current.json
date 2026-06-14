@@ -2,79 +2,9 @@
   {
     "voice_id": "XxY7LfDr5SzeemL30EAJ",
     "label": "50+ African American Woman 1",
-    "gender": "",
+    "gender": "Female",
     "tone": null,
     "style": "en"
-  },
-  {
-    "voice_id": "IzzIUm6BeYXKKFF6TlQp",
-    "label": "Ewa",
-    "gender": "",
-    "tone": null,
-    "style": "pl-standard"
-  },
-  {
-    "voice_id": "TkSyBjII8TcWww0CSouI",
-    "label": "Isabela - Female under 10",
-    "gender": "",
-    "tone": null,
-    "style": "en"
-  },
-  {
-    "voice_id": "ItCXRZpjlwV31M5v6MVN",
-    "label": "LUCKY-deae79c4-593e-4241-abce-3b5e1963b091",
-    "gender": "",
-    "tone": null,
-    "style": ""
-  },
-  {
-    "voice_id": "CIVHPOhct8kBrryhwrCm",
-    "label": "Lucky 2",
-    "gender": "",
-    "tone": null,
-    "style": "en"
-  },
-  {
-    "voice_id": "jVvjA0G3pZpuVOQqQrIw",
-    "label": "Marc Hall",
-    "gender": "",
-    "tone": null,
-    "style": "en"
-  },
-  {
-    "voice_id": "0I4LODkzfgylrMzbYiDf",
-    "label": "Marcus Hall",
-    "gender": "",
-    "tone": null,
-    "style": "en-american"
-  },
-  {
-    "voice_id": "oyZMttgN5AyinRFCtgwR",
-    "label": "Narrator B",
-    "gender": "",
-    "tone": null,
-    "style": ""
-  },
-  {
-    "voice_id": "4eC0mcIIjlMstsKu8fMF",
-    "label": "Old Southern Woman (Mamma Bec 6)",
-    "gender": "",
-    "tone": null,
-    "style": "en"
-  },
-  {
-    "voice_id": "jnP0bYeMux7E29G1gtqz",
-    "label": "SOLDIER CONT.-d2eb4c7a-aa66-46c7-b66b-a85a39070c4d",
-    "gender": "",
-    "tone": null,
-    "style": ""
-  },
-  {
-    "voice_id": "jjbd2Y90uJarSlJ33tYj",
-    "label": "SOLDIER-e6c61dd5-4196-4672-9ec0-706aa8a6c2d7",
-    "gender": "",
-    "tone": null,
-    "style": ""
   },
   {
     "voice_id": "Xb7hH8MSUJpSbSDYk0k2",
@@ -252,6 +182,13 @@
     "style": "American"
   },
   {
+    "voice_id": "TkSyBjII8TcWww0CSouI",
+    "label": "Isabela - Female under 10",
+    "gender": "Female",
+    "tone": null,
+    "style": "en"
+  },
+  {
     "voice_id": "cgSgspJ2msm6clMCkdW9",
     "label": "Jessica - Playful, Bright, Warm",
     "gender": "Female",
@@ -306,6 +243,13 @@
     "gender": "Female",
     "tone": "Warm",
     "style": "New Zealand"
+  },
+  {
+    "voice_id": "4eC0mcIIjlMstsKu8fMF",
+    "label": "Old Southern Woman (Mamma Bec 6)",
+    "gender": "Female",
+    "tone": null,
+    "style": "en"
   },
   {
     "voice_id": "AFDn1vVPITHRYD7x7GhG",
@@ -957,5 +901,61 @@
     "gender": "Neutral",
     "tone": "calm",
     "style": "american"
+  },
+  {
+    "voice_id": "IzzIUm6BeYXKKFF6TlQp",
+    "label": "Ewa",
+    "gender": "Unknown",
+    "tone": null,
+    "style": "pl-standard"
+  },
+  {
+    "voice_id": "ItCXRZpjlwV31M5v6MVN",
+    "label": "LUCKY-deae79c4-593e-4241-abce-3b5e1963b091",
+    "gender": "Unknown",
+    "tone": null,
+    "style": ""
+  },
+  {
+    "voice_id": "CIVHPOhct8kBrryhwrCm",
+    "label": "Lucky 2",
+    "gender": "Unknown",
+    "tone": null,
+    "style": "en"
+  },
+  {
+    "voice_id": "jVvjA0G3pZpuVOQqQrIw",
+    "label": "Marc Hall",
+    "gender": "Unknown",
+    "tone": null,
+    "style": "en"
+  },
+  {
+    "voice_id": "0I4LODkzfgylrMzbYiDf",
+    "label": "Marcus Hall",
+    "gender": "Unknown",
+    "tone": null,
+    "style": "en-american"
+  },
+  {
+    "voice_id": "oyZMttgN5AyinRFCtgwR",
+    "label": "Narrator B",
+    "gender": "Unknown",
+    "tone": null,
+    "style": ""
+  },
+  {
+    "voice_id": "jnP0bYeMux7E29G1gtqz",
+    "label": "SOLDIER CONT.-d2eb4c7a-aa66-46c7-b66b-a85a39070c4d",
+    "gender": "Unknown",
+    "tone": null,
+    "style": ""
+  },
+  {
+    "voice_id": "jjbd2Y90uJarSlJ33tYj",
+    "label": "SOLDIER-e6c61dd5-4196-4672-9ec0-706aa8a6c2d7",
+    "gender": "Unknown",
+    "tone": null,
+    "style": ""
   }
 ]
