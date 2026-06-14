@@ -1,24 +1,49 @@
 import { withAuth, errorResponse } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
+import { withQueryTimeout, QueryTimeoutError } from '@/lib/db/with-query-timeout';
+
+// Defensive deadline for the DB lookup. STORY-MAGIC-1G recorded this
+// route hanging 5 min while waiting on an exhausted Prisma connection
+// pool. A 5-second cap means the client sees a fast 503 and can retry
+// instead of an indefinite spinner.
+const JOB_POLL_QUERY_TIMEOUT_MS = 5000;
 
 // Polling every 2s = 30 req/min — needs 'loose' (60/min), not default 'normal' (20/min)
 export const GET = withAuth(async (_request, { userId, prisma, params }) => {
   const jobId = params.id;
 
   // Fetch job with project info
-  const job = await prisma.job.findUnique({
-    where: { id: jobId },
-    include: {
-      project: {
-        select: {
-          id: true,
-          name: true,
-          userId: true,
-          status: true,
+  let job;
+  try {
+    job = await withQueryTimeout(
+      prisma.job.findUnique({
+        where: { id: jobId },
+        include: {
+          project: {
+            select: {
+              id: true,
+              name: true,
+              userId: true,
+              status: true,
+            },
+          },
         },
-      },
-    },
-  });
+      }),
+      JOB_POLL_QUERY_TIMEOUT_MS,
+      'jobs/[id] findUnique',
+    );
+  } catch (err) {
+    if (err instanceof QueryTimeoutError) {
+      return new NextResponse(
+        JSON.stringify({ error: 'service_busy', message: 'Job lookup timed out. Retry shortly.' }),
+        {
+          status: 503,
+          headers: { 'Content-Type': 'application/json', 'Retry-After': '5' },
+        },
+      );
+    }
+    throw err;
+  }
 
   if (!job) {
     return errorResponse('Job not found', 404, { code: 'NOT_FOUND' });
