@@ -1,26 +1,25 @@
 /**
- * Voice catalog auto-seed
- * =======================
+ * Voice catalog sync
+ * ==================
  *
- * Background: the orchestrator's voice search reads from
- * `voice_catalog_entries` (a DB-backed table) with a JSON-file fallback.
- * When the table is empty — a freshly migrated DB, a restored snapshot, a
- * staging env nobody seeded — every search falls through. Two outcomes:
+ * Runs once per orchestrator boot (via the H2 boot-seed framework, after
+ * a ~2 s delay so it doesn't block port binding). Upserts every voice
+ * from the source-of-truth JSON catalog into the `voice_catalog_entries`
+ * DB table, then logs the row count.
  *
- *   1. JSON files exist → the orch uses them. Works, but no admin can
- *      manage the catalog through the DB because the DB is empty.
- *   2. JSON files missing → only DEFAULT_VOICES (3 hardcoded entries)
- *      remain, and every project ends up cast with George/Will/Jessica.
+ * Why on every boot, not just when empty (2026-06-14 fix):
+ *   The original `seedVoiceCatalogIfEmpty` function only fired when the
+ *   table had zero rows. That worked on first deploy but meant ANY later
+ *   edit to the JSON catalog — adding a voice, renaming a label, fixing
+ *   a gender tag — never reached the DB. The system silently froze at
+ *   first-seed state. Same class of bug as the whisper persistent-disk
+ *   issue caught the same day: works once, silently ignores all updates.
  *
- * Symptom Ryan reported on 2026-06-13 was outcome 1: "custom catalog
- * isn't getting used". Empirically: `SELECT COUNT(*) FROM
- * voice_catalog_entries` returned 0 in prod even though migration 0034
- * had created the table.
- *
- * This module runs once at orchestrator startup, after a 2-second delay
- * so it doesn't block the server from binding. If the DB has zero rows
- * and the catalog JSON is reachable, it bulk-upserts every entry, then
- * logs the row count. Idempotent — safe to invoke on every boot.
+ *   This rewrite runs the upsert unconditionally. The upsert is idempotent
+ *   per voice_id, so re-running it on every boot is safe and cheap (~50 ms
+ *   for the current 29 voices). DB rows whose voice_ids no longer appear
+ *   in the JSON are left in place but marked `isActive=false` so admin-
+ *   curated voices Ryan removed don't keep getting reassigned.
  */
 
 import { readFileSync, existsSync } from 'fs';
@@ -51,20 +50,17 @@ interface MetadataEntry {
   description?: string;
 }
 
-export async function seedVoiceCatalogIfEmpty(): Promise<void> {
-  let existing: number;
+export async function syncVoiceCatalog(): Promise<void> {
+  // We don't gate on the row count any more — see the module-level comment.
+  // We DO still log the existing count so deploy logs show the before/after
+  // and an operator can see "29 existing, 29 upserted" as a sanity check.
+  let existing: number = -1;
   try {
     existing = await prisma.voiceCatalogEntry.count();
   } catch (err) {
-    log.warn('[seed-voice-catalog] DB count failed, skipping seed', {
+    log.warn('[voice-catalog] DB count failed before sync, continuing', {
       error: err instanceof Error ? err.message : String(err),
     });
-    return;
-  }
-
-  if (existing > 0) {
-    log.debug('[seed-voice-catalog] table populated, no seed needed', { existing });
-    return;
   }
 
   if (!existsSync(FULL_CATALOG_PATH)) {
@@ -100,8 +96,15 @@ export async function seedVoiceCatalogIfEmpty(): Promise<void> {
     }
   }
 
+  // Track which voice_ids appear in the JSON so we can deactivate DB
+  // entries that have been pulled from the catalog (e.g., a voice we
+  // intentionally retired). We never DELETE — admins may still want to
+  // see the row for analytics / past-job lookups — but `isActive=false`
+  // keeps it out of voice-assignment results.
+  const jsonVoiceIds = new Set<string>();
   let upserted = 0;
   for (const v of entries) {
+    jsonVoiceIds.add(v.voice_id);
     const rich = metaById.get(v.voice_id);
     const name = rich?.name ?? `${v.label} — ${v.tone ?? ''} ${v.style ?? ''}`.trim();
     try {
@@ -137,5 +140,36 @@ export async function seedVoiceCatalogIfEmpty(): Promise<void> {
     }
   }
 
-  log.info('[seed-voice-catalog] seeded voice catalog from JSON', { upserted, sourceEntries: entries.length });
+  // Deactivate rows for voice_ids that no longer appear in the JSON.
+  // updateMany is a single SQL statement so this is cheap.
+  let deactivated = 0;
+  if (jsonVoiceIds.size > 0) {
+    try {
+      const result = await prisma.voiceCatalogEntry.updateMany({
+        where: {
+          voiceId: { notIn: Array.from(jsonVoiceIds) },
+          isActive: true,
+        },
+        data: { isActive: false },
+      });
+      deactivated = result.count;
+    } catch (err) {
+      log.warn('[voice-catalog] failed to deactivate stale entries — continuing', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  log.info('[voice-catalog] sync complete', {
+    sourceEntries: entries.length,
+    sourceUnique: jsonVoiceIds.size,
+    upserted,
+    deactivated,
+    existingBefore: existing,
+  });
 }
+
+// Back-compat alias — index.ts registered the previous name with the H2 boot
+// framework. Keeping the export means a partial rollout (orchestrator on the
+// new code, anything else on the old name) doesn't break.
+export const seedVoiceCatalogIfEmpty = syncVoiceCatalog;
