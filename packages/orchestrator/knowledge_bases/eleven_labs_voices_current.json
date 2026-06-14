@@ -1,232 +1,961 @@
 [
   {
-    "label": "Narrator",
-    "voice_id": "AeRdCCKzvd23BpJoofzx",
-    "gender": "Male",
-    "tone": "Calm",
-    "style": "British"
+    "voice_id": "XxY7LfDr5SzeemL30EAJ",
+    "label": "50+ African American Woman 1",
+    "gender": "",
+    "tone": null,
+    "style": "en"
   },
   {
-    "label": "Narrator",
-    "voice_id": "JBFqnCBsd6RMkjVDRZzb",
-    "gender": "Male",
-    "tone": "Calm",
-    "style": "British"
+    "voice_id": "IzzIUm6BeYXKKFF6TlQp",
+    "label": "Ewa",
+    "gender": "",
+    "tone": null,
+    "style": "pl-standard"
   },
   {
-    "label": "Narrator",
-    "voice_id": "L0Dsvb3SLTyegXwtm47J",
-    "gender": "Male",
-    "tone": "Calm",
-    "style": "British"
+    "voice_id": "TkSyBjII8TcWww0CSouI",
+    "label": "Isabela - Female under 10",
+    "gender": "",
+    "tone": null,
+    "style": "en"
   },
   {
-    "label": "Older Male",
-    "voice_id": "CwhRBWXzGAHq8TQ4Fs17",
-    "gender": "Male",
-    "tone": "Calm",
-    "style": "American"
+    "voice_id": "ItCXRZpjlwV31M5v6MVN",
+    "label": "LUCKY-deae79c4-593e-4241-abce-3b5e1963b091",
+    "gender": "",
+    "tone": null,
+    "style": ""
   },
   {
-    "label": "Older Male",
-    "voice_id": "N2lVS1w4EtoT3dr4eOWO",
-    "gender": "Male",
-    "tone": "Warm",
-    "style": "American"
+    "voice_id": "CIVHPOhct8kBrryhwrCm",
+    "label": "Lucky 2",
+    "gender": "",
+    "tone": null,
+    "style": "en"
   },
   {
-    "label": "Older Male",
-    "voice_id": "SAz9YHcvj6GT2YYXdXww",
-    "gender": "Male",
-    "tone": "Calm",
-    "style": "American"
+    "voice_id": "jVvjA0G3pZpuVOQqQrIw",
+    "label": "Marc Hall",
+    "gender": "",
+    "tone": null,
+    "style": "en"
   },
   {
-    "label": "Older Male",
-    "voice_id": "cjVigY5qzO86Huf0OWal",
-    "gender": "Male",
-    "tone": "Calm",
-    "style": "American"
+    "voice_id": "0I4LODkzfgylrMzbYiDf",
+    "label": "Marcus Hall",
+    "gender": "",
+    "tone": null,
+    "style": "en-american"
   },
   {
-    "label": "Older Male",
-    "voice_id": "iP95p4xoKVk53GoZ742B",
-    "gender": "Male",
-    "tone": "Calm",
-    "style": "American"
+    "voice_id": "oyZMttgN5AyinRFCtgwR",
+    "label": "Narrator B",
+    "gender": "",
+    "tone": null,
+    "style": ""
   },
   {
-    "label": "Older Male",
-    "voice_id": "iiidtqDt9FBdT1vfBluA",
-    "gender": "Male",
-    "tone": "Calm",
-    "style": "American"
+    "voice_id": "4eC0mcIIjlMstsKu8fMF",
+    "label": "Old Southern Woman (Mamma Bec 6)",
+    "gender": "",
+    "tone": null,
+    "style": "en"
   },
   {
-    "label": "Older Male",
-    "voice_id": "nPczCjzI2devNBz1zQrb",
-    "gender": "Male",
-    "tone": "Calm",
-    "style": "American"
+    "voice_id": "jnP0bYeMux7E29G1gtqz",
+    "label": "SOLDIER CONT.-d2eb4c7a-aa66-46c7-b66b-a85a39070c4d",
+    "gender": "",
+    "tone": null,
+    "style": ""
   },
   {
-    "label": "Older Male",
-    "voice_id": "onwK4e9ZLuTAKqWW03F9",
-    "gender": "Male",
-    "tone": "Calm",
-    "style": "British"
+    "voice_id": "jjbd2Y90uJarSlJ33tYj",
+    "label": "SOLDIER-e6c61dd5-4196-4672-9ec0-706aa8a6c2d7",
+    "gender": "",
+    "tone": null,
+    "style": ""
   },
   {
-    "label": "Older Male",
-    "voice_id": "pNInz6obpgDQGcFmaJgB",
-    "gender": "Male",
-    "tone": "Warm",
-    "style": "American"
-  },
-  {
-    "label": "Older Male",
-    "voice_id": "pqHfZKP75CvOlQylNhV4",
-    "gender": "Male",
-    "tone": "Calm",
-    "style": "American"
-  },
-  {
-    "label": "Older Female",
     "voice_id": "Xb7hH8MSUJpSbSDYk0k2",
+    "label": "Alice - Clear, Engaging Educator",
     "gender": "Female",
-    "tone": "Professional",
-    "style": "British"
+    "tone": "professional",
+    "style": "british"
   },
   {
-    "label": "Older Female",
-    "voice_id": "XrExE9yKIg1WjnnlVkGX",
-    "gender": "Female",
-    "tone": "Energetic",
-    "style": "American"
-  },
-  {
-    "label": "Older Female",
     "voice_id": "hpp4J3VqNfWAUOO0d1Us",
+    "label": "Bella - Professional, Bright, Warm",
     "gender": "Female",
-    "tone": "Professional",
-    "style": "American"
+    "tone": "professional",
+    "style": "american"
   },
   {
-    "label": "Older Female",
-    "voice_id": "pFZP5JQG7iQjIQuC4Bku",
+    "voice_id": "hod33eJyEU4TLqiYFttr",
+    "label": "Belle B - Interactive E-Learning Bot Voice",
     "gender": "Female",
-    "tone": "Confident",
+    "tone": "pleasant",
+    "style": "american"
+  },
+  {
+    "voice_id": "5BkEaSrc8SxSp7cOflae",
+    "label": "Female - 20s to 30s",
+    "gender": "Female",
+    "tone": "breathy",
     "style": "British"
   },
   {
-    "label": "Male 20s to 30s",
-    "voice_id": "IKne3meq5aSn9XLyUdCD",
-    "gender": "Male",
-    "tone": "Energetic",
-    "style": "Australian"
-  },
-  {
-    "label": "Male 20s to 30s",
-    "voice_id": "SOYHLrjzK2X1ezoPC6cr",
-    "gender": "Male",
-    "tone": "Deep",
-    "style": "American"
-  },
-  {
-    "label": "Male 20s to 30s",
-    "voice_id": "TX3LPaxmHKxFdv7VOQHJ",
-    "gender": "Male",
-    "tone": "Confident",
-    "style": "American"
-  },
-  {
-    "label": "Male 20s to 30s",
-    "voice_id": "bIHbv24MWmeRgasZH58o",
-    "gender": "Male",
+    "voice_id": "vr5WKaGvRWsoaX5LCVax",
+    "label": "Female - 20s to 30s",
+    "gender": "Female",
     "tone": "Calm",
     "style": "American"
   },
   {
+    "voice_id": "S2fYVrVpl5QYHVJ1LkgT",
     "label": "Female - 20s to 30s",
-    "voice_id": "EXAVITQu4vr4xnSDxMaL",
     "gender": "Female",
-    "tone": "Professional",
-    "style": "American"
+    "tone": "southern",
+    "style": "Southern American"
   },
   {
-    "label": "Female - 20s to 30s",
-    "voice_id": "FGY2WhTYpPnrIDTdsKH5",
-    "gender": "Female",
-    "tone": "Energetic",
-    "style": "American"
-  },
-  {
-    "label": "Female - 20s to 30s",
     "voice_id": "XhNlP8uwiH6XZSFnH1yL",
+    "label": "Female - 20s to 30s",
     "gender": "Female",
     "tone": "calm",
     "style": "American"
   },
   {
-    "label": "Female - 20s to 30s",
-    "voice_id": "cgSgspJ2msm6clMCkdW9",
-    "gender": "Female",
-    "tone": "Warm",
-    "style": "American"
-  },
-  {
-    "label": "Female - 20s to 30s",
     "voice_id": "uYXf8XasLslADfZ2MB4u",
+    "label": "Female - 20s to 30s",
     "gender": "Female",
     "tone": "caring",
     "style": "American"
   },
   {
+    "voice_id": "WAhoMTNdLdMoq1j3wf3I",
     "label": "Female - 20s to 30s",
+    "gender": "Female",
+    "tone": "smooth",
+    "style": "American"
+  },
+  {
+    "voice_id": "cnPPy2dWDNfzwhzvZ3CJ",
+    "label": "Female - 20s to 30s",
+    "gender": "Female",
+    "tone": "Southern",
+    "style": "American"
+  },
+  {
+    "voice_id": "LElbsnORyWdRipDG9D4D",
+    "label": "Female - 20s to 30s",
+    "gender": "Female",
+    "tone": "Southern",
+    "style": "American"
+  },
+  {
     "voice_id": "xZVrOjUURog02K298cjt",
+    "label": "Female - 20s to 30s",
     "gender": "Female",
     "tone": "polished",
     "style": "American"
   },
   {
-    "label": "Male Teen",
+    "voice_id": "ccczwhcFl5t2kkNhz4Xg",
+    "label": "Female - 20s to 30s",
+    "gender": "Female",
+    "tone": "soft",
+    "style": "American"
+  },
+  {
+    "voice_id": "C3x1TEM7scV4p2AXJyrp",
+    "label": "Female - 20s to 30s",
+    "gender": "Female",
+    "tone": "calm",
+    "style": "New Yorker"
+  },
+  {
+    "voice_id": "wrxvN1LZJIfL3HHvffqe",
+    "label": "Female Teen",
+    "gender": "Female",
+    "tone": "bubbly",
+    "style": "American"
+  },
+  {
+    "voice_id": "dP9ClfrTRIUt2zMBr00W",
+    "label": "Female Teen",
+    "gender": "Female",
+    "tone": "calm",
+    "style": "American"
+  },
+  {
+    "voice_id": "T7eLpgAAhoXHlrNajG8v",
+    "label": "Female Teen",
+    "gender": "Female",
+    "tone": "calm",
+    "style": "American"
+  },
+  {
+    "voice_id": "bMxLr8fP6hzNRRi9nJxU",
+    "label": "Female Teen",
+    "gender": "Female",
+    "tone": "Playful",
+    "style": "American"
+  },
+  {
+    "voice_id": "JGwmRZcgvck23cD2TuYq",
+    "label": "Female Teen",
+    "gender": "Female",
+    "tone": "energetic",
+    "style": "American"
+  },
+  {
+    "voice_id": "4amdp26YcC12p4g0caal",
+    "label": "Female Teen",
+    "gender": "Female",
+    "tone": "Breathy",
+    "style": "American"
+  },
+  {
+    "voice_id": "Djjbjv1y8TG5IpNX5YAK",
+    "label": "Female Teen",
+    "gender": "Female",
+    "tone": "raspy",
+    "style": "American"
+  },
+  {
+    "voice_id": "2bIeDnqItemdU7o6zCwq",
+    "label": "Female Teen",
+    "gender": "Female",
+    "tone": "breathy",
+    "style": "African American"
+  },
+  {
+    "voice_id": "VmeYJ8yn9LbQxhPAl5wO",
+    "label": "Female Teen",
+    "gender": "Female",
+    "tone": "raspy",
+    "style": "American"
+  },
+  {
+    "voice_id": "PV8O5l7QO8ZTd5Rln7Z5",
+    "label": "Female Teen",
+    "gender": "Female",
+    "tone": "chill",
+    "style": "American"
+  },
+  {
+    "voice_id": "jLreTVzdmVFjzOZ4f2Jx",
+    "label": "Female Under 10",
+    "gender": "Female",
+    "tone": "soft",
+    "style": "American"
+  },
+  {
+    "voice_id": "cgSgspJ2msm6clMCkdW9",
+    "label": "Jessica - Playful, Bright, Warm",
+    "gender": "Female",
+    "tone": "cute",
+    "style": "american"
+  },
+  {
+    "voice_id": "FGY2WhTYpPnrIDTdsKH5",
+    "label": "Laura - Enthusiast, Quirky Attitude",
+    "gender": "Female",
+    "tone": "sassy",
+    "style": "american"
+  },
+  {
+    "voice_id": "pFZP5JQG7iQjIQuC4Bku",
+    "label": "Lily - Velvety Actress",
+    "gender": "Female",
+    "tone": "confident",
+    "style": "british"
+  },
+  {
+    "voice_id": "XrExE9yKIg1WjnnlVkGX",
+    "label": "Matilda - Knowledgable, Professional",
+    "gender": "Female",
+    "tone": "upbeat",
+    "style": "american"
+  },
+  {
+    "voice_id": "JezX366joCfP8Pr9s19q",
+    "label": "Miss Mamie - Interactive & Learning friendly",
+    "gender": "Female",
+    "tone": "gentle",
+    "style": "american"
+  },
+  {
+    "voice_id": "wJqPPQ618aTW29mptyoc",
+    "label": "Narrator",
+    "gender": "Female",
+    "tone": "Smooth",
+    "style": "British"
+  },
+  {
+    "voice_id": "RILOU7YmBhvwJGDGjNmP",
+    "label": "Narrator",
+    "gender": "Female",
+    "tone": "Smooth",
+    "style": "British"
+  },
+  {
+    "voice_id": "pcKdPWtbF6bM9o7NHjCI",
+    "label": "Narrator",
+    "gender": "Female",
+    "tone": "Warm",
+    "style": "New Zealand"
+  },
+  {
+    "voice_id": "AFDn1vVPITHRYD7x7GhG",
+    "label": "Older Female",
+    "gender": "Female",
+    "tone": "wise",
+    "style": "American"
+  },
+  {
+    "voice_id": "Blpxl6Q79PMW6Pr2PNq1",
+    "label": "Older Female",
+    "gender": "Female",
+    "tone": "comforting",
+    "style": "American"
+  },
+  {
+    "voice_id": "zUZjZwPQKfsRlH9QVPnK",
+    "label": "Older Female",
+    "gender": "Female",
+    "tone": "Southern",
+    "style": "American"
+  },
+  {
+    "voice_id": "loP8wMysfD4AP5kifsuy",
+    "label": "Older Female",
+    "gender": "Female",
+    "tone": "wise",
+    "style": "American"
+  },
+  {
+    "voice_id": "dvw9ITErgRa9TX7AkMgx",
+    "label": "Older Female",
+    "gender": "Female",
+    "tone": "wise",
+    "style": "American"
+  },
+  {
+    "voice_id": "lIgS04i5awvulQMifXvy",
+    "label": "Older Female",
+    "gender": "Female",
+    "tone": "Raspy",
+    "style": "African American"
+  },
+  {
+    "voice_id": "xMZOFuTAHKtUd0aelHvM",
+    "label": "Older Female",
+    "gender": "Female",
+    "tone": "Southern",
+    "style": "American"
+  },
+  {
+    "voice_id": "Mh8UZv56BYw5HLxsvw5K",
+    "label": "Older Female",
+    "gender": "Female",
+    "tone": "wise",
+    "style": "American"
+  },
+  {
+    "voice_id": "EXAVITQu4vr4xnSDxMaL",
+    "label": "Sarah - Mature, Reassuring, Confident",
+    "gender": "Female",
+    "tone": "professional",
+    "style": "american"
+  },
+  {
+    "voice_id": "4tRn1lSkEn13EVTuqb0g",
+    "label": "Serafina - Flirty Sensual Temptress",
+    "gender": "Female",
+    "tone": "mature",
+    "style": "american"
+  },
+  {
+    "voice_id": "USAEIpDoTqdUaYNLaLAV",
+    "label": "Aaron",
+    "gender": "Male",
+    "tone": "intense",
+    "style": "american"
+  },
+  {
+    "voice_id": "pNInz6obpgDQGcFmaJgB",
+    "label": "Adam - Dominant, Firm",
+    "gender": "Male",
+    "tone": "social_media",
+    "style": "american"
+  },
+  {
+    "voice_id": "CJgwg9MvsyDQ2txugmDS",
+    "label": "Aries - Epic",
+    "gender": "Male",
+    "tone": "confident",
+    "style": "american"
+  },
+  {
+    "voice_id": "pqHfZKP75CvOlQylNhV4",
+    "label": "Bill - Wise, Mature, Balanced",
+    "gender": "Male",
+    "tone": "crisp",
+    "style": "american"
+  },
+  {
+    "voice_id": "gfRt6Z3Z8aTbpLfexQ7N",
+    "label": "Boyd ",
+    "gender": "Male",
+    "tone": "casual",
+    "style": "american"
+  },
+  {
+    "voice_id": "f5HLTX707KIM4SzJYzSz",
+    "label": "Brad - Welcoming & Casual",
+    "gender": "Male",
+    "tone": "casual",
+    "style": "american"
+  },
+  {
+    "voice_id": "nPczCjzI2devNBz1zQrb",
+    "label": "Brian - Deep, Resonant and Comforting",
+    "gender": "Male",
+    "tone": "classy",
+    "style": "american"
+  },
+  {
+    "voice_id": "GorLj2SsI4u2JqL58gAA",
+    "label": "CARTER D",
+    "gender": "Male",
+    "tone": "hyped",
+    "style": "american"
+  },
+  {
+    "voice_id": "N2lVS1w4EtoT3dr4eOWO",
+    "label": "Callum - Husky Trickster",
+    "gender": "Male",
+    "tone": "characters_animation",
+    "style": "american"
+  },
+  {
+    "voice_id": "IKne3meq5aSn9XLyUdCD",
+    "label": "Charlie - Deep, Confident, Energetic",
+    "gender": "Male",
+    "tone": "hyped",
+    "style": "australian"
+  },
+  {
+    "voice_id": "iP95p4xoKVk53GoZ742B",
+    "label": "Chris - Charming, Down-to-Earth",
+    "gender": "Male",
+    "tone": "casual",
+    "style": "american"
+  },
+  {
+    "voice_id": "onwK4e9ZLuTAKqWW03F9",
+    "label": "Daniel - Steady Broadcaster",
+    "gender": "Male",
+    "tone": "formal",
+    "style": "british"
+  },
+  {
+    "voice_id": "XjLkpWUlnhS8i7gGz3lZ",
+    "label": "David Castlemore - Newsreader and Educator",
+    "gender": "Male",
+    "tone": "formal",
+    "style": "american"
+  },
+  {
+    "voice_id": "kqVT88a5QfII1HNAEPTJ",
+    "label": "Declan Sage - Wise, Deliberate, Captivating",
+    "gender": "Male",
+    "tone": "deep",
+    "style": "american"
+  },
+  {
+    "voice_id": "DGzg6RaUqxGRTHSBjfgF",
+    "label": "Drill Sergeant",
+    "gender": "Male",
+    "tone": "rough",
+    "style": "american"
+  },
+  {
+    "voice_id": "cjVigY5qzO86Huf0OWal",
+    "label": "Eric - Smooth, Trustworthy",
+    "gender": "Male",
+    "tone": "classy",
+    "style": "american"
+  },
+  {
+    "voice_id": "JBFqnCBsd6RMkjVDRZzb",
+    "label": "George - Warm, Captivating Storyteller",
+    "gender": "Male",
+    "tone": "mature",
+    "style": "british"
+  },
+  {
+    "voice_id": "1GCQiLWWVadqyDYY3CK9",
+    "label": "George Daigle ",
+    "gender": "Male",
+    "tone": "deep",
+    "style": "american"
+  },
+  {
+    "voice_id": "3kebWRpiJFztHSRjfQdD",
+    "label": "Grant V",
+    "gender": "Male",
+    "tone": "wise",
+    "style": "american"
+  },
+  {
+    "voice_id": "6F5Zhi321D3Oq7v1oNT4",
+    "label": "Hank - A natural voice great for commercials, video games, and narration",
+    "gender": "Male",
+    "tone": "confident",
+    "style": "american"
+  },
+  {
+    "voice_id": "SOYHLrjzK2X1ezoPC6cr",
+    "label": "Harry - Fierce Warrior",
+    "gender": "Male",
+    "tone": "rough",
+    "style": "american"
+  },
+  {
+    "voice_id": "HfjqMQ0GHcNkhBWnIhy3",
+    "label": "Hayden",
+    "gender": "Male",
+    "tone": "chill",
+    "style": "american"
+  },
+  {
+    "voice_id": "e5WNhrdI30aXpS2RSGm1",
+    "label": "Ian Cartwell - Suspense, Mystery and Thriller",
+    "gender": "Male",
+    "tone": "modulated",
+    "style": "american"
+  },
+  {
+    "voice_id": "WAYsiv3Yudejrr5Di4lf",
+    "label": "Jake",
+    "gender": "Male",
+    "tone": "upbeat",
+    "style": "american"
+  },
+  {
+    "voice_id": "TZN6vLgrbEvMXLgHjT38",
+    "label": "Jamil - The Young Reader",
+    "gender": "Male",
+    "tone": "pleasant",
+    "style": "american"
+  },
+  {
+    "voice_id": "TX3LPaxmHKxFdv7VOQHJ",
+    "label": "Liam - Energetic, Social Media Creator",
+    "gender": "Male",
+    "tone": "confident",
+    "style": "american"
+  },
+  {
+    "voice_id": "VCgLBmBjldJmfphyB8sZ",
+    "label": "Liam - Viral Short-Form Storyteller",
+    "gender": "Male",
+    "tone": "hyped",
+    "style": "american"
+  },
+  {
+    "voice_id": "8Djbq2nupag9dYqtxnGD",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Smooth",
+    "style": "African American"
+  },
+  {
+    "voice_id": "yKmaB3Crpu4WvrZakKv8",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Smooth",
+    "style": "American"
+  },
+  {
+    "voice_id": "MWYZAv88R6kW8dvZNtvU",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Energetic",
+    "style": "American"
+  },
+  {
+    "voice_id": "zqEUml3RlSIesXcsQJMw",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Energetic",
+    "style": "American"
+  },
+  {
+    "voice_id": "JRt8VLagGlOd5Vi5tMfX",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Smooth",
+    "style": "British"
+  },
+  {
+    "voice_id": "CKY0Fv5thD0ruZcdy19J",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Energetic",
+    "style": "African American"
+  },
+  {
+    "voice_id": "GKENfjE5T9SchZnnzOcf",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Smooth",
+    "style": "African American"
+  },
+  {
+    "voice_id": "C9zuj50DFemQHekyQ4rc",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Energetic",
+    "style": "African American"
+  },
+  {
+    "voice_id": "f8LQk3K2JqZZlqPDXdsB",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Energetic",
+    "style": "American"
+  },
+  {
+    "voice_id": "Y4bGw3zc23IZQ9dQTCrO",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Energetic",
+    "style": "African American"
+  },
+  {
+    "voice_id": "mmqvWAoIT6eC99ONwGu3",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Smooth",
+    "style": "American"
+  },
+  {
+    "voice_id": "YSVYNMTOwDtmu1gTKZ9t",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Smooth",
+    "style": "American"
+  },
+  {
+    "voice_id": "czmo3poP4encpxvfbHzs",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Smooth",
+    "style": "British"
+  },
+  {
+    "voice_id": "C0MQ6RpNe8UcMpJJRnf3",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Energetic",
+    "style": "American"
+  },
+  {
+    "voice_id": "Dhb9HeouR33pKCuLn1Vz",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Smooth",
+    "style": "African American"
+  },
+  {
+    "voice_id": "glPEmH1DUKKP7Bxdmpxz",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Energetic",
+    "style": "American"
+  },
+  {
+    "voice_id": "R3wHLXqzy3UaQoiSkFth",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Smooth",
+    "style": "African American"
+  },
+  {
+    "voice_id": "VceVP2YXjk1vbiK3aVNv",
+    "label": "Male 20s to 30s",
+    "gender": "Male",
+    "tone": "Energetic",
+    "style": "African American"
+  },
+  {
     "voice_id": "3XOBzXhnDY98yeWQ3GdM",
+    "label": "Male Teen",
     "gender": "Male",
     "tone": "Deep",
     "style": "American"
   },
   {
+    "voice_id": "BFnAlAvxDrOEsXlGCLZ2",
     "label": "Male Teen",
-    "voice_id": "Pb8RZcHs3ga4StE7wiPM",
     "gender": "Male",
     "tone": "chill",
     "style": "American"
   },
   {
-    "label": "Female Teen",
-    "voice_id": "cgSgspJ2msm6clMCkdW9",
-    "gender": "Female",
+    "voice_id": "iRR5JQNuSp2XN7iF7jPL",
+    "label": "Male Teen",
+    "gender": "Male",
+    "tone": "smooth",
+    "style": "African American"
+  },
+  {
+    "voice_id": "ZhLVlARQZoYYz5GikrfB",
+    "label": "Male Teen",
+    "gender": "Male",
+    "tone": "breathy",
+    "style": "American"
+  },
+  {
+    "voice_id": "QEDAiBNESWY7Es1bu9HY",
+    "label": "Male Teen",
+    "gender": "Male",
+    "tone": "chill",
+    "style": "African American"
+  },
+  {
+    "voice_id": "Pb8RZcHs3ga4StE7wiPM",
+    "label": "Male Teen",
+    "gender": "Male",
+    "tone": "chill",
+    "style": "American"
+  },
+  {
+    "voice_id": "FIsP50cHv9JY47BkNVR7",
+    "label": "Male Teen",
+    "gender": "Male",
+    "tone": "chill",
+    "style": "American Midwestern"
+  },
+  {
+    "voice_id": "DTKMou8ccj1ZaWGBiotd",
+    "label": "Male Teen",
+    "gender": "Male",
+    "tone": "Stylish",
+    "style": "African American"
+  },
+  {
+    "voice_id": "AtHOGgML51i4RHBVD0le",
+    "label": "Male Teen",
+    "gender": "Male",
+    "tone": "raspy",
+    "style": "American"
+  },
+  {
+    "voice_id": "ciopqvYA9WYw3xOGbodX",
+    "label": "Male Teen",
+    "gender": "Male",
+    "tone": "breathy",
+    "style": "American"
+  },
+  {
+    "voice_id": "RnC1vV4hTIG6mpspiNMw",
+    "label": "Male Under 10",
+    "gender": "Male",
+    "tone": "soft",
+    "style": "American"
+  },
+  {
+    "voice_id": "OzETXvniP8ZpkhCsvTBQ",
+    "label": "Male Under 10",
+    "gender": "Male",
+    "tone": "soft",
+    "style": "American"
+  },
+  {
+    "voice_id": "LysucvtFmzi1NVAE0rKp",
+    "label": "Marshal - Grumpy Sourpuss",
+    "gender": "Male",
+    "tone": "grumpy",
+    "style": "american"
+  },
+  {
+    "voice_id": "yr43K8H5LoTp6S1QFSGg",
+    "label": "Matt",
+    "gender": "Male",
+    "tone": "neutral",
+    "style": "american"
+  },
+  {
+    "voice_id": "biq55DmdsFYqfsQzmGQv",
+    "label": "Mattie, the close friend - Conversational, podcast",
+    "gender": "Male",
+    "tone": "neutral",
+    "style": "american"
+  },
+  {
+    "voice_id": "iPYqcpY8j8Ap4jUf28I3",
+    "label": "Michael - Gruff and Serious",
+    "gender": "Male",
+    "tone": "raspy",
+    "style": "american"
+  },
+  {
+    "voice_id": "uju3wxzG5OhpWcoi3SMy",
+    "label": "Narator",
+    "gender": "Male",
+    "tone": "Calm",
+    "style": "American"
+  },
+  {
+    "voice_id": "L0Dsvb3SLTyegXwtm47J",
+    "label": "Narrator",
+    "gender": "Male",
+    "tone": "Calm",
+    "style": "British"
+  },
+  {
+    "voice_id": "AeRdCCKzvd23BpJoofzx",
+    "label": "Narrator",
+    "gender": "Male",
+    "tone": "Calm",
+    "style": "British"
+  },
+  {
+    "voice_id": "L1aJrPa7pLJEyYlh3Ilq",
+    "label": "Narrator",
+    "gender": "Male",
     "tone": "Warm",
-    "style": "American",
-    "_placeholder": true,
-    "_replace_with": "Ryan ElevenLabs catalog \u2192 My Voices \u2192 Collections \u2192 Teen (warm/bright girl voice)"
+    "style": "British"
   },
   {
-    "label": "Female Teen",
-    "voice_id": "FGY2WhTYpPnrIDTdsKH5",
-    "gender": "Female",
+    "voice_id": "iiidtqDt9FBdT1vfBluA",
+    "label": "Older Male",
+    "gender": "Male",
+    "tone": "Calm",
+    "style": "American"
+  },
+  {
+    "voice_id": "NOpBlnGInO9m6vDvFkFC",
+    "label": "Older Male",
+    "gender": "Male",
+    "tone": "Friendly",
+    "style": "African American"
+  },
+  {
+    "voice_id": "00y4m1PbCBtjIPrwiynB",
+    "label": "Older Male",
+    "gender": "Male",
+    "tone": "Stern",
+    "style": "American"
+  },
+  {
+    "voice_id": "AQRwYHxDbImo5kKo8DO5",
+    "label": "Older Male",
+    "gender": "Male",
+    "tone": "Calm",
+    "style": "Indian"
+  },
+  {
+    "voice_id": "tKWIR4jvsH64ikwy7OKw",
+    "label": "Older Male",
+    "gender": "Male",
+    "tone": "Calm",
+    "style": "British"
+  },
+  {
+    "voice_id": "Vv4DE9DtUpdmwjp7ucgc",
+    "label": "Older Male",
+    "gender": "Male",
+    "tone": "Wise",
+    "style": "American"
+  },
+  {
+    "voice_id": "tp4cRlXymyN4yXXo3DYv",
+    "label": "Older Male",
+    "gender": "Male",
+    "tone": "Southern",
+    "style": "American"
+  },
+  {
+    "voice_id": "Vnuyx38AQEZgAlsJN8mB",
+    "label": "Older Male",
+    "gender": "Male",
     "tone": "Energetic",
-    "style": "American",
-    "_placeholder": true,
-    "_replace_with": "Ryan ElevenLabs catalog \u2192 My Voices \u2192 Collections \u2192 Teen (energetic/lively girl voice)"
+    "style": "American"
   },
   {
-    "label": "Female Teen",
-    "voice_id": "XhNlP8uwiH6XZSFnH1yL",
-    "gender": "Female",
+    "voice_id": "1muICAxikLeZXeIglHdH",
+    "label": "Older Male",
+    "gender": "Male",
+    "tone": "Deep",
+    "style": "American"
+  },
+  {
+    "voice_id": "yW0E1QYarnD3WCLTdWuX",
+    "label": "Older Male",
+    "gender": "Male",
+    "tone": "Southern",
+    "style": "American"
+  },
+  {
+    "voice_id": "1G9Ya1Fy4Ju2EAKyjGYJ",
+    "label": "Older Male",
+    "gender": "Male",
+    "tone": "Southern",
+    "style": "African American"
+  },
+  {
+    "voice_id": "l9KI3fSb2lQECGdtPlzg",
+    "label": "Older Male",
+    "gender": "Male",
+    "tone": "Calm",
+    "style": "British"
+  },
+  {
+    "voice_id": "mcuuWJIofmzgKEGk3EMA",
+    "label": "Rahmir- Narrative & Story",
+    "gender": "Male",
+    "tone": "deep",
+    "style": "american"
+  },
+  {
+    "voice_id": "yi1466ITx9sL0AwtKtin",
+    "label": "Reed Whaley",
+    "gender": "Male",
+    "tone": "serious",
+    "style": "american"
+  },
+  {
+    "voice_id": "CwhRBWXzGAHq8TQ4Fs17",
+    "label": "Roger - Laid-Back, Casual, Resonant",
+    "gender": "Male",
+    "tone": "classy",
+    "style": "american"
+  },
+  {
+    "voice_id": "voJBFhkz2IThY16yRs0X",
+    "label": "Ted",
+    "gender": "Male",
+    "tone": null,
+    "style": "en"
+  },
+  {
+    "voice_id": "bIHbv24MWmeRgasZH58o",
+    "label": "Will - Relaxed Optimist",
+    "gender": "Male",
+    "tone": "chill",
+    "style": "american"
+  },
+  {
+    "voice_id": "SAz9YHcvj6GT2YYXdXww",
+    "label": "River - Relaxed, Neutral, Informative",
+    "gender": "Neutral",
     "tone": "calm",
-    "style": "American",
-    "_placeholder": true,
-    "_replace_with": "Ryan ElevenLabs catalog \u2192 My Voices \u2192 Collections \u2192 Teen (calm/introspective girl voice)"
+    "style": "american"
   }
 ]

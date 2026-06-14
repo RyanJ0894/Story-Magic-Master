@@ -118,13 +118,12 @@ describe('eleven_labs_voices_current.json (source-of-truth integrity)', () => {
     expect(entries.length).toBeGreaterThan(0);
   });
 
-  // .fails is intentional: as of 2026-06-14 the catalog HAS three dupes.
-  // The test asserts the desired invariant (no dupes). Today it throws —
-  // .fails turns that into a PASS so CI is green. The moment Ryan resolves
-  // the conflicting labels and dedupes the JSON, this test will become
-  // passing, which flips .fails to a FAILURE and forces the resolver to
-  // remove the .fails modifier — locking in the dedup permanently.
-  it.fails('has no duplicate voice_ids (catches a future regression of the 2026-06-14 dup bug)', () => {
+  // Pure invariant — no duplicates allowed. The 2026-06-14 dupes were
+  // resolved when the catalog was rebuilt from the live grant account's
+  // /v1/voices output (137 unique voice_ids, source-of-truth). Was briefly
+  // marked .fails while we waited for resolution; that's now off, so any
+  // future re-introduction of a duplicate voice_id fails CI immediately.
+  it('has no duplicate voice_ids (catches a future regression of the 2026-06-14 dup bug)', () => {
     // Three voice_ids in the source JSON had two different label rows on
     // 2026-06-14. The voice-assignment LLM saw the same ID labeled both
     // 'Female - 20s to 30s' AND 'Female Teen' and produced non-deterministic
