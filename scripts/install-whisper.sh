@@ -54,10 +54,23 @@ install_binary() {
 
   # Build with cmake (newer whisper.cpp releases use cmake; older still ship
   # a Makefile). Try both, prefer cmake if available.
+  #
+  # CRITICAL: -DBUILD_SHARED_LIBS=OFF forces the binary to be statically
+  # linked against libwhisper / libggml. Without this, cmake builds a binary
+  # that dynamically loads libwhisper.so.1 from build/src, which isn't
+  # present at runtime when only the binary is copied to BIN_PATH. The
+  # 2026-06-13 incident: build appeared to succeed, but `whisper --help`
+  # printed "error while loading shared libraries: libwhisper.so.1" and
+  # alignment silently fell through to Groq for 24 h before we noticed.
   (
     cd "${BUILD_DIR}" || exit 1
     if command -v cmake >/dev/null 2>&1 && [[ -f CMakeLists.txt ]]; then
-      cmake -B build -DCMAKE_BUILD_TYPE=Release -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=ON >/dev/null 2>&1
+      cmake -B build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DWHISPER_BUILD_TESTS=OFF \
+        -DWHISPER_BUILD_EXAMPLES=ON \
+        >/dev/null 2>&1
       cmake --build build --config Release -j 2 >/dev/null 2>&1 || true
       # Newer cmake builds produce ./build/bin/main or whisper-cli
       for cand in build/bin/whisper-cli build/bin/main build/bin/whisper; do
@@ -83,7 +96,18 @@ install_binary() {
     return 1
   fi
 
-  log "binary installed: $("${BIN_PATH}" --help 2>&1 | head -1 || echo 'whisper.cpp')"
+  # Verify the binary actually runs. If it was built dynamically and the
+  # shared libs aren't found, this fails — and we treat that as a build
+  # failure, NOT a successful install. Without this, BIN_PATH exists +
+  # is executable, but every alignment call would hit a shared-library
+  # error and fall through to Groq.
+  local help_out
+  if ! help_out=$("${BIN_PATH}" --help 2>&1); then
+    log "WARN: whisper binary failed to execute — likely missing shared libs (${help_out:0:200})"
+    rm -f "${BIN_PATH}"
+    return 1
+  fi
+  log "binary installed: $(echo "${help_out}" | head -1)"
 }
 
 # ---------------------------------------------------------------------------
@@ -105,11 +129,25 @@ install_model() {
 
   log "downloading ${MODEL_NAME} (~142 MB) → ${MODEL_PATH}"
   mkdir -p "${MODEL_DIR}"
-  if ! curl -fsSL --retry 3 -o "${MODEL_PATH}.tmp" "${MODEL_URL}"; then
-    log "WARN: model download failed — alignment will use Groq fallback"
+
+  # Capture stderr so we can log it. -fSL (no -s) is intentional so curl's
+  # HTTP/network error explanation reaches the build log. --retry-all-errors
+  # so 5xx and connection resets also retry, not only DNS failures.
+  # Previously the bare 'WARN: model download failed' line told us nothing
+  # about whether it was 403, 404, timeout, or rate limit.
+  local curl_err
+  if ! curl_err=$(curl -fSL --retry 3 --retry-all-errors --connect-timeout 30 \
+                       --max-time 600 \
+                       -o "${MODEL_PATH}.tmp" \
+                       "${MODEL_URL}" 2>&1); then
+    log "WARN: model download failed: ${curl_err:0:400}"
     rm -f "${MODEL_PATH}.tmp"
+    # Don't pretend success — but also don't crash the build. Caller
+    # writes a DEGRADED line. install_binary already succeeded so the
+    # Groq fallback chain stays in place.
     return 1
   fi
+  log "model download succeeded ($(stat -c %s "${MODEL_PATH}.tmp" 2>/dev/null || stat -f %z "${MODEL_PATH}.tmp" 2>/dev/null || echo '?') bytes)"
 
   # Verify checksum when MODEL_SHA256 is set. Fail closed on mismatch — a
   # download that doesn't match the expected hash is either corrupt or
