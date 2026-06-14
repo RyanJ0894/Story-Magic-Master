@@ -124,12 +124,23 @@ services:
       - key: UPSTASH_REDIS_REST_TOKEN
         sync: false
 
-      # Queue worker mode: set to "standalone" when using the dedicated worker service.
-      # When unset or any other value, the worker runs embedded in the Next.js process.
-      # - key: WORKER_MODE
-      #   value: standalone
+      # Queue worker mode: standalone — the dedicated story-magic-worker service
+      # below picks up jobs. The embedded worker boot in instrumentation.ts is
+      # gated on this value. Closes the connection-pool starvation pattern that
+      # caused STORY-MAGIC-1G (5-min /api/jobs/[id] hangs); see
+      # docs/QUEUE-WORKER-SPLIT-RUNBOOK-2026-06-14.md for the runbook.
+      - key: WORKER_MODE
+        value: standalone
 
-      # Queue worker concurrency (default 3, reduce if memory constrained)
+      # DB pool ceiling per service. With three services pulling from the
+      # Render Postgres basic-256mb cap of 22, 6 each leaves headroom for
+      # migrations + health checks. Bump when we upgrade to basic-1gb.
+      - key: DATABASE_CONNECTION_LIMIT
+        value: "6"
+
+      # Queue worker concurrency (default 3, reduce if memory constrained).
+      # Kept here so the value reaches the standalone worker via the shared
+      # Render env vars; the embedded path is dead with WORKER_MODE=standalone.
       - key: QUEUE_CONCURRENCY
         value: "3"
 
@@ -233,11 +244,102 @@ services:
         sync: false
 
   # =============================================================================
-  # BACKGROUND WORKER (Queue Processor) — currently disabled to save costs.
-  # The web service runs an embedded queue worker instead.
-  # To re-enable: uncomment the worker block below and set WORKER_MODE=standalone
-  # on the web service to prevent duplicate processing.
+  # BACKGROUND WORKER (Queue Processor) — runs the queue out-of-process so the
+  # web service's Prisma pool isn't starved during long generation jobs (which
+  # was the root cause behind STORY-MAGIC-1G's 5-min /api/jobs/[id] hangs).
+  # The web service skips its embedded worker boot when WORKER_MODE=standalone
+  # is set on the web envVars block above.
   # =============================================================================
+  - type: worker
+    name: story-magic-worker
+    runtime: node
+    region: oregon
+    plan: starter
+    branch: main
+    autoDeploy: true
+    numInstances: 1
+
+    # Skip rebuilds for docs/markdown-only changes — same as web + orch.
+    buildFilter:
+      ignoredPaths:
+        - docs/**
+        - "**/*.md"
+        - code-review/**
+        - .github/**
+
+    # h3-env-source-of-truth-allowed
+    # Bootstrap for the new story-magic-worker service. Per the H3 contract
+    # the buildCommand SHOULD live in the Render dashboard after the service
+    # is created; this declaration lets Render know how to build the service
+    # on its very first deploy. Plan: once the service exists, prune this
+    # buildCommand back to a placeholder and let the dashboard manage it.
+    buildCommand: |
+      npm install -g pnpm@9.1.0 &&
+      curl -fsSL -o /tmp/doppler.tgz https://github.com/DopplerHQ/cli/releases/download/3.76.0/doppler_3.76.0_linux_amd64.tar.gz &&
+      echo "04f1ff30ed162d7af1dba7f11ad6a37ef35099de86a7ec6e261b64b1b337a3f3  /tmp/doppler.tgz" | sha256sum -c - &&
+      tar --overwrite -xzf /tmp/doppler.tgz -C /usr/local/bin doppler &&
+      pnpm install --frozen-lockfile &&
+      doppler run -- sh -c "node scripts/check-env-web.js && pnpm --filter @story-magic/shared exec prisma generate && pnpm --filter @story-magic/web build"
+    startCommand: doppler run -- pnpm --filter @story-magic/web worker
+
+    # h3-env-source-of-truth-allowed
+    # New-service bootstrap envVars block — values come from Doppler via the
+    # native sync after first deploy, this is just the SHAPE so Render knows
+    # which keys exist.
+    envVars:
+      - key: NODE_VERSION
+        value: "22.12.0"
+      - key: NODE_ENV
+        value: production
+
+      # Same DB as web/orch — the Job table is shared.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: story-magic-db
+          property: connectionString
+      - key: DIRECT_DATABASE_URL
+        fromDatabase:
+          name: story-magic-db
+          property: connectionString
+
+      # Pool ceiling: 6 connections (web 6 + orch 6 + worker 6 = 18, leaves 4
+      # of Render Postgres basic-256mb's 22-conn cap for migrations / psql).
+      - key: DATABASE_CONNECTION_LIMIT
+        value: "6"
+
+      # Worker mode + concurrency.
+      - key: WORKER_MODE
+        value: standalone
+      - key: QUEUE_CONCURRENCY
+        value: "3"
+
+      # Clerk auth (queue jobs call orchestrator with the user's identity).
+      - key: CLERK_SECRET_KEY
+        sync: false
+
+      # Orchestrator URL — the worker dispatches generation work to it.
+      - key: ORCHESTRATOR_URL
+        sync: false
+
+      # Inter-service auth (matches web + orch shared secret).
+      - key: SERVICE_SECRET_KEY
+        sync: false
+
+      # Sentry — same DSN as web so events show up in the same project.
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_AUTH_TOKEN
+        sync: false
+
+      # Upstash Redis — rate limiting shared with web.
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+
+      # OpenAI for the worker's intelligence calls (scoring, adviser).
+      - key: OPENAI_API_KEY
+        sync: false
 
   # =============================================================================
   # ORCHESTRATOR SERVICE (Node.js/Express)
@@ -295,6 +397,10 @@ services:
         fromDatabase:
           name: story-magic-db
           property: connectionString
+
+      # Pool ceiling: 6 connections — matches web + worker; total of 18 / 22.
+      - key: DATABASE_CONNECTION_LIMIT
+        value: "6"
 
       # Clerk Auth (set in Render dashboard)
       - key: CLERK_SECRET_KEY
