@@ -143,23 +143,30 @@ install_model() {
   mkdir -p "${MODEL_DIR}"
 
   # Try the R2 mirror first, fall back to HuggingFace if R2 has an outage.
-  # -fSL (no -s) prints curl's HTTP / network error so the build log shows
-  # WHY a fetch failed. --retry-all-errors retries 5xx + connection resets,
-  # not only DNS. Identifying User-Agent because HF will 403 a blank UA.
-  local curl_err='' src
+  # -fsSL = fail-on-error, silent (no progress meter!), show-error, follow-redirects.
+  # The previous -fSL included curl's progress bar in stderr, which the 300-char
+  # slice below truncated to '% Total % Received...' — hiding the actual error.
+  # -fsSL means stderr contains ONLY the failure reason when one occurs.
+  # -w writes the final HTTP code + effective URL on success/failure so we can
+  # tell apart a 403 from a TLS timeout from a connection reset.
+  local curl_err='' curl_meta='' src
   local fetched=0
   for src in "${MODEL_URL_PRIMARY}" "${MODEL_URL_FALLBACK}"; do
     log "fetching model from: ${src}"
-    if curl_err=$(curl -fSL --retry 3 --retry-all-errors \
+    # Run in a subshell so we can capture stdout (-w writes there) + stderr.
+    if curl_meta=$(curl -fsSL --retry 3 --retry-all-errors \
                        --connect-timeout 30 --max-time 600 \
                        -A "story-magic-orchestrator/2.0" \
                        -o "${MODEL_PATH}.tmp" \
-                       "${src}" 2>&1); then
+                       -w 'HTTP=%{http_code} URL=%{url_effective} TIME=%{time_total}s SIZE=%{size_download}' \
+                       "${src}" 2>/tmp/curl-err.log); then
       fetched=1
-      log "  ok — fetched from ${src}"
+      log "  ok — ${curl_meta}"
       break
     fi
-    log "  failed: ${curl_err:0:300}"
+    local exit_code=$?
+    curl_err=$(< /tmp/curl-err.log)
+    log "  failed: exit=${exit_code} meta='${curl_meta}' stderr='${curl_err}'"
     rm -f "${MODEL_PATH}.tmp"
   done
 
