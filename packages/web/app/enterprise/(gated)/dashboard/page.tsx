@@ -15,6 +15,7 @@ import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { TeamNotesTab } from '@/components/enterprise/TeamNotesTab';
 import { EnterpriseProjectAssignment } from '@/components/enterprise/EnterpriseProjectAssignment';
 import { EnterpriseErrorBoundary } from '@/components/enterprise/EnterpriseErrorBoundary';
+import { TimeAgo } from '@/components/ui/time-ago';
 
 const EVENT_LABELS: Record<string, { label: string; icon: string; color: string }> = {
   listen_complete: { label: 'Listened to completion', icon: '🎧', color: 'text-green-500' },
@@ -25,17 +26,6 @@ const EVENT_LABELS: Record<string, { label: string; icon: string; color: string 
   passed:          { label: 'Disliked',                 icon: '👎',  color: 'text-red-500' },
   undecided:       { label: 'Marked undecided',        icon: '🤔',  color: 'text-gray-500' },
 };
-
-function timeAgo(date: Date): string {
-  const diff = Date.now() - new Date(date).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
-}
 
 const TIER_SEAT_LIMITS: Record<string, number> = {
   creator: 30,
@@ -337,7 +327,7 @@ export default async function EnterpriseDashboardPage({
                               <p className="text-xs text-muted-foreground mt-0.5 truncate">&ldquo;{meta.noteSnippet}&rdquo;</p>
                             )}
                           </div>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">{timeAgo(log.createdAt)}</span>
+                          <TimeAgo iso={log.createdAt.toISOString()} className="text-xs text-muted-foreground whitespace-nowrap" />
                         </div>
                       );
                     })}
