@@ -204,7 +204,70 @@ If any of these creep into Day 1–3 work, push back. The goal is *market-ready*
 | Time | Decision | Why |
 |---|---|---|
 | 2026-06-13 14:30 PT | Plan committed | Overnight hardening sprint complete, 0 open PRs, this is the natural window |
+| 2026-06-13 ~23:30 PT | Day-1 solo block executed | All Sentry-surfaced bugs from today plus preventive sweeps shipped as PRs #268–#275 |
 | | | |
+
+---
+
+## v1.1 — Day 1 solo block complete (2026-06-13 ~23:30 PT)
+
+Since this doc was first written this afternoon, every item on Day 1 that didn't require Chris's browser or real money has shipped:
+
+| What | PR | Status |
+|---|---|---|
+| Whisper install in prod (root cause for #243) | dashboard buildCommand patched | live |
+| Whisper static-link + verbose model-download errors | #270 | green, awaiting review |
+| `/health` reports alignment readiness + spawn-verified binary | #268 | green, awaiting review |
+| AI-health classifier transient-error fix (closes STORY-MAGIC-1D's class) | #269 | green, awaiting review |
+| Listen flow dead-end (issue #206) | #271 | green, awaiting review |
+| Hydration crash on /enterprise/dashboard (STORY-MAGIC-1F) | #272 | green, awaiting review |
+| Hydration audit sweep on three admin/exchange pages | #274 | green, awaiting review |
+| Job-poll connection-pool starvation (STORY-MAGIC-1G) | #273 | green, awaiting review |
+| E2E spec locking #271's nav behavior | #275 | green, awaiting review |
+
+What's left in human time: **PR review/merge, Stripe walk-through, UAT batch, prod smoke regen.**
+
+---
+
+## PR walk-through — the order to land #268–#275
+
+These don't need to merge in strict order, but they DO have dependencies. Merge in this sequence to avoid rebase pain:
+
+| Order | PR | Why this position | Conflicts? |
+|---|---|---|---|
+| 1 | **#270** whisper install | Touches only `scripts/install-whisper.sh`. Zero conflict surface. Land first to start a clean orchestrator redeploy. | None |
+| 2 | **#269** ai-health transients | Touches only `packages/orchestrator/src/lib/ai-health.{ts,test.ts}`. Independent of everything else. | None |
+| 3 | **#268** /health alignment + runnable check | Touches `packages/orchestrator/src/lib/monitoring.{ts,test.ts}`. Adds a `child_process` spawn check + tests. Stand-alone. | None |
+| 4 | **#273** job-poll timeout (STORY-MAGIC-1G) | Web-side, two API routes + a new helper + tests. Independent of all other PRs. | None |
+| 5 | **#271** listen flow fix (#206) | Touches `screenplay-reader.tsx`, `reader/dashboard/page.tsx`, new helper + unit test. **Land before #275** — the E2E spec assumes the new nav chrome. | None |
+| 6 | **#272** TimeAgo hydration fix (#STORY-MAGIC-1F) | Touches `enterprise/(gated)/dashboard/page.tsx` + new TimeAgo component + component test. | None |
+| 7 | **#274** hydration sweep on admin pages | Adds the new `<DateTime>` component + uses it on three pages. **Land after #272** — easier mental model (TimeAgo first, then DateTime sibling). | None |
+| 8 | **#275** listen-flow E2E spec | Locks in #271. **Land after #271** for obvious reasons. | None |
+
+After all eight: zero open PRs. Run `pnpm test` on both packages locally one more time (or wait for the post-merge CI) and confirm both suites still green. Then the friendly-cohort cutover gate is purely the Stripe walk-through + UAT.
+
+### Hidden assumption to verify
+
+A few PRs reference earlier branches that I forked from. Specifically: **#274's `<DateTime>` is a sibling pattern to #272's `<TimeAgo>`**. They don't share files, but #274's commit body advertises `import { TimeAgo } from '@/components/ui/time-ago'`. If #272 is not merged first, no production user is broken (DateTime is self-contained), but the `<TimeAgo>` referenced in #274's docs will only become real after #272 lands. Just an awareness note — no blocker.
+
+---
+
+## Day 1 → Day 2 transition (revised)
+
+The Day 1 solo block is done. Day 1 still owes the human-time items:
+
+- **Stripe live walk-through** — runbook now exists at `docs/STRIPE-LIVE-WALKTHROUGH-2026-06-13.md`. ~45 min, real card. Refunded at the end so it costs nothing. **Gate: every checkbox in that doc.**
+- **UAT batch (20 cases from `UAT-2026-06-09.md`)** — open the doc, run each case, mark PASS/FAIL in a new dated `UAT-2026-06-13.md`. Don't fix anything mid-batch; triage at the end. **Gate: ≤2 FAILs.**
+- **PR walk-through (above)** — 30–45 min if Peter's available to second the approvals, longer if you have to admin-merge.
+
+Order I'd suggest:
+
+1. **PR walk-through** first (clears the queue → deploys land → prod state matches what UAT will exercise).
+2. **Stripe walk-through** second (now testing against the latest deploy).
+3. **UAT batch** third (covers everything else, takes the longest).
+4. **Decision** at end of day.
+
+If everything passes, Day 2 collapses to documentation hardening + the rollback drill. If anything fails, Day 2 absorbs the fix and Day 3 becomes the launch window.
 
 ---
 
