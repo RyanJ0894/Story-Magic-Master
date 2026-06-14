@@ -1,3 +1,5 @@
+> **Superseded by:** [ROADMAP-2026-06-14](ROADMAP-2026-06-14.md) — Updated 2026-06-14
+
 # Story Magic — Consolidated Roadmap (EOD 2026-06-09)
 
 **Date:** 2026-06-09 (end of day)
