@@ -21,8 +21,20 @@ set -uo pipefail
 readonly WHISPER_VERSION="${WHISPER_VERSION:-v1.7.4}"
 readonly WHISPER_REPO="https://github.com/ggerganov/whisper.cpp.git"
 readonly MODEL_NAME="ggml-base.en.bin"
-readonly MODEL_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${MODEL_NAME}"
-readonly MODEL_SHA256="${WHISPER_MODEL_SHA256:-c78c86eb1a8faa21b369bcd33207cc90d64ae9df8378073043356d3a76b9efe5}"
+# Primary: a known-good Cloudflare R2 mirror we control. Render's egress IPs
+# get throttled / 403'd by HuggingFace's Cloudflare during cold builds — every
+# attempt at downloading from HF directly has failed (see 2026-06-13 incident
+# logs). R2 is in the same Cloudflare network, has free egress, no rate limits
+# at our scale, and serves from our existing servicevision-files bucket.
+# Override via Doppler env if we ever need to switch back to HF or another
+# mirror without a code change.
+readonly MODEL_URL_PRIMARY="${WHISPER_MODEL_URL:-https://pub-0466dbb0cd8d46adb26ceada87d64eb9.r2.dev/whisper/${MODEL_NAME}}"
+# Fallback: upstream HuggingFace. Tried second; documented as flaky on Render.
+readonly MODEL_URL_FALLBACK="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${MODEL_NAME}"
+# Pin updated 2026-06-14 — HF's ggerganov/whisper.cpp updated the base.en file
+# between deployments; the prior c78c86… hash no longer matches. The R2 mirror
+# is the same bytes we verified at upload time.
+readonly MODEL_SHA256="${WHISPER_MODEL_SHA256:-a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002}"
 readonly EXPECTED_SHA256="${MODEL_SHA256}"
 
 # Paths — pinned to Render's project layout
@@ -130,21 +142,29 @@ install_model() {
   log "downloading ${MODEL_NAME} (~142 MB) → ${MODEL_PATH}"
   mkdir -p "${MODEL_DIR}"
 
-  # Capture stderr so we can log it. -fSL (no -s) is intentional so curl's
-  # HTTP/network error explanation reaches the build log. --retry-all-errors
-  # so 5xx and connection resets also retry, not only DNS failures.
-  # Previously the bare 'WARN: model download failed' line told us nothing
-  # about whether it was 403, 404, timeout, or rate limit.
-  local curl_err
-  if ! curl_err=$(curl -fSL --retry 3 --retry-all-errors --connect-timeout 30 \
-                       --max-time 600 \
+  # Try the R2 mirror first, fall back to HuggingFace if R2 has an outage.
+  # -fSL (no -s) prints curl's HTTP / network error so the build log shows
+  # WHY a fetch failed. --retry-all-errors retries 5xx + connection resets,
+  # not only DNS. Identifying User-Agent because HF will 403 a blank UA.
+  local curl_err='' src
+  local fetched=0
+  for src in "${MODEL_URL_PRIMARY}" "${MODEL_URL_FALLBACK}"; do
+    log "fetching model from: ${src}"
+    if curl_err=$(curl -fSL --retry 3 --retry-all-errors \
+                       --connect-timeout 30 --max-time 600 \
+                       -A "story-magic-orchestrator/2.0" \
                        -o "${MODEL_PATH}.tmp" \
-                       "${MODEL_URL}" 2>&1); then
-    log "WARN: model download failed: ${curl_err:0:400}"
+                       "${src}" 2>&1); then
+      fetched=1
+      log "  ok — fetched from ${src}"
+      break
+    fi
+    log "  failed: ${curl_err:0:300}"
     rm -f "${MODEL_PATH}.tmp"
-    # Don't pretend success — but also don't crash the build. Caller
-    # writes a DEGRADED line. install_binary already succeeded so the
-    # Groq fallback chain stays in place.
+  done
+
+  if [[ "${fetched}" -ne 1 ]]; then
+    log "WARN: model download failed from both R2 and HF — alignment will use Groq fallback"
     return 1
   fi
   log "model download succeeded ($(stat -c %s "${MODEL_PATH}.tmp" 2>/dev/null || stat -f %z "${MODEL_PATH}.tmp" 2>/dev/null || echo '?') bytes)"
