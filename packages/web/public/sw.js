@@ -23,7 +23,11 @@
 //     updated Content-Security-Policy that adds story-magic-orchestrator.onrender.com
 //     to connect-src (required for SW fetch() to reach cross-origin audio files).
 
-const CACHE_NAME = 'story-magic-v5';
+// __BUILD_VERSION__ is replaced at build time by scripts/inject-sw-version.mjs
+// with the deploy's commit SHA. Source stays at the placeholder so every
+// deploy invalidates the prior cache automatically — no more manual v3 → v4
+// → v5 bumps. See packages/web/scripts/inject-sw-version.mjs.
+const CACHE_NAME = 'story-magic-__BUILD_VERSION__';
 // JS chunks are excluded — they contain hardcoded server action IDs (e.g. Clerk
 // keyless) and must always be fetched fresh so client IDs match the server.
 // CSS and media are content-hashed and safe to serve cache-first for offline use.
