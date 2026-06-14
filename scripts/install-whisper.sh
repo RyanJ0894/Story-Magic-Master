@@ -37,11 +37,26 @@ readonly MODEL_URL_FALLBACK="https://huggingface.co/ggerganov/whisper.cpp/resolv
 readonly MODEL_SHA256="${WHISPER_MODEL_SHA256:-a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002}"
 readonly EXPECTED_SHA256="${MODEL_SHA256}"
 
-# Paths — pinned to Render's project layout
+# Paths — pinned to Render's project layout.
+#
+# Both binary and model live under PROJECT_ROOT (= /opt/render/project/src
+# at runtime). The 2026-06-14 deploy proved that Render does NOT make the
+# /var/data persistent disk writable during the build stage: the model
+# download succeeded HTTP-wise (R2 returned 200, transfer started) but
+# curl exit 23 'Failure writing output to destination' fired on the first
+# buffered write. Same path is writable during runtime — but install-
+# whisper.sh runs at build time, so it has to live somewhere that's
+# writable at that stage.
+#
+# Putting the model alongside the binary in the ephemeral project dir
+# means we re-download (~5 s from R2 via Cloudflare's network) on every
+# deploy, but it actually works. R2 egress is free in our R2 tier and our
+# deploy cadence is low single-digits per day, so the cost is rounding
+# error.
 readonly PROJECT_ROOT="${PROJECT_ROOT:-/opt/render/project/src}"
 readonly BIN_DIR="${PROJECT_ROOT}/bin"
 readonly BIN_PATH="${BIN_DIR}/whisper"
-readonly MODEL_DIR="${WHISPER_MODEL_DIR:-/var/data/audio/.whisper-models}"
+readonly MODEL_DIR="${WHISPER_MODEL_DIR:-${PROJECT_ROOT}/.whisper-models}"
 readonly MODEL_PATH="${MODEL_DIR}/${MODEL_NAME}"
 readonly BUILD_DIR="/tmp/whisper-build"
 
@@ -141,6 +156,16 @@ install_model() {
 
   log "downloading ${MODEL_NAME} (~142 MB) → ${MODEL_PATH}"
   mkdir -p "${MODEL_DIR}"
+
+  # Verify the target directory is actually writable. Without this, curl
+  # logs the misleading 'Failure writing output to destination' AFTER the
+  # whole download attempts. Catching it here makes the failure mode
+  # explicit: 'destination not writable' vs 'network error'.
+  if ! touch "${MODEL_DIR}/.write-test" 2>/dev/null; then
+    log "WARN: ${MODEL_DIR} is not writable at build time — alignment will use Groq fallback"
+    return 1
+  fi
+  rm -f "${MODEL_DIR}/.write-test"
 
   # Try the R2 mirror first, fall back to HuggingFace if R2 has an outage.
   # -fsSL = fail-on-error, silent (no progress meter!), show-error, follow-redirects.
