@@ -63,11 +63,27 @@ function classifyError(err: unknown): FailureCode {
   const s = (err as { statusCode?: number; status?: number }).statusCode
     ?? (err as { statusCode?: number; status?: number }).status;
 
-  if (s === 401 || s === 403 || (msg.includes('invalid') && msg.includes('key')) || msg.includes('authentication')) return 'INVALID_KEY';
-  if (s === 402 || msg.includes('credit') || msg.includes('quota') || msg.includes('billing')) return 'QUOTA_EXCEEDED';
-  if (s === 429 || msg.includes('rate limit') || msg.includes('too many')) return 'RATE_LIMITED';
+  // Order matters: classify transient network failures FIRST so a 401 inside
+  // a "fetch failed" wrapper doesn't get tagged INVALID_KEY. The 2026-06-13
+  // incident (206 false-positive INVALID_KEY events) was caused by the
+  // previous fall-through: bare `msg.includes('authentication')` matched
+  // TLS-handshake errors during boot/shutdown.
+  if (
+    msg.includes('econnrefused') ||
+    msg.includes('econnreset') ||
+    msg.includes('enotfound') ||
+    msg.includes('socket hang up') ||
+    msg.includes('fetch failed') ||
+    msg.includes('network')
+  )
+    return 'UNREACHABLE';
   if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('aborted')) return 'TIMEOUT';
-  if (msg.includes('econnrefused') || msg.includes('enotfound') || msg.includes('network')) return 'UNREACHABLE';
+  if (s === 429 || msg.includes('rate limit') || msg.includes('too many')) return 'RATE_LIMITED';
+  if (s === 402 || msg.includes('credit') || msg.includes('quota') || msg.includes('billing')) return 'QUOTA_EXCEEDED';
+  // Only treat as a real auth failure when the HTTP layer says 401/403 OR the
+  // message specifically calls out the API key. The previous broader
+  // `msg.includes('authentication')` clause was the false-positive source.
+  if (s === 401 || s === 403 || (msg.includes('invalid') && msg.includes('key')) || msg.includes('api key')) return 'INVALID_KEY';
   return 'UNKNOWN';
 }
 
@@ -156,6 +172,8 @@ async function probeElevenLabs(): Promise<ProviderHealthResult> {
 
     if (res.status === 401 || res.status === 403)
       return { provider: 'elevenlabs', status: 'down', latencyMs, errorCode: 'INVALID_KEY', errorMessage: `HTTP ${res.status}` };
+    if (res.status === 402)
+      return { provider: 'elevenlabs', status: 'down', latencyMs, errorCode: 'QUOTA_EXCEEDED', errorMessage: 'HTTP 402' };
     if (res.status === 429)
       return { provider: 'elevenlabs', status: 'degraded', latencyMs, errorCode: 'RATE_LIMITED', errorMessage: 'HTTP 429' };
     if (!res.ok)
@@ -194,9 +212,22 @@ async function persistResult(
       },
     });
   } catch (dbErr) {
-    // DB write failure must never block job dispatch
+    // DB write failure must never block job dispatch. Leave a Sentry
+    // breadcrumb so a Sentry-only event without a matching ai_health_log row
+    // is visible — that was the 2026-06-13 confusion: 206 INVALID_KEY events
+    // in Sentry, zero rows in the DB.
     log.warn('[AI Health] failed to persist health log — continuing', {
       error: dbErr instanceof Error ? dbErr.message : String(dbErr),
+    });
+    Sentry.addBreadcrumb({
+      category: 'ai.health',
+      level: 'warning',
+      message: 'persist skipped (DB unavailable) — Sentry-only health event',
+      data: {
+        provider: result.provider,
+        status: result.status,
+        errorCode: result.errorCode,
+      },
     });
   }
 }
@@ -217,9 +248,20 @@ function emitToSentry(result: ProviderHealthResult): void {
     },
   });
 
-  // Capture a Sentry event for hard failures (key invalid, quota exhausted)
-  // so they appear in the Issues list, not just breadcrumbs.
-  if (result.status === 'down' && result.errorCode !== 'RATE_LIMITED') {
+  // Only capture a Sentry issue for failures that represent a real
+  // configuration problem the operator needs to fix: bad key or out of
+  // quota. Transient classes (UNREACHABLE / TIMEOUT / UNKNOWN) stay as
+  // breadcrumbs only — they'll surface in the issue's context if a real
+  // downstream failure occurs, but they don't page on their own.
+  //
+  // 2026-06-13: the prior "all status=down except RATE_LIMITED" rule was
+  // capturing 206 transient network errors as INVALID_KEY because of the
+  // over-broad classifyError regex. Both have been tightened.
+  const isHardConfigError =
+    result.status === 'down' &&
+    (result.errorCode === 'INVALID_KEY' || result.errorCode === 'QUOTA_EXCEEDED');
+
+  if (isHardConfigError) {
     captureError(new Error(msg), {
       provider: result.provider,
       errorCode: result.errorCode,
