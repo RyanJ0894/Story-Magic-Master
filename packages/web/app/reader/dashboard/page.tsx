@@ -7,7 +7,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Upload } from 'lucide-react';
+import { Upload, LayoutDashboard } from 'lucide-react';
 import { ReaderDashboardClient } from '@/components/dashboard/reader-dashboard-client';
 import { AlertsDropdown } from '@/components/alerts/AlertsDropdown';
 import type { ReaderLibraryEntryDetailed } from '@/lib/types/marketplace';
@@ -99,7 +99,19 @@ export default async function ReaderDashboardPage() {
               </Link>
               <Badge variant="outline">Reader</Badge>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
+              {/*
+               * Back-to-Dashboard exit (issue #206): the reader dashboard
+               * was an island — once a team member followed the Listen flow
+               * here, there was no link out except clicking the home logo.
+               * This gives them a one-click return to their main dashboard.
+               */}
+              <Link href="/dashboard">
+                <Button variant="ghost" size="sm" className="gap-1.5">
+                  <LayoutDashboard className="w-4 h-4" />
+                  <span className="hidden sm:inline">Dashboard</span>
+                </Button>
+              </Link>
               <AlertsDropdown />
               <Link href="/reader/upload">
                 <Button variant="outline">

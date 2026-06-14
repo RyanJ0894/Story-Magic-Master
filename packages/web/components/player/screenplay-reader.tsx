@@ -23,6 +23,7 @@ import {
   ChevronLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getListenBackLink } from './listen-back-link';
 import Link from 'next/link';
 import { resolveAudioUrl } from '@/lib/resolve-audio-url';
 import { apiFetch } from '@/lib/api/fetch';
@@ -471,14 +472,24 @@ export function ScreenplayReader({
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <Link href={isOwner ? `/projects/${projectId}` : '/reader/dashboard'}>
-              <Button variant="ghost" size="sm" className="gap-1.5">
-                <ChevronLeft className="w-4 h-4" />
-                {isOwner ? 'Project' : 'Library'}
-              </Button>
-            </Link>
+            {/*
+             * Back-link logic in ./listen-back-link.ts. Issue #206 — non-owners
+             * were sent to /reader/dashboard which had no exits; now team
+             * members go back to the project they came from instead.
+             */}
+            {(() => {
+              const back = getListenBackLink({ projectId, isOwner, teamId });
+              return (
+                <Link href={back.href}>
+                  <Button variant="ghost" size="sm" className="gap-1.5">
+                    <ChevronLeft className="w-4 h-4" />
+                    {back.label}
+                  </Button>
+                </Link>
+              );
+            })()}
             <Link href="/dashboard">
-              <Button variant="ghost" size="sm" className="gap-1.5 hidden sm:inline-flex">
+              <Button variant="ghost" size="sm" className="gap-1.5">
                 Dashboard
               </Button>
             </Link>
