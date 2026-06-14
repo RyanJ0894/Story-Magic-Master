@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Search, MoreHorizontal, CreditCard, RefreshCw, XCircle, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
+import { DateTime } from '@/components/ui/date-time';
 
 interface Props {
   searchParams: Promise<{ page?: string; status?: string; plan?: string }>;
@@ -210,15 +211,22 @@ export default async function AdminSubscriptionsPage({ searchParams }: Props) {
                     <TableCell>{getPlanBadge(sub.plan)}</TableCell>
                     <TableCell>{getStatusBadge(sub.status, sub.cancelAtPeriodEnd)}</TableCell>
                     <TableCell>
+                      {/* Hydration-safe (#STORY-MAGIC-1F class): client-render. */}
                       <div className="text-sm">
-                        <p>{sub.currentPeriodStart ? new Date(sub.currentPeriodStart).toLocaleDateString() : '-'}</p>
+                        <p>
+                          {sub.currentPeriodStart
+                            ? <DateTime iso={new Date(sub.currentPeriodStart).toISOString()} mode="date" />
+                            : '-'}
+                        </p>
                         <p className="text-muted-foreground">
-                          to {sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).toLocaleDateString() : '-'}
+                          to {sub.currentPeriodEnd
+                            ? <DateTime iso={new Date(sub.currentPeriodEnd).toISOString()} mode="date" />
+                            : '-'}
                         </p>
                       </div>
                     </TableCell>
                     <TableCell>
-                      {new Date(sub.createdAt).toLocaleDateString()}
+                      <DateTime iso={new Date(sub.createdAt).toISOString()} mode="date" />
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>

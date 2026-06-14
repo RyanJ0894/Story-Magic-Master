@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { WriterSubscribeButton } from '@/components/exchange/writer-subscribe-button';
 import { FeedbackForm } from '@/components/exchange/feedback-form';
+import { DateTime } from '@/components/ui/date-time';
 import {
   ArrowLeft,
   Star,
@@ -230,9 +231,12 @@ export default async function ExchangeScriptPage({ params }: PageProps) {
                           {review.comment}
                         </p>
                       )}
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(review.createdAt).toLocaleDateString()}
-                      </p>
+                      {/* Hydration-safe (#STORY-MAGIC-1F class): client-render. */}
+                      <DateTime
+                        iso={new Date(review.createdAt).toISOString()}
+                        mode="date"
+                        className="text-xs text-muted-foreground"
+                      />
                     </CardContent>
                   </Card>
                 );

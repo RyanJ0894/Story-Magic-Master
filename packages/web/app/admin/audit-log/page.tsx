@@ -26,6 +26,7 @@ import {
   Filter,
 } from 'lucide-react';
 import Link from 'next/link';
+import { DateTime } from '@/components/ui/date-time';
 
 interface Props {
   searchParams: Promise<{ page?: string; action?: string; resource?: string }>;
@@ -239,13 +240,10 @@ npx prisma migrate dev`}</pre>
                           <code className="text-xs">{log.ipAddress || '-'}</code>
                         </TableCell>
                         <TableCell>
+                          {/* Hydration-safe (#STORY-MAGIC-1F class): render in client. */}
                           <div>
-                            <p className="text-sm">
-                              {new Date(log.createdAt).toLocaleDateString()}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(log.createdAt).toLocaleTimeString()}
-                            </p>
+                            <DateTime iso={new Date(log.createdAt).toISOString()} mode="date" className="text-sm" />
+                            <DateTime iso={new Date(log.createdAt).toISOString()} mode="time" className="text-xs text-muted-foreground block" />
                           </div>
                         </TableCell>
                       </TableRow>
