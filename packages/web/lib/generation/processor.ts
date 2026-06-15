@@ -169,21 +169,30 @@ export async function processGenerationJob(
       ...metadata,
     });
 
-    await prisma.job.update({
-      where: { id: jobId },
-      data: { progress: progressData },
-    });
+    // safeUpdate (Sprint A audit): the project can be cascade-deleted mid-pipeline
+    // (e2e teardown, admin delete). Without safeUpdate, every subsequent progress
+    // write raises a P2025 that pollutes Sentry but tells us nothing actionable —
+    // the catch handler downstream is already going to call markJobFailed via
+    // safeUpdate. Wrap here so the noise is suppressed at the source.
+    await safeUpdate(
+      prisma.job,
+      { where: { id: jobId }, data: { progress: progressData } },
+      { jobId, projectId, action: 'updateJobProgress' },
+    );
   };
 
   try {
-    // Step 1: Start processing
-    await prisma.job.update({
-      where: { id: jobId },
-      data: {
-        status: 'processing',
-        startedAt: new Date(),
+    // Step 1: Start processing — safeUpdate so the worker doesn't crash
+    // ungracefully if the project (and the cascading job row) was deleted
+    // between job-creation and processing pickup.
+    await safeUpdate(
+      prisma.job,
+      {
+        where: { id: jobId },
+        data: { status: 'processing', startedAt: new Date() },
       },
-    });
+      { jobId, projectId, action: 'markJobProcessing' },
+    );
 
     log.info('[PIPELINE] start', { jobId: jobId.slice(0, 8), projectId, pageCount, scriptLength: scriptText.length });
     await updateJobProgress('initializing', 5, 'Starting generation pipeline...');
@@ -281,11 +290,14 @@ export async function processGenerationJob(
         directorSec, sceneCount, lineCount, characterCount: characterSet.size,
       });
 
-      // Save director JSON to project for future retry reuse
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { directorJson },
-      });
+      // Save director JSON to project for future retry reuse. safeUpdate
+      // because the project could be deleted between the parse finishing and
+      // this write (same race class as updateJobProgress above).
+      await safeUpdate(
+        prisma.project,
+        { where: { id: projectId }, data: { directorJson } },
+        { jobId, projectId, action: 'cacheDirectorJson' },
+      );
     }
 
     // Check for cancellation before starting the long orchestration phase
@@ -376,10 +388,14 @@ export async function processGenerationJob(
       // Update segment status to processing
       segmentStatuses[chunk.index].status = 'processing';
       await updateJobProgress('generating_audio', chunkProgressPercent, label);
-      await prisma.job.update({
-        where: { id: jobId },
-        data: { segments: JSON.parse(JSON.stringify(segmentStatuses)) },
-      });
+      await safeUpdate(
+        prisma.job,
+        {
+          where: { id: jobId },
+          data: { segments: JSON.parse(JSON.stringify(segmentStatuses)) },
+        },
+        { jobId, projectId, action: 'updateSegmentStatusProcessing' },
+      );
 
       const chunkStart = Date.now();
       const orchestratorResponse = await orchestratorGenerate('/orchestrate', {
@@ -402,10 +418,14 @@ export async function processGenerationJob(
 
         // Mark this segment failed; continue with remaining segments (partial audio)
         segmentStatuses[chunk.index].status = 'failed';
-        await prisma.job.update({
-          where: { id: jobId },
-          data: { segments: JSON.parse(JSON.stringify(segmentStatuses)) },
-        });
+        await safeUpdate(
+          prisma.job,
+          {
+            where: { id: jobId },
+            data: { segments: JSON.parse(JSON.stringify(segmentStatuses)) },
+          },
+          { jobId, projectId, action: 'markSegmentFailed' },
+        );
         continue;
       }
 
@@ -476,7 +496,11 @@ export async function processGenerationJob(
           updated_at: new Date().toISOString(),
         };
       }
-      await prisma.job.update({ where: { id: jobId }, data: updateData });
+      await safeUpdate(
+        prisma.job,
+        { where: { id: jobId }, data: updateData },
+        { jobId, projectId, action: 'updateSegmentSuccess' },
+      );
     }
 
     // Guard: at least one chunk must have produced audio
@@ -550,23 +574,32 @@ export async function processGenerationJob(
     // first we guarantee project.status === 'completed' is visible to that refresh.
     const completionTime = new Date();
 
-    await prisma.project.update({
-      where: { id: projectId },
-      data: { status: 'completed' },
-    });
+    // Project + job completion writes: safeUpdate because both rows could
+    // have been cascade-deleted while orchestration was running (the most
+    // common pattern: e2e teardown delete-project mid-flight). Either write
+    // failing is benign — we logged completion to job_logs already.
+    await safeUpdate(
+      prisma.project,
+      { where: { id: projectId }, data: { status: 'completed' } },
+      { jobId, projectId, action: 'markProjectCompleted' },
+    );
 
-    await prisma.job.update({
-      where: { id: jobId },
-      data: {
-        status: 'completed',
-        completedAt: completionTime,
-        progress: { step: 'done', percent: 100, details: 'Generation complete!', updated_at: completionTime.toISOString() },
-        result: mergedManifest,
-        // Persist final audio URL for direct access on completed jobs
-        firstAudioUrl: finalAudioUrl,
-        segments: JSON.parse(JSON.stringify(segmentStatuses)),
+    await safeUpdate(
+      prisma.job,
+      {
+        where: { id: jobId },
+        data: {
+          status: 'completed',
+          completedAt: completionTime,
+          progress: { step: 'done', percent: 100, details: 'Generation complete!', updated_at: completionTime.toISOString() },
+          result: mergedManifest,
+          // Persist final audio URL for direct access on completed jobs
+          firstAudioUrl: finalAudioUrl,
+          segments: JSON.parse(JSON.stringify(segmentStatuses)),
+        },
       },
-    });
+      { jobId, projectId, action: 'markJobCompleted' },
+    );
 
     // #174 PR β: master notification — script generation completed.
     // Fire-and-forget; producer swallows errors so it can't fail the job.
@@ -626,19 +659,27 @@ export async function processGenerationJob(
       errorStack
     );
 
-    await prisma.job.update({
-      where: { id: jobId },
-      data: {
-        status: 'failed',
-        error: errorMessage,
-        progress: { step: 'failed', percent: 0, details: errorMessage, updated_at: new Date().toISOString() },
+    // Failure-path writes also wrapped — same race class as the completion
+    // path above. The throw at the end of this catch is the contract with
+    // the queue worker; nothing here observes a return value.
+    await safeUpdate(
+      prisma.job,
+      {
+        where: { id: jobId },
+        data: {
+          status: 'failed',
+          error: errorMessage,
+          progress: { step: 'failed', percent: 0, details: errorMessage, updated_at: new Date().toISOString() },
+        },
       },
-    });
+      { jobId, projectId, action: 'markJobFailedFromCatch' },
+    );
 
-    await prisma.project.update({
-      where: { id: projectId },
-      data: { status: 'failed' },
-    });
+    await safeUpdate(
+      prisma.project,
+      { where: { id: projectId }, data: { status: 'failed' } },
+      { jobId, projectId, action: 'markProjectFailedFromCatch' },
+    );
 
     dispatchWebhooks('job.failed', userId, jobId, projectId, { error: errorMessage }).catch(() => {});
 
