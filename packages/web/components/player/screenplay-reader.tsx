@@ -135,26 +135,65 @@ export function ScreenplayReader({
   const currentOutput = audioOutputs[0];
   const audioUrl = currentOutput ? resolveAudioUrl(currentOutput.filePath) : '';
 
-  // Build timing map from scene data
+  // Build timing map from scene data.
+  //
+  // #207 — prefer the real per-line timestamps that the orchestrator's
+  // whisper-local alignment produced (server attaches them as
+  // `start_time`/`end_time` on each line; see app/projects/[id]/listen/page.tsx
+  // and lib/listen/alignment-mapper.ts). Fall back to character-count
+  // estimation for any line missing alignment data — that's the legacy path
+  // for old projects whose alignments table is empty, or partial generations.
   useEffect(() => {
     timingMap.current.clear();
     if (scenes.length === 0) return;
 
-    const totalChars = scenes.reduce(
-      (acc, scene) => acc + scene.dialogue.reduce((a, line) => a + line.text.length, 0),
-      0
-    );
-    const estimatedDuration = duration || currentOutput?.durationSeconds || 60;
-    const charsPerSecond = totalChars / Math.max(estimatedDuration, 1);
-
-    let offset = 0;
+    // First pass: seed the map with real alignment timings wherever present.
+    // We process every line up front so that the fallback pass below only
+    // needs to fill the gaps.
+    const unaligned: Array<{ line_id: string; text: string }> = [];
     scenes.forEach((scene) => {
       scene.dialogue.forEach((line) => {
-        const lineDuration = line.text.length / charsPerSecond;
-        timingMap.current.set(line.line_id, { start: offset, end: offset + lineDuration });
-        offset += lineDuration;
+        if (
+          typeof line.start_time === 'number' &&
+          typeof line.end_time === 'number' &&
+          line.end_time >= line.start_time
+        ) {
+          timingMap.current.set(line.line_id, { start: line.start_time, end: line.end_time });
+        } else {
+          unaligned.push({ line_id: line.line_id, text: line.text });
+        }
       });
     });
+
+    // Fast path: every line has real alignment — done.
+    if (unaligned.length === 0) return;
+
+    // Char-estimation fallback for the lines that the orchestrator's
+    // alignment didn't cover. We estimate over ONLY the unaligned lines
+    // (proportional to their character count vs the remaining duration not
+    // accounted for by aligned lines). That way an old project with zero
+    // alignment rows still works, and a partial-alignment project doesn't
+    // double-count time.
+    const totalDuration = duration || currentOutput?.durationSeconds || 60;
+    const alignedSeconds = Array.from(timingMap.current.values()).reduce(
+      (acc, t) => acc + Math.max(0, t.end - t.start),
+      0,
+    );
+    const remainingSeconds = Math.max(1, totalDuration - alignedSeconds);
+    const totalUnalignedChars = unaligned.reduce((acc, l) => acc + l.text.length, 0);
+    const charsPerSecond = totalUnalignedChars / remainingSeconds;
+
+    // Place unaligned lines at the END of the audio (best we can do without
+    // knowing where in the timeline they live). They'll still get
+    // highlighted in order; they just may not perfectly track the audio.
+    // Pre-#207 behaviour was equivalent in spirit, since it placed all lines
+    // in document order with no knowledge of real times.
+    let offset = alignedSeconds;
+    for (const line of unaligned) {
+      const lineDuration = line.text.length / Math.max(0.0001, charsPerSecond);
+      timingMap.current.set(line.line_id, { start: offset, end: offset + lineDuration });
+      offset += lineDuration;
+    }
   }, [scenes, duration, currentOutput]);
 
   // Auto-scroll to active line
