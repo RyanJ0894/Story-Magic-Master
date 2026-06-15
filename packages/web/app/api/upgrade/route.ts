@@ -6,6 +6,7 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { provisionTier } from '@/lib/services/tier-provision';
 
 const VALID_TIERS = new Set(['creator', 'pro', 'studio', 'enterprise', 'university']);
 
@@ -35,13 +36,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid tier' }, { status: 400 });
   }
 
-  await prisma.profile.update({
-    where: { id: userId },
-    data: {
-      subscriptionTier: tier,
-      subscriptionStatus: 'active',
-    },
-  });
+  // DT-30-M-1: provisionTier writes BOTH profile.subscriptionTier AND a
+  // matching subscriptions row in one Serializable transaction. The previous
+  // code only touched the profile, leaving cost rollups (which join through
+  // subscriptions) unable to attribute usage for users provisioned here.
+  await provisionTier(prisma, { userId, tier, setProfileStatus: true });
 
   return NextResponse.json({
     success: true,

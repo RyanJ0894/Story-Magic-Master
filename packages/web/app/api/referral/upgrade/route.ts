@@ -1,6 +1,7 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { provisionTier } from '@/lib/services/tier-provision';
 
 const BUILT_IN_CODES: Record<string, string> = {
   STORYMAGIC2026: 'creator',
@@ -50,47 +51,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid referral code' }, { status: 400 });
   }
 
-  const TIER_LIMITS: Record<string, { generations: number; downloads: number }> = {
-    creator:    { generations: 5,    downloads: 1 },
-    pro:        { generations: 20,   downloads: 5 },
-    studio:     { generations: 100,  downloads: 50 },
-    enterprise: { generations: 1000, downloads: 500 },
-  };
-  const limits = TIER_LIMITS[targetTier] ?? { generations: 5, downloads: 1 };
-
-  const existingSub = await prisma.subscription.findFirst({
-    where: { userId },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  await prisma.$transaction([
-    prisma.profile.update({
-      where: { id: userId },
-      data: {
-        subscriptionTier: targetTier,
-        subscriptionStatus: 'active',
-      },
-    }),
-    existingSub
-      ? prisma.subscription.update({
-          where: { id: existingSub.id },
-          data: {
-            plan: targetTier,
-            status: 'active',
-            generationsLimit: limits.generations,
-            downloadsLimit: limits.downloads,
-          },
-        })
-      : prisma.subscription.create({
-          data: {
-            userId,
-            plan: targetTier,
-            status: 'active',
-            generationsLimit: limits.generations,
-            downloadsLimit: limits.downloads,
-          },
-        }),
-  ]);
+  // DT-30-M-1: see admin/tier/route.ts for the full rationale. provisionTier
+  // moves the read/decide/write into a single Serializable transaction.
+  await provisionTier(prisma, { userId, tier: targetTier, setProfileStatus: true });
 
   return NextResponse.json({
     success: true,

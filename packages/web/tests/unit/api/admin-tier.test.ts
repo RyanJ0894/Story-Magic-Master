@@ -32,7 +32,16 @@ const mockPrisma = {
     create: vi.fn(),
     update: vi.fn(),
   },
-  $transaction: vi.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
+  // 2026-06-14: admin/tier migrated to provisionTier which uses interactive
+  // $transaction. Detect the two forms — array (legacy) vs callback (new) —
+  // and route the callback to mockPrisma so existing per-table assertions
+  // continue to work.
+  $transaction: vi.fn((opsOrCb: Promise<unknown>[] | ((tx: typeof mockPrisma) => Promise<unknown>)) => {
+    if (typeof opsOrCb === 'function') {
+      return opsOrCb(mockPrisma);
+    }
+    return Promise.all(opsOrCb);
+  }),
   auditLog: {
     create: vi.fn(),
   },
@@ -145,7 +154,7 @@ describe('POST /api/admin/tier', () => {
       mockPrisma.subscription.findFirst.mockResolvedValue(null);
       mockPrisma.subscription.create.mockResolvedValue({});
       mockPrisma.subscription.update.mockResolvedValue({});
-      mockPrisma.$transaction.mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops));
+      mockPrisma.$transaction.mockImplementation(((opsOrCb: Promise<unknown>[] | ((tx: typeof mockPrisma) => Promise<unknown>)) => typeof opsOrCb === 'function' ? opsOrCb(mockPrisma) : Promise.all(opsOrCb)) as never);
     });
 
     it('returns 200 with previous and new tier', async () => {
@@ -184,7 +193,7 @@ describe('POST /api/admin/tier', () => {
         mockPrisma.profile.update.mockResolvedValue({ id: TARGET_ID, subscriptionTier: tier });
         mockPrisma.subscription.findFirst.mockResolvedValue(null);
         mockPrisma.subscription.create.mockResolvedValue({});
-        mockPrisma.$transaction.mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops));
+        mockPrisma.$transaction.mockImplementation(((opsOrCb: Promise<unknown>[] | ((tx: typeof mockPrisma) => Promise<unknown>)) => typeof opsOrCb === 'function' ? opsOrCb(mockPrisma) : Promise.all(opsOrCb)) as never);
         const res = await POST(makeRequest({ userId: TARGET_ID, tier }));
         expect(res.status).toBe(200);
       }

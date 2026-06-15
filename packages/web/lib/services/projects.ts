@@ -42,22 +42,33 @@ export const activeMemberWhere = (userId: string) =>
   }) as const;
 
 export async function listProjects(prisma: PrismaClient, userId: string) {
+  // DT-32-H-1: mirror withProjectAuth's three-path predicate so the list
+  // endpoint cannot leak project metadata (name, scriptText, pageCount) to
+  // sub-accounts who lack an explicit ProjectAssignment. Without this, the
+  // single-project read path (withProjectAuth) correctly 404s but the
+  // dashboard list still surfaces every team-shared row.
+  //
+  // Paths:
+  //   1. User owns the project directly.
+  //   2. User is the team owner (master) — broad access to any team-shared project.
+  //   3. User is an accepted team member (sub-account) — requires an explicit
+  //      ProjectAssignment row scoped to (this user, this project).
   return prisma.project.findMany({
     where: {
       OR: [
-        // User's own projects
         { userId },
-        // Projects shared with a team the user is an active member of
+        { teamShares: { some: { team: { ownerId: userId } } } },
         {
-          teamShares: {
-            some: {
-              team: {
-                members: {
-                  some: activeMemberWhere(userId),
+          AND: [
+            {
+              teamShares: {
+                some: {
+                  team: { members: { some: activeMemberWhere(userId) } },
                 },
               },
             },
-          },
+            { projectAssignments: { some: { userId } } },
+          ],
         },
       ],
     },
