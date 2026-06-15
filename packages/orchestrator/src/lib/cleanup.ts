@@ -2,12 +2,18 @@ import fs from 'fs';
 import path from 'path';
 import { log } from './logger.js';
 import { getOutputDir, getStemsDir } from './env.js';
+import { prisma } from './prisma.js';
 
 const PREVIEW_TTL_DAYS = 7;
 const FULL_AUDIO_TTL_DAYS = 30;
 // Stems are scratch files (PCM→WAV per dialogue line, used only during mixing).
 // 2 days is generous — any job running longer than that has bigger problems.
 const STEMS_TTL_DAYS = 2;
+// CONTENT-LOG-RETENTION (2026-06-14): content_access_log grows unbounded as
+// share/listen events accrue. 90 days matches what's surfaced in the
+// enterprise dashboard's "recent activity" view; rows older than that are
+// only useful for cold-storage analytics, which we don't run here.
+const CONTENT_ACCESS_LOG_RETENTION_DAYS = 90;
 
 export { getStemsDir } from './env.js';
 
@@ -82,6 +88,32 @@ export function getDiskUsage(): { totalFiles: number; totalBytes: number; totalM
 }
 
 /**
+ * Delete content_access_log rows older than the retention threshold.
+ * Returns the number of rows deleted. Logs at info on success, warn on
+ * failure. Failure is non-fatal — file cleanup should still proceed.
+ */
+export async function pruneContentAccessLog(): Promise<{ deleted: number }> {
+  const cutoff = new Date(Date.now() - CONTENT_ACCESS_LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  try {
+    const result = await prisma.contentAccessLog.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
+    log.info('content_access_log retention prune complete', {
+      retentionDays: CONTENT_ACCESS_LOG_RETENTION_DAYS,
+      cutoff: cutoff.toISOString(),
+      deleted: result.count,
+    });
+    return { deleted: result.count };
+  } catch (err) {
+    log.warn('content_access_log retention prune failed', {
+      retentionDays: CONTENT_ACCESS_LOG_RETENTION_DAYS,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { deleted: 0 };
+  }
+}
+
+/**
  * Run the cleanup process
  * - Preview files: removed after 7 days
  * - Full audio files: removed after 30 days
@@ -132,12 +164,17 @@ export function startCleanupSchedule(): void {
 
   log.info('Starting audio cleanup schedule', { intervalMs });
 
-  // Run initial cleanup after 1 minute (let server fully start)
-  setTimeout(() => {
+  // Run initial cleanup after 1 minute (let server fully start). The DB-prune
+  // job piggybacks on this schedule — it's idempotent and cheap (~1 indexed
+  // DELETE) so re-running every 6 hours is fine. We don't need a separate
+  // cron service.
+  const runAll = () => {
     runCleanup();
-  }, 60 * 1000);
+    void pruneContentAccessLog();
+  };
 
-  cleanupIntervalId = setInterval(runCleanup, intervalMs);
+  setTimeout(runAll, 60 * 1000);
+  cleanupIntervalId = setInterval(runAll, intervalMs);
 }
 
 export function stopCleanupSchedule(): void {

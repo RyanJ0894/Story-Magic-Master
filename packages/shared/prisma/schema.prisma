@@ -139,6 +139,9 @@ model Project {
   ttsStems           TtsStem[]
   sceneRenders       SceneRender[]
   voiceMap           VoiceMap[]
+  // DT-32-L-1 (migration 0041): cost log retains history via SetNull, so this
+  // is a back-relation only — deleting a project null-foreign-keys its logs.
+  llmCallLogs        LlmCallLog[]
 
   @@index([userId])
   @@index([status])
@@ -1264,7 +1267,11 @@ model TtsStem {
 /// keyed on model name (cents per million tokens). Update yearly.
 model LlmCallLog {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  projectId       String?  @map("project_id")
+  // DT-32-L-1 (migration 0041): converted from TEXT → UUID + FK with
+  // ON DELETE SET NULL. Cost log survives project deletion intentionally —
+  // cost-retention rollups still need history rows after the project goes
+  // away. CASCADE would lose that history, hence SET NULL.
+  projectId       String?  @map("project_id") @db.Uuid
   operation       String
   model           String
   provider        String
@@ -1275,6 +1282,9 @@ model LlmCallLog {
   succeeded       Boolean
   errorMessage    String?  @map("error_message")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relation — optional because rows survive project deletion.
+  project         Project? @relation(fields: [projectId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([projectId, createdAt(sort: Desc)], map: "llm_call_log_project_created_idx")
   @@index([operation, createdAt(sort: Desc)], map: "llm_call_log_operation_created_idx")

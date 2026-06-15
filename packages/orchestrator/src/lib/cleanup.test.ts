@@ -13,7 +13,14 @@ vi.mock('./env.js', () => ({
   getStemsDir: vi.fn(() => '/nonexistent/stems'),
 }));
 
-import { getDiskUsage, runCleanup } from './cleanup.js';
+const mockDeleteMany = vi.fn();
+vi.mock('./prisma.js', () => ({
+  prisma: {
+    contentAccessLog: { deleteMany: (...args: unknown[]) => mockDeleteMany(...args) },
+  },
+}));
+
+import { getDiskUsage, runCleanup, pruneContentAccessLog } from './cleanup.js';
 import { getOutputDir, getStemsDir } from './env.js';
 
 describe('getDiskUsage', () => {
@@ -101,5 +108,38 @@ describe('runCleanup', () => {
     const result = runCleanup();
     expect(result).toHaveProperty('stemsRemoved');
     expect(typeof result.stemsRemoved).toBe('number');
+  });
+});
+
+describe('pruneContentAccessLog', () => {
+  beforeEach(() => {
+    mockDeleteMany.mockReset();
+  });
+
+  it('passes a cutoff ~90 days ago', async () => {
+    mockDeleteMany.mockResolvedValue({ count: 0 });
+    const before = Date.now();
+    await pruneContentAccessLog();
+    const after = Date.now();
+
+    expect(mockDeleteMany).toHaveBeenCalledOnce();
+    const args = mockDeleteMany.mock.calls[0][0];
+    const cutoffMs = (args.where.createdAt.lt as Date).getTime();
+    const expectedMin = before - 90 * 24 * 60 * 60 * 1000;
+    const expectedMax = after - 90 * 24 * 60 * 60 * 1000;
+    expect(cutoffMs).toBeGreaterThanOrEqual(expectedMin);
+    expect(cutoffMs).toBeLessThanOrEqual(expectedMax);
+  });
+
+  it('returns the deleted count on success', async () => {
+    mockDeleteMany.mockResolvedValue({ count: 42 });
+    const result = await pruneContentAccessLog();
+    expect(result).toEqual({ deleted: 42 });
+  });
+
+  it('swallows errors and returns deleted=0 (does not block file cleanup)', async () => {
+    mockDeleteMany.mockRejectedValue(new Error('DB unavailable'));
+    const result = await pruneContentAccessLog();
+    expect(result).toEqual({ deleted: 0 });
   });
 });
