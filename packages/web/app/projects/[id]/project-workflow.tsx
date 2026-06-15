@@ -51,6 +51,7 @@ import GenerateButton from './generate-button';
 import AudioPlayer from './audio-player';
 import { ScreenplayPlayer, type NoteComment } from '@/components/project/ScreenplayPlayer';
 import { NotesPanel } from '@/components/project/NotesPanel';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { PreviewButton } from './preview-button';
 import { WorkflowModeSelector } from './workflow-mode-selector';
 import { RunSelector, type Run } from './run-selector';
@@ -282,6 +283,53 @@ export function ProjectWorkflow({
 
   // Preview budget state (can be updated when previews are used)
   const [remainingPreviews, setRemainingPreviews] = useState(initialRemainingPreviews);
+
+  // Team share/unshare confirmation — replaces window.confirm at the two team
+  // action buttons below. Discriminated union keeps the dialog generic.
+  const [confirmTeamAction, setConfirmTeamAction] = useState<
+    | { kind: 'unshare'; teamId: string; teamName: string }
+    | { kind: 'share'; teamId: string; teamName: string }
+    | null
+  >(null);
+
+  async function executeUnshareFromTeam(teamId: string, teamName: string) {
+    try {
+      const res = await apiFetch('/api/teams/share', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: project.id, teamId }),
+      });
+      if (res.ok) {
+        toast.success(`Removed from team "${teamName}"`);
+        router.refresh();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || 'Failed to unshare');
+      }
+    } catch {
+      toast.error('Failed to unshare from team');
+    }
+  }
+
+  async function executeShareWithTeam(teamId: string, teamName: string) {
+    try {
+      const shareRes = await apiFetch('/api/teams/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: project.id, teamId, accessLevel: 'stream' }),
+      });
+      if (shareRes.ok) {
+        const result = await shareRes.json();
+        toast.success(result.message || 'Shared with team!');
+        router.refresh();
+      } else {
+        const err = await shareRes.json();
+        toast.error(err.error || 'Failed to share');
+      }
+    } catch {
+      toast.error(`Failed to share with team "${teamName}"`);
+    }
+  }
 
   // Run history modal state
   const [showHistory, setShowHistory] = useState(false);
@@ -1080,25 +1128,7 @@ export function ProjectWorkflow({
                               key={share.teamId}
                               variant="outline"
                               className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={async () => {
-                                if (!window.confirm(`Remove "${project.name}" from team "${share.teamName}"? Team members will lose access.`)) return;
-                                try {
-                                  const res = await apiFetch('/api/teams/share', {
-                                    method: 'DELETE',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ projectId: project.id, teamId: share.teamId }),
-                                  });
-                                  if (res.ok) {
-                                    toast.success(`Removed from team "${share.teamName}"`);
-                                    router.refresh();
-                                  } else {
-                                    const err = await res.json();
-                                    toast.error(err.error || 'Failed to unshare');
-                                  }
-                                } catch {
-                                  toast.error('Failed to unshare from team');
-                                }
-                              }}
+                              onClick={() => setConfirmTeamAction({ kind: 'unshare', teamId: share.teamId, teamName: share.teamName })}
                             >
                               <UserMinus className="w-4 h-4 mr-2" />
                               Remove from {share.teamName}
@@ -1122,26 +1152,9 @@ export function ProjectWorkflow({
                                 }
                                 // Share with first team (for MVP — multi-team picker coming with #107)
                                 const team = teams[0];
-                                if (!window.confirm(`Share "${project.name}" with team "${team.name}"?`)) return;
-                                const shareRes = await apiFetch('/api/teams/share', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    projectId: project.id,
-                                    teamId: team.id,
-                                    accessLevel: 'stream',
-                                  }),
-                                });
-                                if (shareRes.ok) {
-                                  const result = await shareRes.json();
-                                  toast.success(result.message || 'Shared with team!');
-                                  router.refresh();
-                                } else {
-                                  const err = await shareRes.json();
-                                  toast.error(err.error || 'Failed to share');
-                                }
+                                setConfirmTeamAction({ kind: 'share', teamId: team.id, teamName: team.name });
                               } catch {
-                                toast.error('Failed to share with team');
+                                toast.error('Failed to load teams');
                               }
                             }}
                           >
@@ -1201,6 +1214,27 @@ export function ProjectWorkflow({
           onCopySettings={handleCopySettings}
         />
       )}
+
+      <ConfirmDialog
+        open={confirmTeamAction !== null}
+        title={confirmTeamAction?.kind === 'unshare' ? 'Remove project from team?' : 'Share project with team?'}
+        description={
+          confirmTeamAction?.kind === 'unshare'
+            ? `"${project.name}" will be removed from team "${confirmTeamAction.teamName}". Team members will lose access.`
+            : confirmTeamAction?.kind === 'share'
+              ? `"${project.name}" will be shared with team "${confirmTeamAction.teamName}". All team members will gain stream access.`
+              : ''
+        }
+        confirmLabel={confirmTeamAction?.kind === 'unshare' ? 'Remove' : 'Share'}
+        variant={confirmTeamAction?.kind === 'unshare' ? 'destructive' : 'default'}
+        onConfirm={() => {
+          const pending = confirmTeamAction;
+          setConfirmTeamAction(null);
+          if (pending?.kind === 'unshare') void executeUnshareFromTeam(pending.teamId, pending.teamName);
+          else if (pending?.kind === 'share') void executeShareWithTeam(pending.teamId, pending.teamName);
+        }}
+        onCancel={() => setConfirmTeamAction(null)}
+      />
     </div>
   );
 }

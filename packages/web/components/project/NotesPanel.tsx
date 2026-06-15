@@ -10,6 +10,7 @@ import { MessageSquare, Trash2, Clock, ThumbsUp, ThumbsDown, HelpCircle } from '
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { NoteComment } from './ScreenplayPlayer';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 interface NotesPanelProps {
   projectId: string;
@@ -82,8 +83,9 @@ export function NotesPanel({ projectId, currentUserId, onSeekTo, newComment }: N
     });
   }, [newComment, currentUserId]);
 
-  async function deleteComment(id: string) {
-    if (!window.confirm('Delete this note?')) return;
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  async function executeDeleteComment(id: string) {
     setDeletingId(id);
     try {
       const res = await fetch(`/api/projects/${projectId}/comments/${id}`, { method: 'DELETE' });
@@ -151,7 +153,7 @@ export function NotesPanel({ projectId, currentUserId, onSeekTo, newComment }: N
                   <span className="text-xs font-medium">{c.user.name}</span>
                   {c.userId === currentUserId && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); void deleteComment(c.id); }}
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(c.id); }}
                       disabled={deletingId === c.id}
                       className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-opacity disabled:opacity-50"
                       title="Delete note"
@@ -199,6 +201,20 @@ export function NotesPanel({ projectId, currentUserId, onSeekTo, newComment }: N
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Delete this note?"
+        description="This cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => {
+          const id = confirmDeleteId;
+          setConfirmDeleteId(null);
+          if (id) void executeDeleteComment(id);
+        }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 }

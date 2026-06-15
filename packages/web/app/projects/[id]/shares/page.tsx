@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useToast } from '@/hooks/use-toast';
 import {
   Table,
@@ -143,6 +144,11 @@ export default function ShareDashboardPage() {
   const [fetchError, setFetchError] = useState(false);
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null);
   const [deactivatingAll, setDeactivatingAll] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<
+    | { kind: 'one'; shareId: string }
+    | { kind: 'all'; count: number }
+    | null
+  >(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createForm, setCreateForm] = useState({
@@ -177,8 +183,7 @@ export default function ShareDashboardPage() {
     fetchData();
   }, [fetchData]);
 
-  async function deactivateShare(shareId: string) {
-    if (!window.confirm('Deactivate this share link? The recipient will no longer be able to access the audio.')) return;
+  async function executeDeactivateShare(shareId: string) {
     setDeactivatingId(shareId);
     try {
       const res = await apiFetch(`/api/shares/${shareId}`, {
@@ -197,9 +202,7 @@ export default function ShareDashboardPage() {
     }
   }
 
-  async function deactivateAll() {
-    const count = data?.shares.filter((s) => s.isActive).length ?? 0;
-    if (!window.confirm(`Deactivate all ${count} active share link${count === 1 ? '' : 's'}? Recipients will immediately lose access to the audio.`)) return;
+  async function executeDeactivateAll() {
     setDeactivatingAll(true);
     try {
       const res = await apiFetch(`/api/projects/${projectId}/shares`, {
@@ -317,7 +320,10 @@ export default function ShareDashboardPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={deactivateAll}
+            onClick={() => {
+              const count = data?.shares.filter((s) => s.isActive).length ?? 0;
+              setConfirmAction({ kind: 'all', count });
+            }}
             disabled={deactivatingAll || activeShares.length === 0}
           >
             {deactivatingAll ? (
@@ -479,7 +485,7 @@ export default function ShareDashboardPage() {
                               className="h-8 w-8 text-muted-foreground hover:text-destructive"
                               title="Deactivate share"
                               disabled={deactivatingId === share.id}
-                              onClick={() => deactivateShare(share.id)}
+                              onClick={() => setConfirmAction({ kind: 'one', shareId: share.id })}
                             >
                               {deactivatingId === share.id ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -562,6 +568,25 @@ export default function ShareDashboardPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={confirmAction !== null}
+        title={confirmAction?.kind === 'all' ? 'Deactivate all share links?' : 'Deactivate this share link?'}
+        description={
+          confirmAction?.kind === 'all'
+            ? `${confirmAction.count} active share link${confirmAction.count === 1 ? '' : 's'} will be deactivated. Recipients will immediately lose access to the audio.`
+            : 'The recipient will no longer be able to access the audio.'
+        }
+        confirmLabel="Deactivate"
+        variant="destructive"
+        onConfirm={() => {
+          const pending = confirmAction;
+          setConfirmAction(null);
+          if (pending?.kind === 'one') void executeDeactivateShare(pending.shareId);
+          else if (pending?.kind === 'all') void executeDeactivateAll();
+        }}
+        onCancel={() => setConfirmAction(null)}
+      />
     </div>
   );
 }

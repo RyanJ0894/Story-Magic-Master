@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useRouter } from 'next/navigation';
 import { PRICING_TIERS } from '@/lib/stripe/config';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 interface Project {
   id: string;
@@ -55,13 +56,20 @@ export function DashboardTabs({
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
   const [expandedStat, setExpandedStat] = useState<string | null>(null);
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const router = useRouter();
 
-  async function handleDeleteProject(projectId: string, projectName: string) {
-    if (!window.confirm(`Delete "${projectName}"? This cannot be undone.`)) return;
-    setDeletingProjectId(projectId);
+  function requestDeleteProject(projectId: string, projectName: string) {
+    setConfirmDelete({ id: projectId, name: projectName });
+  }
+
+  async function executeDeleteProject() {
+    if (!confirmDelete) return;
+    const { id } = confirmDelete;
+    setConfirmDelete(null);
+    setDeletingProjectId(id);
     try {
-      const res = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
       if (res.ok) {
         router.refresh();
       }
@@ -410,7 +418,7 @@ export function DashboardTabs({
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
                             disabled={deletingProjectId === project.id}
-                            onClick={() => void handleDeleteProject(project.id, project.name)}
+                            onClick={() => requestDeleteProject(project.id, project.name)}
                           >
                             {deletingProjectId === project.id ? (
                               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -492,6 +500,19 @@ export function DashboardTabs({
         </div>
       )}
 
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Delete project?"
+        description={
+          confirmDelete
+            ? `"${confirmDelete.name}" will be permanently removed. This cannot be undone.`
+            : ''
+        }
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => void executeDeleteProject()}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   );
 }

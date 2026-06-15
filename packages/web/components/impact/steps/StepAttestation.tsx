@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { STORY_WORD_LIMIT, STORY_RATE_LIMIT_LABEL } from '@/lib/impact/limits';
+import { fmtInt } from '@/lib/format';
 import type { WizardState } from '../wizard-state';
 
 interface Props {
@@ -78,7 +79,7 @@ export function StepAttestation({ goNext }: Props) {
           </li>
           <li className="flex items-start gap-2">
             <span className="text-violet-400 flex-shrink-0 mt-0.5">•</span>
-            Stories are limited to {STORY_WORD_LIMIT.toLocaleString()} words of your own writing.
+            Stories are limited to {fmtInt(STORY_WORD_LIMIT)} words of your own writing.
           </li>
           <li className="flex items-start gap-2">
             <span className="text-violet-400 flex-shrink-0 mt-0.5">•</span>

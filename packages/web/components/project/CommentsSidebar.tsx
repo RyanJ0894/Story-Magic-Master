@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { MessageSquare, Trash2, Send, Clock } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 interface Comment {
   id: string;
@@ -87,8 +88,9 @@ export function CommentsSidebar({ projectId, currentUserId, onSeekTo }: Comments
     }
   }
 
-  async function deleteComment(id: string) {
-    if (!window.confirm('Delete this comment? This cannot be undone.')) return;
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  async function executeDeleteComment(id: string) {
     setDeletingId(id);
     setDeleteError(null);
     try {
@@ -144,7 +146,7 @@ export function CommentsSidebar({ projectId, currentUserId, onSeekTo }: Comments
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 {c.userId === currentUserId && (
                   <button
-                    onClick={() => void deleteComment(c.id)}
+                    onClick={() => setConfirmDeleteId(c.id)}
                     disabled={deletingId === c.id}
                     className="p-0.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive disabled:opacity-50"
                     title="Delete comment"
@@ -190,6 +192,20 @@ export function CommentsSidebar({ projectId, currentUserId, onSeekTo }: Comments
           {submitting ? 'Posting…' : 'Post'}
         </button>
       </form>
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Delete comment?"
+        description="This cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => {
+          const id = confirmDeleteId;
+          setConfirmDeleteId(null);
+          if (id) void executeDeleteComment(id);
+        }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 }

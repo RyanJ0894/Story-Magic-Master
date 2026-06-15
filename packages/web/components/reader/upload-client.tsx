@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { apiFetch } from '@/lib/api/fetch';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,6 +47,9 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
   const [processingStatus, setProcessingStatus] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const openFilePicker = useCallback(() => fileInputRef.current?.click(), []);
 
   const price = 5;
 
@@ -236,13 +239,21 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
           </CardHeader>
           <CardContent>
             <div
-              className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
+              className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 ${
                 isDragging
                   ? 'border-violet-500 bg-violet-50 dark:bg-violet-950'
                   : 'border-border hover:border-violet-400'
               }`}
               role="button"
+              tabIndex={0}
               aria-label="Upload screenplay file"
+              onClick={openFilePicker}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  openFilePicker();
+                }
+              }}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -254,18 +265,25 @@ export function ReaderUploadClient({ userId }: ReaderUploadClientProps) {
               <p className="text-sm text-muted-foreground mb-4">
                 or click to browse
               </p>
-              <label>
-                <input
-                  type="file"
-                  accept=".pdf,application/pdf"
-                  className="hidden"
-                  aria-label="Select PDF screenplay file"
-                  onChange={handleFileSelect}
-                />
-                <Button variant="outline" asChild>
-                  <span>Select PDF File</span>
-                </Button>
-              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,application/pdf"
+                className="hidden"
+                aria-label="Select PDF screenplay file"
+                onChange={handleFileSelect}
+              />
+              <Button
+                variant="outline"
+                onClick={(e) => {
+                  // The outer div is also clickable — stop propagation so the
+                  // click doesn't trigger the file picker twice on Safari.
+                  e.stopPropagation();
+                  openFilePicker();
+                }}
+              >
+                Select PDF File
+              </Button>
             </div>
 
             <div className="mt-6 p-4 bg-muted rounded-lg">

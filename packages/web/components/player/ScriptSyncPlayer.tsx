@@ -479,6 +479,15 @@ export function ScriptSyncPlayer({
                     ))}
                   </div>
                 </ScrollArea>
+                {!expanded && scenes.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setExpanded(true)}
+                    className="w-full text-center text-xs text-muted-foreground hover:text-foreground py-2 border-t bg-muted/30 transition-colors"
+                  >
+                    Show full script ↓
+                  </button>
+                )}
               </TabsContent>
 
               <TabsContent value="player" className="m-0">
