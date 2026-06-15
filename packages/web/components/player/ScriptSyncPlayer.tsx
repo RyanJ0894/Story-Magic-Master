@@ -105,26 +105,44 @@ export function ScriptSyncPlayer({
           timingMap.current.set(event.line_id!, { start: event.start, end: event.end });
         });
     } else if (scenes.length > 0) {
-      // Estimate timing based on text length and duration
-      const totalChars = scenes.reduce(
-        (acc, scene) =>
-          acc + scene.dialogue.reduce((a, line) => a + line.text.length, 0),
-        0
-      );
-      const estimatedDuration = duration || currentOutput?.durationSeconds || 60;
-      const charsPerSecond = totalChars / estimatedDuration;
-
-      let currentTimeOffset = 0;
+      // #207 — prefer per-line `start_time` / `end_time` populated server-side
+      // by the listen page from the alignments table. Fall back to char-based
+      // estimation only for lines that didn't get aligned (legacy projects).
+      const unaligned: Array<{ line_id: string; text: string }> = [];
       scenes.forEach((scene) => {
         scene.dialogue.forEach((line) => {
-          const lineDuration = line.text.length / charsPerSecond;
+          if (
+            typeof line.start_time === 'number' &&
+            typeof line.end_time === 'number' &&
+            line.end_time >= line.start_time
+          ) {
+            timingMap.current.set(line.line_id, { start: line.start_time, end: line.end_time });
+          } else {
+            unaligned.push({ line_id: line.line_id, text: line.text });
+          }
+        });
+      });
+
+      if (unaligned.length > 0) {
+        const totalDuration = duration || currentOutput?.durationSeconds || 60;
+        const alignedSeconds = Array.from(timingMap.current.values()).reduce(
+          (acc, t) => acc + Math.max(0, t.end - t.start),
+          0,
+        );
+        const remainingSeconds = Math.max(1, totalDuration - alignedSeconds);
+        const totalUnalignedChars = unaligned.reduce((acc, l) => acc + l.text.length, 0);
+        const charsPerSecond = totalUnalignedChars / remainingSeconds;
+
+        let currentTimeOffset = alignedSeconds;
+        for (const line of unaligned) {
+          const lineDuration = line.text.length / Math.max(0.0001, charsPerSecond);
           timingMap.current.set(line.line_id, {
             start: currentTimeOffset,
             end: currentTimeOffset + lineDuration,
           });
           currentTimeOffset += lineDuration;
-        });
-      });
+        }
+      }
     }
   }, [manifest, scenes, duration, currentOutput]);
 

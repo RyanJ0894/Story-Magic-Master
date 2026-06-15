@@ -4,6 +4,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/db';
 import { redirect, notFound } from 'next/navigation';
 import { ScreenplayReader } from '@/components/player/screenplay-reader';
+import { buildLineTimingMap } from '@/lib/listen/alignment-mapper';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -110,7 +111,7 @@ export default async function ListenPage({ params }: PageProps) {
   // Extract scenes from directorJson
   type DirJson = { scenes?: Array<{ scene_id?: string; scene_header?: string; dialogue?: Array<{ line_id: string; character: string; text: string; voice_key?: string }> }> };
   const djson = project.directorJson as DirJson | null;
-  const scenes = (djson?.scenes ?? []).map((s) => ({
+  const baseScenes = (djson?.scenes ?? []).map((s) => ({
     scene_id: s.scene_id,
     scene_header: s.scene_header,
     dialogue: (s.dialogue ?? []).map((l) => ({
@@ -119,6 +120,26 @@ export default async function ListenPage({ params }: PageProps) {
       text: l.text,
       voice_key: l.voice_key,
     })),
+  }));
+
+  // #207 — overlay whisper.cpp's per-line alignment timings (absolute mix-time)
+  // onto each line. The player previously had to derive these from character
+  // counts; that estimate drifts after a few minutes. The alignment table is
+  // the source of truth produced by the orchestrator's whisper-local path.
+  // Scenes that lack an alignment row (legacy projects, partial generations)
+  // keep their lines unaligned and the player falls back to char-estimation
+  // just for those lines.
+  const sceneOrder = baseScenes.map((s) => s.scene_id).filter((id): id is string => !!id);
+  const timingMap = await buildLineTimingMap(prisma, projectId, sceneOrder);
+
+  const scenes = baseScenes.map((s) => ({
+    ...s,
+    dialogue: s.dialogue.map((line) => {
+      const timing = timingMap.get(line.line_id);
+      return timing
+        ? { ...line, start_time: timing.start, end_time: timing.end }
+        : line;
+    }),
   }));
 
   const orchestratorUrl = process.env.NEXT_PUBLIC_ORCHESTRATOR_URL ?? '';
