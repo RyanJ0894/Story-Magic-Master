@@ -16,6 +16,7 @@ import { Wizard, WizardStep, WizardContext } from './Wizard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   BarChart3,
   Lightbulb,
@@ -284,7 +285,8 @@ function SuggestionsStep({ context }: { context: WizardContext }) {
         </div>
       </div>
 
-      <div className="space-y-3 max-h-[400px] overflow-y-auto">
+      <ScrollArea className="max-h-[400px] pr-2">
+        <div className="space-y-3">
         {suggestions.map((suggestion) => (
           <div
             key={suggestion.id}
@@ -317,7 +319,8 @@ function SuggestionsStep({ context }: { context: WizardContext }) {
             +{suggestions.length - 5} more suggestions
           </p>
         )}
-      </div>
+        </div>
+      </ScrollArea>
 
       <div className="flex justify-center">
         <Button onClick={context.nextStep}>

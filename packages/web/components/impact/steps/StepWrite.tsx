@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { getCategoryById } from '@/lib/impact/categories';
 import { STORY_WORD_LIMIT, STORY_WORD_WARNING, STORY_WORD_MIN, countWords } from '@/lib/impact/limits';
+import { fmtInt } from '@/lib/format';
 import type { WizardState } from '../wizard-state';
 
 
@@ -114,7 +115,7 @@ export function StepWrite({ state, update, goNext, goBack }: Props) {
         <div className="flex items-center justify-between mb-1">
           <label className="text-sm font-medium text-zinc-300">Your story</label>
           <span className={`text-xs ${wordCountColor(wordCount)}`}>
-            {wordCount} / {STORY_WORD_LIMIT.toLocaleString()} words
+            {fmtInt(wordCount)} / {fmtInt(STORY_WORD_LIMIT)} words
             {wordCount < STORY_WORD_MIN ? ' — keep going' : ''}
           </span>
         </div>

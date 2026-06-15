@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { getTierByName, getPageLimit, type SubscriptionTier } from '@/lib/stripe/config';
+import { fmtInt } from '@/lib/format';
 import { ArrowLeft, Sparkles, CreditCard, Calendar, CheckCircle, AlertCircle } from 'lucide-react';
 import ManageSubscriptionButton from './manage-subscription-button';
 
@@ -133,7 +134,7 @@ export default async function BillingPage(
               <div className="p-4 rounded-lg bg-muted">
                 <p className="text-sm text-muted-foreground mb-1">Scripts / Month</p>
                 <p className="text-2xl font-bold text-violet-600 dark:text-violet-400">
-                  {tierConfig?.scriptsPerMonth === null ? 'Unlimited' : (tierConfig?.scriptsPerMonth ?? 1).toLocaleString()}
+                  {tierConfig?.scriptsPerMonth === null ? 'Unlimited' : fmtInt(tierConfig?.scriptsPerMonth ?? 1)}
                   <span className="text-sm font-normal text-muted-foreground"> scripts</span>
                 </p>
               </div>

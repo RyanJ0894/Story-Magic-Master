@@ -6,6 +6,7 @@ import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { fmtInt } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -220,7 +221,7 @@ export default function NewProjectPage() {
                       <Label htmlFor="script">Script *</Label>
                       <div className="flex items-center gap-4 text-sm">
                         <span className="text-muted-foreground">
-                          {wordCount.toLocaleString()} words
+                          {fmtInt(wordCount)} words
                         </span>
                         <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium" data-testid="page-count-display">
                           ~{pageCount} page{pageCount !== 1 ? 's' : ''}

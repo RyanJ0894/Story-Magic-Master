@@ -4,6 +4,8 @@
  * Enforce size and content limits for API requests to prevent DoS attacks.
  */
 
+import { fmtInt } from '@/lib/format';
+
 // Size limits in bytes
 export const LIMITS = {
   // Script text (plain text, ~500 chars per page, 120 pages max)
@@ -59,7 +61,7 @@ export function validateScriptText(text: string | null | undefined): ValidationR
   if (text.length > LIMITS.SCRIPT_TEXT_MAX_CHARS) {
     return {
       valid: false,
-      error: `Script text exceeds maximum length of ${LIMITS.SCRIPT_TEXT_MAX_CHARS.toLocaleString()} characters`,
+      error: `Script text exceeds maximum length of ${fmtInt(LIMITS.SCRIPT_TEXT_MAX_CHARS)} characters`,
       details: { charCount: text.length, maxChars: LIMITS.SCRIPT_TEXT_MAX_CHARS },
     };
   }
