@@ -3,6 +3,7 @@ import { withAdminAuth, parseBody, errorResponse } from '@/lib/api/middleware';
 import { z } from 'zod';
 import { logAuditEvent, extractRequestInfo, AuditActions, ResourceTypes } from '@/lib/api/audit';
 import { log } from '@/lib/logger';
+import { provisionTier } from '@/lib/services/tier-provision';
 
 const VALID_TIERS = ['creator', 'pro', 'studio', 'enterprise'] as const;
 
@@ -35,44 +36,13 @@ export const POST = withAdminAuth(async (request, { userId: adminId, prisma }) =
     return errorResponse('User not found', 404, { code: 'NOT_FOUND' });
   }
 
-  const TIER_LIMITS: Record<string, { generations: number; downloads: number }> = {
-    creator:    { generations: 5,    downloads: 1 },
-    pro:        { generations: 20,   downloads: 5 },
-    studio:     { generations: 100,  downloads: 50 },
-    enterprise: { generations: 1000, downloads: 500 },
-  };
-  const limits = TIER_LIMITS[tier] ?? { generations: 5, downloads: 1 };
-
-  const existingSub = await prisma.subscription.findFirst({
-    where: { userId: targetUserId },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  await prisma.$transaction([
-    prisma.profile.update({
-      where: { id: targetUserId },
-      data: { subscriptionTier: tier },
-    }),
-    existingSub
-      ? prisma.subscription.update({
-          where: { id: existingSub.id },
-          data: {
-            plan: tier,
-            status: 'active',
-            generationsLimit: limits.generations,
-            downloadsLimit: limits.downloads,
-          },
-        })
-      : prisma.subscription.create({
-          data: {
-            userId: targetUserId,
-            plan: tier,
-            status: 'active',
-            generationsLimit: limits.generations,
-            downloadsLimit: limits.downloads,
-          },
-        }),
-  ]);
+  // DT-30-M-1: provisionTier atomically updates both profile.subscriptionTier
+  // and the latest subscriptions row under Serializable isolation. The earlier
+  // implementation read the existing subscription OUTSIDE the transaction,
+  // leaving a TOCTOU window in which two concurrent admin actions could each
+  // observe "no subscription row" and both insert — producing duplicate
+  // active rows that #196's llm_call_log cost-attribution would double-count.
+  await provisionTier(prisma, { userId: targetUserId, tier });
 
   const requestInfo = extractRequestInfo(request);
   await logAuditEvent({

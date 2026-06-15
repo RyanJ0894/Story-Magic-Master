@@ -17,8 +17,20 @@ vi.mock('@clerk/nextjs/server', () => ({
   auth: () => mockAuth(),
 }));
 
-const mockPrisma = {
+// 2026-06-14: /api/upgrade was migrated from a direct prisma.profile.update
+// to provisionTier(prisma, ...), which uses interactive $transaction. The
+// mock now exposes both the outer prisma and the inner tx surface — we
+// invoke the callback with the inner tx so the route's downstream code sees
+// the same mocked tables.
+const mockTx = {
   profile: { update: vi.fn() },
+  subscription: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
+};
+const mockPrisma = {
+  // expose profile.update on the outer too so the legacy assertions still pass
+  profile: mockTx.profile,
+  subscription: mockTx.subscription,
+  $transaction: vi.fn(),
 };
 vi.mock('@/lib/db', () => ({ prisma: mockPrisma }));
 
@@ -47,6 +59,13 @@ describe('POST /api/upgrade', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.ALLOW_DIRECT_UPGRADE;
+    // Default $transaction behavior: invoke the callback with our mocked
+    // tx. By default no existing subscription row.
+    mockTx.subscription.findFirst.mockResolvedValue(null);
+    mockTx.subscription.create.mockResolvedValue({ id: 'sub-new' });
+    mockTx.subscription.update.mockResolvedValue({ id: 'sub-existing' });
+    mockTx.profile.update.mockResolvedValue({});
+    mockPrisma.$transaction.mockImplementation(async (cb: (t: typeof mockTx) => Promise<unknown>) => cb(mockTx));
   });
 
   it('returns 403 when ALLOW_DIRECT_UPGRADE is not set', async () => {
@@ -107,14 +126,28 @@ describe('POST /api/upgrade', () => {
   it('calls prisma.profile.update with correct data', async () => {
     process.env.ALLOW_DIRECT_UPGRADE = 'true';
     mockAuth.mockResolvedValue({ userId: USER_ID });
-    mockPrisma.profile.update.mockResolvedValue({});
 
     await POST(makeRequest({ tier: 'studio' }));
 
-    expect(mockPrisma.profile.update).toHaveBeenCalledWith({
+    expect(mockTx.profile.update).toHaveBeenCalledWith({
       where: { id: USER_ID },
       data: { subscriptionTier: 'studio', subscriptionStatus: 'active' },
     });
+  });
+
+  it('also writes a subscription row (DT-30-M-1 regression)', async () => {
+    process.env.ALLOW_DIRECT_UPGRADE = 'true';
+    mockAuth.mockResolvedValue({ userId: USER_ID });
+
+    await POST(makeRequest({ tier: 'studio' }));
+
+    // The pre-2026-06-14 bug was that /api/upgrade only touched profile,
+    // leaving cost rollups blind to the user. Either create (no existing
+    // row) or update (existing row) must be called.
+    const wrote =
+      mockTx.subscription.create.mock.calls.length +
+      mockTx.subscription.update.mock.calls.length;
+    expect(wrote).toBeGreaterThan(0);
   });
 
   it('normalises tier to lowercase before validation', async () => {

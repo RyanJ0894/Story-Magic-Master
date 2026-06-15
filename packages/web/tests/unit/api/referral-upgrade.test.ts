@@ -16,14 +16,18 @@ vi.mock('@clerk/nextjs/server', () => ({
   auth: () => mockAuth(),
 }));
 
-const mockPrisma = {
+// 2026-06-14: route migrated to provisionTier which uses interactive
+// $transaction(async (tx) => ...). The mock invokes the callback with our
+// tx object so all sub-table calls land on the same mocks the assertions
+// check.
+const mockTx = {
   profile: { update: vi.fn() },
-  subscription: {
-    findFirst: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-  },
-  $transaction: vi.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
+  subscription: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+};
+const mockPrisma = {
+  profile: mockTx.profile,
+  subscription: mockTx.subscription,
+  $transaction: vi.fn(),
 };
 vi.mock('@/lib/db', () => ({ prisma: mockPrisma }));
 
@@ -52,11 +56,11 @@ describe('POST /api/referral/upgrade', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.REFERRAL_CODES;
-    mockPrisma.subscription.findFirst.mockResolvedValue(null);
-    mockPrisma.subscription.create.mockResolvedValue({});
-    mockPrisma.subscription.update.mockResolvedValue({});
-    mockPrisma.profile.update.mockResolvedValue({});
-    mockPrisma.$transaction.mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops));
+    mockTx.subscription.findFirst.mockResolvedValue(null);
+    mockTx.subscription.create.mockResolvedValue({ id: 'sub-new' });
+    mockTx.subscription.update.mockResolvedValue({ id: 'sub-existing' });
+    mockTx.profile.update.mockResolvedValue({});
+    mockPrisma.$transaction.mockImplementation(async (cb: (t: typeof mockTx) => Promise<unknown>) => cb(mockTx));
   });
 
   it('returns 401 when not authenticated', async () => {
