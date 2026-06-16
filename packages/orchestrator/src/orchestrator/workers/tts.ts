@@ -18,8 +18,17 @@ export interface StemResult {
 
 /**
  * Generate TTS for all dialogue lines in a scene
+ *
+ * B-003b (2026-06-15): optional `narrationSpeed` overrides the speed on
+ * voice_settings for Narrator lines only. Character voices stay at their
+ * stored params so a fast narration doesn't ALSO sound like every character
+ * is rushing. When undefined, no override is applied.
  */
-export async function ttsForScene(project_id: string, scene: Scene): Promise<StemResult[]> {
+export async function ttsForScene(
+  project_id: string,
+  scene: Scene,
+  options: { narrationSpeed?: number } = {},
+): Promise<StemResult[]> {
   // Increase concurrency to 8 for faster processing
   // ElevenLabs Creator tier supports higher concurrency
   const limit = pLimit(8);
@@ -50,12 +59,22 @@ export async function ttsForScene(project_id: string, scene: Scene): Promise<Ste
           character: line.character,
         });
 
+        // B-003b: narrator lines get a speedOverride when the user has a
+        // locked tuning. The override is folded into the cache key (via
+        // params) so a speed change invalidates the per-stem cache. Without
+        // this, the FIRST narrator line cached at speed=1.0 would replay
+        // even after the user locks speed=1.10.
+        const speedOverride = line.character === 'Narrator' ? options.narrationSpeed : undefined;
+        const keyParams = speedOverride !== undefined
+          ? { ...voice.params_json, _speedOverride: speedOverride }
+          : voice.params_json;
+
         const key = ttsKey(
           project_id,
           scene.scene_id,
           line.line_id,
           voice.voice_id,
-          voice.params_json,
+          keyParams,
           line.text
         );
 
@@ -69,7 +88,8 @@ export async function ttsForScene(project_id: string, scene: Scene): Promise<Ste
           lineId: line.line_id,
           voiceId: voice.voice_id,
         });
-        const wav = await ttsGenerate({ voice, text: line.text });
+        // B-003b: speedOverride already computed above for cache-key purposes.
+        const wav = await ttsGenerate({ voice, text: line.text, speedOverride });
         const stemPath = await writeStem(project_id, scene.scene_id, line.line_id, wav, key);
 
         // Store in database via Prisma raw SQL

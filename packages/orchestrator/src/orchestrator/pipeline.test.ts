@@ -335,7 +335,8 @@ describe('orchestrate (sequential pipeline)', () => {
     expect(ttsForScene).toHaveBeenCalledTimes(1);
     expect(ttsForScene).toHaveBeenCalledWith(
       '00000000-0000-0000-0000-000000000001',
-      expect.objectContaining({ scene_id: 'scene_001' })
+      expect.objectContaining({ scene_id: 'scene_001' }),
+      expect.objectContaining({}), // B-003b options arg ({narrationSpeed?})
     );
   });
 
@@ -547,7 +548,8 @@ describe('orchestrateParallel (parallel pipeline)', () => {
       }),
       expect.any(Function), // onProgress callback
       6, // default concurrency (from TTS_CONCURRENCY env or fallback)
-      {} // default empty emotion overrides
+      {}, // default empty emotion overrides
+      expect.objectContaining({}), // B-003b options ({narrationSpeed?})
     );
   });
 
@@ -698,7 +700,8 @@ describe('orchestrateParallel (parallel pipeline)', () => {
       expect.any(Object), // stems_by_scene
       expect.stringContaining('00000000-0000-0000-0000-000000000002'), // projectDir
       3, // sceneConcurrency
-      expect.any(Function) // onProgress callback
+      expect.any(Function), // onProgress callback
+      expect.objectContaining({}), // B-003b gain offsets
     );
   });
 

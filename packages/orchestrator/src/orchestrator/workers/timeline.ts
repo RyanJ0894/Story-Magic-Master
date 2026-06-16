@@ -25,12 +25,28 @@ import type { SceneCues } from './cues.js';
  * table). Pass the project's UUID — saveTimeline uses it to attribute the row
  * to the right project.
  */
+/**
+ * B-003b (2026-06-15): per-user mix-gain offsets applied to every event
+ * emitted from this function. When undefined, no offset is applied (legacy
+ * behavior). Each component value is a dB offset relative to the in-code
+ * default — see `lib/services/audio-tuning.ts` for the canonical shape.
+ */
+export interface TimelineGainOffsets {
+  musicGainOffsetDb?: number;
+  ambienceGainOffsetDb?: number;
+  sfxGainOffsetDb?: number;
+}
+
 export async function buildTimeline(
   scene: Scene,
   alignment: SceneAlignment,
   cueChoices: SceneCues,
   project_id: string,
+  offsets: TimelineGainOffsets = {},
 ): Promise<Timeline> {
+  const musicDelta = offsets.musicGainOffsetDb ?? 0;
+  const ambienceDelta = offsets.ambienceGainOffsetDb ?? 0;
+  const sfxDelta = offsets.sfxGainOffsetDb ?? 0;
   const events: TimelineEvent[] = [];
 
   // Add dialogue events
@@ -60,7 +76,7 @@ export async function buildTimeline(
         cue_id: cue.file,
         at: startAt,
         fade: fadeIn,
-        gain_db: volume,
+        gain_db: volume + ambienceDelta,
       });
 
       const end = alignment.lines.at(-1)?.end ?? 60;
@@ -93,7 +109,7 @@ export async function buildTimeline(
         cue_id: cue.file,
         at: startAt,
         fade: fadeIn,
-        gain_db: volume,
+        gain_db: volume + musicDelta,
         duck_db: 7, // Ducking amount during dialogue
       });
 
@@ -148,7 +164,7 @@ export async function buildTimeline(
         type: 'sfx_at',
         cue_id: sfx.file,
         at: sfxTimestamp,
-        gain_db: volume,
+        gain_db: volume + sfxDelta,
         duration: sfx.duration ?? 7,
         fade_out: sfx.fade_out && sfx.fade_out >= 1 ? sfx.fade_out : 1,
       });

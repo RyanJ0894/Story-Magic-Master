@@ -41,6 +41,12 @@ export interface VoiceParams {
 export interface TTSOptions {
   voice: VoiceParams;
   text: string;
+  /**
+   * B-003b (2026-06-15): when set, overrides voice_settings.speed in the
+   * ElevenLabs request. Used by the narrator's per-line TTS calls when
+   * the user has a locked AudioTuning row. ElevenLabs accepts 0.7–1.2.
+   */
+  speedOverride?: number;
 }
 
 /**
@@ -155,16 +161,24 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
   const params = opts.voice.params_json;
   const hasParams = params && Object.keys(params).length > 0;
 
+  // B-003b: merge in narrationSpeed override when present. Applied AFTER the
+  // params/default merge so a locked tuning value wins regardless of the
+  // voice's stored params_json.
+  const baseSettings = hasParams
+    ? params
+    : {
+        stability: 0.4,
+        similarity_boost: 0.7,
+        use_speaker_boost: false,
+      };
+  const voice_settings = opts.speedOverride !== undefined
+    ? { ...baseSettings, speed: opts.speedOverride }
+    : baseSettings;
+
   const request_body = {
     text: opts.text,
     model_id: modelId,
-    voice_settings: hasParams
-      ? params
-      : {
-          stability: 0.4,
-          similarity_boost: 0.7,
-          use_speaker_boost: false,
-        },
+    voice_settings,
   };
 
   // Try with the requested voice, fall back to default if voice not found

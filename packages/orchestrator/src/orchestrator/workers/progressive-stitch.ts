@@ -69,7 +69,9 @@ async function processScene(
   stems: StemResult[],
   catalog: AudioCatalog,
   projectDir: string,
-  scenesDir: string
+  scenesDir: string,
+  // B-003b — per-user mix-gain offsets, passed by progressiveStitch
+  gainOffsets: { musicGainOffsetDb?: number; ambienceGainOffsetDb?: number; sfxGainOffsetDb?: number } = {},
 ): Promise<SceneAssemblyResult> {
   const scene_id = scene.scene_id;
   // Strip any path separators from scene_id before using in filenames
@@ -87,7 +89,7 @@ async function processScene(
 
   // 3. Build timeline
   log.debug('Building timeline', { sceneId: scene_id });
-  const timeline = await buildTimeline(scene, alignment, cues, project_id);
+  const timeline = await buildTimeline(scene, alignment, cues, project_id, gainOffsets);
 
   // 4. Concatenate dialogue stems
   // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
@@ -166,7 +168,9 @@ export async function progressiveStitch(
   stemsByScene: SceneStemMap,
   projectDir: string,
   sceneConcurrency: number = 3,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  // B-003b — per-user mix-gain offsets forwarded to processScene → buildTimeline
+  gainOffsets: { musicGainOffsetDb?: number; ambienceGainOffsetDb?: number; sfxGainOffsetDb?: number } = {},
 ): Promise<ProgressiveStitchResult> {
   const project_id = director.project_id;
   const totalScenes = director.scenes.length;
@@ -222,7 +226,8 @@ export async function progressiveStitch(
           stems,
           catalog,
           projectDir,
-          scenesDir
+          scenesDir,
+          gainOffsets
         );
 
         scenesAligned++;

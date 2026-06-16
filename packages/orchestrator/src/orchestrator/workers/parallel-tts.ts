@@ -89,6 +89,9 @@ export async function parallelTTSGenerate(
   onProgress?: TTSProgressCallback,
   concurrency: number = 12,
   emotionOverrides: Record<string, string> = {},
+  // B-003b (2026-06-15): per-user audio tuning. Currently only narrationSpeed
+  // affects TTS (applied to Narrator-character lines).
+  options: { narrationSpeed?: number } = {},
 ): Promise<ParallelTTSResult> {
   const project_id = director.project_id;
 
@@ -164,13 +167,19 @@ export async function parallelTTSGenerate(
           : (await getVoiceForCharacter(project_id, line.character)) ||
             (await upsertVoiceMap(project_id, line.character));
 
+        // B-003b: narrator-only speed override + cache-key invalidation.
+        const speedOverride = line.character === 'Narrator' ? options.narrationSpeed : undefined;
+        const keyParams = speedOverride !== undefined
+          ? { ...voice.params_json, _speedOverride: speedOverride }
+          : voice.params_json;
+
         // Generate cache key
         const key = ttsKey(
           project_id,
           scene_id,
           line.line_id,
           voice.voice_id,
-          voice.params_json,
+          keyParams,
           line.text
         );
 
@@ -201,7 +210,7 @@ export async function parallelTTSGenerate(
         const ttsText = effectiveEmotion
           ? applyEmotionTag(line.text, effectiveEmotion)
           : line.text;
-        const wav = await ttsGenerate({ voice, text: ttsText });
+        const wav = await ttsGenerate({ voice, text: ttsText, speedOverride });
         const stemPath = await writeStem(project_id, scene_id, line.line_id, wav, key);
 
         // Store in database via Prisma raw SQL

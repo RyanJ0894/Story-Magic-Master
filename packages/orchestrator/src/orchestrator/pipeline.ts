@@ -204,7 +204,9 @@ export async function orchestrate(
       sceneId: scene.scene_id,
       dialogueLines: scene.dialogue.length,
     });
-    const stems = await ttsForScene(director.project_id, scene);
+    const stems = await ttsForScene(director.project_id, scene, {
+      narrationSpeed: options.audioTuning?.narrationSpeed,
+    });
     log.generation(director.project_id, 'tts-complete', {
       sceneId: scene.scene_id,
       stemCount: stems.length,
@@ -226,7 +228,11 @@ export async function orchestrate(
     });
 
     log.generation(director.project_id, 'timeline-start', { sceneId: scene.scene_id });
-    const timeline = await buildTimeline(scene, alignment, cues, director.project_id);
+    const timeline = await buildTimeline(scene, alignment, cues, director.project_id, {
+      musicGainOffsetDb: options.audioTuning?.musicGainOffsetDb,
+      ambienceGainOffsetDb: options.audioTuning?.ambienceGainOffsetDb,
+      sfxGainOffsetDb: options.audioTuning?.sfxGainOffsetDb,
+    });
     log.generation(director.project_id, 'timeline-complete', {
       sceneId: scene.scene_id,
       eventCount: timeline.events ? timeline.events.length : 0,
@@ -504,7 +510,8 @@ export async function orchestrateParallel(
         }
       },
       parseInt(process.env.TTS_CONCURRENCY || '6', 10), // Configurable; reduce for memory-constrained envs
-      emotionOverrides
+      emotionOverrides,
+      { narrationSpeed: options.audioTuning?.narrationSpeed },
     );
 
     // Step 2: Progressive Scene Assembly — on the same subset.
@@ -530,7 +537,14 @@ export async function orchestrateParallel(
             details: stitchProgress,
           });
         }
-      }
+      },
+      // B-003b — forward per-user mix offsets so each scene's timeline
+      // events get the user's locked gain adjustments.
+      {
+        musicGainOffsetDb: options.audioTuning?.musicGainOffsetDb,
+        ambienceGainOffsetDb: options.audioTuning?.ambienceGainOffsetDb,
+        sfxGainOffsetDb: options.audioTuning?.sfxGainOffsetDb,
+      },
     );
 
     // Record cache entries for the freshly-rendered scenes so the next run

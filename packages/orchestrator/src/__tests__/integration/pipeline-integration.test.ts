@@ -403,7 +403,8 @@ describe('Pipeline Integration: Director → Orchestrator', () => {
           expect.objectContaining({ line_id: 'line_001', character: 'Alice' }),
           expect.objectContaining({ line_id: 'line_002', character: 'Bob' }),
         ]),
-      })
+      }),
+      expect.objectContaining({}), // B-003b options arg ({narrationSpeed?})
     );
 
     // Verify alignment was called with TTS stems
