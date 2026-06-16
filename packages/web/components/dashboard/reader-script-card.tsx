@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { computePlaybackProgress } from '@/lib/reader/playback-progress';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,10 +59,12 @@ export function ReaderScriptCard({
   const isArchived = entry.status === 'archived';
   const isActive = entry.status === 'active';
 
-  // Calculate playback progress
-  const duration = entry.duration_seconds || 0;
-  const position = entry.play_position_seconds || 0;
-  const progress = duration > 0 ? (position / duration) * 100 : 0;
+  // #208 — was `(position / duration) * 100` raw, producing >100% values
+  // when the audio was re-generated to a shorter duration than the saved
+  // play position. Shared helper clamps + handles missing/NaN inputs.
+  const position = entry.play_position_seconds ?? 0;
+  const duration = entry.duration_seconds ?? 0;
+  const progress = computePlaybackProgress(position, duration);
 
   // Format time
   const formatTime = (seconds: number) => {
@@ -241,9 +244,8 @@ export function ReaderScriptCardCompact({
   onPlay?: () => void;
 }) {
   const isArchived = entry.status === 'archived';
-  const progress = entry.duration_seconds
-    ? (entry.play_position_seconds / entry.duration_seconds) * 100
-    : 0;
+  // #208 — see ReaderScriptCard above for context.
+  const progress = computePlaybackProgress(entry.play_position_seconds, entry.duration_seconds);
 
   return (
     <div

@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { formatPercentComplete } from '@/lib/reader/playback-progress';
 import {
   Inbox,
   Upload,
@@ -45,15 +46,9 @@ interface ReaderDashboardClientProps {
   };
 }
 
-// Format the "% complete" label for a Recently Played card. Guards the bug
-// where duration_seconds is null/0 (e.g., job didn't write durations on early
-// runs) and the prior `|| 1` fallback produced values like "30000% complete".
-function formatPercentComplete(positionSec: number, durationSec: number | null | undefined): string {
-  if (!durationSec || durationSec <= 0) return 'In progress';
-  const pct = Math.round((positionSec / durationSec) * 100);
-  const clamped = Math.max(0, Math.min(100, pct));
-  return `${clamped}% complete`;
-}
+// formatPercentComplete moved to `@/lib/reader/playback-progress` so both
+// the label site here and the <Progress> bar sites in reader-script-card.tsx
+// share a single implementation. Closes #208.
 
 export function ReaderDashboardClient({
   entries,
