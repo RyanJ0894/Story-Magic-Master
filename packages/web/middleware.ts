@@ -1,5 +1,6 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
+import { buildCsp } from '@/lib/security/csp';
 
 // =============================================================================
 // Protected Route Matchers
@@ -28,8 +29,8 @@ const isProtectedRoute = createRouteMatcher([
  * A future improvement is to fully wire the nonce through generateMetadata.
  */
 function addSecurityHeaders(response: NextResponse, nonce: string): void {
+  void nonce; // Reserved for future nonce-based CSP (see file header).
   const isDev = process.env.NODE_ENV === 'development';
-  const localhostOrchestrator = isDev ? ' http://localhost:22002' : '';
   // Extract origin from AWS_S3_PUBLIC_URL (e.g. https://pub-xxx.r2.dev) for CSP allowlisting.
   // Falls back to empty string when S3 storage is not configured (local dev without R2).
   const s3PublicOrigin = (() => {
@@ -40,27 +41,7 @@ function addSecurityHeaders(response: NextResponse, nonce: string): void {
       return '';
     }
   })();
-  const s3CspEntry = s3PublicOrigin ? ` ${s3PublicOrigin}` : '';
-  const csp = [
-    "default-src 'self'",
-    // unsafe-eval required by Clerk JS SDK (uses new Function during init — CSP policy, not our code).
-    `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://clerk.storymagicapp.net https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com`,
-    "style-src 'self' 'unsafe-inline'", // Tailwind requires unsafe-inline
-    "img-src 'self' data: blob: https://img.clerk.com https://api.dicebear.com https://eleven-public-cdn.elevenlabs.io",
-    "font-src 'self' data:",
-    // story-magic-orchestrator.onrender.com required in connect-src so the
-    // service worker can fetch() audio files (fetch is governed by connect-src,
-    // not media-src — both are needed).
-    `connect-src 'self' https://api.stripe.com https://api.elevenlabs.io https://api.openai.com https://*.sentry.io https://clerk.storymagicapp.net https://accounts.storymagicapp.net https://www.storymagicapp.net https://storymagicapp.net https://*.accounts.dev https://*.clerk.com https://*.clerk.dev https://clerk-telemetry.com https://story-magic-orchestrator.onrender.com${localhostOrchestrator}${s3CspEntry}`,
-    "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://accounts.storymagicapp.net https://www.storymagicapp.net https://storymagicapp.net https://*.accounts.dev https://*.clerk.com https://challenges.cloudflare.com",
-    `media-src 'self' blob: https://story-magic-orchestrator.onrender.com${localhostOrchestrator}${s3CspEntry}`,
-    "worker-src 'self' blob:",
-    "object-src 'none'",
-    "base-uri 'self'",
-    "form-action 'self' https://accounts.storymagicapp.net https://www.storymagicapp.net https://storymagicapp.net https://*.accounts.dev",
-    "frame-ancestors 'self'",
-    "upgrade-insecure-requests",
-  ].join('; ');
+  const csp = buildCsp({ isDev, s3PublicOrigin });
 
   response.headers.set('Content-Security-Policy', csp);
   response.headers.set('X-Content-Type-Options', 'nosniff');
