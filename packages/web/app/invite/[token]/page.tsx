@@ -32,7 +32,8 @@ export default function InvitePage() {
   const params = useParams();
   const router = useRouter();
   const token = params.token as string;
-  const { isSignedIn, isLoaded: clerkLoaded } = useUser();
+  const { isSignedIn, isLoaded: clerkLoaded, user } = useUser();
+  const signedInEmail = user?.primaryEmailAddress?.emailAddress ?? null;
 
   const [invite, setInvite] = useState<InviteDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,23 +67,29 @@ export default function InvitePage() {
     fetchInvite();
   }, [token]);
 
-  // Once Clerk confirms the auth state, branch immediately:
-  //   signed in  → auto-accept (return-from-sign-up flow, or direct link click)
-  //   not signed in → skip to the "Create Your Account" prompt without
-  //                   requiring the user to click Accept first (eliminates FOUC)
+  // A-006 (2026-06-15): auto-accept WAS firing as soon as Clerk reported
+  // isSignedIn=true. Ryan's report: users were being dropped on the
+  // dashboard without ever seeing the "Create Account" prompt. Common case:
+  //   - User already had a Clerk session (logged in via a different team /
+  //     friend's laptop / cached prior account)
+  //   - Click invite link → auto-accept fires → they join the team under
+  //     the WRONG account and never get a chance to sign up with the
+  //     invited email
+  //
+  // Fix: stop auto-accepting. When signed in we show an explicit
+  // "Continue as <email>" Accept button so the user sees:
+  //   (a) which account they're about to join the team under
+  //   (b) that there's a confirm step in case they need to sign out first
+  // When not signed in we still show the sign-up prompt.
   useEffect(() => {
     if (!clerkLoaded || !invite || loading) return;
-
-    if (isSignedIn) {
-      if (!success && !accepting && !error && !autoAcceptAttempted.current) {
-        autoAcceptAttempted.current = true;
-        void handleAccept();
-      }
-    } else {
+    if (!isSignedIn) {
       setNeedsAuth(true);
     }
-    // handleAccept is stable (only depends on token + router via closure)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // No auto-accept: users always click an explicit button.
+    // autoAcceptAttempted ref still in place — only used now to prevent
+    // the user from double-clicking the manual Accept button while
+    // the first POST is in flight.
   }, [clerkLoaded, isSignedIn, invite, loading]);
 
   const handleAccept = async () => {
@@ -135,17 +142,10 @@ export default function InvitePage() {
     );
   }
 
-  // Signed-in user: keep showing spinner while auto-accept runs — prevents flash of main invite card
-  if (isSignedIn && invite && !success && !error) {
-    return (
-      <div className="min-h-screen bg-muted flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-violet-600 mx-auto mb-4" />
-          <p className="text-muted-foreground">Joining team...</p>
-        </div>
-      </div>
-    );
-  }
+  // A-006 — removed: previously this branch rendered a "Joining team…"
+  // spinner while auto-accept fired. We now show the invite card with an
+  // explicit Accept button so the user sees which account they're joining
+  // the team under before committing.
 
   // Error state
   if (error && !invite) {
@@ -310,6 +310,31 @@ export default function InvitePage() {
             {error && (
               <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
                 <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              </div>
+            )}
+
+            {/* A-006 — show the signed-in account so a user with a stale
+                Clerk session doesn't accidentally join a team under the wrong
+                account. The invitedEmail is shown below for cross-reference;
+                a mismatch isn't blocking (some teams invite a personal email
+                but the user joins under a work account) but it's surfaced. */}
+            {isSignedIn && signedInEmail && (
+              <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-sm">
+                <p className="text-blue-900 dark:text-blue-200">
+                  You're about to join as <strong>{signedInEmail}</strong>.
+                  {invite?.email && invite.email !== signedInEmail && (
+                    <>
+                      {' '}
+                      The invite was sent to <strong>{invite.email}</strong>.
+                      <Link
+                        href={`/sign-up?redirect_url=/invite/${token}`}
+                        className="ml-1 underline text-blue-700 dark:text-blue-300 hover:no-underline"
+                      >
+                        Use a different account?
+                      </Link>
+                    </>
+                  )}
+                </p>
               </div>
             )}
 

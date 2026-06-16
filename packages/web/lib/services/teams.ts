@@ -375,16 +375,26 @@ export async function addMember(
         ...(existingUser ? [{ userId: existingUser.id }] : []),
       ],
     },
-    select: { id: true, status: true },
+    select: { id: true, status: true, deactivatedAt: true },
   });
 
   if (existing) {
-    if (existing.status === 'accepted') {
+    // A-007 (2026-06-15): deactivated members keep status='accepted' but
+    // `deactivatedAt` is non-null. Before this fix, re-inviting a deactivated
+    // email landed in the ALREADY_MEMBER throw below — silent no-op from the
+    // inviter's perspective, no email sent, no way to bring the user back.
+    // Treat deactivated-accepted rows as reactivatable, same shape as 'removed'.
+    // Use truthy check rather than !== null so test fixtures that omit
+    // deactivatedAt entirely (undefined) read as not-deactivated.
+    const isDeactivated = existing.status === 'accepted' && !!existing.deactivatedAt;
+
+    if (existing.status === 'accepted' && !isDeactivated) {
       throw new TeamServiceError('This person is already a team member', 'ALREADY_MEMBER', 400);
     }
     if (existing.status === 'pending') {
       throw new TeamServiceError('An invitation is already pending for this email', 'INVITE_PENDING', 400);
     }
+    // Deactivated-accepted rows fall through to the reactivation branch below.
   }
 
   // Get inviter's name
@@ -410,6 +420,10 @@ export async function addMember(
           inviteToken: generateInviteToken(),
           invitedAt: new Date(),
           acceptedAt: null,
+          // A-007 — clear deactivation so the reactivated user has fresh state.
+          // If they never accept, the row will sit at status='pending' which
+          // is the same as a never-accepted invite.
+          deactivatedAt: null,
         },
       })
     : await prisma.teamMember.create({

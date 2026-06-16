@@ -225,12 +225,18 @@ export async function POST(
       log.info('[Invite] New membership created via invite row', { userId, inviteId: invite.id });
     }
 
-    // Upgrade sub-account from free → creator (Starter plan) on first acceptance.
-    // Only applies when the user is currently on the free tier — preserves any
-    // existing paid subscription.
+    // A-008 (2026-06-15): default sub-account tier configurable, default 'pro'.
+    // Was 'creator' previously, which gave invitees 5 scripts/month — Ryan's
+    // testing surfaced that this is too low for friendly-cohort sub-accounts.
+    // Env-overridable so we can tune without a code change after launch.
+    //
+    // Only applies when the user is currently on the free tier — preserves
+    // any existing paid subscription. If the user has manually paid for
+    // Studio/Enterprise we don't downgrade them by joining a team.
+    const inviteDefaultTier = process.env.INVITE_DEFAULT_TIER || 'pro';
     await prisma.profile.updateMany({
       where: { id: userId, subscriptionTier: 'free' },
-      data: { subscriptionTier: 'creator' },
+      data: { subscriptionTier: inviteDefaultTier },
     });
 
     // Get user's name for alert
