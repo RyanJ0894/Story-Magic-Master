@@ -41,12 +41,35 @@ export function isSceneCacheEnabled(): boolean {
  *   - audio cues: music / ambience / sfx file refs + reasoning
  *     (cue selection feeds the mixer)
  *   - mix params (LUFS, true peak, gain — these define the final encode)
+ *   - B-003 (2026-06-15): per-user audio tuning offsets. CRITICAL — without
+ *     this a user who locks new tuning values would silently get the OLD
+ *     cached render. The whole sliders feature would break invisibly.
  *
  * Deliberately excludes:
  *   - summary / description (presentational, not rendered)
  *   - LLM reasoning fields that don't affect downstream output
  */
-export function computeSceneRenderHash(scene: Scene): string {
+
+/**
+ * Per-user audio tuning offsets that affect the final mix. When the user
+ * hasn't locked any tuning, pass `undefined` — that hashes to a stable
+ * "no tuning" sentinel matching legacy projects rendered before this feature.
+ *
+ * Shape matches `AudioTuningDto` from `packages/web/lib/services/audio-tuning`
+ * minus the housekeeping fields (`locked`, `updatedAt`) since those don't
+ * affect the render.
+ */
+export interface AudioTuningOverrides {
+  musicGainOffsetDb: number;
+  ambienceGainOffsetDb: number;
+  sfxGainOffsetDb: number;
+  narrationSpeed: number;
+}
+
+export function computeSceneRenderHash(
+  scene: Scene,
+  tuning?: AudioTuningOverrides,
+): string {
   // Stable structural projection — same scene must always serialize to the
   // same string regardless of property-order quirks elsewhere.
   const fingerprint = {
@@ -82,6 +105,10 @@ export function computeSceneRenderHash(scene: Scene): string {
       volume: cue.volume ?? null,
     })),
     mix: scene.mix ?? null,
+    // B-003 — `null` sentinel for "no tuning" so legacy rendered projects
+    // keep their existing hash. Only present-and-non-null tuning changes
+    // the hash, which is the desired invalidation behavior.
+    tuning: tuning ?? null,
   };
 
   return crypto.createHash('sha256').update(JSON.stringify(fingerprint)).digest('hex');

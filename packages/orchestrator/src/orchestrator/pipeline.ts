@@ -109,9 +109,28 @@ function assertHttpDirectorJSONInvariants(director: import('../schemas/director-
 }
 
 /**
+ * Per-user audio-tuning overrides. Same shape as
+ * `packages/web/lib/services/audio-tuning.ts::AudioTuningDto` minus the
+ * housekeeping fields. When undefined, the pipeline uses in-code defaults
+ * (matches legacy behavior pre-B-003).
+ *
+ * Threaded through scene-cache hashing so a tuning change invalidates the
+ * cache automatically.
+ */
+export interface OrchestrateAudioTuning {
+  musicGainOffsetDb: number;
+  ambienceGainOffsetDb: number;
+  sfxGainOffsetDb: number;
+  narrationSpeed: number;
+}
+
+/**
  * Main orchestration pipeline
  */
-export async function orchestrate(directorJSON: unknown, options: { chunkIndex?: number } = {}): Promise<OrchestrationResult> {
+export async function orchestrate(
+  directorJSON: unknown,
+  options: { chunkIndex?: number; audioTuning?: OrchestrateAudioTuning } = {},
+): Promise<OrchestrationResult> {
   log.info('Validating Director JSON');
   const parsed = DirectorJSONSchema.safeParse(directorJSON);
   if (!parsed.success) {
@@ -152,7 +171,10 @@ export async function orchestrate(directorJSON: unknown, options: { chunkIndex?:
     // T2-2 (#190): scene-level idempotency cache. If this scene's inputs
     // hash to a previously rendered output AND the file still exists,
     // skip the entire alignment + cue + timeline + mix block.
-    const sceneContentHash = computeSceneRenderHash(scene);
+    // B-003: include the user's audio tuning in the hash so a tuning change
+    // invalidates the cache. Otherwise locking new slider values would
+    // silently return the old render and the feature would break.
+    const sceneContentHash = computeSceneRenderHash(scene, options.audioTuning);
     const cachedScenePath = await findCachedSceneRender(
       director.project_id,
       scene.scene_id,
@@ -353,7 +375,7 @@ export async function orchestrateParallel(
   directorJSON: unknown,
   onProgress?: PipelineProgressCallback,
   emotionOverrides: Record<string, string> = {},
-  options: { chunkIndex?: number } = {},
+  options: { chunkIndex?: number; audioTuning?: OrchestrateAudioTuning } = {},
 ): Promise<OrchestrationResult> {
   // Step 0: Validate
   if (onProgress) {
@@ -387,10 +409,11 @@ export async function orchestrateParallel(
   // T2-2 (#190 / PR H of #186 follow-up): partition scenes by cache state
   // BEFORE running TTS or assembly. Cached scenes skip the entire pipeline;
   // uncached scenes get the full TTS → stitch treatment.
+  // B-003: include audio tuning in the hash — see sequential pipeline.
   const sceneHashes = director.scenes.map((scene, idx) => ({
     scene,
     sceneIndex: idx,
-    contentHash: computeSceneRenderHash(scene),
+    contentHash: computeSceneRenderHash(scene, options.audioTuning),
   }));
 
   const cachedResults: Array<{

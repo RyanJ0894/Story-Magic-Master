@@ -99,6 +99,65 @@ describe('computeSceneRenderHash', () => {
     const stillSame = { ...baseScene }; // identical
     expect(computeSceneRenderHash(stillSame)).toBe(computeSceneRenderHash(baseScene));
   });
+
+  // B-003 (2026-06-15) — per-user audio tuning must invalidate the cache.
+  // Without this the slider feature breaks invisibly: locking new values
+  // would silently return the same render that was made with the old values.
+  describe('B-003 — audio tuning invalidation', () => {
+    it('hash without tuning matches hash with explicit undefined tuning (back-compat)', () => {
+      expect(computeSceneRenderHash(baseScene)).toBe(
+        computeSceneRenderHash(baseScene, undefined),
+      );
+    });
+
+    it('hash changes when ANY tuning offset changes', () => {
+      const base = computeSceneRenderHash(baseScene);
+      expect(
+        computeSceneRenderHash(baseScene, {
+          musicGainOffsetDb: 3,
+          ambienceGainOffsetDb: 0,
+          sfxGainOffsetDb: 0,
+          narrationSpeed: 1.0,
+        }),
+      ).not.toBe(base);
+      expect(
+        computeSceneRenderHash(baseScene, {
+          musicGainOffsetDb: 0,
+          ambienceGainOffsetDb: 0,
+          sfxGainOffsetDb: 0,
+          narrationSpeed: 1.05, // only speed changed
+        }),
+      ).not.toBe(base);
+    });
+
+    it('two different tuning shapes produce different hashes', () => {
+      const t1 = computeSceneRenderHash(baseScene, {
+        musicGainOffsetDb: 3,
+        ambienceGainOffsetDb: 0,
+        sfxGainOffsetDb: 0,
+        narrationSpeed: 1.0,
+      });
+      const t2 = computeSceneRenderHash(baseScene, {
+        musicGainOffsetDb: 0,
+        ambienceGainOffsetDb: 3,
+        sfxGainOffsetDb: 0,
+        narrationSpeed: 1.0,
+      });
+      expect(t1).not.toBe(t2);
+    });
+
+    it('same tuning hashes identically (deterministic)', () => {
+      const tuning = {
+        musicGainOffsetDb: 2,
+        ambienceGainOffsetDb: 1,
+        sfxGainOffsetDb: -1,
+        narrationSpeed: 1.1,
+      };
+      expect(computeSceneRenderHash(baseScene, tuning)).toBe(
+        computeSceneRenderHash(baseScene, tuning),
+      );
+    });
+  });
 });
 
 describe('findCachedSceneRender', () => {

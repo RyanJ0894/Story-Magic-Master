@@ -169,6 +169,17 @@ export const OrchestrateRequestSchema = z.object({
   emotion_overrides: z.record(z.string(), z.string()).optional(),
   // Sprint K: when set, writes episode-{chunk_index}.m4a instead of episode.m4a
   chunk_index: z.number().int().optional(),
+  // B-003 (2026-06-15): per-user audio tuning overrides. Forwarded by the
+  // web's processor when the user has a locked AudioTuning row. Absent =
+  // use in-code defaults (legacy/unlocked behavior).
+  audio_tuning: z
+    .object({
+      musicGainOffsetDb: z.number().int().min(-8).max(8),
+      ambienceGainOffsetDb: z.number().int().min(-8).max(8),
+      sfxGainOffsetDb: z.number().int().min(-8).max(8),
+      narrationSpeed: z.number().min(0.85).max(1.20),
+    })
+    .optional(),
 });
 
 export type OrchestrateRequest = z.infer<typeof OrchestrateRequestSchema>;
