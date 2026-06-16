@@ -197,18 +197,18 @@ export async function processGenerationJob(
     log.info('[PIPELINE] start', { jobId: jobId.slice(0, 8), projectId, pageCount, scriptLength: scriptText.length });
     await updateJobProgress('initializing', 5, 'Starting generation pipeline...');
 
-    // Wait up to 30s for the orchestrator to be ready before spending an LLM
-    // call. This bridges Render's rolling-deploy window so users who happen
-    // to click Generate during a deploy don't get a "Director Agent failed"
-    // 92s after their request. If the orchestrator is healthy, this returns
-    // in ~50ms; if it's mid-deploy, we wait and probe instead of burning
-    // their retry budget.
+    // Wait up to 60s for the orchestrator to be ready before spending an LLM
+    // call. A-001 (2026-06-15): bumped from 30s so we cover Render's full
+    // rolling-deploy window (cold boot incl. whisper-model setup is ~45-55s).
+    // Ryan was hitting the 30s timeout on every test that happened to land
+    // mid-deploy. If the orchestrator is healthy, this returns in ~50ms; if
+    // it's mid-deploy, we wait and probe instead of burning his retry budget.
     try {
-      await waitForOrchestratorReady(30_000);
+      await waitForOrchestratorReady(60_000);
     } catch (err) {
       if (err instanceof OrchestratorUnreachableError) {
         await logJobEvent(jobId, projectId, 'error', 'initializing',
-          'Orchestrator unreachable — likely mid-deploy. Retrying with backoff.', {},
+          'The orchestrator is restarting after a deploy — your generation will retry automatically. If you see this more than twice in a row, the orchestrator may be down; please contact support.', {},
           err.message);
         // Re-throw so the queue worker classifies + applies the longer backoff.
         throw err;

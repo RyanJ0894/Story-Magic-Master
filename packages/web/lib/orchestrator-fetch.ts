@@ -261,14 +261,20 @@ export function isTransientOrchestratorError(err: unknown): boolean {
  *   - the timeout elapses without success → throws OrchestratorUnreachableError
  *
  * Use this at the *start* of long-running jobs to avoid wasting a director
- * pass when the orchestrator is mid-deploy. ~30s of polling fits inside the
- * typical Render rolling-deploy window (15-60s per container).
+ * pass when the orchestrator is mid-deploy. ~60s of polling covers Render's
+ * worst-case rolling-deploy window (build + boot + first health check, which
+ * can be 45-55s on a cold orchestrator start with the whisper-model setup).
+ *
+ * Was 30s before A-001 (2026-06-15) — Ryan was hitting this on every test
+ * that happened to overlap a deploy. The bump to 60s eliminates that race
+ * for the typical case while keeping the failure mode obvious when the
+ * orchestrator is truly dead (we'll still error within a minute, not 5).
  *
  * Cheap: each poll is a 10s-timeout HEAD/GET that returns 200 in <100ms on
  * a healthy service. If we're already healthy, this returns in ~50ms.
  */
 export async function waitForOrchestratorReady(
-  maxWaitMs: number = 30_000,
+  maxWaitMs: number = 60_000,
   pollIntervalMs: number = 3_000,
 ): Promise<void> {
   const start = Date.now();

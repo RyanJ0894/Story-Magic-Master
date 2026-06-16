@@ -185,7 +185,23 @@ export default function GenerateButton({
         if (typeof errorMsg === 'string' && errorMsg.startsWith('{')) {
           try { errorMsg = JSON.parse(errorMsg).message || errorMsg; } catch { /* keep as-is */ }
         }
-        toast.error(`Generation failed: ${errorMsg}`);
+        // A-002 (2026-06-15): include jobId in the failure toast with a copy
+        // action so users (and Ryan during testing) can paste it into a
+        // support ticket. Before this every failure landed in our inbox as
+        // "it failed around 4:30" with no way to find the trace.
+        toast.error(`Generation failed: ${errorMsg}`, {
+          description: `Job ID: ${jobId}`,
+          duration: 15_000, // Failure toasts are easy to miss at the default 4s
+          action: {
+            label: 'Copy Job ID',
+            onClick: () => {
+              void navigator.clipboard.writeText(jobId).then(
+                () => toast.success('Job ID copied to clipboard'),
+                () => toast.error('Failed to copy — please copy manually from the description'),
+              );
+            },
+          },
+        });
         setLoading(false);
         setCurrentJobId(null);
         setQueuePosition(null);
