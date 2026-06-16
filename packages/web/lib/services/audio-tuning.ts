@@ -159,12 +159,20 @@ export async function getLockedAudioTuning(
   prisma: PrismaClient,
   userId: string,
 ): Promise<Omit<AudioTuningDto, 'locked' | 'updatedAt'> | undefined> {
-  const tuning = await getAudioTuning(prisma, userId);
-  if (!tuning.locked) return undefined;
-  return {
-    musicGainOffsetDb: tuning.musicGainOffsetDb,
-    ambienceGainOffsetDb: tuning.ambienceGainOffsetDb,
-    sfxGainOffsetDb: tuning.sfxGainOffsetDb,
-    narrationSpeed: tuning.narrationSpeed,
-  };
+  // Wrapped in try/catch — this is called in the generation hot path. A
+  // missing table (legacy test fixtures pre-migration-0042, or a brand-new
+  // DB) must not break real generations. Worst case the orchestrator uses
+  // in-code defaults, which is exactly what an unlocked user would get.
+  try {
+    const tuning = await getAudioTuning(prisma, userId);
+    if (!tuning.locked) return undefined;
+    return {
+      musicGainOffsetDb: tuning.musicGainOffsetDb,
+      ambienceGainOffsetDb: tuning.ambienceGainOffsetDb,
+      sfxGainOffsetDb: tuning.sfxGainOffsetDb,
+      narrationSpeed: tuning.narrationSpeed,
+    };
+  } catch {
+    return undefined;
+  }
 }

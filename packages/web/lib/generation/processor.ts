@@ -312,6 +312,15 @@ export async function processGenerationJob(
 
     // (directorJson already saved above when freshly parsed; no-op on retry)
 
+    // B-005 wiring (2026-06-15): pull the user's locked AudioTuning. Returns
+    // undefined when no row exists or `locked === false` — both cases mean
+    // the orchestrator uses its in-code defaults.
+    const { getLockedAudioTuning } = await import('@/lib/services/audio-tuning');
+    const audioTuning = await getLockedAudioTuning(prisma, userId);
+    if (audioTuning) {
+      log.info('[PIPELINE] applying locked audio tuning', { jobId: jobId.slice(0, 8), audioTuning });
+    }
+
     // Apply audio overrides from project settings
     const projectData = await prisma.project.findUnique({
       where: { id: projectId },
@@ -405,6 +414,9 @@ export async function processGenerationJob(
         // runs the full pipeline (makePlaybackManifest + S3 upload). With it, the
         // orchestrator skips the manifest/S3 step and returns a local path.
         ...(isChunked ? { chunk_index: chunk.index } : {}),
+        // B-005: forward the user's locked tuning. Orchestrator (#301/#305)
+        // applies the values to the cache hash + TTS speed + mix gains.
+        ...(audioTuning ? { audio_tuning: audioTuning } : {}),
       });
       const chunkSec = Math.round((Date.now() - chunkStart) / 1000);
 
