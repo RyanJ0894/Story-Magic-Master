@@ -74,6 +74,10 @@ model Profile {
   humanReviews            HumanReview[]
   projectAssignments      ProjectAssignment[]  @relation("ProjectAssignmentUser")
   projectAssignmentsGiven ProjectAssignment[]  @relation("ProjectAssignmentAssigner")
+  // B-001 (2026-06-15): per-user audio tuning preferences. Optional one-to-
+  // one — most users never visit /settings/audio and the row is created
+  // lazily on first edit.
+  audioTuning             AudioTuning?
 
   @@index([stripeCustomerId])
   @@index([stripeSubscriptionId])
@@ -1372,4 +1376,35 @@ model VoiceCatalogEntry {
 
   @@index([isActive])
   @@map("voice_catalog_entries")
+}
+
+/// B-001 — Per-user audio-mix tuning. Closes #207-class tuning items from
+/// Ryan's 2026-06-15 testing batch (narration too slow, music/ambience/SFX
+/// too quiet).
+///
+/// Offsets are stored relative to the orchestrator's in-code defaults so a
+/// future baseline change doesn't invalidate the user's saved preference.
+/// Speed is an absolute multiplier passed straight to ElevenLabs voice_settings.speed.
+///
+/// `locked = false` means the user is mid-tuning (settings persist for the
+/// page reload but DON'T flow into actual generations). `locked = true` is
+/// the explicit commit — every future generation on this user's account
+/// gets these values applied.
+///
+/// IMPORTANT: tuning values MUST be included in scene-cache hash inputs so
+/// a tuning change invalidates cached renders. Without it, locking new
+/// values silently does nothing for projects that were already rendered.
+/// See packages/orchestrator/src/lib/scene-cache.ts::computeSceneRenderHash.
+model AudioTuning {
+  userId               String   @id @map("user_id")
+  musicGainOffsetDb    Int      @default(0) @map("music_gain_offset_db")
+  ambienceGainOffsetDb Int      @default(0) @map("ambience_gain_offset_db")
+  sfxGainOffsetDb      Int      @default(0) @map("sfx_gain_offset_db")
+  narrationSpeed       Float    @default(1.0) @map("narration_speed")
+  locked               Boolean  @default(false)
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user                 Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("audio_tuning")
 }
