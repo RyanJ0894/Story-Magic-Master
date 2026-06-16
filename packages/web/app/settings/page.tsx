@@ -17,6 +17,7 @@ import {
   Shield,
   Mail,
   ExternalLink,
+  AudioLines,
 } from 'lucide-react';
 
 export default async function SettingsPage() {
@@ -100,6 +101,38 @@ export default async function SettingsPage() {
             <p className="text-sm text-muted-foreground">
               Profile details are managed through your authentication provider. To update your name, email, or profile picture, use the account menu or visit your Clerk profile.
             </p>
+          </CardContent>
+        </Card>
+
+        {/* Audio Tuning — B-005 (2026-06-15) */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AudioLines className="w-5 h-5" />
+              Audio Tuning
+            </CardTitle>
+            <CardDescription>
+              Adjust narration pace and the mix balance to match your taste
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-lg bg-muted">
+              <div>
+                <p className="font-medium text-foreground">Custom audio defaults</p>
+                <p className="text-sm text-muted-foreground">
+                  Set narration speed and music / ambience / SFX volumes for every future generation.
+                  Generate a 30-second preview, iterate, then lock in your preferred mix.
+                </p>
+              </div>
+              <Badge variant="secondary">New</Badge>
+            </div>
+
+            <Link href="/settings/audio" className="inline-block">
+              <Button variant="outline" size="sm">
+                <AudioLines className="w-4 h-4 mr-2" />
+                Open audio tuning
+              </Button>
+            </Link>
           </CardContent>
         </Card>
 
