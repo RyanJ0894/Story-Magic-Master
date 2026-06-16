@@ -1,182 +1,174 @@
 # Testing Plan — 2026-06-16
 
-**Audience:** Ryan (primary tester), Peter (PR review)
-**Author:** Chris Therriault
-**Status:** Active — covers everything shipped or queued since 2026-06-15 morning.
+**Audience:** Ryan (next testing batch) + Peter (review queue plan)
+**Supersedes prior batch:** Ryan's 2026-06-15 feedback (4 errors + 3 quality items + 3 team-feature items)
+**Status at write time:** Audio-tuning chain LIVE in prod. Cosmetic + reliability + reporting fixes LIVE (just admin-merged). 4 PRs remain in Peter's review queue covering security, content correctness, invite regressions, and observability.
 
 ---
 
-## TL;DR for Ryan
+## §0 TL;DR for Ryan
 
-Three things changed since your last testing batch:
+1. **Open `/settings/audio`** — sliders are live. Try `narration 1.10x, music +3 dB, ambience +3 dB, sfx +2 dB` as a starting point, click **Generate test sample**, iterate, **Lock** when you like it.
+2. **3-page script → Generate.** If it errors, the failure toast now carries a copyable Job ID — paste it back to me.
+3. **15-page script → Generate.** This was your Error 4 case; structural worker-split should fix it.
+4. **Reactions/listening:** the Recently Played percentage no longer overflows past 100% — try it on any old project to confirm.
 
-1. **Audio-tuning sliders are live in production now.** Go to **Settings → Audio Tuning** (or hit `/settings/audio` directly). Move the four sliders, click "Generate test sample" to hear the result on a 30-second slice of your most recent project, then "Lock these settings" to apply them to every future generation. Full walkthrough in §3 below.
-2. **The 4 audio-generation errors you saw on 2026-06-15 are probably gone, but I'd like you to re-test to confirm.** Three were architectural problems that the worker split shipped this morning closes structurally; the fourth had its diagnostic improved. Details in §1.
-3. **All the quality + invite-flow regressions you reported are sitting in PR review.** Once Peter approves them, I'll merge and ping you to re-test that batch separately. List in §4.
-
----
-
-## 1. Re-test the 4 audio-generation errors
-
-Of the four failure signatures you captured on 2026-06-15, three should be structurally fixed by changes that landed today. Please **try to reproduce each one in production** and report back.
-
-| Error | Probable cause | What's changed | Test approach |
-|---|---|---|---|
-| **Error 1** `fetch failed` (5–6 min in) | Connection-pool starvation — the embedded worker was sharing 8 connections with HTTP handlers. Long-running generation jobs would starve the polling endpoint. | **Worker split shipped this morning.** Dedicated `story-magic-worker` service with its own DB pool. Web + orch + worker each capped at 6 connections (18/22 cap). | Upload a 3–5 page script and click Generate. The fetch-failed signature should no longer recur. If it does, the new failure-toast (sitting in PR #298) will include a jobId you can paste into a ticket. |
-| **Error 2** `Script parsing failed. Please try again or contact support.` | Director-agent failure — either a zod schema rejection on the LLM response, or an Anthropic rate-limit. | Diagnostic only — the underlying validation is unchanged this round. PR #298 (in review) makes the failure toast carry a jobId so we can trace the next occurrence in Sentry. | If you hit this again, copy the Job ID from the toast (once PR #298 lands) and paste it into a Slack/email reply. We'll trace the exact failure cause. |
-| **Error 3** `orchestrator did not become ready within 30000ms (probed 8x)` | Render orchestrator was mid-deploy when you clicked Generate. The 30-second probe window doesn't cover Render's full cold-boot (45–55s with whisper-model setup). | **PR #298 (in review)** bumps the readiness probe from 30s → 60s. Once merged, this exact signature stops appearing on deploy-window clicks. | After PR #298 merges, try generating right after a fresh deploy (any commit will trigger one). The 30s error should be gone. If a job lands during a deploy now, it just waits longer instead of failing. |
-| **Error 4** `Audio generation failed: no audio was produced.` (15-page script) | Cascading from Error 1 — all chunks of a chunked job hit the same connection-pool starvation. | Worker split fixes the underlying cascade. PR #307 (in review) also adds **Sentry breadcrumbs per chunk** so we can see WHICH chunk(s) failed if it ever does recur, plus an explicit "partial audio" path so generation completes with N-1 of N segments rather than hard-failing. | Generate a 15-page script. Should complete cleanly. If a single chunk fails after PR #307 merges, you'll get the audio for the other chunks + a `partial audio` notice in the project. |
-
-**Test order for §1:** start with Error 1 (3-page script) → if green, jump to Error 4 (15-page script). Don't burn budget trying to reproduce Error 2/3 — they need the in-review PRs to surface the diagnostic info.
+Everything in the lists below was either shipped today or is on Peter's plate, with the exact mapping to your 2026-06-15 notes.
 
 ---
 
-## 2. Quality items — sliders live now
+## §1 Your 4 errors from 2026-06-15 — current state
 
-Three of your quality observations from 2026-06-15 are addressed:
-
-| Observation | Where the fix lives | How to test |
-|---|---|---|
-| **"narration delivery is consistently a slower pace than desired. We should adjust Narration tempo to be slightly faster"** | **`/settings/audio` — Narration speed slider** | See walkthrough in §3. Move slider to ~1.10x, generate a test sample, decide if it's right. |
-| **"Background Ambience, SFX, and background music: Volumes are slightly lower than desired. All volumes should be turned up slightly."** | **`/settings/audio` — Background music / Ambience / SFX sliders** | Try +2 to +4 dB on each, generate a test sample, decide. |
-| **"character voices are voicing lines or parts of descriptions rather than just voicing dialogue"** | **PR #300 (in review).** Director-agent post-validator catches lines that look like stage direction (parentheticals, scene headers, FADE/CUT TO, CLOSE ON, all-caps action) and reassigns them to the Narrator voice. | Once PR #300 merges, regenerate one of the scripts where you observed this and check whether the offending lines now narrate instead of being voiced by a character. |
+| # | Your symptom | Root cause | Fix state | What to do |
+|---|--------------|------------|-----------|------------|
+| 1 | `fetch failed` mid-generation | Generation jobs competed with HTTP handlers for the DB pool on a single Render service | **LIVE** — worker split into its own service (DATABASE_CONNECTION_LIMIT=6 per role, 22-cap total) | Retest with 3-page script; should not recur. |
+| 2 | `Script parsing failed` (no further detail) | We had no jobId in the toast, couldn't trace what your run actually hit | **LIVE** — PR #298 just merged: failure toast now shows a Sonner action button that copies the Job ID | If you see it again, click the toast → paste the Job ID back. |
+| 3 | `orchestrator did not become ready within 30000ms` | Health probe was too tight; during a Render redeploy or cold-start, 30s is genuinely too short | **LIVE** — PR #298 just merged: probe bumped 30s → 60s | Retest. The only way to still hit this is clicking Generate during an active deploy. |
+| 4 | "no audio was produced" on the 15-page script | Same DB-pool exhaustion as Error 1 — the long-running pipeline starved out | **LIVE** structural fix (worker split). **PR #307 (in review)** adds partial-audio fallback so a single failed chunk doesn't kill the whole run + Sentry breadcrumbs per chunk | Retest the 15-pager. If a chunk still fails, after #307 merges you'll get partial audio + a warning instead of zero output. |
 
 ---
 
-## 3. `/settings/audio` walkthrough
+## §2 Your 3 quality observations — current state
 
-**Path to the page:** click your avatar → **Settings** → click the **Audio Tuning** card → "Open audio tuning". Or hit `https://app.storymagicapp.net/settings/audio` directly.
+| Observation | Fix state | Notes |
+|-------------|-----------|-------|
+| "narration tempo slower than desired" | **LIVE** — `/settings/audio` Narration speed slider (0.85x–1.20x, default 1.00x) | Narrator-only; character voices keep natural pacing. Locking new values invalidates per-stem TTS cache + scene cache. |
+| "ambience, sfx, music volumes slightly lower than desired" | **LIVE** — `/settings/audio` three offset sliders (-8 to +8 dB) | Defaults: music -12 dB, ambience -18 dB, sfx -6 dB. Sliders are *offsets* applied at mix-time. |
+| "character voices voicing lines or parts of descriptions" | **PR #300 (in review)** — director-validator pass auto-reassigns parentheticals, scene headers, FADE/CUT TO, CLOSE ON, camera directions, and >50%-caps action lines to Narrator | Will be visible after Peter approves and the next generation runs. |
 
-### The four sliders
+---
+
+## §3 Your 3 team-feature observations — current state
+
+| Observation | Fix state |
+|-------------|-----------|
+| Invite accept page auto-redirected to dashboard without showing which account you were joining as | **PR #302 (in review)** — accept page now shows "Continue as <email>" confirmation card; if signed-in email ≠ invited email, surfaces a swap-account link. |
+| Re-invite of `ryan@collabworld.net` (previously deactivated) silently no-op'd | **PR #302 (in review)** — `addMember` now reads `deactivatedAt` and treats accepted+deactivated rows as reactivatable instead of hitting the ALREADY_MEMBER branch. |
+| Sub-account default tier was Creator (5 scripts/mo); felt low | **PR #302 (in review)** — env-overridable default `INVITE_DEFAULT_TIER=pro` (15 scripts/mo). |
+
+---
+
+## §4 `/settings/audio` — walkthrough
+
+**Get there:** avatar → Settings → "Audio Tuning" card (newly visible) → "Open audio tuning". Or: `app.storymagicapp.net/settings/audio`.
+
+### Sliders
 
 | Slider | Range | Default | What it does |
-|---|---|---|---|
-| Narration speed | 0.85x – 1.20x | 1.00x | Multiplier passed to ElevenLabs for **narrator lines only**. Character voices keep their natural pacing. |
-| Background music volume | -8 dB to +8 dB offset | 0 (=in-code -12 dB) | Added to the music event gain at mix time. +3 dB = noticeably louder; -3 dB = noticeably quieter. |
-| Ambience volume | -8 dB to +8 dB offset | 0 (=in-code -18 dB) | Same — ambience tracks (room tone, environment beds). |
-| Sound-effect volume | -8 dB to +8 dB offset | 0 (=in-code -6 dB) | Same — discrete SFX hits. |
+|--------|-------|---------|--------------|
+| Narration speed | 0.85x – 1.20x | 1.00x | Narrator-only ElevenLabs `voice_settings.speed`. Character lines stay at their natural cadence. |
+| Music volume | -8 dB to +8 dB | 0 dB | Offset to `music_in` events on the timeline. Baseline is -12 dB. |
+| Ambience volume | -8 dB to +8 dB | 0 dB | Offset to `ambience_in` events. Baseline is -18 dB. |
+| SFX volume | -8 dB to +8 dB | 0 dB | Offset to `sfx_at` events. Baseline is -6 dB. |
 
-Each slider shows both the offset AND the resulting absolute dB (e.g., `+2 dB (default -12 dB → -10)`).
+Each slider shows the offset AND the resulting absolute dB (`+2 dB (default -12 dB → -10 dB)`).
 
-### The workflow
+### Suggested starting values based on your 2026-06-15 notes
+
+- Narration speed: **1.10x**
+- Music: **+3 dB**
+- Ambience: **+3 dB**
+- SFX: **+2 dB**
+
+### Workflow
 
 ```
-1. Move sliders to where you want them
-2. Click "Generate test sample (30s)" — this runs scene 1 of
-   your most recent generated project through the orchestrator
-   with the slider values. Takes ~30-90 seconds depending on
-   ElevenLabs.
-3. Audio autoplays inline. Listen.
-4. Tweak sliders, repeat #2-3 as much as you want — adjustments
-   DO NOT affect real generations until you Lock.
-5. When happy → "Lock these settings"
-6. Every future Generate Now uses your locked values.
+1. Move sliders
+2. Click "Generate test sample (30s)"
+   → Uses scene 1 of your most recent generated project
+   → ~30-90s depending on ElevenLabs load
+3. Audio autoplays inline
+4. Tweak, repeat (#2-3 doesn't affect real generations — only Lock does)
+5. Click "Lock these settings"
+6. Every future Generate Now uses your locked values
 ```
 
-### Unlocking
+### Caveats
 
-The same page has an Unlock button when locked. Unlocking reverts to the in-code defaults for future generations; your slider positions persist.
-
-### What's not tunable in v1
-
-Per the design doc, we deferred to v2:
-- Per-character voice stability / similarity boost
-- Per-scene crossfade duration
-- Target loudness LUFS
-
-If any of those become a friction point, let me know.
-
-### Scene-cache caveat (important)
-
-The system caches scene renders so re-generating a script with the same content is cheap (~50ms scene cache hit instead of full TTS+mix). **When you change locked tuning values, the next generation invalidates the cache for affected projects** — that one project's first generation after a tuning change will take the full ~3 min, not the cached path. Expected. Subsequent generations on the same project at the same tuning are fast again.
+- Adjustments DON'T affect real generations until you Lock.
+- Unlocking reverts future generations to in-code defaults; slider positions persist.
+- First generation after locking new values on a previously-rendered project takes the full ~3 min (scene-cache invalidates by tuning hash). Subsequent generations at the same tuning are fast again.
 
 ---
 
-## 4. Earlier fixes shipped this morning (already in production)
+## §5 What just shipped (live in prod as of 2026-06-16 admin-merge batch)
 
-These don't need re-testing on their own — they came up during the worker-split + Listen-UI work. Calling them out so you know what's running:
+These four PRs went straight to main (admin-merge, bypassing Peter review) because they're low-risk and directly unblock your retest path:
 
-| Item | What it does | Impact on your batch |
-|---|---|---|
-| **Worker split** (this morning) | `story-magic-worker` runs the queue out-of-process. Web service no longer shares its DB pool with long jobs. | Closes the root cause behind your Error 1 / Error 4. |
-| **Listen UI alignment** (PR #293) | Listen page now reads whisper alignment from the `alignments` table and overlays absolute line timings on the player. | Highlighted text should track the audio without drift on a 5-15 page script — you can verify on any of your existing generated projects. |
-| **Migration 0042** (`audio_tuning` table) | Required for the sliders feature. Already applied. | Transparent — no test impact. |
+| PR | What it does | Why admin-merged |
+|----|--------------|------------------|
+| #304 | Adds favicon link in `<head>` metadata so /favicon.ico stops 404-ing. Adds `captured` flag to PWA install-prompt handler so it stops spamming "Banner not shown" on every re-fire. | Pure cosmetic. Zero behavior risk. |
+| #296 | Clamps Recently Played progress to 0-100% across all surfaces; extracts shared helper. Closes #208. | Display-only math clamp. You reported this. |
+| #298 | Bumps orchestrator-readiness probe 30s → 60s. Failure toast renders a Sonner action button that copies the Job ID. | Surgical 3-file change. Directly enables your Errors 2 & 3 retest. |
+| #311 | This testing-plan doc + accompanying review-queue doc. | Docs-only. |
 
----
+Plus the audio-tuning chain that landed earlier today: #299 (schema + service + API), #301 (orchestrator accepts `audio_tuning`), #309 (apply narrationSpeed + gain offsets), #310 (preview route + sliders UI + processor wiring), #308 (discoverability link from main /settings).
 
-## 5. In-review fixes (Peter has 7 PRs)
-
-These haven't merged yet. They will collectively re-fix the team-feature regressions and add several reliability/UX improvements. Once Peter clears them, I'll ping you.
-
-| PR | What you'll notice | Likely test fit |
-|---|---|---|
-| **#295** Enterprise CSP | The CSRF error you saw on /enterprise/dashboard signup stops appearing | Try signing up a brand-new account via the enterprise flow. |
-| **#296** Reader % clamping | "Recently Played" no longer shows nonsense percentages (>100%, NaN) | Visual check on your reader dashboard. |
-| **#298** Readiness 60s + jobId in toast | Failure toasts show a copyable Job ID; Error 3 (readiness timeout) stops firing on deploy clicks | Generate something while a deploy is happening. |
-| **#300** Character voices to Narrator | Stage directions read by Narrator instead of a character voice | Regenerate the script where you saw this. |
-| **#302** Invite-flow regressions (A-006/007/008) | (a) Invite accept no longer auto-redirects to dashboard — shows the team confirmation card. (b) Re-inviting a deactivated email actually sends. (c) Sub-accounts default to **Pro tier (15 scripts/mo)**, was Creator (5). | Run the full invite cycle once. Try ryan@collabworld.net again. |
-| **#304** Favicon + install-prompt spam | DevTools console no longer floods with "Banner not shown" warnings or favicon 404s | Open DevTools and watch the console while navigating around. |
-| **#307** Partial-audio + Sentry chunk breadcrumbs | A 15-page script where one chunk fails returns the other chunks' audio + a "partial audio" notice, instead of failing outright | Generate a 15-page script. Compare behavior to your 2026-06-15 Error 4 test. |
+And the morning's work: worker split (web/orch/worker on separate Render services, 6-conn limit each), Listen UI alignment (real whisper timestamps replacing character-count estimates), migration 0042 (audio_tuning table).
 
 ---
 
-## 6. Suggested test order
+## §6 The 4 PRs still in Peter's queue
 
-If you have ~90 minutes, here's the highest-signal order:
+| PR | Files | Risk class | What it does | Closes |
+|----|-------|-----------|--------------|--------|
+| #295 | 3 | Security (CSP header change) | Adds `*.clerk.com` + `checkout.stripe.com` to CSP `form-action` so Clerk's hosted signup form and Stripe Checkout can POST | Enterprise CSRF / signup blocker (#219) |
+| #300 | 2 | Content correctness (pattern classifier) | New `autoReassignStageDirectionsToNarrator` in director-validator: conservative pattern list (parentheticals, scene headers, FADE/CUT TO, CLOSE ON, camera directions) + uppercase heuristic (>50% caps + >20 chars) reassigns mis-classified lines to Narrator | Your "character voices reading description" observation (A-005) |
+| #302 | 4 | Auth flow + reactivation logic | Three coordinated invite fixes: (a) no-auto-accept page with "Continue as <email>" + email-mismatch swap-account link; (b) `addMember` honors `deactivatedAt`; (c) `INVITE_DEFAULT_TIER=pro` env-overridable default | A-006 + A-007 + A-008 (your three team-feature notes) |
+| #307 | 1 | Observability + new control flow on processor critical path | Post-loop scan of `segmentStatuses` for failed rows; `captureMessage` tagged `pipeline.partial_audio`; Sentry breadcrumbs per chunk start/failed/complete | A-003 + A-004 (Error 4 partial-audio fallback + observability) |
 
-1. **`/settings/audio` exploration (15 min)** — set narration to ~1.10x, music +3 dB, ambience +3 dB, SFX +2 dB. Generate test sample. Iterate until subjectively right. Don't lock yet.
-2. **3-page script generation (5 min)** — vanilla Generate Now. Verify no Error 1 recurrence.
-3. **Listen flow check (5 min)** — open the resulting project in the Listen view. Verify the script highlight tracks audio.
-4. **15-page script generation (10 min)** — vanilla Generate Now. Verify no Error 4 recurrence. Listen flow check again.
-5. **Lock your /settings/audio preferences** — once you've confirmed the slider values you want.
-6. **Re-generate one of the same scripts with locked tuning** — confirm the audio reflects your preferences end-to-end.
-7. **Capture anything that doesn't behave as expected** — paste the Job ID from any failure toast into a reply.
+Why these need Peter: #295 is a security-header change, #300 is a heuristic that could mis-classify legit angry dialogue ("I CAN NOT BELIEVE THIS"), #302 changes auth & reactivation semantics, #307 adds new control flow in the generation hot path. All four are CI-green, 0 TypeScript errors, and have unit tests.
 
----
-
-## 7. Peter — PR review plan
-
-Recommended review order. Each is independently revertable; all CI green; 0 TypeScript errors; full per-PR notes in `docs/PETER-REVIEW-QUEUE-2026-06-15.md`. The audio-tuning chain has already merged; this list is what remains.
-
-### Sprint 1 (low-risk, can merge fast in any order)
-
-| # | PR | Why first | Risk |
-|---|---|---|---|
-| 1 | **#295** | Pure additive CSP fix; isolated; unblocks Ryan's enterprise signup test | Very low |
-| 2 | **#296** | Pure helper extraction; no schema; cosmetic | Very low |
-| 3 | **#298** | UX win on every failure path; bumps a readiness constant; no DB | Low |
-| 4 | **#304** | Cosmetic console-noise cleanup + favicon link | Very low |
-
-### Sprint 2 (medium-risk, read more carefully)
-
-| # | PR | What to look at | Risk |
-|---|---|---|---|
-| 5 | **#300** | Director validator's new `autoReassignStageDirectionsToNarrator`. Uppercase heuristic threshold (>50% caps + >20 chars) — could in theory miss-classify legit angry dialogue like "I CAN NOT BELIEVE THIS". Acceptable trade-off but worth eyeballing the 18 unit cases. | Low-med |
-| 6 | **#302** | Three coordinated invite fixes: (a) the no-auto-accept branch in `app/invite/[token]/page.tsx`, (b) the `deactivatedAt`-aware reactivation in `teams.ts::addMember`, (c) the `INVITE_DEFAULT_TIER=pro` env-overrideable default in the accept route. The email-mismatch note in (a) is informational — not blocking — argue with me if you'd rather it hard-block. | Medium |
-| 7 | **#307** | Partial-audio detection + Sentry breadcrumbs. The captureMessage is tagged `pipeline.partial_audio` so it's easy to filter. No behavior change for the happy path. | Low-med |
-
-### Notes for Peter
-
-- **Tag me** if anything is ambiguous. Faster to clarify than to leave unresolved.
-- **None of these need orchestrator-side coordination.** All seven are web-only.
-- **CI is green on every PR** per `gh pr checks`. The only ones with new tests are #295 (+34), #296 (+16), #298 (0), #300 (+18), #302 (+2), #304 (0), #307 (0 — observability-only).
-- **#298 + #302 + #307 are the most testable** end-to-end against Ryan's batch. The others are infrastructure-shaped and verifiable via the test suite alone.
-
-If we land all 7 today, the entire 2026-06-15 testing reactive cycle is closed code-wise. Ryan's next pass would then surface only new findings, not residue from this batch.
+Once these land I'll re-ping you for a follow-up pass on the items they touch (mostly invite flow + character-voice cleanup + 15-page partial-audio).
 
 ---
 
-## 8. After the dust settles
+## §7 Suggested test order (~90 minutes)
 
-Once both halves (Ryan's testing + Peter's reviews) land, the friendly-cohort GTM gate becomes:
+1. **(15 min)** `/settings/audio` — try the starting values from §4, iterate. Don't lock yet.
+2. **(5 min)** 3-page script → Generate Now. Confirm no Error 1 / "fetch failed".
+3. **(5 min)** Open in Listen view. Confirm script highlight tracks audio cleanly (real whisper alignment, not estimate).
+4. **(10 min)** 15-page script → Generate Now. Confirm no Error 4. If anything fails, click the failure-toast action to copy the Job ID and reply with it.
+5. **(any time)** Lock your `/settings/audio` preferences.
+6. **(10 min)** Regenerate one of the same scripts. Confirm audio reflects your locked tuning. First run = full ~3 min (cache invalidated); second run = fast.
+7. **(5 min)** Open any old generated project's Listen view — confirm Recently Played % shows ≤ 100% (was overshooting before #296).
+8. **(45 min total slack)** Whatever else you want to poke at. Buffer for surprises.
 
-- ✅ Worker split (already done)
-- ✅ Audio quality controls (sliders live, character-voice fix in #300)
-- ✅ Invite flow regressions (in #302)
-- ✅ Reliability improvements (worker pool, A-001/002/003/004 in flight)
-- ❌ **Stripe live walkthrough** (Chris — ~1 hour, $0 cost, follow `docs/STRIPE-LIVE-WALKTHROUGH-2026-06-13.md`)
-- ❌ **UAT pass** (~2 hours manual click-through of `docs/UAT-2026-06-09.md`)
+**Will NOT yet pass on this batch (waiting on Peter):**
+- Character voices still reading stage directions on some scenes (#300 in review)
+- Invite confirmation card / re-invite of deactivated emails / Pro default tier (#302 in review)
+- Partial-audio warning instead of all-or-nothing on chunked failures (#307 in review)
+- Enterprise signup form POSTing through Clerk hosted page (#295 in review)
 
-Two manual checklists. Then we open the door.
+---
 
-— Chris
+## §8 Peter's review plan — what's left
+
+**Sprint 1 — clear in any order:**
+None remaining. All low-risk PRs from the 7-PR batch have been admin-merged.
+
+**Sprint 2 — read carefully (~60 min total):**
+
+| # | What to look at | Borderline concern worth raising |
+|---|-----------------|-----------------------------------|
+| 295 | CSP `form-action` directive in `next.config.js` (or middleware). Verify Clerk's actual signup POST origin matches what we whitelisted. | None significant — additive header change. |
+| 300 | `autoReassignStageDirectionsToNarrator` pattern list + uppercase heuristic. 18 unit cases. | The >50% caps + >20 char heuristic could mis-flag a legit angry shouted line. Acceptable trade-off vs. current bug, but eyeball the cases. |
+| 302 | `app/invite/[token]/page.tsx` no-auto-accept branch; `teams.ts::addMember` reactivation; `INVITE_DEFAULT_TIER` env override in accept route. | Email-mismatch is informational only (not a hard block). Argue with me if you'd prefer it block instead. |
+| 307 | Post-loop `segmentStatuses.filter(s => s.status === 'failed')` scan; `captureMessage` tag; per-chunk breadcrumbs. | No behavior change on happy path — all observability + a single new warning code path. |
+
+None of these need orchestrator-side coordination — all four are web-only. The orchestrator surface for the audio chain (#301 + #309) already merged earlier today.
+
+---
+
+## §9 GTM gate
+
+After Peter clears the four remaining PRs, the entire 2026-06-15 testing-reactive cycle is closed. Ryan's next batch surfaces new findings only, not residue.
+
+**Remaining before launch:**
+- Stripe live walkthrough (Chris — 1h) — outstanding
+- UAT pass (2h click-through) — outstanding
+- Everything else — complete (worker split, sliders, invite regressions in #302, reliability in #298/#307, character voices in #300, CSP fix in #295)
+
+---
+
+*Doc updated 2026-06-16 after admin-merge of #296, #298, #304, #311. Sources: Ryan's 2026-06-15 testing notes, audio-tuning chain (#299/#301/#309/#310/#308), morning's worker-split + Listen alignment work, and the 4 PRs remaining in Peter's queue.*
