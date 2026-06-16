@@ -6,6 +6,32 @@
 
 ---
 
+## Executive Summary
+
+**Where we stand on the 2026-06-15 testing batch:** of the 10 items Ryan flagged (4 errors, 3 audio-quality observations, 3 team-feature observations), **7 are LIVE in production right now** and **3 are sitting in Peter's review queue**. None are open or unaddressed.
+
+**What shipped today (LIVE):**
+1. **Worker split** — closes the structural root cause of Errors 1 & 4 (DB-pool exhaustion under long-running pipeline jobs).
+2. **Orchestrator readiness 60s + Job-ID-in-failure-toast** (PR #298) — closes Errors 2 & 3 and gives Ryan a copyable trace ID if either recurs.
+3. **Full audio-tuning surface** (`/settings/audio` sliders + preview + lock workflow) — closes the narration-speed and music/ambience/SFX volume observations. Ryan can self-serve all four parameters without an engineering round-trip.
+4. **Listen UI alignment** — script highlight now tracks real whisper timestamps, not character-count estimates.
+5. **Recently Played % clamp** (PR #296) — closes Ryan's separately-filed #208.
+6. **Cosmetic cleanup** (PR #304) — favicon 404 fixed, PWA install-prompt console spam stopped.
+
+**What's still in review with Peter (3 of Ryan's items + 1 security gate):**
+- **#300** — character voices reading stage directions (A-005).
+- **#302** — invite confirmation card + reactivating deactivated emails + Pro default tier (A-006/007/008).
+- **#307** — partial-audio fallback + Sentry chunk breadcrumbs (A-003/004 — defensive depth on top of the worker-split fix for Error 4).
+- **#295** — CSP `form-action` fix unblocking the Clerk-hosted enterprise signup form (#219).
+
+**What Ryan should do next (~90 min):** open `/settings/audio`, dial in his preferred narration speed and mix offsets, lock them, then re-run his 3-page and 15-page test scripts. If anything fails, the failure toast now carries a Job ID — paste it back. Full step-by-step in §7.
+
+**What Peter should do next:** the four remaining PRs are all CI-green, web-only, and have unit tests. Detailed reviewer notes in §8. Two of them (#300 heuristic, #302 email-mismatch handling) have explicit judgment calls flagged where his preference may differ from mine — argue, don't just rubber-stamp.
+
+**Launch gate:** with these four PRs landed, the 2026-06-15 testing cycle is closed and the only remaining blockers are the Stripe live walkthrough (Chris, 1h) and a UAT click-through pass (2h). No engineering work is on the critical path.
+
+---
+
 ## §0 TL;DR for Ryan
 
 1. **Open `/settings/audio`** — sliders are live. Try `narration 1.10x, music +3 dB, ambience +3 dB, sfx +2 dB` as a starting point, click **Generate test sample**, iterate, **Lock** when you like it.
