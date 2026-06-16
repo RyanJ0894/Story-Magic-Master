@@ -15,6 +15,15 @@ export const metadata: Metadata = {
   title: 'Story Magic - Transform Scripts into Audio',
   description: 'AI-powered audio production platform for screenplays',
   manifest: '/manifest.webmanifest',
+  // A-009 (2026-06-15): point favicon at /logo.png so the prod 404 spam in
+  // browser devtools (`/favicon.ico: Failed to load resource: 404`) stops.
+  // Browsers accept any PNG via the rel="icon" link; the .ico filename is
+  // not required. Apple touch icon uses the same asset.
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+    shortcut: '/logo.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

@@ -18,7 +18,18 @@ export function PwaInstallPrompt() {
     // Don't show if the user already dismissed it
     if (typeof window !== 'undefined' && localStorage.getItem(DISMISS_KEY)) return;
 
+    // A-010 (2026-06-15): only preventDefault on the FIRST firing of
+    // beforeinstallprompt. The browser refires this event on most page
+    // navigations / focus events; calling preventDefault every time without
+    // a subsequent prompt() call floods devtools with
+    // "Banner not shown: beforeinstallpromptevent.preventDefault() called"
+    // warnings (Ryan's 2026-06-15 console capture had ~20 of these). Once
+    // we've captured the event the first time, ignore re-firings.
+    let captured = false;
+
     const handler = (e: Event) => {
+      if (captured) return; // ignore re-fires; no preventDefault → no warning
+      captured = true;
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setVisible(true);
