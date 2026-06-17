@@ -542,20 +542,6 @@
   ],
   "voice_selection_examples": [
     {
-      "character_name": "DEREK",
-      "character_description": "African American male, 18, unpopular 'skater kid'",
-      "correct_voice_id": "DTKMou8ccj1ZaWGBiotd",
-      "label": "Male Teen",
-      "style": "African American",
-      "tone": "Stylish",
-      "reasoning": "Age 18 = Male Teen label required (NOT Male 20s to 30s). African American ethnicity requires African American style match. Stylish tone fits 'skater kid' personality.",
-      "common_mistakes_to_avoid": [
-        "WRONG: Using Male 20s to 30s voice for 18-year-old",
-        "WRONG: Using American style instead of African American style",
-        "WRONG: Ignoring character's youth and using older voice"
-      ]
-    },
-    {
       "character_name": "DREW",
       "character_description": "Caucasian male, 17, unpopular 'anime kid'",
       "correct_voice_id": "Pb8RZcHs3ga4StE7wiPM",
