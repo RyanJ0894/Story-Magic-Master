@@ -291,12 +291,13 @@ export function AudioTuningPanel({ initial }: AudioTuningPanelProps) {
           </Button>
         </div>
 
-        {/* Preview player */}
+        {/* Preview player — UX-I-04: key on <source> forces remount on URL change
+            so the audio element reloads cleanly rather than playing stale media. */}
         {previewUrl && (
           <div className="rounded-lg border bg-muted/30 p-3">
             <p className="text-xs text-muted-foreground mb-2">Latest preview — scene 1 only:</p>
             <audio ref={audioRef} controls className="w-full" preload="metadata">
-              <source src={previewUrl} />
+              <source key={previewUrl} src={previewUrl} />
               Your browser does not support the audio element.
             </audio>
           </div>
@@ -368,6 +369,12 @@ interface SliderRowProps {
 }
 
 function SliderRow({ label, minLabel, maxLabel, min, max, step, value, onChange, displayValue }: SliderRowProps) {
+  // UX-I-02 — the visible <label> isn't programmatically associated with the
+  // Radix slider (which renders to a non-input element), so screen readers
+  // announce the thumb without context. Forwarding aria-label fixes that.
+  // The displayValue is included so the current numeric value is also
+  // announced on focus/keyboard interaction.
+  const ariaLabel = `${label} — ${displayValue}`;
   return (
     <div>
       <div className="flex items-baseline justify-between mb-2">
@@ -375,6 +382,7 @@ function SliderRow({ label, minLabel, maxLabel, min, max, step, value, onChange,
         <span className="text-sm font-mono text-muted-foreground">{displayValue}</span>
       </div>
       <Slider
+        aria-label={ariaLabel}
         min={min}
         max={max}
         step={step}

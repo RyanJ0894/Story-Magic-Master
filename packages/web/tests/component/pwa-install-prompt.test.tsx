@@ -90,21 +90,48 @@ describe('PwaInstallPrompt', () => {
     expect(screen.queryByTestId('pwa-install-prompt')).toBeNull();
   });
 
-  it('dismiss persists to localStorage so banner does not re-show', () => {
+  it('dismiss persists a timestamp to localStorage (UX-I-05 — 30-day TTL)', () => {
     render(<PwaInstallPrompt />);
     fireBip();
 
+    const before = Date.now();
     fireEvent.click(screen.getByTestId('pwa-dismiss-button'));
+    const after = Date.now();
 
-    expect(localStorageMock.getItem('pwa-install-dismissed')).toBe('1');
+    const stored = localStorageMock.getItem('pwa-install-dismissed');
+    expect(stored).not.toBeNull();
+    const ts = Number(stored);
+    expect(Number.isFinite(ts)).toBe(true);
+    expect(ts).toBeGreaterThanOrEqual(before);
+    expect(ts).toBeLessThanOrEqual(after);
   });
 
-  it('does not show banner if already dismissed in a prior session', () => {
+  it('does not show banner if dismissed within the 30-day TTL window', () => {
+    // Fresh timestamp from "now" — should still be suppressed.
+    localStorageMock.setItem('pwa-install-dismissed', String(Date.now()));
+    render(<PwaInstallPrompt />);
+    fireBip();
+
+    expect(screen.queryByTestId('pwa-install-prompt')).toBeNull();
+  });
+
+  it('shows banner again if last dismiss was more than 30 days ago (UX-I-05)', () => {
+    // 31 days ago — past the TTL.
+    const longAgo = Date.now() - 31 * 24 * 60 * 60 * 1000;
+    localStorageMock.setItem('pwa-install-dismissed', String(longAgo));
+    render(<PwaInstallPrompt />);
+    fireBip();
+
+    expect(screen.queryByTestId('pwa-install-prompt')).not.toBeNull();
+  });
+
+  it('shows banner again if legacy "1" dismiss value is stored (migration)', () => {
+    // Prior versions stored the literal '1' — we treat that as expired so
+    // returning users get a re-prompt opportunity after the deploy.
     localStorageMock.setItem('pwa-install-dismissed', '1');
     render(<PwaInstallPrompt />);
     fireBip();
 
-    // Even after BIP fires, banner should stay hidden
-    expect(screen.queryByTestId('pwa-install-prompt')).toBeNull();
+    expect(screen.queryByTestId('pwa-install-prompt')).not.toBeNull();
   });
 });

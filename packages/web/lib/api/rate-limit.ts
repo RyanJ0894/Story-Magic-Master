@@ -220,9 +220,11 @@ const circuit = new CircuitBreaker();
 // Render Redis (ioredis) limiters — lazy-initialized.
 // rate-limiter-flexible.RateLimiterRedis is a fixed-window counter, which is
 // functionally equivalent to Upstash's sliding-window for our 1-minute windows.
+// Type-only import avoids pulling the module into the bundle when REDIS_URL
+// is unset — the runtime import on line ~240 still does the actual dynamic load.
+type RateLimiterRedisType = import('rate-limiter-flexible').RateLimiterRedis;
 interface RedisLimiterCtx {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  limiter: any;
+  limiter: RateLimiterRedisType;
 }
 let redisLimiters: Record<RateLimitTier, RedisLimiterCtx> | null = null;
 let redisInitFailed = false;

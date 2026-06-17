@@ -4,6 +4,23 @@ import { useEffect, useState } from 'react';
 import { X, Download } from 'lucide-react';
 
 const DISMISS_KEY = 'pwa-install-dismissed';
+// UX-I-05 — dismiss TTL. The prior "set to '1' forever" meant a single
+// not-now click suppressed the install prompt across the entire user
+// lifetime, including on returning power-users for whom installing later
+// would have been valuable. 30 days matches the typical browser-native
+// re-prompt cadence.
+const DISMISS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+function isDismissActive(): boolean {
+  if (typeof window === 'undefined') return false;
+  const raw = localStorage.getItem(DISMISS_KEY);
+  if (!raw) return false;
+  const ts = Number(raw);
+  // Legacy values (the literal '1' we used to store) parse to NaN — treat
+  // those as already-expired so existing dismissals re-prompt after deploy.
+  if (!Number.isFinite(ts)) return false;
+  return Date.now() - ts < DISMISS_TTL_MS;
+}
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -15,8 +32,8 @@ export function PwaInstallPrompt() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    // Don't show if the user already dismissed it
-    if (typeof window !== 'undefined' && localStorage.getItem(DISMISS_KEY)) return;
+    // Don't show if the user dismissed within the TTL window.
+    if (isDismissActive()) return;
 
     // A-010 (2026-06-15): only preventDefault on the FIRST firing of
     // beforeinstallprompt. The browser refires this event on most page
@@ -50,7 +67,8 @@ export function PwaInstallPrompt() {
   };
 
   const handleDismiss = () => {
-    localStorage.setItem(DISMISS_KEY, '1');
+    // Store a timestamp so isDismissActive() can age it out after TTL.
+    localStorage.setItem(DISMISS_KEY, String(Date.now()));
     setVisible(false);
   };
 
