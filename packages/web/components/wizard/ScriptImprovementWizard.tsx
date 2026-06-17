@@ -38,7 +38,15 @@ import { Suggestion } from '@/lib/adviser/types';
 interface ScriptImprovementWizardProps {
   projectId: string;
   scriptText: string;
-  existingScore?: StoryScore | null;
+  /**
+   * T-05 (Sprint C): callers commonly pass a narrow `{ id, overallScore }`
+   * shape (project-workflow loads only those two fields). Typing this as
+   * `Partial<StoryScore>` matches reality and forces internal accesses to
+   * be defensive — the prior `StoryScore | null` was a lie that masked a
+   * latent crash at line 104 where `score.dimensions[dim]` would access
+   * `undefined.premiseOriginality` if the partial shape was used.
+   */
+  existingScore?: Partial<StoryScore> | null;
   onComplete?: (data: { scoreImprovement: number }) => void;
   onCancel?: () => void;
 }
@@ -49,8 +57,12 @@ interface ScriptImprovementWizardProps {
 
 function ScoreAnalysisStep({ context }: { context: WizardContext }) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [score, setScore] = useState<StoryScore | null>(
-    (context.data.existingScore as StoryScore) || null
+  // T-05: `score` carries whatever the page-level prop passed in, which is
+  // commonly only `{ id, overallScore }`. Once analyzeScript() runs the
+  // response upgrades this to the full StoryScore shape. Internal accesses
+  // below are defensive against the partial form.
+  const [score, setScore] = useState<Partial<StoryScore> | null>(
+    (context.data.existingScore as Partial<StoryScore>) || null
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -90,9 +102,9 @@ function ScoreAnalysisStep({ context }: { context: WizardContext }) {
         <div className="text-center">
           <h4 className="font-semibold text-lg">Your StoryScore</h4>
           <p className="text-muted-foreground text-sm">
-            {score.overallScore >= 80
+            {(score.overallScore ?? 0) >= 80
               ? 'Excellent! Your script is production-ready.'
-              : score.overallScore >= 60
+              : (score.overallScore ?? 0) >= 60
               ? 'Good foundation. Some areas could be improved.'
               : 'Needs work. Let\'s identify the key improvements.'}
           </p>
@@ -101,7 +113,9 @@ function ScoreAnalysisStep({ context }: { context: WizardContext }) {
         <div className="grid grid-cols-2 gap-4">
           {(['premiseOriginality', 'dialogueQuality', 'threeActIntegrity', 'protagonistArc'] as const).map(
             (dim) => {
-              const dimScore = score.dimensions[dim]?.score ?? 0;
+              // T-05: optional-chain `dimensions` — narrow shape from the
+              // page-level prop has no dimensions until analyze runs.
+              const dimScore = score.dimensions?.[dim]?.score ?? 0;
               return (
                 <div
                   key={dim}
