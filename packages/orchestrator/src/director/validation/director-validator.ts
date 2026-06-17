@@ -120,9 +120,93 @@ export class DirectorJSONValidator {
     // Validate voice uniqueness
     this.validateVoiceUniqueness(directorJson);
 
+    // A-005 (2026-06-15): Ryan's batch 2026-06-15 reported character voices
+    // occasionally reading parts of action lines / parentheticals. The
+    // director-agent prompt RULE 2 already says action goes to Narrator, but
+    // the model sometimes ignores it. Catch + auto-fix the violations.
+    this.autoReassignStageDirectionsToNarrator(directorJson);
+
     log.info('Validation complete', { errorCount: this.errors.length });
 
     return { isValid: this.errors.length === 0, errors: this.errors };
+  }
+
+  /**
+   * A-005 — When a character line's text looks like stage direction (all-caps
+   * action, leading parenthetical, screenplay-only words like FADE TO, CUT TO,
+   * INT./EXT.), silently reassign it to "Narrator" instead of speaking it in
+   * the character's voice. This mutates `directorJson` in place because
+   * fixing this kind of issue is always safe (it can only ever degrade to
+   * "the narrator says this instead of CharacterX saying it" — both legal
+   * outputs, the narrator one matches script intent).
+   *
+   * Not added to `this.errors` because it's not a true validation failure —
+   * the JSON is structurally valid, just slightly off-intent. A log line is
+   * enough to surface it during triage.
+   */
+  private autoReassignStageDirectionsToNarrator(directorJson: DirectorJSON): void {
+    let reassigned = 0;
+
+    // Patterns that strongly suggest a line is stage direction, not dialogue.
+    // Kept conservative — we'd rather miss a true positive than mis-reassign
+    // an actual line of dialogue that happens to look like action.
+    const STAGE_DIRECTION_PATTERNS: RegExp[] = [
+      /^\s*\(/,                                  // Leading parenthetical (whispering), (V.O.), etc.
+      /^\s*(?:INT|EXT|INT\.\/EXT|I\/E)\b\.?\s/i, // Scene headers
+      /^\s*FADE (?:IN|OUT|TO)\b/i,               // Transitions
+      /^\s*CUT TO\b/i,
+      /^\s*DISSOLVE TO\b/i,
+      /^\s*SMASH CUT\b/i,
+      /^\s*MATCH CUT\b/i,
+      /^\s*CLOSE ON\b/i,
+      /^\s*ANGLE ON\b/i,
+      /^\s*PAN (?:UP|DOWN|LEFT|RIGHT|TO|ACROSS)\b/i,
+      /^\s*POV[\s:]/i,
+      /^\s*SUPER:/i,
+      /^\s*TITLE:/i,
+      /^\s*BEGIN MONTAGE\b/i,
+      /^\s*END MONTAGE\b/i,
+      /^\s*REVEAL:/i,
+    ];
+
+    // Heuristic: a sentence that's >50% UPPERCASE and >20 chars is almost
+    // certainly stage direction (real dialogue rarely shouts that hard).
+    const isMostlyUppercase = (text: string): boolean => {
+      const letters = text.replace(/[^a-zA-Z]/g, '');
+      if (letters.length < 20) return false;
+      const upper = letters.replace(/[^A-Z]/g, '').length;
+      return upper / letters.length > 0.5;
+    };
+
+    for (const scene of directorJson.scenes || []) {
+      for (const line of scene.dialogue || []) {
+        if (line.character === 'Narrator') continue;
+        if (!line.text || line.text.length === 0) continue;
+
+        const looksLikeStageDirection =
+          STAGE_DIRECTION_PATTERNS.some((p) => p.test(line.text)) ||
+          isMostlyUppercase(line.text);
+
+        if (looksLikeStageDirection) {
+          log.warn('[A-005] reassigning character line that looks like stage direction to Narrator', {
+            originalCharacter: line.character,
+            preview: line.text.slice(0, 80),
+            sceneId: scene.scene_id,
+            lineId: line.line_id,
+          });
+          line.character = 'Narrator';
+          // Drop the voice_key so voice-assignment picks the narrator voice.
+          // We can't just substitute the narrator voice_key here because
+          // the validator may not have access to it (depends on call order).
+          line.voice_key = undefined as unknown as string;
+          reassigned++;
+        }
+      }
+    }
+
+    if (reassigned > 0) {
+      log.info('[A-005] reassigned stage-direction lines to Narrator', { count: reassigned });
+    }
   }
 
   /**
