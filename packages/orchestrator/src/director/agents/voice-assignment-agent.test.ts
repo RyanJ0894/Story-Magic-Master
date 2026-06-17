@@ -223,6 +223,28 @@ describe('VoiceAssignmentAgent', () => {
     expect(result.default_male_voice).toBeTruthy();
     expect(result.default_female_voice).toBeTruthy();
   });
+
+  it('replaces null default voices with constants instead of triggering schema repair', async () => {
+    const mapWithNulls = {
+      project_id: PROJECT_ID,
+      assignments: {
+        NARRATOR: { canonical_name: 'NARRATOR', voice_key: 'JBFqnCBsd6RMkjVDRZzb' },
+      },
+      default_narrator_voice: 'JBFqnCBsd6RMkjVDRZzb',
+      default_male_voice: null,
+      default_female_voice: null,
+    };
+    vi.mocked(runAgentLoop).mockResolvedValue(JSON.stringify(mapWithNulls));
+    vi.mocked(parseJSONSafely).mockReturnValue({ success: true, data: mapWithNulls });
+
+    const agent = new VoiceAssignmentAgent();
+    const result = await agent.assign({ manifest: MANIFEST });
+
+    expect(result.default_male_voice).toBe(DEFAULT_MALE_VOICE);
+    expect(result.default_female_voice).toBe(DEFAULT_FEMALE_VOICE);
+    // Should not have fallen through to the LLM repair path
+    expect(structureTextAsJSON).not.toHaveBeenCalled();
+  });
 });
 
 // ── Model selection ──────────────────────────────────────────────────────────
