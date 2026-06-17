@@ -7,3 +7,7 @@ const require = createRequire(import.meta.url);
 const client = require('./generated/prisma/index.js');
 export const PrismaClient = client.PrismaClient;
 export const Prisma = client.Prisma;
+
+// DirectorJson runtime guards (types are declared in director-json.ts and
+// resolved by TypeScript via package.json `types`).
+export { DIRECTOR_EMOTIONS, isDirectorJson, asDirectorJson } from './types/director-json.mjs';

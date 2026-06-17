@@ -15,6 +15,7 @@ import { useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api/fetch';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import type { DirectorJson } from '@story-magic/shared';
 import {
   Accordion,
   AccordionContent,
@@ -104,8 +105,11 @@ interface ProjectWorkflowProps {
     status: string;
     pageCount: number;
     scriptText: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma JsonValue; downstream VoiceChooser/AudioChooser each narrow the shape
-    directorJson?: any;
+    // T-02 (Sprint C): typed via the shared DirectorJson interface so downstream
+    // VoiceChooser/AudioChooser receive a structured shape instead of `any`.
+    // Their inline narrowings still apply; this just gives us a real top-level
+    // contract at the page boundary.
+    directorJson?: DirectorJson | null;
     preferredWorkflowMode?: WorkflowMode;
     currentRunNumber: number;
   };
@@ -1006,7 +1010,8 @@ export function ProjectWorkflow({
                 <VoiceChooser
                   projectId={project.id}
                   scriptText={project.scriptText}
-                  directorJson={project.directorJson}
+                  // Choosers' inline shapes don't accept null — coerce.
+                  directorJson={project.directorJson ?? undefined}
                   disabled={isProcessing}
                 />
               )}
@@ -1014,7 +1019,7 @@ export function ProjectWorkflow({
               {step.id === 'audio' && (
                 <AudioChooser
                   projectId={project.id}
-                  directorJson={project.directorJson}
+                  directorJson={project.directorJson ?? undefined}
                   disabled={isProcessing}
                   remainingPreviews={remainingPreviews}
                   onRemainingPreviewsChanged={setRemainingPreviews}

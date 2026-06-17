@@ -59,3 +59,21 @@ export type {
   TtsStem,
   VoiceMap,
 } from './generated/prisma/index.js';
+
+// DirectorJson types — mirrors the orchestrator's zod schema at
+// packages/orchestrator/src/schemas/director-json.ts. See that file's
+// header for parity rules. Web consumers should import the type from
+// here instead of using `directorJson as any` casts.
+export {
+  DIRECTOR_EMOTIONS,
+  isDirectorJson,
+  asDirectorJson,
+} from './types/director-json.js';
+export type {
+  DirectorEmotion,
+  DirectorDialogueLine,
+  DirectorAudioCue,
+  DirectorMixParams,
+  DirectorScene,
+  DirectorJson,
+} from './types/director-json.js';
