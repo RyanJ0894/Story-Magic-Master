@@ -16,6 +16,7 @@ import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Loader2, Lock, Unlock, RotateCcw, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { TUNING_RANGES, DEFAULT_AUDIO_TUNING, type AudioTuningDto } from '@/lib/services/audio-tuning';
@@ -41,14 +42,24 @@ export function AudioTuningPanel({ initial }: AudioTuningPanelProps) {
   const [previewing, setPreviewing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [unlockConfirmOpen, setUnlockConfirmOpen] = useState(false);
+  // Snapshot of the last-saved values. Updated on every successful PATCH. Used
+  // as the "clean" baseline for the dirty flag so Reset-to-defaults doesn't
+  // silently disable Lock when the saved values were already non-default.
+  const [savedSnapshot, setSavedSnapshot] = useState({
+    musicGainOffsetDb: initial.musicGainOffsetDb,
+    ambienceGainOffsetDb: initial.ambienceGainOffsetDb,
+    sfxGainOffsetDb: initial.sfxGainOffsetDb,
+    narrationSpeed: initial.narrationSpeed,
+  });
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // Detect dirty state — sliders moved since the last save/load.
+  // Detect dirty state — sliders differ from the last successfully-saved values.
   const dirty =
-    musicOffset !== initial.musicGainOffsetDb ||
-    ambienceOffset !== initial.ambienceGainOffsetDb ||
-    sfxOffset !== initial.sfxGainOffsetDb ||
-    narrationSpeed !== initial.narrationSpeed;
+    musicOffset !== savedSnapshot.musicGainOffsetDb ||
+    ambienceOffset !== savedSnapshot.ambienceGainOffsetDb ||
+    sfxOffset !== savedSnapshot.sfxGainOffsetDb ||
+    narrationSpeed !== savedSnapshot.narrationSpeed;
 
   useEffect(() => {
     // When a new preview lands, autoplay it for instant feedback.
@@ -57,6 +68,19 @@ export function AudioTuningPanel({ initial }: AudioTuningPanelProps) {
       void audioRef.current.play().catch(() => {});
     }
   }, [previewUrl]);
+
+  // UX-I-01 — warn before discarding unsaved slider changes on navigation away.
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Chrome ignores the message string and shows its own — but setting
+      // returnValue is what actually triggers the prompt on all browsers.
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
 
   function resetToDefaults() {
     setMusicOffset(0);
@@ -95,27 +119,73 @@ export function AudioTuningPanel({ initial }: AudioTuningPanelProps) {
     }
   }
 
-  async function saveTuning(opts: { lock: boolean }) {
+  async function lockCurrent() {
+    // Locking writes the current slider state and flips locked=true. Snapshot
+    // updates so the dirty flag resets and Lock disables until further edits.
     setSaving(true);
     try {
+      const body = {
+        musicGainOffsetDb: musicOffset,
+        ambienceGainOffsetDb: ambienceOffset,
+        sfxGainOffsetDb: sfxOffset,
+        narrationSpeed,
+        locked: true,
+      };
       const res = await fetch('/api/settings/audio-tuning', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'story-magic' },
-        body: JSON.stringify({
-          musicGainOffsetDb: musicOffset,
-          ambienceGainOffsetDb: ambienceOffset,
-          sfxGainOffsetDb: sfxOffset,
-          narrationSpeed,
-          locked: opts.lock,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
         toast.error(`Save failed: ${data.error || 'Unknown error'}`);
         return;
       }
-      setLocked(opts.lock);
-      toast.success(opts.lock ? 'Settings locked — applied to future generations' : 'Settings unlocked');
+      setLocked(true);
+      setSavedSnapshot({
+        musicGainOffsetDb: musicOffset,
+        ambienceGainOffsetDb: ambienceOffset,
+        sfxGainOffsetDb: sfxOffset,
+        narrationSpeed,
+      });
+      toast.success('Settings locked — applied to future generations');
+    } catch {
+      toast.error('Save failed — network error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function unlockOnly() {
+    // UX-I-01 — unlock sends ONLY `locked: false` so the saved values are
+    // preserved. The sliders snap back to the saved snapshot so the user can
+    // see what's currently in effect (and edit from there).
+    setSaving(true);
+    setUnlockConfirmOpen(false);
+    try {
+      const res = await fetch('/api/settings/audio-tuning', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'story-magic' },
+        body: JSON.stringify({ locked: false }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(`Save failed: ${data.error || 'Unknown error'}`);
+        return;
+      }
+      setLocked(false);
+      const saved = data.data;
+      setMusicOffset(saved.musicGainOffsetDb);
+      setAmbienceOffset(saved.ambienceGainOffsetDb);
+      setSfxOffset(saved.sfxGainOffsetDb);
+      setNarrationSpeed(saved.narrationSpeed);
+      setSavedSnapshot({
+        musicGainOffsetDb: saved.musicGainOffsetDb,
+        ambienceGainOffsetDb: saved.ambienceGainOffsetDb,
+        sfxGainOffsetDb: saved.sfxGainOffsetDb,
+        narrationSpeed: saved.narrationSpeed,
+      });
+      toast.success('Unlocked — generations now use in-code defaults until you Lock again');
     } catch {
       toast.error('Save failed — network error');
     } finally {
@@ -250,7 +320,7 @@ export function AudioTuningPanel({ initial }: AudioTuningPanelProps) {
           </p>
           <div className="flex gap-2">
             {locked ? (
-              <Button variant="outline" onClick={() => void saveTuning({ lock: false })} disabled={saving}>
+              <Button variant="outline" onClick={() => setUnlockConfirmOpen(true)} disabled={saving}>
                 {saving ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
@@ -259,7 +329,7 @@ export function AudioTuningPanel({ initial }: AudioTuningPanelProps) {
                 Unlock
               </Button>
             ) : (
-              <Button onClick={() => void saveTuning({ lock: true })} disabled={saving || !dirty}>
+              <Button onClick={() => void lockCurrent()} disabled={saving || !dirty}>
                 {saving ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
@@ -271,6 +341,16 @@ export function AudioTuningPanel({ initial }: AudioTuningPanelProps) {
           </div>
         </div>
       </CardContent>
+
+      <ConfirmDialog
+        open={unlockConfirmOpen}
+        title="Unlock audio tuning?"
+        description="Future generations will revert to the in-code defaults until you Lock new values. Your current saved values are preserved — the sliders will snap back to them so you can edit from there."
+        confirmLabel="Unlock"
+        cancelLabel="Keep locked"
+        onConfirm={() => void unlockOnly()}
+        onCancel={() => setUnlockConfirmOpen(false)}
+      />
     </Card>
   );
 }
