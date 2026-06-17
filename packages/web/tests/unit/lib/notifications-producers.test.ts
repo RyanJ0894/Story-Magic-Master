@@ -20,6 +20,10 @@ import {
   emitScriptGenerationFailed,
   emitSubscriptionRenewed,
   emitSubscriptionFailed,
+  emitProjectOpenedFirstTime,
+  emitListenComplete,
+  emitNoteAdded,
+  emitDecisionMade,
 } from '@/lib/notifications/producers';
 
 vi.mock('@/lib/logger', () => ({
@@ -273,5 +277,135 @@ describe('producer best-effort contract', () => {
     await expect(
       emitTeamMemberLeft(prisma, { teamId: 't', memberUserId: 'u' }),
     ).resolves.toBeUndefined();
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────
+// #331 (2026-06-17) — Project-engagement producers
+// ──────────────────────────────────────────────────────────────────────
+
+function makeProjectPrisma() {
+  const alertCreate = vi.fn(async (args: unknown) => ({ id: 'mock', ...(args as Record<string, unknown>) }));
+  const projectFind = vi.fn();
+  const profileFind = vi.fn();
+  return {
+    alertCreate, projectFind, profileFind,
+    prisma: {
+      alert: { create: alertCreate },
+      project: { findUnique: projectFind },
+      profile: { findUnique: profileFind },
+    } as unknown as Parameters<typeof emitProjectOpenedFirstTime>[0],
+  };
+}
+
+describe('emitProjectOpenedFirstTime (#331)', () => {
+  it('writes alert to project owner with project_opened_first_time type', async () => {
+    const { prisma, projectFind, profileFind, alertCreate } = makeProjectPrisma();
+    projectFind.mockResolvedValueOnce({ userId: 'master_id', name: 'Manhattan' });
+    profileFind.mockResolvedValueOnce({ fullName: 'Alex Doe', email: 'alex@example.com' });
+
+    await emitProjectOpenedFirstTime(prisma, { projectId: 'proj-1', actorUserId: 'sub_id' });
+
+    expect(alertCreate).toHaveBeenCalledTimes(1);
+    const data = alertCreate.mock.calls[0][0].data;
+    expect(data.userId).toBe('master_id');
+    expect(data.alertType).toBe('project_opened_first_time');
+    expect(data.title).toContain('Alex Doe');
+    expect(data.title).toContain('Manhattan');
+    expect(data.title).toContain('first time');
+    expect(data.relatedUserId).toBe('sub_id');
+  });
+
+  it('does NOT emit when actor IS the project owner', async () => {
+    const { prisma, projectFind, alertCreate } = makeProjectPrisma();
+    projectFind.mockResolvedValueOnce({ userId: 'same_user', name: 'A' });
+
+    await emitProjectOpenedFirstTime(prisma, { projectId: 'p', actorUserId: 'same_user' });
+
+    expect(alertCreate).not.toHaveBeenCalled();
+  });
+
+  it('skips silently if project no longer exists', async () => {
+    const { prisma, projectFind, alertCreate } = makeProjectPrisma();
+    projectFind.mockResolvedValueOnce(null);
+
+    await emitProjectOpenedFirstTime(prisma, { projectId: 'p', actorUserId: 'u' });
+
+    expect(alertCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe('emitListenComplete (#331)', () => {
+  it('writes alert with listen_complete type', async () => {
+    const { prisma, projectFind, profileFind, alertCreate } = makeProjectPrisma();
+    projectFind.mockResolvedValueOnce({ userId: 'master', name: 'Hamilton' });
+    profileFind.mockResolvedValueOnce({ fullName: 'Sub User' });
+
+    await emitListenComplete(prisma, { projectId: 'p', actorUserId: 'sub' });
+
+    const data = alertCreate.mock.calls[0][0].data;
+    expect(data.alertType).toBe('listen_complete');
+    expect(data.title).toContain('Sub User');
+    expect(data.title).toContain('Hamilton');
+    expect(data.title).toContain('finished listening');
+  });
+});
+
+describe('emitNoteAdded (#331)', () => {
+  it('writes alert with note_added type + 140-char preview', async () => {
+    const { prisma, projectFind, profileFind, alertCreate } = makeProjectPrisma();
+    projectFind.mockResolvedValueOnce({ userId: 'master', name: 'Wicked' });
+    profileFind.mockResolvedValueOnce({ fullName: 'Sub User' });
+
+    const longNote = 'a'.repeat(200);
+    await emitNoteAdded(prisma, { projectId: 'p', actorUserId: 'sub', notePreview: longNote });
+
+    const data = alertCreate.mock.calls[0][0].data;
+    expect(data.alertType).toBe('note_added');
+    expect(data.message).toHaveLength(140);
+    expect(data.metadata.preview).toHaveLength(140);
+  });
+
+  it('handles null notePreview', async () => {
+    const { prisma, projectFind, profileFind, alertCreate } = makeProjectPrisma();
+    projectFind.mockResolvedValueOnce({ userId: 'master', name: 'A' });
+    profileFind.mockResolvedValueOnce({ fullName: 'Sub' });
+
+    await emitNoteAdded(prisma, { projectId: 'p', actorUserId: 'sub', notePreview: null });
+
+    const data = alertCreate.mock.calls[0][0].data;
+    expect(data.message).toBeNull();
+  });
+});
+
+describe('emitDecisionMade (#331)', () => {
+  it('writes alert with decision_made type + decision metadata', async () => {
+    const { prisma, projectFind, profileFind, alertCreate } = makeProjectPrisma();
+    projectFind.mockResolvedValueOnce({ userId: 'master', name: 'Cats' });
+    profileFind.mockResolvedValueOnce({ fullName: 'Sub' });
+
+    await emitDecisionMade(prisma, {
+      projectId: 'p',
+      actorUserId: 'sub',
+      decision: 'like',
+      sceneIndex: 3,
+    });
+
+    const data = alertCreate.mock.calls[0][0].data;
+    expect(data.alertType).toBe('decision_made');
+    expect(data.title).toContain('marked');
+    expect(data.title).toContain('like');
+    expect(data.metadata).toMatchObject({ decision: 'like', sceneIndex: 3 });
+  });
+
+  it('falls back to "A team member" when actor profile not found', async () => {
+    const { prisma, projectFind, profileFind, alertCreate } = makeProjectPrisma();
+    projectFind.mockResolvedValueOnce({ userId: 'master', name: 'A' });
+    profileFind.mockResolvedValueOnce(null);
+
+    await emitDecisionMade(prisma, { projectId: 'p', actorUserId: 'sub', decision: 'pass' });
+
+    const data = alertCreate.mock.calls[0][0].data;
+    expect(data.title).toContain('A team member');
   });
 });

@@ -163,6 +163,23 @@ export async function POST(request: Request, { params }: RouteParams) {
       .catch(() => {});
   }
 
+  // #331 (2026-06-17): emit master-notification when a sub-account marks
+  // a like / pass / undecided reaction. resolveProjectMaster in the producer
+  // already skips emission when the actor IS the project owner.
+  if (reactionType) {
+    try {
+      const { emitDecisionMade } = await import('@/lib/notifications/producers');
+      await emitDecisionMade(prisma, {
+        projectId,
+        actorUserId: userId,
+        decision: reactionType,
+        sceneIndex: sceneIndex ?? null,
+      });
+    } catch (err) {
+      log.warn('[Comments] emitDecisionMade failed', { err: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
   log.info('[Comments] created', { projectId, userId, hasReaction: !!reactionType });
   return NextResponse.json({ comment: shapeComment(comment) }, { status: 201 });
 }

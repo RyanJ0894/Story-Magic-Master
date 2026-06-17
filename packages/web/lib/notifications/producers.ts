@@ -311,6 +311,120 @@ export async function emitSubscriptionFailed(
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// #331 — Project-engagement triggers (2026-06-17)
+// ─────────────────────────────────────────────────────────────────────
+//
+// Recipient resolution: for project-scoped events, the master is the
+// project owner (which equals team.ownerId when the project is team-
+// owned). The sub-account (the actor) goes into relatedUserId. Skip
+// emitting if actor IS the owner — no master wants notifications about
+// their own activity on their own projects.
+
+async function resolveProjectMaster(
+  prisma: PrismaClient,
+  projectId: string,
+  actorUserId: string,
+): Promise<{ ownerId: string; projectName: string } | null> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { userId: true, name: true },
+  });
+  if (!project) return null;
+  if (project.userId === actorUserId) return null; // owner acting on own project — skip
+  return { ownerId: project.userId, projectName: project.name };
+}
+
+async function lookupActorName(
+  prisma: PrismaClient,
+  userId: string,
+): Promise<string> {
+  const profile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { fullName: true, email: true },
+  });
+  return profile?.fullName || profile?.email || 'A team member';
+}
+
+export async function emitProjectOpenedFirstTime(
+  prisma: PrismaClient,
+  args: { projectId: string; actorUserId: string },
+): Promise<void> {
+  const master = await resolveProjectMaster(prisma, args.projectId, args.actorUserId);
+  if (!master) return;
+  const actorName = await lookupActorName(prisma, args.actorUserId);
+  await emit({
+    prisma,
+    recipientUserId: master.ownerId,
+    alertType: 'project_opened_first_time',
+    title: `${actorName} opened "${master.projectName}" for the first time`,
+    projectId: args.projectId,
+    relatedUserId: args.actorUserId,
+    metadata: { actorName },
+  });
+}
+
+export async function emitListenComplete(
+  prisma: PrismaClient,
+  args: { projectId: string; actorUserId: string },
+): Promise<void> {
+  const master = await resolveProjectMaster(prisma, args.projectId, args.actorUserId);
+  if (!master) return;
+  const actorName = await lookupActorName(prisma, args.actorUserId);
+  await emit({
+    prisma,
+    recipientUserId: master.ownerId,
+    alertType: 'listen_complete',
+    title: `${actorName} finished listening to "${master.projectName}"`,
+    projectId: args.projectId,
+    relatedUserId: args.actorUserId,
+    metadata: { actorName },
+  });
+}
+
+export async function emitNoteAdded(
+  prisma: PrismaClient,
+  args: { projectId: string; actorUserId: string; notePreview?: string | null },
+): Promise<void> {
+  const master = await resolveProjectMaster(prisma, args.projectId, args.actorUserId);
+  if (!master) return;
+  const actorName = await lookupActorName(prisma, args.actorUserId);
+  const preview = args.notePreview ? args.notePreview.slice(0, 140) : null;
+  await emit({
+    prisma,
+    recipientUserId: master.ownerId,
+    alertType: 'note_added',
+    title: `${actorName} added a note on "${master.projectName}"`,
+    message: preview,
+    projectId: args.projectId,
+    relatedUserId: args.actorUserId,
+    metadata: { actorName, preview },
+  });
+}
+
+export async function emitDecisionMade(
+  prisma: PrismaClient,
+  args: {
+    projectId: string;
+    actorUserId: string;
+    decision: string; // 'like' | 'pass' | 'undecided' (or whatever reactionType value)
+    sceneIndex?: number | null;
+  },
+): Promise<void> {
+  const master = await resolveProjectMaster(prisma, args.projectId, args.actorUserId);
+  if (!master) return;
+  const actorName = await lookupActorName(prisma, args.actorUserId);
+  await emit({
+    prisma,
+    recipientUserId: master.ownerId,
+    alertType: 'decision_made',
+    title: `${actorName} marked "${master.projectName}" as ${args.decision}`,
+    projectId: args.projectId,
+    relatedUserId: args.actorUserId,
+    metadata: { actorName, decision: args.decision, sceneIndex: args.sceneIndex ?? null },
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────
 
 function formatMoney(cents: number, currency: string): string {
   return new Intl.NumberFormat('en-US', {
