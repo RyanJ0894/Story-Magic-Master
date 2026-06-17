@@ -369,4 +369,49 @@ describe('Generate API Route - POST /api/generate', () => {
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
   });
+
+  // #321 (2026-06-17): regression — enterprise was omitted from PAID_TIERS,
+  // so enterprise users with 0 credits hit "Insufficient scene credits"
+  // despite holding the highest-tier plan. Ryan's prod sub-account
+  // (ryanj0894@gmail.com) is on enterprise and was failing for this reason.
+  it('bypasses credit check for enterprise-tier users (#321)', async () => {
+    mockAuth.mockResolvedValueOnce({ userId: 'user_test123', getToken: vi.fn().mockResolvedValue('test-token') });
+    mockPrisma.project.findFirst.mockResolvedValueOnce(mockProject);
+    mockPrisma.profile.findUnique.mockResolvedValueOnce({
+      id: 'user_test123',
+      subscriptionTier: 'enterprise',
+      credits: 0,
+    });
+    mockPrisma.job.update.mockResolvedValueOnce({});
+
+    const request = createGenerateRequest({
+      projectId: VALID_PROJECT_ID,
+      jobId: VALID_JOB_ID,
+    });
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+    // No credit-deduction transaction should have fired.
+    expect(mockPrisma.creditTransaction.create).not.toHaveBeenCalled();
+  });
+
+  it('bypasses credit check for studio-tier users (#321 coverage)', async () => {
+    mockAuth.mockResolvedValueOnce({ userId: 'user_test123', getToken: vi.fn().mockResolvedValue('test-token') });
+    mockPrisma.project.findFirst.mockResolvedValueOnce(mockProject);
+    mockPrisma.profile.findUnique.mockResolvedValueOnce({
+      id: 'user_test123',
+      subscriptionTier: 'studio',
+      credits: 0,
+    });
+    mockPrisma.job.update.mockResolvedValueOnce({});
+
+    const request = createGenerateRequest({
+      projectId: VALID_PROJECT_ID,
+      jobId: VALID_JOB_ID,
+    });
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+  });
 });
