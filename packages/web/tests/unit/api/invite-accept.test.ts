@@ -49,6 +49,12 @@ const mockUpdate = vi.fn().mockImplementation(() => {
 });
 const mockProfileFindUnique = vi.fn().mockResolvedValue({ fullName: 'New User' });
 const mockAlertCreate = vi.fn().mockResolvedValue({});
+// #174 (2026-06-17): invite accept now routes the master notification through
+// the producers system instead of an inline alert.create call.
+const mockEmitTeamMemberJoined = vi.fn().mockResolvedValue(undefined);
+vi.mock('@/lib/notifications/producers', () => ({
+  emitTeamMemberJoined: (...args: unknown[]) => mockEmitTeamMemberJoined(...args),
+}));
 
 // Shared tx proxy — both the outer prisma and the tx callback arg use the same mocks.
 const makeTxProxy = () => ({

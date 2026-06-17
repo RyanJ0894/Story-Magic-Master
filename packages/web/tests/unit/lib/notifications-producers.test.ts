@@ -12,6 +12,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import {
+  emitTeamMemberJoined,
   emitTeamMemberLeft,
   emitTeamMemberDeactivated,
   emitTeamMemberQuotaExceeded,
@@ -44,6 +45,65 @@ function makePrisma() {
     } as unknown as Parameters<typeof emitTeamMemberLeft>[0],
   };
 }
+
+describe('emitTeamMemberJoined (#174 — 2026-06-17)', () => {
+  it('writes alert to team owner with team_member_joined type', async () => {
+    const { prisma, teamFind, alertCreate } = makePrisma();
+    teamFind.mockResolvedValueOnce({ ownerId: 'master_clerk_id', name: 'Acme' });
+
+    await emitTeamMemberJoined(prisma, {
+      teamId: 'team-1',
+      memberUserId: 'sub_clerk_id',
+      memberName: 'Alex Doe',
+      memberEmail: 'alex@example.com',
+    });
+
+    expect(alertCreate).toHaveBeenCalledTimes(1);
+    const data = alertCreate.mock.calls[0][0].data;
+    expect(data.userId).toBe('master_clerk_id');
+    expect(data.alertType).toBe('team_member_joined');
+    expect(data.title).toContain('Alex Doe');
+    expect(data.title).toContain('Acme');
+    expect(data.relatedUserId).toBe('sub_clerk_id');
+    expect(data.metadata).toMatchObject({ memberName: 'Alex Doe', memberEmail: 'alex@example.com' });
+  });
+
+  it('falls back to email when memberName is null', async () => {
+    const { prisma, teamFind, alertCreate } = makePrisma();
+    teamFind.mockResolvedValueOnce({ ownerId: 'master', name: 'Acme' });
+
+    await emitTeamMemberJoined(prisma, {
+      teamId: 't',
+      memberUserId: 'm',
+      memberName: null,
+      memberEmail: 'alex@example.com',
+    });
+
+    const data = alertCreate.mock.calls[0][0].data;
+    expect(data.title).toContain('alex@example.com');
+  });
+
+  it('falls back to "Someone" when both name and email missing', async () => {
+    const { prisma, teamFind, alertCreate } = makePrisma();
+    teamFind.mockResolvedValueOnce({ ownerId: 'master', name: 'Acme' });
+
+    await emitTeamMemberJoined(prisma, {
+      teamId: 't',
+      memberUserId: 'm',
+    });
+
+    const data = alertCreate.mock.calls[0][0].data;
+    expect(data.title).toContain('Someone');
+  });
+
+  it('skips silently if team no longer exists', async () => {
+    const { prisma, teamFind, alertCreate } = makePrisma();
+    teamFind.mockResolvedValueOnce(null);
+
+    await emitTeamMemberJoined(prisma, { teamId: 't', memberUserId: 'm' });
+    expect(alertCreate).not.toHaveBeenCalled();
+  });
+});
 
 describe('emitTeamMemberLeft', () => {
   it('writes alert to the team owner with team_member_left type', async () => {

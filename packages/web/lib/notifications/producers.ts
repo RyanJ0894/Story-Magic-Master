@@ -73,6 +73,41 @@ async function emit(params: EmitParams): Promise<void> {
 // Team events
 // ─────────────────────────────────────────────────────────────────────
 
+/**
+ * #174 (2026-06-17): centralizes the alert write that was previously inlined
+ * at app/api/invite/[token]/route.ts:251. Same shape, same alertType, same
+ * Alert table — the consolidation just means future invite-accept changes
+ * don't need to remember the alert side and producers can grow a single
+ * audit / shaping pass without hunting for inline writes.
+ */
+export async function emitTeamMemberJoined(
+  prisma: PrismaClient,
+  args: {
+    teamId: string;
+    memberUserId: string;
+    memberName?: string | null;
+    memberEmail?: string | null;
+  },
+): Promise<void> {
+  const team = await prisma.team.findUnique({
+    where: { id: args.teamId },
+    select: { ownerId: true, name: true },
+  });
+  if (!team) return;
+
+  const memberLabel = args.memberName || args.memberEmail || 'Someone';
+  await emit({
+    prisma,
+    recipientUserId: team.ownerId,
+    alertType: 'team_member_joined',
+    title: `${memberLabel} joined ${team.name}`,
+    message: `${memberLabel} accepted your team invitation.`,
+    teamId: args.teamId,
+    relatedUserId: args.memberUserId,
+    metadata: { memberName: args.memberName ?? null, memberEmail: args.memberEmail ?? null },
+  });
+}
+
 export async function emitTeamMemberLeft(
   prisma: PrismaClient,
   args: { teamId: string; memberUserId: string; memberName?: string | null },
