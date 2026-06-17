@@ -17,6 +17,7 @@ import {
 import { dispatchWebhooks } from '@/lib/webhooks/deliver';
 import { triggerHumanReviewIfPurchased } from '@/lib/human-review/trigger';
 import { chunkScenes, segmentProgressLabel } from '@/lib/generation/chunk-script';
+import { addBreadcrumb, captureMessage } from '@sentry/nextjs';
 
 // =============================================================================
 // Error Sanitization
@@ -406,6 +407,23 @@ export async function processGenerationJob(
         { jobId, projectId, action: 'updateSegmentStatusProcessing' },
       );
 
+      // A-004 (2026-06-15): Sentry breadcrumb per chunk attempt. Lets us see
+      // WHICH chunk failed in retrospect — before this, Ryan's Error 4
+      // ('no audio was produced' on a 15-page script) gave us no idea which
+      // segment died. We had to scroll through logs and guess.
+      addBreadcrumb({
+        category: 'pipeline.chunk',
+        message: `chunk ${chunk.index + 1}/${chunks.length} start`,
+        level: 'info',
+        data: {
+          jobId: jobId.slice(0, 8),
+          chunkIndex: chunk.index,
+          chunkCount: chunks.length,
+          sceneCount: chunk.scenes.length,
+          isChunked,
+        },
+      });
+
       const chunkStart = Date.now();
       const orchestratorResponse = await orchestratorGenerate('/orchestrate', {
         project_id: projectId,
@@ -427,6 +445,22 @@ export async function processGenerationJob(
           jobId: jobId.slice(0, 8), chunkIndex: chunk.index, chunkSec, errorBody: errorBody.slice(0, 500),
         });
         await logJobEvent(jobId, projectId, 'error', 'generating_audio', msg, { chunkIndex: chunk.index, chunkSec }, errorBody.slice(0, 500));
+
+        // A-004: explicit Sentry breadcrumb for the failure side. Pairs with
+        // the success breadcrumb below so a job failure leaves a clear trail
+        // of which chunks succeeded vs failed in the Sentry breadcrumb stack.
+        addBreadcrumb({
+          category: 'pipeline.chunk',
+          message: `chunk ${chunk.index + 1}/${chunks.length} failed`,
+          level: 'error',
+          data: {
+            jobId: jobId.slice(0, 8),
+            chunkIndex: chunk.index,
+            chunkSec,
+            httpStatus: orchestratorResponse.status,
+            errorBodyPreview: errorBody.slice(0, 200),
+          },
+        });
 
         // Mark this segment failed; continue with remaining segments (partial audio)
         segmentStatuses[chunk.index].status = 'failed';
@@ -452,6 +486,21 @@ export async function processGenerationJob(
         chunkSec,
         audioUrls: chunkAudioUrls.length,
         elapsedSec: elapsed(),
+      });
+
+      // A-004: success breadcrumb so the chunk-by-chunk story is complete
+      // in Sentry. If a later chunk fails, the failure stack shows clearly
+      // which chunks succeeded before the failure.
+      addBreadcrumb({
+        category: 'pipeline.chunk',
+        message: `chunk ${chunk.index + 1}/${chunks.length} complete`,
+        level: 'info',
+        data: {
+          jobId: jobId.slice(0, 8),
+          chunkIndex: chunk.index,
+          chunkSec,
+          audioUrls: chunkAudioUrls.length,
+        },
       });
 
       // Persist audio output records for this chunk
@@ -525,6 +574,38 @@ export async function processGenerationJob(
       throw new Error(
         'Audio generation failed: no audio was produced. Please try again or contact support.'
       );
+    }
+
+    // A-003 (2026-06-15): partial-audio detection. When the chunked loop
+    // skipped 1+ failed chunks but at least one succeeded, surface the
+    // partial-success state to Sentry as a warning and to the job log so
+    // Ryan can see in the UI that the generation completed but missed
+    // material. The job still flows to status='completed' below — partial
+    // audio is better than no audio for a 90-page script where one chunk
+    // hit a transient ElevenLabs blip.
+    const failedSegmentCount = segmentStatuses.filter((s) => s.status === 'failed').length;
+    if (failedSegmentCount > 0) {
+      const partialMsg = `Partial audio: ${chunks.length - failedSegmentCount}/${chunks.length} segments succeeded`;
+      log.warn(`[PIPELINE] ${partialMsg}`, {
+        jobId: jobId.slice(0, 8),
+        failedSegmentCount,
+        chunksAttempted: chunks.length,
+        failedIndexes: segmentStatuses.map((s, i) => (s.status === 'failed' ? i : null)).filter((i): i is number => i !== null),
+      });
+      await logJobEvent(jobId, projectId, 'warn', 'generating_audio', partialMsg, {
+        failedSegmentCount,
+        chunksAttempted: chunks.length,
+      });
+      captureMessage(partialMsg, {
+        level: 'warning',
+        tags: { kind: 'pipeline.partial_audio' },
+        extra: {
+          jobId: jobId.slice(0, 8),
+          projectId,
+          failedSegmentCount,
+          chunksAttempted: chunks.length,
+        },
+      });
     }
 
     // Sprint K: stitch segment files into a single episode.m4a when chunked
