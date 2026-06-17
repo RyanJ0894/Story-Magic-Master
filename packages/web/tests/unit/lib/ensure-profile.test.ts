@@ -16,6 +16,9 @@ const { mockPrisma, mockCurrentUser } = vi.hoisted(() => ({
 
 vi.mock('@/lib/db', () => ({ prisma: mockPrisma }));
 vi.mock('@clerk/nextjs/server', () => ({ currentUser: mockCurrentUser }));
+vi.mock('@/lib/logger', () => ({
+  log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
 
 import { ensureProfile } from '@/lib/ensure-profile';
 
@@ -123,5 +126,44 @@ describe('ensureProfile', () => {
       avatarUrl: null,
     });
     expect(args.update).toEqual({});
+  });
+
+  // #322 (2026-06-17): the Clerk-session hydration race.
+  describe('currentUser() retry behavior', () => {
+    it('retries once when currentUser() throws on first attempt', async () => {
+      mockCurrentUser
+        .mockRejectedValueOnce(new Error('transient Clerk session error'))
+        .mockResolvedValueOnce({
+          firstName: 'Ada',
+          emailAddresses: [{ emailAddress: 'ada@example.com' }],
+        });
+
+      await ensureProfile('user_123');
+
+      expect(mockCurrentUser).toHaveBeenCalledTimes(2);
+      // Upsert succeeded with the retry's data
+      const args = upsertArgs();
+      expect(args.create.email).toBe('ada@example.com');
+    });
+
+    it('still upserts with just the userId when BOTH attempts fail', async () => {
+      mockCurrentUser
+        .mockRejectedValueOnce(new Error('first attempt 503'))
+        .mockRejectedValueOnce(new Error('second attempt 503'));
+
+      // Critical: does NOT throw to the caller — would otherwise propagate
+      // to dashboard error.tsx and render "Something went wrong".
+      const result = await ensureProfile('user_123');
+      expect(result).toBeDefined();
+
+      expect(mockCurrentUser).toHaveBeenCalledTimes(2);
+      const args = upsertArgs();
+      expect(args.create).toEqual({
+        id: 'user_123',
+        email: null,
+        fullName: null,
+        avatarUrl: null,
+      });
+    });
   });
 });
