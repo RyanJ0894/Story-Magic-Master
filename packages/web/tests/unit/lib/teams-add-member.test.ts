@@ -28,7 +28,7 @@ type Prisma = Parameters<typeof addMember>[0];
 
 function makePrisma(overrides: {
   existingUser?: { id: string; fullName: string | null } | null;
-  existingMember?: { id: string; status: string } | null;
+  existingMember?: { id: string; status: string; deactivatedAt?: Date | null } | null;
 }) {
   const teamMemberUpdate = vi.fn(async (args: { data: Record<string, unknown> }) => ({
     id: 'member-1',
@@ -133,5 +133,45 @@ describe('addMember', () => {
     await expect(addMember(prisma, TEAM_ID, OWNER_ID, { email: EMAIL })).rejects.toBeInstanceOf(
       TeamServiceError,
     );
+  });
+
+  // A-007 (2026-06-15) — re-invite of a deactivated member must reactivate
+  // (UPDATE the row to status='pending', clear deactivatedAt) rather than
+  // throw ALREADY_MEMBER. Before this fix, re-invites silently no-oped
+  // because deactivated rows kept status='accepted'.
+  it('reactivates a deactivated accepted member instead of throwing', async () => {
+    const { prisma, teamMemberUpdate, teamMemberCreate } = makePrisma({
+      existingUser: { id: 'user-9', fullName: 'Ada' },
+      existingMember: { id: 'm-deact', status: 'accepted', deactivatedAt: new Date('2026-06-01') },
+    });
+
+    await expect(
+      addMember(prisma, TEAM_ID, OWNER_ID, { email: EMAIL }),
+    ).resolves.toBeDefined();
+
+    // Must UPDATE the existing row, not CREATE a new one.
+    expect(teamMemberUpdate).toHaveBeenCalledOnce();
+    expect(teamMemberCreate).not.toHaveBeenCalled();
+
+    const updateData = teamMemberUpdate.mock.calls[0][0].data;
+    expect(updateData).toMatchObject({
+      status: 'pending',
+      deactivatedAt: null,    // critical — clears the deactivation
+      acceptedAt: null,
+    });
+    // Token regenerated
+    expect(updateData.inviteToken).toBeTypeOf('string');
+    expect(updateData.inviteToken.length).toBeGreaterThan(0);
+  });
+
+  it('still throws ALREADY_MEMBER for an accepted-and-NOT-deactivated member', async () => {
+    const { prisma } = makePrisma({
+      existingUser: { id: 'user-9', fullName: 'Ada' },
+      existingMember: { id: 'm', status: 'accepted', deactivatedAt: null },
+    });
+
+    await expect(addMember(prisma, TEAM_ID, OWNER_ID, { email: EMAIL })).rejects.toMatchObject({
+      code: 'ALREADY_MEMBER',
+    });
   });
 });
