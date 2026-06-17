@@ -15,7 +15,16 @@ import { useToast } from '@/hooks/use-toast';
 interface ImprovementWizardButtonProps {
   projectId: string;
   scriptText: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- wizard accepts a partial score shape; full StoryScore type would require cascading changes
+  // T-05 from code-review/2026-06-16 — deferred to Sprint C.1. Tried
+  // narrowing to `Pick<StoryScore, 'id' | 'overallScore'>` in Sprint C
+  // but exposed a real type-debt onion: the wizard's prop is typed
+  // `StoryScore | null` (full shape, 11 fields) while project-workflow
+  // passes a narrow `{ id, overallScore }` shape, and the wizard's
+  // internal `as StoryScore` cast masks the mismatch. Real fix is one
+  // of (a) widen the wizard to `Partial<StoryScore>` after auditing
+  // its field accesses, or (b) load full StoryScore at page boundary.
+  // Both are larger than the 2-SP T-05 estimate.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   existingScore?: any;
 }
 

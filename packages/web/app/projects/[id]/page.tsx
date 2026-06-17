@@ -14,6 +14,7 @@ import { ScriptEditorWrapper } from '@/components/script-editor';
 import { AdvancedAnalysisUpgrade } from '@/components/project/AdvancedAnalysisUpgrade';
 import { AdvancedAnalysisSuccessBanner } from '@/components/project/AdvancedAnalysisSuccessBanner';
 import { activeMemberWhere } from '@/lib/services/projects';
+import { asDirectorJson } from '@story-magic/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -255,7 +256,9 @@ export default async function ProjectPage(
             status: project.status,
             pageCount: project.pageCount,
             scriptText: project.scriptText ?? '',
-            directorJson: project.directorJson,
+            // Narrow Prisma JsonValue → DirectorJson at the page boundary.
+            // Legacy rows whose shape predates the schema fall through as null.
+            directorJson: asDirectorJson(project.directorJson),
             preferredWorkflowMode: (project.preferredWorkflowMode as 'automatic' | 'fine_tuned' | undefined) ?? undefined,
             currentRunNumber: project.currentRunNumber ?? 0,
           }}

@@ -18,6 +18,8 @@ import { dispatchWebhooks } from '@/lib/webhooks/deliver';
 import { triggerHumanReviewIfPurchased } from '@/lib/human-review/trigger';
 import { chunkScenes, segmentProgressLabel } from '@/lib/generation/chunk-script';
 import { addBreadcrumb, captureMessage } from '@sentry/nextjs';
+import { Prisma } from '@story-magic/shared';
+import { asDirectorJson, type DirectorJson } from '@story-magic/shared';
 
 // =============================================================================
 // Error Sanitization
@@ -223,12 +225,15 @@ export async function processGenerationJob(
       select: { directorJson: true, directorNotes: true },
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const existingDirectorJson = existingProject?.directorJson as any;
-    const hasExistingParse = Array.isArray(existingDirectorJson?.scenes) && existingDirectorJson.scenes.length > 0;
+    // Narrow Prisma's JsonValue to DirectorJson at the boundary. asDirectorJson
+    // returns null for legacy rows whose shape predates the schema; the
+    // hasExistingParse check below catches both the null case and rows with
+    // empty scenes, so the existing fallback to fresh parsing still fires.
+    const existingDirectorJson = asDirectorJson(existingProject?.directorJson);
+    const hasExistingParse =
+      existingDirectorJson !== null && existingDirectorJson.scenes.length > 0;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let directorJson: any;
+    let directorJson: DirectorJson;
 
     if (hasExistingParse) {
       directorJson = existingDirectorJson;
@@ -294,9 +299,14 @@ export async function processGenerationJob(
       // Save director JSON to project for future retry reuse. safeUpdate
       // because the project could be deleted between the parse finishing and
       // this write (same race class as updateJobProgress above).
+      // Cast back to Prisma's InputJsonValue at the boundary — DirectorJson
+      // is a structural subset but Prisma's type wants an index signature.
       await safeUpdate(
         prisma.project,
-        { where: { id: projectId }, data: { directorJson } },
+        {
+          where: { id: projectId },
+          data: { directorJson: directorJson as unknown as Prisma.InputJsonValue },
+        },
         { jobId, projectId, action: 'cacheDirectorJson' },
       );
     }
@@ -336,15 +346,18 @@ export async function processGenerationJob(
 
     if (audioOverrides.length > 0) {
       for (const override of audioOverrides) {
-        const scene = directorJson.scenes?.find(
-          (s: { scene_id: string }) => s.scene_id === override.scene_id
-        );
+        const scene = directorJson.scenes.find((s) => s.scene_id === override.scene_id);
         if (!scene) continue;
-        const cueArray = scene[override.category as string];
-        if (!Array.isArray(cueArray) || (override.cue_index as number) >= cueArray.length) continue;
-        cueArray[override.cue_index as number] = {
-          ...cueArray[override.cue_index as number],
-          file: override.file,
+        // Only music/ambience/sfx are valid override categories — the dialogue
+        // and mix fields aren't user-overridable here.
+        const category = override.category as 'music' | 'ambience' | 'sfx';
+        if (category !== 'music' && category !== 'ambience' && category !== 'sfx') continue;
+        const cueArray = scene[category];
+        const idx = override.cue_index as number;
+        if (!Array.isArray(cueArray) || idx >= cueArray.length) continue;
+        cueArray[idx] = {
+          ...cueArray[idx],
+          file: override.file as string,
           reasoning: 'User override',
         };
       }
