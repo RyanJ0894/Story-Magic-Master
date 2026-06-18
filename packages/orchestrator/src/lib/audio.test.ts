@@ -303,4 +303,118 @@ describe('ttsGenerate', () => {
     // execa mock returns 'FAKE_WAV_OUTPUT', confirming the transcoding path ran
     expect(result.toString()).toBe('FAKE_WAV_OUTPUT');
   });
+
+  // ── #320 follow-up: progressive shape fallback on 500 ─────────────────────
+
+  describe('progressive shape fallback (#320 follow-up, 2026-06-17)', () => {
+    it('falls back from PCM to MP3 when PCM shape 500s', async () => {
+      const calls: { url: string; bodyKeys: string[]; accept: string }[] = [];
+
+      mockFetch.mockImplementation(async (url: string, opts: { body: string; headers: Record<string, string> }) => {
+        const body = JSON.parse(opts.body);
+        calls.push({ url, bodyKeys: Object.keys(body.voice_settings), accept: opts.headers['Accept'] });
+        if (calls.length === 1) {
+          return fakeResponse(500, JSON.stringify({ status: 'internal_server_error' }));
+        }
+        return fakeResponse(200, Buffer.from('mp3-bytes'));
+      });
+
+      const result = await ttsGenerate({ voice: { voice_id: 'v1', params_json: {} }, text: 'hi' });
+
+      expect(calls).toHaveLength(2);
+      expect(calls[0].url).toContain('?output_format=pcm_24000');
+      expect(calls[0].accept).toBe('audio/pcm');
+      expect(calls[1].url).not.toContain('output_format');
+      expect(calls[1].accept).toBe('audio/mpeg');
+      expect(calls[1].bodyKeys.sort()).toEqual(calls[0].bodyKeys.sort());
+      expect(result).toBeInstanceOf(Buffer);
+    });
+
+    it('strips use_speaker_boost on third shape attempt', async () => {
+      const bodyKeysHistory: string[][] = [];
+
+      mockFetch.mockImplementation(async (_url: string, opts: { body: string }) => {
+        const body = JSON.parse(opts.body);
+        bodyKeysHistory.push(Object.keys(body.voice_settings).sort());
+        if (bodyKeysHistory.length < 3) return fakeResponse(500, 'internal_server_error');
+        return fakeResponse(200, Buffer.from('mp3-bytes'));
+      });
+
+      const result = await ttsGenerate({ voice: { voice_id: 'v1', params_json: {} }, text: 'hi' });
+
+      // Third shape strips use_speaker_boost
+      expect(bodyKeysHistory[0]).toContain('use_speaker_boost');
+      expect(bodyKeysHistory[1]).toContain('use_speaker_boost');
+      expect(bodyKeysHistory[2]).not.toContain('use_speaker_boost');
+      expect(bodyKeysHistory[2]).toContain('stability');
+      expect(bodyKeysHistory[2]).toContain('similarity_boost');
+      expect(result).toBeInstanceOf(Buffer);
+    });
+
+    it('drops to minimal shape (stability+similarity only) on fourth attempt', async () => {
+      const bodies: Record<string, unknown>[] = [];
+
+      mockFetch.mockImplementation(async (_url: string, opts: { body: string }) => {
+        const body = JSON.parse(opts.body);
+        bodies.push(body.voice_settings);
+        if (bodies.length < 4) return fakeResponse(500, 'internal_server_error');
+        return fakeResponse(200, Buffer.from('mp3-bytes'));
+      });
+
+      const result = await ttsGenerate({
+        voice: { voice_id: 'v1', params_json: { stability: 0.3, similarity_boost: 0.8, use_speaker_boost: false, style: 0.5 } },
+        text: 'hi',
+        speedOverride: 1.1,
+      });
+
+      // Final shape: only stability + similarity_boost remain
+      expect(Object.keys(bodies[3]).sort()).toEqual(['similarity_boost', 'stability']);
+      expect(bodies[3]).toEqual({ stability: 0.3, similarity_boost: 0.8 });
+      expect(result).toBeInstanceOf(Buffer);
+    });
+
+    it('does NOT fall back to next shape on 401 — surfaces immediately', async () => {
+      let calls = 0;
+      mockFetch.mockImplementation(async () => {
+        calls++;
+        return fakeResponse(401, 'invalid_api_key');
+      });
+
+      await expect(
+        ttsGenerate({ voice: { voice_id: 'v1', params_json: {} }, text: 'hi' }),
+      ).rejects.toThrow(/401/);
+
+      // Only 1 call — no fallback chain on 401
+      expect(calls).toBe(1);
+    });
+
+    it('throws when ALL shapes fail with 500', async () => {
+      mockFetch.mockResolvedValue(fakeResponse(500, 'internal_server_error'));
+
+      await expect(
+        ttsGenerate({ voice: { voice_id: 'v1', params_json: {} }, text: 'hi' }),
+      ).rejects.toThrow(/500/);
+
+      expect(mockFetch).toHaveBeenCalledTimes(4);
+    });
+
+    it('respects ELEVENLABS_FALLBACK_DISABLED=true (legacy PCM-only)', async () => {
+      const prev = process.env.ELEVENLABS_FALLBACK_DISABLED;
+      process.env.ELEVENLABS_FALLBACK_DISABLED = 'true';
+      try {
+        mockFetch.mockResolvedValue(fakeResponse(500, 'internal_server_error'));
+
+        await expect(
+          ttsGenerate({ voice: { voice_id: 'v1', params_json: {} }, text: 'hi' }),
+        ).rejects.toThrow(/500/);
+
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+        const callUrl = mockFetch.mock.calls[0][0] as string;
+        expect(callUrl).toContain('output_format=pcm_24000');
+      } finally {
+        if (prev === undefined) delete process.env.ELEVENLABS_FALLBACK_DISABLED;
+        else process.env.ELEVENLABS_FALLBACK_DISABLED = prev;
+      }
+    });
+  });
 });

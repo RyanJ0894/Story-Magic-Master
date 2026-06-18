@@ -119,6 +119,31 @@ async function transcodePcmToWav(pcm: Buffer): Promise<Buffer> {
   return stdout as unknown as Buffer;
 }
 
+/**
+ * Transcode an MP3 buffer (ElevenLabs' default output_format) to WAV 48 kHz stereo.
+ *
+ * #320 follow-up (2026-06-17): the progressive-fallback path uses MP3 instead
+ * of PCM when an ElevenLabs 500 is suspected to be PCM-routing related.
+ * Adds ~50ms per stem vs PCM but a much more battle-tested ElevenLabs path
+ * (their default; what every SDK example shows).
+ */
+async function transcodeMp3ToWav(mp3: Buffer): Promise<Buffer> {
+  const { stdout } = await execa(
+    ffmpeg,
+    [
+      '-v', 'error',
+      // MP3 input — ffmpeg auto-detects sample rate from frame headers
+      '-f', 'mp3',
+      '-i', 'pipe:0',
+      // Output: WAV 48 kHz stereo (mixer requirement)
+      '-c:a', 'pcm_s16le', '-f', 'wav', '-ar', '48000', '-ac', '2',
+      'pipe:1',
+    ],
+    { input: mp3, encoding: 'buffer' }
+  );
+  return stdout as unknown as Buffer;
+}
+
 // Default fallback voices (always available in ElevenLabs)
 const DEFAULT_VOICES = {
   male: 'pNInz6obpgDQGcFmaJgB', // Adam - reliable male voice
@@ -161,109 +186,226 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
   const params = opts.voice.params_json;
   const hasParams = params && Object.keys(params).length > 0;
 
-  // B-003b: merge in narrationSpeed override when present. Applied AFTER the
-  // params/default merge so a locked tuning value wins regardless of the
-  // voice's stored params_json.
   const baseSettings = hasParams
-    ? params
+    ? (params as Record<string, unknown>)
     : {
         stability: 0.4,
         similarity_boost: 0.7,
         use_speaker_boost: false,
       };
-  const voice_settings = opts.speedOverride !== undefined
+  const fullVoiceSettings: Record<string, unknown> = opts.speedOverride !== undefined
     ? { ...baseSettings, speed: opts.speedOverride }
-    : baseSettings;
+    : { ...baseSettings };
 
-  const request_body = {
-    text: opts.text,
-    model_id: modelId,
-    voice_settings,
+  // #320 follow-up (2026-06-17) — progressive shape fallback.
+  //
+  // Peter spent the day chasing ElevenLabs 500s where the request body our
+  // code sends fails but the "same" curl succeeds. Three plausible causes
+  // ranked by likelihood:
+  //   A. PCM output endpoint (?output_format=pcm_24000 + Accept: audio/pcm)
+  //      routes through a different backend that's more fragile/often-500.
+  //      Curl without that query param hits the default MP3 path and works.
+  //   B. `use_speaker_boost: false` in voice_settings is now rejected for
+  //      eleven_turbo_v2_5 after the 2026-06-08 schema changes.
+  //   C. `speed` in voice_settings is rejected for the current model.
+  //
+  // Strategy: try shape (A) with full retry budget (transient handling).
+  // On a final 500 after retries are exhausted, fall back to shape (B) once.
+  // If still 500, fall back to (C) once. Each shape strips one suspect:
+  //
+  //   shape 0 (current): PCM, full voice_settings — what we send today
+  //   shape 1 (MP3):     MP3 default, full voice_settings — kills suspect #1
+  //   shape 2 (no boost): MP3, drop use_speaker_boost — kills suspect #2
+  //   shape 3 (minimal):  MP3, drop everything except stability+similarity
+  //                       — kills suspect #3 and any other validation
+  //
+  // The first successful shape is the answer. Tag it in logs so we can
+  // converge to the right default once the dust settles.
+  type ShapeStrategy = {
+    name: string;
+    outputFormat: string | null; // null = MP3 default
+    acceptHeader: string;
+    transcode: (buf: Buffer) => Promise<Buffer>;
+    stripUseSpeakerBoost: boolean;
+    stripSpeed: boolean;
   };
 
+  const stripCurrent = baseSettings as Record<string, unknown>;
+  const STRATEGIES: ShapeStrategy[] = [
+    {
+      name: 'pcm-full',
+      outputFormat: 'pcm_24000',
+      acceptHeader: 'audio/pcm',
+      transcode: transcodePcmToWav,
+      stripUseSpeakerBoost: false,
+      stripSpeed: false,
+    },
+    {
+      name: 'mp3-full',
+      outputFormat: null,
+      acceptHeader: 'audio/mpeg',
+      transcode: transcodeMp3ToWav,
+      stripUseSpeakerBoost: false,
+      stripSpeed: false,
+    },
+    {
+      name: 'mp3-no-boost',
+      outputFormat: null,
+      acceptHeader: 'audio/mpeg',
+      transcode: transcodeMp3ToWav,
+      stripUseSpeakerBoost: true,
+      stripSpeed: false,
+    },
+    {
+      name: 'mp3-minimal',
+      outputFormat: null,
+      acceptHeader: 'audio/mpeg',
+      transcode: transcodeMp3ToWav,
+      stripUseSpeakerBoost: true,
+      stripSpeed: true,
+    },
+  ];
+
+  // Allow operators to disable the fallback chain via env if needed for
+  // debugging — set ELEVENLABS_FALLBACK_DISABLED=true to keep the legacy
+  // PCM-only behavior and surface 500s directly.
+  const fallbackDisabled = process.env.ELEVENLABS_FALLBACK_DISABLED === 'true';
+  const activeStrategies = fallbackDisabled ? [STRATEGIES[0]] : STRATEGIES;
+
   // Try with the requested voice, fall back to default if voice not found
-  let voiceId = opts.voice.voice_id;
+  const voiceId = opts.voice.voice_id;
   let usedFallback = false;
 
+  function buildVoiceSettings(strat: ShapeStrategy): Record<string, unknown> {
+    const settings = { ...fullVoiceSettings };
+    if (strat.stripUseSpeakerBoost) delete settings.use_speaker_boost;
+    if (strat.stripSpeed) delete settings.speed;
+    if (strat.stripSpeed) {
+      // The minimal strategy also drops any non-core fields the voice's
+      // params_json might carry (style, similarity_boost overrides, etc.)
+      // that would survive the surface-level deletes above. Keep ONLY the
+      // two fields that every model accepts.
+      return {
+        stability: typeof settings.stability === 'number' ? settings.stability : 0.4,
+        similarity_boost: typeof settings.similarity_boost === 'number' ? settings.similarity_boost : 0.7,
+      };
+    }
+    return settings;
+  }
+
   const generateWithVoice = async (vid: string): Promise<Buffer> => {
-    log.info('TTS: Generating audio', { voiceId: vid, modelId, usedFallback });
-    log.debug('TTS request body', { request_body });
+    // #320 follow-up: bumped from log.debug to log.info so the EXACT request
+    // body lands in Render logs. Peter was bisecting blind; this gives us
+    // every line of context needed to replay as curl.
+    log.info('TTS: Generating audio', { voiceId: vid, modelId, usedFallback, strategies: activeStrategies.length });
 
-    return withRetry(
-      async () => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), ELEVENLABS_REQUEST_TIMEOUT_MS);
+    let lastError: Error | null = null;
+    for (let i = 0; i < activeStrategies.length; i++) {
+      const strategy = activeStrategies[i];
+      const isFirstShape = i === 0;
+      const voice_settings = buildVoiceSettings(strategy);
+      const request_body: Record<string, unknown> = {
+        text: opts.text,
+        model_id: modelId,
+        voice_settings,
+      };
 
-        let res: Response;
-        try {
-          res = await fetch(
-            // output_format is a query parameter — ElevenLabs ignores it in the body
-            `https://api.elevenlabs.io/v1/text-to-speech/${vid}?output_format=pcm_24000`,
-            {
-              method: 'POST',
-              headers: {
-                'xi-api-key': apiKey,
-                'Content-Type': 'application/json',
-                'Accept': 'audio/pcm',
-              },
-              body: JSON.stringify(request_body),
-              signal: controller.signal,
+      const url = strategy.outputFormat
+        ? `https://api.elevenlabs.io/v1/text-to-speech/${vid}?output_format=${strategy.outputFormat}`
+        : `https://api.elevenlabs.io/v1/text-to-speech/${vid}`;
+
+      log.info('TTS shape attempt', {
+        voiceId: vid, strategy: strategy.name, shape: i + 1, totalShapes: activeStrategies.length,
+        outputFormat: strategy.outputFormat ?? 'mp3-default',
+        bodyKeys: Object.keys(voice_settings),
+      });
+
+      try {
+        const buf = await withRetry(
+          async () => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), ELEVENLABS_REQUEST_TIMEOUT_MS);
+
+            let res: Response;
+            try {
+              res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                  'xi-api-key': apiKey,
+                  'Content-Type': 'application/json',
+                  'Accept': strategy.acceptHeader,
+                },
+                body: JSON.stringify(request_body),
+                signal: controller.signal,
+              });
+            } finally {
+              clearTimeout(timeoutId);
             }
-          );
-        } finally {
-          clearTimeout(timeoutId);
-        }
 
-        if (!res.ok) {
-          const errorText = await res.text();
-          if (res.status === 402) {
-            // Payment Required — ElevenLabs account is past due or over quota.
-            // Do not retry; surface a human-readable message.
-            throw new RetryableError(
-              'ElevenLabs account billing issue (402 Payment Required). Audio generation is temporarily paused — please check the ElevenLabs account billing status.',
-              res.status,
-              false
-            );
-          }
-          if (res.status === 401) {
-            throw new RetryableError(
-              'ElevenLabs API key is invalid or missing (401 Unauthorized). Please check the ELEVENLABS_API_KEY environment variable.',
-              res.status,
-              false
-            );
-          }
-          if (res.status === 429 || res.status >= 500) {
-            throw new RetryableError(
-              `ElevenLabs TTS failed ${res.status}: ${errorText}`,
-              res.status,
-              true
-            );
-          }
-          throw new RetryableError(
-            `ElevenLabs TTS failed ${res.status}: ${errorText}`,
-            res.status,
-            false
-          );
-        }
+            if (!res.ok) {
+              const errorText = await res.text();
+              if (res.status === 402) {
+                throw new RetryableError(
+                  'ElevenLabs account billing issue (402 Payment Required). Audio generation is temporarily paused — please check the ElevenLabs account billing status.',
+                  res.status, false,
+                );
+              }
+              if (res.status === 401) {
+                throw new RetryableError(
+                  'ElevenLabs API key is invalid or missing (401 Unauthorized). Please check the ELEVENLABS_API_KEY environment variable.',
+                  res.status, false,
+                );
+              }
+              if (res.status === 429 || res.status >= 500) {
+                throw new RetryableError(
+                  `ElevenLabs TTS failed ${res.status} [shape=${strategy.name}]: ${errorText}`,
+                  res.status, true,
+                );
+              }
+              throw new RetryableError(
+                `ElevenLabs TTS failed ${res.status} [shape=${strategy.name}]: ${errorText}`,
+                res.status, false,
+              );
+            }
 
-        const rawBuffer = Buffer.from(await res.arrayBuffer());
-        return transcodePcmToWav(rawBuffer);
-      },
-      {
-        // #320 (2026-06-17): bumped from 3→5 retries and max delay 10s→30s
-        // to ride out short ElevenLabs blips. Ryan's 2026-06-17 incident:
-        // sustained ElevenLabs 500s killed chunk 0 after 3 retries (~15s
-        // total backoff window), turning a transient upstream issue into
-        // "no audio was produced." With 5 retries + 30s cap the total
-        // window is ~60s — covers most ElevenLabs single-incident outages
-        // without keeping a doomed job alive forever.
-        maxRetries: 5,
-        initialDelayMs: 1000,
-        maxDelayMs: 30000,
-        jitterFactor: 0.2,
-        retryableStatuses: [429, 500, 502, 503, 504],
+            const rawBuffer = Buffer.from(await res.arrayBuffer());
+            return strategy.transcode(rawBuffer);
+          },
+          {
+            // First shape gets the full transient-handling budget; subsequent
+            // shapes get 1 try each (we're already past transient land).
+            maxRetries: isFirstShape ? 5 : 0,
+            initialDelayMs: 1000,
+            maxDelayMs: 30000,
+            jitterFactor: 0.2,
+            retryableStatuses: [429, 500, 502, 503, 504],
+          },
+        );
+        if (!isFirstShape) {
+          log.warn('TTS: succeeded with fallback shape', {
+            voiceId: vid, strategy: strategy.name, shape: i + 1,
+          });
+        }
+        return buf;
+      } catch (err) {
+        lastError = err as Error;
+        const msg = (err as Error).message.toLowerCase();
+        // Only progress to the next shape on a 500-class failure (covers
+        // 5xx and the wrapped ElevenLabs TTS failed 5/429 strings). For
+        // 401/402/404 etc. we want to surface immediately.
+        const looksLike5xx =
+          msg.includes('failed 5') || msg.includes('failed 429') ||
+          msg.includes('502') || msg.includes('503') || msg.includes('504');
+        if (!looksLike5xx) throw err;
+        if (i === activeStrategies.length - 1) throw err;
+        log.warn('TTS: shape failed with 5xx, trying next shape', {
+          voiceId: vid, failedStrategy: strategy.name,
+          nextStrategy: activeStrategies[i + 1].name,
+          errorPreview: (err as Error).message.slice(0, 200),
+        });
       }
-    );
+    }
+    throw lastError ?? new Error('TTS: all shape strategies exhausted');
   };
 
   try {
@@ -273,7 +415,6 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
     if (err instanceof Error && err.message.includes('404') && err.message.includes('voice_not_found')) {
       log.warn('TTS: Voice not found, using fallback voice', { voiceId });
       usedFallback = true;
-      // Use male voice as default fallback
       return await generateWithVoice(DEFAULT_VOICES.male);
     }
     throw err;
