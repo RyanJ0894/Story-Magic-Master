@@ -54,6 +54,7 @@ function fakeResponse(status: number, body: string | Buffer): Response {
     status,
     text: async () => text,
     arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer,
+    headers: { forEach: (_cb: (value: string, key: string) => void) => {} },
   } as unknown as Response;
 }
 
