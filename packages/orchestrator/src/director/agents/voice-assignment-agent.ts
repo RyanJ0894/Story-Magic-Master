@@ -151,6 +151,15 @@ export class VoiceAssignmentAgent {
       }
     }
 
+    // Replace null default-voice fields with constants so Zod validation passes
+    // without triggering the expensive LLM repair path.
+    if (parsed && typeof parsed === 'object') {
+      const p = parsed as Record<string, unknown>;
+      if (p.default_narrator_voice == null) p.default_narrator_voice = DEFAULT_NARRATOR_VOICE;
+      if (p.default_male_voice == null) p.default_male_voice = DEFAULT_MALE_VOICE;
+      if (p.default_female_voice == null) p.default_female_voice = DEFAULT_FEMALE_VOICE;
+    }
+
     // Validate with Zod
     const validation = VoiceMapSchema.safeParse(parsed);
     if (!validation.success) {
