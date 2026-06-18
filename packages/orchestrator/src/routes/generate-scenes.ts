@@ -6,6 +6,7 @@ import { getEnv } from '../lib/env.js';
 import { prisma } from '../lib/prisma.js';
 import { checkAIProviders } from '../lib/ai-health.js';
 import { setProjectScope } from '../lib/sentry.js';
+import { generateRequestId, runWithRequestContext } from '../lib/request-context.js';
 
 const router = Router();
 
@@ -28,6 +29,16 @@ const router = Router();
  *   - validation_report: ValidationReport
  */
 router.post('/generate-scenes', async (req: Request, res: Response): Promise<void> => {
+  const upstreamId = (req.headers['x-request-id'] || req.headers['rndr-id']) as string | undefined;
+  const requestId = upstreamId || generateRequestId();
+  res.setHeader('X-Request-ID', requestId);
+
+  await runWithRequestContext({ requestId, projectId: req.body?.project_id }, async () => {
+    await handleGenerateScenes(req, res);
+  });
+});
+
+async function handleGenerateScenes(req: Request, res: Response): Promise<void> {
   const start = Date.now();
 
   // Validate request
@@ -185,6 +196,6 @@ router.post('/generate-scenes', async (req: Request, res: Response): Promise<voi
       processing_time: (Date.now() - start) / 1000,
     } as GenerateScenesResponse);
   }
-});
+}
 
 export default router;

@@ -8,6 +8,7 @@ import { checkAIProviders } from '../lib/ai-health.js';
 import { selectDirectorModel } from '../lib/select-director-model.js';
 import { setProjectScope } from '../lib/sentry.js';
 import { preFlightVoices, extractVoiceIds } from '../lib/voice-validator.js';
+import { generateRequestId, runWithRequestContext } from '../lib/request-context.js';
 
 const router = Router();
 
@@ -32,6 +33,21 @@ const router = Router();
  *   - playback_manifest: object
  */
 router.post('/orchestrate', async (req: Request, res: Response): Promise<void> => {
+  // 2026-06-17 (Peter): bind a requestId to this whole async chain so every
+  // log line — pre-flight, director pipeline, per-TTS attempts, errors — gets
+  // the same correlation ID. Surface it on the response so the caller can
+  // grep it back. Reuse upstream `x-request-id` if Render's proxy forwarded
+  // one, otherwise mint our own.
+  const upstreamId = (req.headers['x-request-id'] || req.headers['rndr-id']) as string | undefined;
+  const requestId = upstreamId || generateRequestId();
+  res.setHeader('X-Request-ID', requestId);
+
+  await runWithRequestContext({ requestId, projectId: req.body?.project_id }, async () => {
+    await handleOrchestrate(req, res);
+  });
+});
+
+async function handleOrchestrate(req: Request, res: Response): Promise<void> {
   // Validate request
   const parsed = OrchestrateRequestSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -227,6 +243,6 @@ router.post('/orchestrate', async (req: Request, res: Response): Promise<void> =
       message: error instanceof Error ? error.message : 'Unknown error',
     } as OrchestrateResponse);
   }
-});
+}
 
 export default router;

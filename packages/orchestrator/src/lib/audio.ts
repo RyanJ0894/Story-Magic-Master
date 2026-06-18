@@ -15,6 +15,7 @@ import { execa } from 'execa';
 import { withRetry, RetryableError } from './retry.js';
 import fs from 'fs';
 import { log } from './logger.js';
+import { getRequestContext } from './request-context.js';
 
 const ffprobePath = ffprobeStatic.path;
 const ffmpeg = ffmpegStatic as unknown as string;
@@ -194,6 +195,20 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), ELEVENLABS_REQUEST_TIMEOUT_MS);
 
+        // 2026-06-17: forward our request correlation ID to ElevenLabs so a
+        // support ticket can cross-reference. They don't echo it back in
+        // responses (as of June 2026) but having it on outbound is free.
+        const ctx = getRequestContext();
+        const outboundHeaders: Record<string, string> = {
+          'xi-api-key': apiKey,
+          'Content-Type': 'application/json',
+          'Accept': 'audio/pcm',
+        };
+        if (ctx?.requestId) {
+          outboundHeaders['X-Request-ID'] = ctx.requestId;
+        }
+
+        const attemptStart = Date.now();
         let res: Response;
         try {
           res = await fetch(
@@ -201,11 +216,7 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
             `https://api.elevenlabs.io/v1/text-to-speech/${vid}?output_format=pcm_24000`,
             {
               method: 'POST',
-              headers: {
-                'xi-api-key': apiKey,
-                'Content-Type': 'application/json',
-                'Accept': 'audio/pcm',
-              },
+              headers: outboundHeaders,
               body: JSON.stringify(request_body),
               signal: controller.signal,
             }
@@ -213,6 +224,32 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
         } finally {
           clearTimeout(timeoutId);
         }
+        // Structured log of every TTS attempt + outcome. Grep `requestId=<id>`
+        // to find the whole chain for one job. The mixin attaches requestId
+        // and projectId automatically; we include them again here for grep-
+        // ability of the raw text without parsing JSON.
+        //
+        // Defensive header read: in unit tests `fakeResponse` constructs a
+        // Response-like object without a real Headers instance, so
+        // `res.headers.get` may not exist. Fall back to direct object access
+        // and finally to null. ElevenLabs occasionally echoes a request-id
+        // style header — capturing it lets us cross-reference in a support
+        // ticket if we ever need to.
+        const readHeader = (name: string): string | null => {
+          const h = res.headers;
+          if (!h) return null;
+          if (typeof (h as Headers).get === 'function') return (h as Headers).get(name);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const asObj = h as any;
+          return (asObj[name] ?? asObj[name.toLowerCase()] ?? null) as string | null;
+        };
+        log.info('ElevenLabs TTS response', {
+          voiceId: vid,
+          modelId,
+          status: res.status,
+          elapsedMs: Date.now() - attemptStart,
+          elevenLabsRequestId: readHeader('request-id') || readHeader('x-request-id') || null,
+        });
 
         if (!res.ok) {
           const errorText = await res.text();
