@@ -81,7 +81,20 @@ let _httpLogger: any = null;
         const suffix = llmModel ? ` [llm: ${llmModel}]` : '';
         return `${req.method} ${req.url} failed: ${err.message}${suffix}`;
       },
-      redact: ['req.headers.authorization', 'req.headers.cookie'],
+      // 2026-06-17 (Peter): x-service-key was being printed in /orchestrate
+      // request logs in plaintext — same class as authorization/cookie but
+      // wasn't in the redact list. Expanded to cover every header that can
+      // carry a secret: our own service auth, ElevenLabs and OpenAI API keys
+      // (in case they're ever forwarded), and Render's internal proxy header.
+      redact: [
+        'req.headers.authorization',
+        'req.headers.cookie',
+        'req.headers["x-service-key"]',
+        'req.headers["x-api-key"]',
+        'req.headers["xi-api-key"]',
+        'req.headers["x-clerk-auth-token"]',
+        'req.headers["x-clerk-user-id"]',
+      ],
       autoLogging: {
         ignore: (req: IncomingMessage) => req.url === '/health' || req.url === '/',
       },
