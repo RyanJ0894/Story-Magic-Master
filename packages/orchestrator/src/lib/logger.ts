@@ -1,5 +1,6 @@
 import pino from 'pino';
 import { IncomingMessage, ServerResponse } from 'http';
+import { getRequestContext } from './request-context.js';
 
 // Determine log level from environment
 const LOG_LEVEL = process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug');
@@ -23,6 +24,17 @@ export const logger = pino({
     service: 'story-magic-orchestrator',
     version: process.env.npm_package_version || '2.0.0',
     env: process.env.NODE_ENV || 'development',
+  },
+  // 2026-06-17 (Peter ask): per-request correlation IDs in every log line.
+  // The mixin is called for every log; when we're inside runWithRequestContext
+  // it auto-injects requestId + projectId. Outside of a request (boot logs,
+  // background tasks), it's a no-op.
+  mixin: () => {
+    const ctx = getRequestContext();
+    if (!ctx) return {};
+    const fields: Record<string, string> = { requestId: ctx.requestId };
+    if (ctx.projectId) fields.projectId = ctx.projectId;
+    return fields;
   },
   // Customize serializers
   serializers: {
