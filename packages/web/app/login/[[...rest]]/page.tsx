@@ -7,12 +7,20 @@ import ClerkSignIn from '../clerk-sign-in';
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ redirect?: string }>;
+  // #322 (2026-06-17): the invite page passes `?redirect_url=...` (Clerk's
+  // own convention), but earlier code paths used `?redirect=`. Accept BOTH
+  // so existing links continue working. `redirect_url` wins if both present.
+  searchParams: Promise<{ redirect?: string; redirect_url?: string }>;
 }) {
   const params = await searchParams;
-  // Only accept relative redirects to prevent open-redirect attacks.
-  const rawRedirect = params.redirect ? decodeURIComponent(params.redirect) : '';
-  const fallbackUrl = rawRedirect.startsWith('/') ? rawRedirect : '/dashboard';
+  // Only accept relative redirects to prevent open-redirect attacks. The
+  // `!startsWith('//')` guard blocks protocol-relative URLs like //evil.com
+  // which would otherwise pass the leading-slash check.
+  const raw = params.redirect_url ?? params.redirect ?? '';
+  const rawRedirect = raw ? decodeURIComponent(raw) : '';
+  const isSafeRelative =
+    rawRedirect.startsWith('/') && !rawRedirect.startsWith('//');
+  const fallbackUrl = isSafeRelative ? rawRedirect : '/dashboard';
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background to-muted dark:from-background dark:to-muted px-4">

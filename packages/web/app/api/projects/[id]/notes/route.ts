@@ -43,6 +43,21 @@ export const POST = withProjectAuth(async (request, { userId, prisma, projectId 
     const note = await prisma.projectNote.create({
       data: { projectId, authorId: userId, noteText, lineId: lineId ?? null, timestamp: timestamp ?? null },
     });
+
+    // #331 (2026-06-17): master-notification when a sub-account adds a note.
+    // Producer is best-effort and resolveProjectMaster skips when actor IS
+    // the project owner.
+    try {
+      const { emitNoteAdded } = await import('@/lib/notifications/producers');
+      await emitNoteAdded(prisma, {
+        projectId,
+        actorUserId: userId,
+        notePreview: noteText,
+      });
+    } catch (err) {
+      log.warn('[Notes] emitNoteAdded failed', { err: err instanceof Error ? err.message : String(err) });
+    }
+
     return NextResponse.json(note, { status: 201 });
   } catch (error) {
     log.error('[Notes] POST error', error instanceof Error ? error : undefined);

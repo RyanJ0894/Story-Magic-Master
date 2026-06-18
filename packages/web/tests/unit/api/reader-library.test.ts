@@ -17,6 +17,9 @@ const mockPrisma = {
   readerLibrary: {
     findMany: vi.fn(),
     findFirst: vi.fn(),
+    // #331 (2026-06-17): position route reads pre-update completed state
+    // so it can fire emitListenComplete only on the false→true transition.
+    findUnique: vi.fn().mockResolvedValue({ completed: false }),
     update: vi.fn(),
     create: vi.fn(),
   },
@@ -29,6 +32,11 @@ const mockPrisma = {
   },
   contentAccessLog: {
     create: vi.fn(),
+  },
+  // #331: producer dependency — resolveProjectMaster needs project.findUnique.
+  // Returns null so emitListenComplete short-circuits in these tests.
+  project: {
+    findUnique: vi.fn().mockResolvedValue(null),
   },
 };
 vi.mock('@/lib/db', () => ({ prisma: mockPrisma }));

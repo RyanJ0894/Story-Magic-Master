@@ -245,17 +245,16 @@ export async function POST(
       select: { fullName: true },
     });
 
-    // Notify team owner
+    // Notify team owner — routed through the #174 producers system so the
+    // notification feed shape stays in one place (was inline alert.create
+    // before 2026-06-17).
     const team = invite.team!;
-    await prisma.alert.create({
-      data: {
-        userId: team.ownerId,
-        alertType: 'team_member_joined',
-        title: `${profile?.fullName || 'Someone'} joined ${team.name}`,
-        message: `${profile?.fullName || invite.invitedEmail} accepted your team invitation.`,
-        teamId: team.id,
-        relatedUserId: userId,
-      },
+    const { emitTeamMemberJoined } = await import('@/lib/notifications/producers');
+    await emitTeamMemberJoined(prisma, {
+      teamId: team.id,
+      memberUserId: userId,
+      memberName: profile?.fullName ?? null,
+      memberEmail: invite.invitedEmail ?? null,
     });
 
     log.info('[Invite] Accept complete', { userId, teamId: team.id, teamName: team.name });

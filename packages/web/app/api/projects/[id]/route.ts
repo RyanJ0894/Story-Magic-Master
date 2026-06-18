@@ -26,8 +26,33 @@ const UpdateProjectSchema = z.object({
 // GET - Fetch a single project
 // =============================================================================
 
-export const GET = withProjectAuth(async (request, { userId, projectId, project }) => {
+export const GET = withProjectAuth(async (request, { userId, projectId, project, prisma }) => {
   void logReadAccess({ userId, projectId, action: AuditActions.PROJECT_READ, request });
+
+  // #331 (2026-06-17): fire master-notification on the first time a
+  // sub-account opens a project. Detection via ContentAccessLog: write
+  // an `accessType: 'open'` row on every GET, then emit only when the
+  // count BEFORE this write was zero. Best-effort — failure here cannot
+  // break the project fetch. The producer separately skips when actor
+  // IS the project owner so masters don't get pinged about their own
+  // opens.
+  void (async () => {
+    try {
+      const priorOpens = await prisma.contentAccessLog.count({
+        where: { userId, projectId, accessType: 'open' },
+      });
+      await prisma.contentAccessLog.create({
+        data: { userId, projectId, accessType: 'open' },
+      });
+      if (priorOpens === 0) {
+        const { emitProjectOpenedFirstTime } = await import('@/lib/notifications/producers');
+        await emitProjectOpenedFirstTime(prisma, { projectId, actorUserId: userId });
+      }
+    } catch {
+      // swallow — notification is best-effort
+    }
+  })();
+
   return NextResponse.json({ project });
 });
 

@@ -216,6 +216,14 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
 
         if (!res.ok) {
           const errorText = await res.text();
+          const responseHeaders: Record<string, string> = {};
+          res.headers.forEach((value, key) => { responseHeaders[key] = value; });
+          log.warn('ElevenLabs non-OK response', {
+            status: res.status,
+            voiceId: vid,
+            body: errorText,
+            headers: responseHeaders,
+          });
           if (res.status === 402) {
             // Payment Required — ElevenLabs account is past due or over quota.
             // Do not retry; surface a human-readable message.
@@ -250,9 +258,16 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
         return transcodePcmToWav(rawBuffer);
       },
       {
-        maxRetries: 3,
+        // #320 (2026-06-17): bumped from 3→5 retries and max delay 10s→30s
+        // to ride out short ElevenLabs blips. Ryan's 2026-06-17 incident:
+        // sustained ElevenLabs 500s killed chunk 0 after 3 retries (~15s
+        // total backoff window), turning a transient upstream issue into
+        // "no audio was produced." With 5 retries + 30s cap the total
+        // window is ~60s — covers most ElevenLabs single-incident outages
+        // without keeping a doomed job alive forever.
+        maxRetries: 5,
         initialDelayMs: 1000,
-        maxDelayMs: 10000,
+        maxDelayMs: 30000,
         jitterFactor: 0.2,
         retryableStatuses: [429, 500, 502, 503, 504],
       }

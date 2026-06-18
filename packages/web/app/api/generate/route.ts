@@ -97,13 +97,17 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
   const sanitizedScript = sanitizeScriptText(project.scriptText as string);
 
   // Credit gate — free-tier users are charged 1 credit per estimated scene.
-  // Paid-tier users (creator/pro/studio) bypass this check entirely.
+  // Paid-tier users (creator/pro/studio/enterprise) bypass this check entirely.
   const profile = await prisma.profile.findUnique({
     where: { id: userId },
     select: { subscriptionTier: true, credits: true },
   });
 
-  const PAID_TIERS = new Set(['creator', 'pro', 'studio']);
+  // #321 (2026-06-17): enterprise was omitted. Enterprise users hit the
+  // credit check and failed with "Insufficient scene credits" despite
+  // having the highest-tier plan — the prod sub-account (ryanj0894@gmail.com)
+  // is on enterprise. Set must mirror TIER_LIMITS in tier-provision.ts.
+  const PAID_TIERS = new Set(['creator', 'pro', 'studio', 'enterprise']);
   const isPaidTier = PAID_TIERS.has(profile?.subscriptionTier ?? 'free');
 
   if (!isPaidTier) {

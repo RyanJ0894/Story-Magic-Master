@@ -17,8 +17,9 @@ import {
 } from '@/lib/notifications/feed-types';
 
 describe('FEED_ALERT_TYPES', () => {
-  it('matches the 8 types Ryan approved (skip type 7 from email)', () => {
+  it('matches the 12 types — original 8 (#174) + 4 engagement triggers (#331)', () => {
     expect(FEED_ALERT_TYPES).toEqual([
+      // Original 8 from #174
       'team_member_joined',
       'team_member_left',
       'team_member_deactivated',
@@ -27,6 +28,11 @@ describe('FEED_ALERT_TYPES', () => {
       'script_generation_failed',
       'subscription_renewed',
       'subscription_failed',
+      // #331 — project-engagement triggers (added 2026-06-17)
+      'project_opened_first_time',
+      'listen_complete',
+      'note_added',
+      'decision_made',
     ]);
   });
 

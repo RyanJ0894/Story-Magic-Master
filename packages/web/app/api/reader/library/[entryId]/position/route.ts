@@ -39,6 +39,14 @@ export const POST = withAuth(async (request, { userId, prisma, params }) => {
   }
 
   try {
+    // #331 (2026-06-17): read the pre-update completed state so we only
+    // emit the listen-complete notification on the false→true transition,
+    // not on every subsequent position write past the threshold.
+    const wasAlreadyCompleted = await prisma.readerLibrary.findUnique({
+      where: { id: entryId },
+      select: { completed: true },
+    });
+
     const entry = await prisma.readerLibrary.update({
       where: { id: entryId },
       data: updates,
@@ -53,6 +61,19 @@ export const POST = withAuth(async (request, { userId, prisma, params }) => {
         durationSeconds: Math.floor(position),
       },
     });
+
+    // #331: master-notification on listen-complete transition.
+    if (entry.completed && !wasAlreadyCompleted?.completed) {
+      try {
+        const { emitListenComplete } = await import('@/lib/notifications/producers');
+        await emitListenComplete(prisma, {
+          projectId: existingEntry.projectId,
+          actorUserId: userId,
+        });
+      } catch (err) {
+        log.warn('[Position] emitListenComplete failed', { err: err instanceof Error ? err.message : String(err) });
+      }
+    }
 
     return NextResponse.json({
       entry,

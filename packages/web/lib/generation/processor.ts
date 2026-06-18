@@ -387,6 +387,9 @@ export async function processGenerationJob(
       index: number;
       status: 'pending' | 'processing' | 'ready' | 'failed';
       audioUrl: string | null;
+      /** #320: error body when status='failed' — lets the post-loop check
+       *  surface a clearer "TTS provider is down" message vs a generic failure. */
+      error?: string;
     };
 
     const segmentStatuses: SegmentStatus[] = chunks.map((c) => ({
@@ -477,6 +480,9 @@ export async function processGenerationJob(
 
         // Mark this segment failed; continue with remaining segments (partial audio)
         segmentStatuses[chunk.index].status = 'failed';
+        // #320: capture the error body so the terminal-failure path can
+        // distinguish upstream-TTS issues from other causes.
+        segmentStatuses[chunk.index].error = errorBody.slice(0, 500);
         await safeUpdate(
           prisma.job,
           {
@@ -584,8 +590,23 @@ export async function processGenerationJob(
         chunksAttempted: chunks.length,
         lastAudioUrls: JSON.stringify(orchestratorResult?.audio_urls ?? []),
       });
+      // #320 (2026-06-17): when the cause is a sustained ElevenLabs outage
+      // we want Ryan to see "TTS provider issue, retry" instead of a generic
+      // "no audio produced." Look at the last segment's recorded error
+      // message to make the distinction. The classifier in orchestrator-fetch
+      // covers the worker-retry path; this string is purely the user-facing
+      // toast / job log entry for the terminal-failure case.
+      const lastFailure = segmentStatuses
+        .slice()
+        .reverse()
+        .find((s) => s.status === 'failed' && s.error)?.error ?? '';
+      const isUpstreamTtsFailure =
+        lastFailure.includes('ElevenLabs') &&
+        (lastFailure.match(/\b5\d\d\b/) !== null || lastFailure.includes('429'));
       throw new Error(
-        'Audio generation failed: no audio was produced. Please try again or contact support.'
+        isUpstreamTtsFailure
+          ? 'Audio generation failed because the TTS provider (ElevenLabs) is currently returning errors. This is a transient upstream issue — please retry in a few minutes.'
+          : 'Audio generation failed: no audio was produced. Please try again or contact support.'
       );
     }
 

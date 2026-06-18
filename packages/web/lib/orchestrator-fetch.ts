@@ -250,6 +250,13 @@ export function isTransientOrchestratorError(err: unknown): boolean {
     const msg = err.message.toLowerCase();
     if (msg.includes('http 502') || msg.includes('http 503') || msg.includes('http 504') || msg.includes('http 408')) return true;
     if (msg.includes('fetch failed') || msg.includes('econnrefused') || msg.includes('enotfound')) return true;
+    // #320 (2026-06-17): upstream TTS provider 5xx / 429 is transient —
+    // Ryan's incident was sustained ElevenLabs 500s that exhausted the
+    // orchestrator's per-call retry budget (now 5 attempts × ~60s window).
+    // When that still fails, let the queue worker retry the whole job
+    // after a longer backoff rather than terminally failing the run.
+    if (msg.includes('elevenlabs tts failed 5')) return true;
+    if (msg.includes('elevenlabs tts failed 429')) return true;
   }
   return false;
 }

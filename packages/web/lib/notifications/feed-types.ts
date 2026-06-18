@@ -29,6 +29,13 @@ export const FEED_ALERT_TYPES = [
   'script_generation_failed',    // a sub-account's script failed
   'subscription_renewed',        // billing event — renewal succeeded
   'subscription_failed',         // billing event — renewal failed
+  // #331 (2026-06-17) — project-engagement triggers from the original #174
+  // Phase 1 spec. Wired in their natural endpoints (project GET, listen
+  // position, notes POST, comments POST with reactionType).
+  'project_opened_first_time',   // sub-account opened a project for the first time
+  'listen_complete',             // sub-account finished listening to a script
+  'note_added',                  // sub-account added a project note
+  'decision_made',               // sub-account marked like / pass / undecided
 ] as const;
 
 export type FeedAlertType = (typeof FEED_ALERT_TYPES)[number];
@@ -48,6 +55,11 @@ const SEVERITY_BY_TYPE: Record<FeedAlertType, Severity> = {
   script_generation_failed: 'critical',
   subscription_renewed: 'info',
   subscription_failed: 'critical',
+  // #331 — all info-tier (engagement signals, no action required)
+  project_opened_first_time: 'info',
+  listen_complete: 'info',
+  note_added: 'info',
+  decision_made: 'info',
 };
 
 export function severityFor(alertType: string): Severity {
