@@ -7,6 +7,7 @@ import { prisma } from '../lib/prisma.js';
 import { checkAIProviders } from '../lib/ai-health.js';
 import { selectDirectorModel } from '../lib/select-director-model.js';
 import { setProjectScope } from '../lib/sentry.js';
+import { preFlightVoices, extractVoiceIds } from '../lib/voice-validator.js';
 
 const router = Router();
 
@@ -156,6 +157,47 @@ router.post('/orchestrate', async (req: Request, res: Response): Promise<void> =
         return;
       }
       directorJSON = directorValidation.data;
+    }
+
+    // 2026-06-17 follow-up to the f8L… incident: pre-flight every voice ID
+    // against ElevenLabs before committing to a multi-minute generation. Catches
+    // server-degraded / revoked voices BEFORE the per-chunk 30-second retry
+    // budget burns. Broken voices are auto-deactivated in the catalog so the
+    // next director run picks a substitute. Best-effort — pre-flight failures
+    // never block the run (transient network issues, missing API key, etc.).
+    try {
+      const voiceIds = extractVoiceIds(directorJSON.scenes);
+      const outcome = await preFlightVoices(voiceIds);
+      if (outcome.broken.length > 0) {
+        const brokenSummary = outcome.broken.map((b) => ({
+          voiceId: b.voiceId,
+          status: b.status,
+          reason: b.reason,
+        }));
+        log.warn('Voice pre-flight found broken voices', {
+          projectId: project_id,
+          broken: brokenSummary,
+          deactivated: outcome.deactivated,
+        });
+        res.status(422).json({
+          status: 'error',
+          project_id,
+          message:
+            'Pre-flight voice check failed: one or more assigned voices are unavailable from ElevenLabs. ' +
+            'These voices have been deactivated in the catalog. Re-running the director step will pick replacements.',
+          warnings: brokenSummary.map(
+            (b) => `voice ${b.voiceId} returned ${b.status} (${b.reason})`,
+          ),
+        } as OrchestrateResponse);
+        return;
+      }
+    } catch (err) {
+      // Pre-flight is best-effort. Network blip, ElevenLabs probe-endpoint
+      // hiccup, etc. — don't block the user's generation on it.
+      log.warn('Voice pre-flight failed (proceeding anyway)', {
+        projectId: project_id,
+        err: err instanceof Error ? err.message : String(err),
+      });
     }
 
     log.info('Starting orchestration', { projectId: project_id, sceneCount: directorJSON.scenes.length });
