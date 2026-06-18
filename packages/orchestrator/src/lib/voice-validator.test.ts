@@ -186,6 +186,44 @@ describe('preFlightVoices — auto-deactivation rules', () => {
     expect(r).toEqual({ valid: ['a', 'b'], broken: [], deactivated: 0 });
     expect(mockFetch).not.toHaveBeenCalled();
   });
+
+  // Peter's 2026-06-17 concern: don't nuke the whole catalog during an
+  // ElevenLabs outage.
+  describe('platform-incident guard', () => {
+    it('aborts auto-deactivation when >50% of voices return 500 (looks like outage)', async () => {
+      mockFetch.mockResolvedValue(fakeResponse(500, 'internal_server_error'));
+      const r = await preFlightVoices(['a', 'b', 'c', 'd']);
+      expect(r.broken.length).toBe(4);
+      expect(r.deactivated).toBe(0);
+      expect(r.abortedDeactivation).toBe(true);
+      expect(mockPrismaUpdate).not.toHaveBeenCalled();
+    });
+
+    it('STILL deactivates when only 1-of-3 fail with 500 (per-voice degradation)', async () => {
+      mockFetch.mockImplementation(async (url: string) => {
+        if (url.includes('bad')) return fakeResponse(500, 'internal_server_error');
+        return fakeResponse(200);
+      });
+      const r = await preFlightVoices(['good1', 'good2', 'bad']);
+      expect(r.broken.length).toBe(1);
+      expect(r.deactivated).toBe(1);
+      expect(r.abortedDeactivation).toBeFalsy();
+    });
+
+    it('still deactivates 403 / 404 voices even during a 5xx-storm', async () => {
+      // 3/4 voices return 500 (storm) but one returns 403 (revoked).
+      // The 403 should NOT be deactivated either since we abort the whole
+      // pass when the failure rate looks like a platform incident.
+      mockFetch.mockImplementation(async (url: string) => {
+        if (url.includes('revoked')) return fakeResponse(403);
+        return fakeResponse(500);
+      });
+      const r = await preFlightVoices(['a', 'b', 'c', 'revoked']);
+      expect(r.broken.length).toBe(4);
+      expect(r.deactivated).toBe(0);
+      expect(r.abortedDeactivation).toBe(true);
+    });
+  });
 });
 
 describe('extractVoiceIds', () => {

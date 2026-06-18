@@ -49,7 +49,23 @@ export interface PreFlightOutcome {
   broken: VoiceValidationResult[];
   /** Whether any broken voices were auto-deactivated in the catalog. */
   deactivated: number;
+  /** True when auto-deactivation was SKIPPED because the failure rate looked
+   *  like an ElevenLabs platform incident rather than per-voice degradation. */
+  abortedDeactivation?: boolean;
 }
+
+/**
+ * Peter's 2026-06-17 concern: if ElevenLabs has a platform-wide incident and
+ * returns 500 for ALL voices, naive auto-deactivation would nuke the entire
+ * catalog. We refuse to deactivate when more than this fraction of probed
+ * voices fail with a 5xx — that's the signal it's their problem, not ours.
+ *
+ * Threshold tuned to: a single bad voice in a 3-voice project = 33% failure
+ * rate, well below the limit. A platform-wide outage = 100% failure, well
+ * above. Anything in between would lean towards "their problem" — safer to
+ * skip deactivation and let the run fail with a clearer error.
+ */
+const PLATFORM_INCIDENT_FAILURE_RATE_THRESHOLD = 0.5;
 
 /**
  * Probe a single voice ID against the ElevenLabs TTS endpoint. Returns OK / fail
@@ -163,30 +179,50 @@ export async function preFlightVoices(voiceIds: string[]): Promise<PreFlightOutc
   const valid = results.filter((r) => r.ok).map((r) => r.voiceId);
   const broken = results.filter((r) => !r.ok);
 
+  // Platform-incident guard (Peter, 2026-06-17): if too many voices fail with
+  // the same upstream-server-error pattern, that's almost certainly an
+  // ElevenLabs incident rather than per-voice degradation. Skip auto-deactivation
+  // to avoid nuking the entire catalog during their outage. The pre-flight
+  // still returns broken so the orchestrator surfaces a clean 422.
+  const serverDegraded = broken.filter((r) => r.reason === 'server_degraded').length;
+  const failureRate = unique.length > 0 ? serverDegraded / unique.length : 0;
+  let abortedDeactivation = false;
+  if (failureRate > PLATFORM_INCIDENT_FAILURE_RATE_THRESHOLD) {
+    log.warn('[voice-validator] high server-degraded rate — looks like an ElevenLabs incident; skipping auto-deactivation', {
+      probed: unique.length,
+      serverDegraded,
+      failureRate,
+      threshold: PLATFORM_INCIDENT_FAILURE_RATE_THRESHOLD,
+    });
+    abortedDeactivation = true;
+  }
+
   // Auto-deactivate permanently-broken voices. Transient failures (429 rate
   // limit, 0 network error) are NOT deactivated — they recover on the next
-  // pre-flight.
+  // pre-flight. Platform-incident detection above can skip this entirely.
   let deactivated = 0;
   const deactivateReasons: VoiceValidationResult['reason'][] = ['revoked', 'server_degraded', 'not_found'];
-  for (const b of broken.filter((r) => r.reason && deactivateReasons.includes(r.reason))) {
-    try {
-      await prisma.voiceCatalogEntry.update({
-        where: { voiceId: b.voiceId },
-        data: { isActive: false },
-      });
-      deactivated++;
-      log.warn('[voice-validator] auto-deactivated broken voice', {
-        voiceId: b.voiceId,
-        reason: b.reason,
-        status: b.status,
-        errorBody: b.errorBody,
-      });
-    } catch (err) {
-      log.error(
-        '[voice-validator] failed to deactivate broken voice',
-        err instanceof Error ? err : undefined,
-        { voiceId: b.voiceId },
-      );
+  if (!abortedDeactivation) {
+    for (const b of broken.filter((r) => r.reason && deactivateReasons.includes(r.reason))) {
+      try {
+        await prisma.voiceCatalogEntry.update({
+          where: { voiceId: b.voiceId },
+          data: { isActive: false },
+        });
+        deactivated++;
+        log.warn('[voice-validator] auto-deactivated broken voice', {
+          voiceId: b.voiceId,
+          reason: b.reason,
+          status: b.status,
+          errorBody: b.errorBody,
+        });
+      } catch (err) {
+        log.error(
+          '[voice-validator] failed to deactivate broken voice',
+          err instanceof Error ? err : undefined,
+          { voiceId: b.voiceId },
+        );
+      }
     }
   }
 
@@ -199,7 +235,7 @@ export async function preFlightVoices(voiceIds: string[]): Promise<PreFlightOutc
     elapsedMs,
   });
 
-  return { valid, broken, deactivated };
+  return { valid, broken, deactivated, abortedDeactivation };
 }
 
 /**
