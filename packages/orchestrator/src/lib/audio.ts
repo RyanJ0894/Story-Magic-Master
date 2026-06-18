@@ -216,6 +216,14 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
 
         if (!res.ok) {
           const errorText = await res.text();
+          const responseHeaders: Record<string, string> = {};
+          res.headers.forEach((value, key) => { responseHeaders[key] = value; });
+          log.warn('ElevenLabs non-OK response', {
+            status: res.status,
+            voiceId: vid,
+            body: errorText,
+            headers: responseHeaders,
+          });
           if (res.status === 402) {
             // Payment Required — ElevenLabs account is past due or over quota.
             // Do not retry; surface a human-readable message.
