@@ -20,9 +20,10 @@ vi.mock('mammoth', () => ({
 const mockPdfParse = vi.fn();
 vi.mock('unpdf', () => ({
   getDocumentProxy: vi.fn(async (_buf: Uint8Array) => ({ numPages: 1 })),
+  // mergePages: false → text is string[] (one entry per page)
   extractText: vi.fn(async () => {
     const result = await mockPdfParse();
-    return { text: result.text };
+    return { text: [result.text] };
   }),
 }));
 
@@ -31,6 +32,7 @@ import {
   parseFountain,
   parseFDX,
   getProjectNameFromFilename,
+  restoreScreenplayLineBreaks,
 } from '@/lib/upload/parse-screenplay';
 
 describe('parseScreenplay', () => {
@@ -370,5 +372,74 @@ describe('parseScreenplay PDF timeout (#chris-2026-06-13)', () => {
     const buffer = Buffer.from('%PDF-1.4 ok');
     const result = await parseScreenplay(buffer, 'ok.pdf');
     expect(result.text).toContain('ANNA');
+  });
+});
+
+// =============================================================================
+// restoreScreenplayLineBreaks
+// =============================================================================
+
+describe('restoreScreenplayLineBreaks', () => {
+  it('injects double newline before scene heading that immediately follows text', () => {
+    const merged = 'She runs outside.INT. COFFEE SHOP - DAYSarah sits down.';
+    const result = restoreScreenplayLineBreaks(merged);
+    expect(result).toContain('\n\nINT. COFFEE SHOP - DAY');
+  });
+
+  it('injects double newline before EXT. scene heading', () => {
+    const merged = 'End of scene.EXT. PARKING LOT - NIGHTRain falls.';
+    const result = restoreScreenplayLineBreaks(merged);
+    expect(result).toContain('\n\nEXT. PARKING LOT - NIGHT');
+  });
+
+  it('does not inject break before EXT. mid-sentence (lowercase follows)', () => {
+    // "EXT. door" — lowercase after period → not a scene heading
+    const text = 'He walked to the EXT. door and left.';
+    const result = restoreScreenplayLineBreaks(text);
+    expect(result).toBe(text);
+  });
+
+  it('injects newline before CUT TO: when missing', () => {
+    const merged = 'Last line of dialogue.CUT TO:';
+    const result = restoreScreenplayLineBreaks(merged);
+    expect(result).toContain('\nCUT TO:');
+  });
+
+  it('injects newline before FADE OUT. when missing', () => {
+    const merged = 'The end.FADE OUT.';
+    const result = restoreScreenplayLineBreaks(merged);
+    expect(result).toContain('\nFADE OUT.');
+  });
+
+  it('does not double-inject when newline already precedes a scene heading', () => {
+    const text = 'Action.\n\nINT. ROOM - DAY\nMore action.';
+    const result = restoreScreenplayLineBreaks(text);
+    expect(result).toBe(text);
+  });
+
+  it('collapses 3+ consecutive newlines to double newline', () => {
+    const text = 'Line one.\n\n\n\nLine two.';
+    const result = restoreScreenplayLineBreaks(text);
+    expect(result).toBe('Line one.\n\nLine two.');
+  });
+
+  it('handles multiple scene headings merged together', () => {
+    const merged = 'INT. OFFICE - DAYANNA works.EXT. STREET - NIGHTRain falls.';
+    const result = restoreScreenplayLineBreaks(merged);
+    expect(result).toContain('\n\nEXT. STREET - NIGHT');
+    expect(result).toMatch(/^INT\. OFFICE/);
+  });
+
+  it('returns empty string unchanged', () => {
+    expect(restoreScreenplayLineBreaks('')).toBe('');
+  });
+
+  it('multi-page join: scene heading at page boundary gets exactly two newlines', () => {
+    // Simulates pages.join('\n\n') output when heading starts a new page
+    const joined = 'End of page one.\n\nINT. NEW SCENE - DAYAction on page two.';
+    const result = restoreScreenplayLineBreaks(joined);
+    // The \n\n before INT. already exists — should not become \n\n\n\n
+    expect(result).not.toContain('\n\n\n');
+    expect(result).toContain('\n\nINT. NEW SCENE - DAY');
   });
 });
