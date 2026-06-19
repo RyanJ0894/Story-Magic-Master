@@ -17,10 +17,11 @@ vi.mock('@clerk/nextjs/server', () => ({
 
 const mockPrisma = {
   project: { findFirst: vi.fn() },
-  teamShare: { findFirst: vi.fn() },
+  teamShare: { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
   scriptShare: { findFirst: vi.fn() },
   projectAssignment: { findFirst: vi.fn() },
   projectComment: { findMany: vi.fn(), create: vi.fn(), deleteMany: vi.fn(), findUnique: vi.fn(), delete: vi.fn() },
+  activityLog: { create: vi.fn().mockResolvedValue({}) },
   profile: { findUnique: vi.fn() },
   $transaction: vi.fn((cb: (tx: unknown) => Promise<unknown>) => cb(mockPrisma)),
 };
