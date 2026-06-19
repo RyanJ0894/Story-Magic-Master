@@ -16,7 +16,9 @@
 
 import { execa } from 'execa';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
+import crypto from 'crypto';
 import { withRetry } from '../../lib/retry.js';
 import { log } from '../../lib/logger.js';
 import { dedupedWarn } from '../../lib/dedup-logger.js';
@@ -52,8 +54,11 @@ export async function whisperAlign(
   const whisperCppPath = process.env.WHISPER_CPP_PATH;
   const modelPath = process.env.WHISPER_MODEL_PATH || 'models/ggml-base.en.bin';
 
-  // Create a specific path for the JSON output file
-  const outputBase = audioPath.replace(/\.[^/.]+$/, '');
+  // Use a short temp path for whisper output — deriving from audioPath yields a
+  // 185+ char basename (UUID + scene/line IDs + two 64-char hashes) that
+  // overflows whisper.cpp's internal fname_out buffer, causing it to silently
+  // skip writing the JSON while still exiting 0.
+  const outputBase = path.join(os.tmpdir(), `w_${crypto.randomBytes(8).toString('hex')}`);
   const jsonOutputPath = `${outputBase}.json`;
 
   try {
