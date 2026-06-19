@@ -33,6 +33,34 @@ function countPages(text: string): number {
   return Math.ceil(wordCount / WORDS_PER_PAGE);
 }
 
+/**
+ * Injects missing newlines into PDF-extracted screenplay text.
+ *
+ * unpdf (via pdfjs-dist) sometimes collapses inter-element whitespace when
+ * merging text objects from a PDF page, causing scene headings, transitions,
+ * and dialogue to run together. This function restores the structural breaks
+ * that the downstream block parser relies on without touching already-correct
+ * text (all replacements are guarded by a preceding non-newline character).
+ */
+export function restoreScreenplayLineBreaks(text: string): string {
+  return text
+    // Scene headings: require an uppercase letter after the prefix so
+    // "EXT. door" mid-sentence doesn't trigger a false break.
+    .replace(
+      /([^\n])(?=INT\. [A-Z]|EXT\. [A-Z]|INT\/EXT\. [A-Z]|INT \/EXT\. [A-Z]|I\/E\. [A-Z])/g,
+      '$1\n\n',
+    )
+    // Transitions: fixed tokens, safe to inject unconditionally when
+    // they're not already on their own line.
+    .replace(
+      /([^\n])(?=FADE OUT\.|FADE IN:|CUT TO:|SMASH CUT|DISSOLVE TO:|WIPE TO:)/g,
+      '$1\n',
+    )
+    // Normalise whitespace — collapse 3+ consecutive newlines left behind
+    // by the page-join or by the replacements above.
+    .replace(/\n{3,}/g, '\n\n');
+}
+
 export async function parseScreenplay(
   buffer: Buffer,
   filename: string
@@ -88,8 +116,9 @@ export async function parseScreenplay(
       const TIMEOUT = Symbol('pdf-parse-timeout');
       const parsePromise = (async () => {
         const pdf = await getDocumentProxy(uint8);
-        const extracted = await extractText(pdf, { mergePages: true });
-        return Array.isArray(extracted.text) ? extracted.text.join('\n') : extracted.text;
+        const extracted = await extractText(pdf, { mergePages: false });
+        const pages = Array.isArray(extracted.text) ? extracted.text : [extracted.text];
+        return restoreScreenplayLineBreaks(pages.join('\n\n'));
       })();
       // Suppress the parse promise's eventual rejection if the timeout
       // wins — pdfjs-dist may throw during teardown after we move on.

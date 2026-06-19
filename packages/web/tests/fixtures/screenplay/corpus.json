@@ -27,6 +27,15 @@
       "expectedTextContains": ["INT. KITCHEN", "ANNA"],
       "anonymised": false,
       "notes": "Baseline FDX XML — exercises Paragraph/Text extraction."
+    },
+    {
+      "file": "amnesia-3p.pdf",
+      "format": "pdf",
+      "source": "story-magic internal sample",
+      "expectedMinPageCount": 3,
+      "expectedTextContains": ["EXT.", "FRANKIE", "CUT TO:"],
+      "anonymised": false,
+      "notes": "Regression fixture for issue #347 — unpdf newline collapse. Verifies scene headings survive extraction as distinct lines."
     }
   ]
 }

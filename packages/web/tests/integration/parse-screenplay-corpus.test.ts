@@ -19,6 +19,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import path from 'path';
 import { readFileSync } from 'fs';
 import { parseScreenplay } from '@/lib/upload/parse-screenplay';
 
@@ -69,6 +70,14 @@ describe('parse-screenplay corpus (real fixtures)', () => {
 
       for (const fragment of entry.expectedTextContains) {
         expect(result.text, `expected ${entry.file} text to contain "${fragment}"`).toContain(fragment);
+      }
+
+      // Snapshot the extracted text for PDF fixtures so any regression in
+      // the unpdf extraction pipeline (newline collapse, encoding changes,
+      // library upgrades) shows up as a diff rather than a silent failure.
+      if (entry.format === 'pdf') {
+        const snapshotKey = path.basename(entry.file, '.pdf');
+        expect(result.text).toMatchSnapshot(snapshotKey);
       }
     });
   }
