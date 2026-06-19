@@ -251,8 +251,8 @@ export default function InvitePage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center">
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg brand-gradient-br flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-white" />
+              <div className="w-12 h-12 rounded-lg brand-gradient-br flex items-center justify-center">
+                <Sparkles className="w-6 h-6 text-white" />
               </div>
               <span className="font-bold text-lg text-foreground">Story Magic</span>
             </Link>

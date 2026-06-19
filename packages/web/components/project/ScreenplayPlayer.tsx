@@ -381,9 +381,10 @@ export function ScreenplayPlayer({
                   data-testid="note-icon"
                   aria-label="Add note"
                   onClick={() => setOpenNoteBlockIndex(i)}
-                  className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-1"
                 >
                   <Plus className="w-3 h-3" />
+                  <span>Add Notes</span>
                 </button>
 
                 {/* Scene-level reactions — only on scene headings */}
