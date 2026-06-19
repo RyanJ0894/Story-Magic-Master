@@ -603,11 +603,22 @@ export async function processGenerationJob(
       const isUpstreamTtsFailure =
         lastFailure.includes('ElevenLabs') &&
         (lastFailure.match(/\b5\d\d\b/) !== null || lastFailure.includes('429'));
-      throw new Error(
-        isUpstreamTtsFailure
-          ? 'Audio generation failed because the TTS provider (ElevenLabs) is currently returning errors. This is a transient upstream issue — please retry in a few minutes.'
-          : 'Audio generation failed: no audio was produced. Please try again or contact support.'
-      );
+      // 2026-06-19: pre-flight voice validator returns 422 with
+      // "voice unavailable" wording. Surface that to the user instead of the
+      // generic message so they know the fix is to re-run the director step,
+      // not "try again" against the same broken voice.
+      const isPreflightVoiceFailure =
+        lastFailure.includes('422') ||
+        lastFailure.includes('voice') && lastFailure.includes('unavailable');
+      let userMessage: string;
+      if (isUpstreamTtsFailure) {
+        userMessage = 'Audio generation failed because the TTS provider (ElevenLabs) is currently returning errors. This is a transient upstream issue — please retry in a few minutes.';
+      } else if (isPreflightVoiceFailure) {
+        userMessage = 'Audio generation failed because one or more voices assigned to this script are unavailable from ElevenLabs. The catalog has been updated — please re-run the director step (Generate Scenes) and try again. Substitute voices will be picked automatically.';
+      } else {
+        userMessage = 'Audio generation failed: no audio was produced. Please try again or contact support.';
+      }
+      throw new Error(userMessage);
     }
 
     // A-003 (2026-06-15): partial-audio detection. When the chunked loop
