@@ -17,8 +17,9 @@ import { prisma } from '../../lib/prisma.js';
 import { log } from '../../lib/logger.js';
 import type { DirectorJSON, Scene, DialogueLine } from '../../schemas/director-json.js';
 
-// Maps emotion enum values to ElevenLabs audio tag prefixes.
-// Tags are supported in eleven_turbo_v2_5 and newer models.
+// Maps emotion enum values to ElevenLabs expression audio tag prefixes.
+// Only v3 ElevenLabs models support these tags. Disabled by default; enable
+// by setting ELEVENLABS_EXPRESSION_TAGS=true in the environment.
 const EMOTION_TAG_MAP: Record<string, string> = {
   WHISPERED: '[whispers]',
   NERVOUS: '[nervously]',
@@ -32,6 +33,7 @@ const EMOTION_TAG_MAP: Record<string, string> = {
 };
 
 export function applyEmotionTag(text: string, emotion: string): string {
+  if (process.env.ELEVENLABS_EXPRESSION_TAGS !== 'true') return text;
   const tag = EMOTION_TAG_MAP[emotion.toUpperCase()];
   if (!tag) return text;
   return `${tag} ${text}`;

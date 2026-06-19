@@ -565,24 +565,39 @@ describe('isSceneComplete', () => {
 // ---------------------------------------------------------------------------
 
 describe('applyEmotionTag', () => {
-  it('prepends ElevenLabs audio tag for WHISPERED emotion', async () => {
-    const { applyEmotionTag } = await import('./parallel-tts.js');
-    expect(applyEmotionTag('Hello.', 'WHISPERED')).toBe('[whispers] Hello.');
+  describe('with ELEVENLABS_EXPRESSION_TAGS=true', () => {
+    beforeEach(() => { process.env.ELEVENLABS_EXPRESSION_TAGS = 'true'; });
+    afterEach(() => { delete process.env.ELEVENLABS_EXPRESSION_TAGS; });
+
+    it('prepends ElevenLabs audio tag for WHISPERED emotion', async () => {
+      const { applyEmotionTag } = await import('./parallel-tts.js');
+      expect(applyEmotionTag('Hello.', 'WHISPERED')).toBe('[whispers] Hello.');
+    });
+
+    it('prepends audio tag for NERVOUS emotion', async () => {
+      const { applyEmotionTag } = await import('./parallel-tts.js');
+      expect(applyEmotionTag('Not sure.', 'NERVOUS')).toBe('[nervously] Not sure.');
+    });
+
+    it('returns unchanged text for unknown emotion', async () => {
+      const { applyEmotionTag } = await import('./parallel-tts.js');
+      expect(applyEmotionTag('Hello.', 'NEUTRAL')).toBe('Hello.');
+    });
+
+    it('returns unchanged text for empty emotion', async () => {
+      const { applyEmotionTag } = await import('./parallel-tts.js');
+      expect(applyEmotionTag('Hello.', '')).toBe('Hello.');
+    });
   });
 
-  it('prepends audio tag for NERVOUS emotion', async () => {
-    const { applyEmotionTag } = await import('./parallel-tts.js');
-    expect(applyEmotionTag('Not sure.', 'NERVOUS')).toBe('[nervously] Not sure.');
-  });
+  describe('with ELEVENLABS_EXPRESSION_TAGS unset (default)', () => {
+    beforeEach(() => { delete process.env.ELEVENLABS_EXPRESSION_TAGS; });
 
-  it('returns unchanged text for unknown emotion', async () => {
-    const { applyEmotionTag } = await import('./parallel-tts.js');
-    expect(applyEmotionTag('Hello.', 'NEUTRAL')).toBe('Hello.');
-  });
-
-  it('returns unchanged text for empty emotion', async () => {
-    const { applyEmotionTag } = await import('./parallel-tts.js');
-    expect(applyEmotionTag('Hello.', '')).toBe('Hello.');
+    it('returns unchanged text regardless of emotion', async () => {
+      const { applyEmotionTag } = await import('./parallel-tts.js');
+      expect(applyEmotionTag('Hello.', 'WHISPERED')).toBe('Hello.');
+      expect(applyEmotionTag('Not sure.', 'ANGRY')).toBe('Not sure.');
+    });
   });
 });
 
@@ -617,7 +632,8 @@ describe('parallelTTSGenerate with emotionOverrides', () => {
     });
   });
 
-  it('applies emotion tag to TTS text when override provided', async () => {
+  it('applies emotion tag to TTS text when override provided and expression tags enabled', async () => {
+    process.env.ELEVENLABS_EXPRESSION_TAGS = 'true';
     const { parallelTTSGenerate } = await import('./parallel-tts.js');
     const { ttsGenerate } = await import('../../lib/audio.js');
 
@@ -634,6 +650,28 @@ describe('parallelTTSGenerate with emotionOverrides', () => {
 
     expect(vi.mocked(ttsGenerate)).toHaveBeenCalledWith(
       expect.objectContaining({ text: '[whispers] I know nothing.' }),
+    );
+    delete process.env.ELEVENLABS_EXPRESSION_TAGS;
+  });
+
+  it('leaves emotion text unchanged when expression tags disabled (default)', async () => {
+    delete process.env.ELEVENLABS_EXPRESSION_TAGS;
+    const { parallelTTSGenerate } = await import('./parallel-tts.js');
+    const { ttsGenerate } = await import('../../lib/audio.js');
+
+    const director = makeDirectorJSON({
+      scenes: [makeScene({
+        scene_id: 'scene_001',
+        dialogue: [
+          { line_id: 'line_001', character: 'John', text: 'I know nothing.', voice_key: 'v1' },
+        ],
+      })],
+    });
+
+    await parallelTTSGenerate(director, undefined, 1, { line_001: 'WHISPERED' });
+
+    expect(vi.mocked(ttsGenerate)).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'I know nothing.' }),
     );
   });
 
