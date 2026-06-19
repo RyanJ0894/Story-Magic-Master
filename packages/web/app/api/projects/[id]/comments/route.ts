@@ -29,7 +29,7 @@ const CreateCommentSchema = z
     text: z.string().min(1).max(2000).optional(),
     body: z.string().min(1).max(2000).optional(), // backward compat alias for text
     sceneIndex: z.number().int().nonnegative().optional(),
-    audioTimestampMs: z.number().int().nonnegative().optional(),
+    audioTimestampMs: z.number().int().nonnegative().nullish(),
     reactionType: z.enum(REACTION_TYPES).optional(),
   })
   .refine((d) => d.text ?? d.body ?? d.reactionType, {
@@ -46,11 +46,23 @@ async function getAccessibleProject(projectId: string, userId: string) {
 
   // Use the canonical helper so the deactivation filter never drifts again
   // (regression caught by automated security review 2026-06-10).
+  // 2026-06-19: also require a matching ProjectAssignment for non-owners,
+  // mirroring withProjectAuth in lib/api/middleware.ts. Without this check
+  // sub-accounts who are TeamMembers but not assigned to a specific project
+  // could still post comments (BUG B: "Failed to save" — actually surfaced
+  // as 404/silent fail). And master accounts viewing a shared project
+  // wouldn't see sub-account notes because the sub-accounts never saved.
   const teamShare = await prisma.teamShare.findFirst({
     where: { projectId, team: { members: { some: activeMemberWhere(userId) } } },
     select: { id: true },
   });
-  if (teamShare) return project;
+  if (teamShare) {
+    const assignment = await prisma.projectAssignment.findFirst({
+      where: { projectId, userId },
+      select: { id: true },
+    });
+    if (assignment) return project;
+  }
 
   const scriptShare = await prisma.scriptShare.findFirst({
     where: { projectId, sharedWith: userId },
@@ -139,24 +151,42 @@ export async function POST(request: Request, { params }: RouteParams) {
   }
 
   // Reaction upsert: atomic delete-then-insert to prevent duplicate rows under concurrent requests
-  const comment = await prisma.$transaction(async (tx) => {
-    if (reactionType && sceneIndex != null) {
-      await tx.projectComment.deleteMany({
-        where: { projectId, userId, sceneIndex, reactionType: { not: null } },
+  // 2026-06-19: wrapped in try/catch so a Prisma FK / constraint / connection
+  // error surfaces as a 500 with a logged reason instead of falling through
+  // to Next.js as an unhandled rejection. Ryan's "Failed to save" toast was
+  // a sub-account hitting the transaction without a matching profile FK or
+  // a stale Clerk session — without this catch the client just sees a
+  // generic 500 and the log loses the original Prisma error.
+  let comment;
+  try {
+    comment = await prisma.$transaction(async (tx) => {
+      if (reactionType && sceneIndex != null) {
+        await tx.projectComment.deleteMany({
+          where: { projectId, userId, sceneIndex, reactionType: { not: null } },
+        });
+      }
+      return tx.projectComment.create({
+        data: {
+          projectId,
+          userId,
+          body: noteText,
+          reactionType: reactionType ?? null,
+          sceneIndex: sceneIndex ?? null,
+          audioTimestampMs: audioTimestampMs ?? null,
+        },
+        select: COMMENT_SELECT,
       });
-    }
-    return tx.projectComment.create({
-      data: {
-        projectId,
-        userId,
-        body: noteText,
-        reactionType: reactionType ?? null,
-        sceneIndex: sceneIndex ?? null,
-        audioTimestampMs: audioTimestampMs ?? null,
-      },
-      select: COMMENT_SELECT,
     });
-  });
+  } catch (err) {
+    log.error('[Comments] save failed', {
+      projectId,
+      userId,
+      hasReaction: !!reactionType,
+      hasNote: !!noteText,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return errorResponse('Failed to save note. Please refresh and try again.', 500);
+  }
 
   if (noteText && project.userId !== userId) {
     notifyNewComment({ projectId, projectName: project.name, comment: { ...comment, body: noteText }, ownerId: project.userId })
@@ -179,6 +209,24 @@ export async function POST(request: Request, { params }: RouteParams) {
       log.warn('[Comments] emitDecisionMade failed', { err: err instanceof Error ? err.message : String(err) });
     }
   }
+
+  // Log to every team's activity feed that has this project shared.
+  // Fire-and-forget — don't block or fail the response if this write fails.
+  const activityEventType = reactionType
+    ? ({ like: 'liked', dislike: 'passed', undecided: 'undecided' } as const)[reactionType]
+    : 'note_added';
+  const activityMetadata = noteText ? { noteSnippet: noteText.slice(0, 100) } : {};
+  prisma.teamShare.findMany({ where: { projectId }, select: { teamId: true } })
+    .then((shares) =>
+      Promise.all(
+        shares.map(({ teamId }) =>
+          prisma.activityLog.create({
+            data: { teamId, userId, projectId, eventType: activityEventType, metadata: activityMetadata },
+          })
+        )
+      )
+    )
+    .catch(() => {});
 
   log.info('[Comments] created', { projectId, userId, hasReaction: !!reactionType });
   return NextResponse.json({ comment: shapeComment(comment) }, { status: 201 });

@@ -17,9 +17,11 @@ vi.mock('@clerk/nextjs/server', () => ({
 
 const mockPrisma = {
   project: { findFirst: vi.fn() },
-  teamShare: { findFirst: vi.fn() },
+  teamShare: { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
   scriptShare: { findFirst: vi.fn() },
+  projectAssignment: { findFirst: vi.fn() },
   projectComment: { findMany: vi.fn(), create: vi.fn(), deleteMany: vi.fn(), findUnique: vi.fn(), delete: vi.fn() },
+  activityLog: { create: vi.fn().mockResolvedValue({}) },
   profile: { findUnique: vi.fn() },
   $transaction: vi.fn((cb: (tx: unknown) => Promise<unknown>) => cb(mockPrisma)),
 };
@@ -96,6 +98,7 @@ describe('GET /api/projects/[id]/comments', () => {
     mockAuth.mockReturnValue({ userId: USER_ID });
     mockPrisma.project.findFirst.mockResolvedValue({ ...MOCK_PROJECT, userId: 'someone_else' });
     mockPrisma.teamShare.findFirst.mockResolvedValue({ id: 'ts-1' });
+    mockPrisma.projectAssignment.findFirst.mockResolvedValue({ id: 'pa-1' });
 
     const res = await GET(
       makeReq('GET', `https://app.com/api/projects/${PROJECT_ID}/comments`),
