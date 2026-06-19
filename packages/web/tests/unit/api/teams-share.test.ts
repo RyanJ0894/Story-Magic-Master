@@ -35,7 +35,17 @@ const mockPrisma = {
   project: { findFirst: vi.fn() },
   team: { findUnique: vi.fn() },
   teamShare: { upsert: vi.fn(), deleteMany: vi.fn() },
+  teamMember: { findMany: vi.fn().mockResolvedValue([]) },
+  projectAssignment: { createMany: vi.fn().mockResolvedValue({ count: 0 }) },
+  $transaction: vi.fn(),
 };
+// Executes the transaction callback with the same mock so existing assertions still work.
+mockPrisma.$transaction.mockImplementation(
+  (cb: ((tx: typeof mockPrisma) => Promise<unknown>) | Promise<unknown>[]) => {
+    if (typeof cb === 'function') return cb(mockPrisma);
+    return Promise.all(cb);
+  }
+);
 vi.mock('@/lib/db', () => ({ prisma: mockPrisma }));
 
 const { POST, DELETE } = await import('@/app/api/teams/share/route');
@@ -129,6 +139,39 @@ describe('POST /api/teams/share', () => {
         create: expect.objectContaining({ accessLevel: 'download' }),
       })
     );
+  });
+
+  it('seeds ProjectAssignment rows for all active team members', async () => {
+    const MEMBER_A = 'user_member_a';
+    const MEMBER_B = 'user_member_b';
+    mockPrisma.project.findFirst.mockResolvedValue({ id: PROJECT_ID });
+    mockPrisma.team.findUnique.mockResolvedValue({ id: TEAM_ID, name: 'T', ownerId: USER_ID });
+    mockPrisma.teamShare.upsert.mockResolvedValue({ id: 'share-3' });
+    mockPrisma.teamMember.findMany.mockResolvedValue([
+      { userId: MEMBER_A },
+      { userId: MEMBER_B },
+    ]);
+
+    await POST(makeRequest('POST', { projectId: PROJECT_ID, teamId: TEAM_ID }));
+
+    expect(mockPrisma.projectAssignment.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({ projectId: PROJECT_ID, userId: MEMBER_A, teamId: TEAM_ID }),
+        expect.objectContaining({ projectId: PROJECT_ID, userId: MEMBER_B, teamId: TEAM_ID }),
+      ]),
+      skipDuplicates: true,
+    });
+  });
+
+  it('skips createMany when team has no active members', async () => {
+    mockPrisma.project.findFirst.mockResolvedValue({ id: PROJECT_ID });
+    mockPrisma.team.findUnique.mockResolvedValue({ id: TEAM_ID, name: 'T', ownerId: USER_ID });
+    mockPrisma.teamShare.upsert.mockResolvedValue({ id: 'share-4' });
+    mockPrisma.teamMember.findMany.mockResolvedValue([]);
+
+    await POST(makeRequest('POST', { projectId: PROJECT_ID, teamId: TEAM_ID }));
+
+    expect(mockPrisma.projectAssignment.createMany).not.toHaveBeenCalled();
   });
 });
 

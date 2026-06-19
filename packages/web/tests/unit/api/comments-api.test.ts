@@ -16,7 +16,7 @@ vi.mock('@clerk/nextjs/server', () => ({ auth: () => mockAuth() }));
 
 const mockPrisma = {
   project: { findFirst: vi.fn() },
-  teamShare: { findFirst: vi.fn() },
+  teamShare: { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
   scriptShare: { findFirst: vi.fn() },
   projectComment: {
     findMany: vi.fn(),
@@ -25,6 +25,7 @@ const mockPrisma = {
     findUnique: vi.fn(),
     delete: vi.fn(),
   },
+  activityLog: { create: vi.fn().mockResolvedValue({}) },
   $transaction: vi.fn((cb: (tx: unknown) => Promise<unknown>) => cb(mockPrisma)),
 };
 vi.mock('@/lib/db', () => ({ prisma: mockPrisma }));
@@ -160,6 +161,37 @@ describe('POST /api/projects/[id]/comments — text note', () => {
       makeParams(PROJECT_ID)
     );
     expect(res.status).toBe(400);
+  });
+
+  it('accepts null audioTimestampMs without returning 400', async () => {
+    const res = await POST(
+      jsonRequest({ text: 'lame lame lame', sceneIndex: 0, audioTimestampMs: null }),
+      makeParams(PROJECT_ID)
+    );
+    expect(res.status).toBe(201);
+  });
+
+  it('logs a note_added activity entry for each team the project is shared with', async () => {
+    const TEAM_ID = 'dddddddd-0000-0000-0000-000000000001';
+    mockPrisma.teamShare.findMany.mockResolvedValue([{ teamId: TEAM_ID }]);
+
+    await POST(
+      jsonRequest({ text: 'great scene', sceneIndex: 1 }),
+      makeParams(PROJECT_ID)
+    );
+
+    // Fire-and-forget — flush microtasks so the promise chain settles
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(mockPrisma.activityLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        teamId: TEAM_ID,
+        userId: USER_ID,
+        projectId: PROJECT_ID,
+        eventType: 'note_added',
+        metadata: expect.objectContaining({ noteSnippet: 'great scene' }),
+      }),
+    });
   });
 });
 

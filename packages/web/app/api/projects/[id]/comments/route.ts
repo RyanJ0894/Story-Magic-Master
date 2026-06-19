@@ -29,7 +29,7 @@ const CreateCommentSchema = z
     text: z.string().min(1).max(2000).optional(),
     body: z.string().min(1).max(2000).optional(), // backward compat alias for text
     sceneIndex: z.number().int().nonnegative().optional(),
-    audioTimestampMs: z.number().int().nonnegative().optional(),
+    audioTimestampMs: z.number().int().nonnegative().nullish(),
     reactionType: z.enum(REACTION_TYPES).optional(),
   })
   .refine((d) => d.text ?? d.body ?? d.reactionType, {
@@ -209,6 +209,24 @@ export async function POST(request: Request, { params }: RouteParams) {
       log.warn('[Comments] emitDecisionMade failed', { err: err instanceof Error ? err.message : String(err) });
     }
   }
+
+  // Log to every team's activity feed that has this project shared.
+  // Fire-and-forget — don't block or fail the response if this write fails.
+  const activityEventType = reactionType
+    ? ({ like: 'liked', dislike: 'passed', undecided: 'undecided' } as const)[reactionType]
+    : 'note_added';
+  const activityMetadata = noteText ? { noteSnippet: noteText.slice(0, 100) } : {};
+  prisma.teamShare.findMany({ where: { projectId }, select: { teamId: true } })
+    .then((shares) =>
+      Promise.all(
+        shares.map(({ teamId }) =>
+          prisma.activityLog.create({
+            data: { teamId, userId, projectId, eventType: activityEventType, metadata: activityMetadata },
+          })
+        )
+      )
+    )
+    .catch(() => {});
 
   log.info('[Comments] created', { projectId, userId, hasReaction: !!reactionType });
   return NextResponse.json({ comment: shapeComment(comment) }, { status: 201 });

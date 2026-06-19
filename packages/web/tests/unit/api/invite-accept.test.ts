@@ -77,6 +77,8 @@ vi.mock('@/lib/db', () => ({
     alert: {
       create: (...args: unknown[]) => mockAlertCreate(...args),
     },
+    teamShare: { findMany: vi.fn().mockResolvedValue([]) },
+    projectAssignment: { createMany: vi.fn().mockResolvedValue({ count: 0 }) },
     // Handles both forms:
     //   $transaction(callback, opts) — interactive (serializable) — used by accept route
     //   $transaction(ops[])          — sequential — retained for any other callers
@@ -258,6 +260,42 @@ describe('POST /api/invite/[token]', () => {
     );
     expect(inviteUpdateCall).toBeDefined();
     expect(inviteUpdateCall?.[0]?.data?.userId).toBeUndefined();
+  });
+
+  // ── ProjectAssignment seeding ──────────────────────────────────────────────
+
+  it('seeds ProjectAssignment rows for all projects already shared with the team', async () => {
+    const PROJECT_A = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    const PROJECT_B = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+    const { prisma } = await import('@/lib/db');
+    const mockTeamShareFindMany = prisma.teamShare.findMany as ReturnType<typeof vi.fn>;
+    const mockProjectAssignmentCreateMany = prisma.projectAssignment.createMany as ReturnType<typeof vi.fn>;
+
+    mockTeamShareFindMany.mockResolvedValue([
+      { projectId: PROJECT_A, sharedBy: 'user_owner' },
+      { projectId: PROJECT_B, sharedBy: 'user_owner' },
+    ]);
+
+    const res = await POST(makeRequest(), makeParams());
+    expect(res.status).toBe(200);
+
+    expect(mockProjectAssignmentCreateMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({ projectId: PROJECT_A, userId: USER_ID, teamId: TEAM_ID }),
+        expect.objectContaining({ projectId: PROJECT_B, userId: USER_ID, teamId: TEAM_ID }),
+      ]),
+      skipDuplicates: true,
+    });
+  });
+
+  it('skips createMany when team has no shared projects', async () => {
+    const { prisma } = await import('@/lib/db');
+    const mockProjectAssignmentCreateMany = prisma.projectAssignment.createMany as ReturnType<typeof vi.fn>;
+    (prisma.teamShare.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    await POST(makeRequest(), makeParams());
+
+    expect(mockProjectAssignmentCreateMany).not.toHaveBeenCalled();
   });
 
   // ── Error handling ─────────────────────────────────────────────────────────

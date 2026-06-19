@@ -225,6 +225,26 @@ export async function POST(
       log.info('[Invite] New membership created via invite row', { userId, inviteId: invite.id });
     }
 
+    // Seed ProjectAssignment rows for every project already shared with this
+    // team so the new member can see them on their dashboard. The unique
+    // constraint on (projectId, userId, teamId) makes this idempotent.
+    const teamShares = await prisma.teamShare.findMany({
+      where: { teamId: invite.teamId },
+      select: { projectId: true, sharedBy: true },
+    });
+
+    if (teamShares.length > 0) {
+      await prisma.projectAssignment.createMany({
+        data: teamShares.map((s) => ({
+          projectId: s.projectId,
+          userId,
+          teamId: invite.teamId,
+          assignedBy: s.sharedBy,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
     // A-008 (2026-06-15): default sub-account tier configurable, default 'pro'.
     // Was 'creator' previously, which gave invitees 5 scripts/month — Ryan's
     // testing surfaced that this is too low for friendly-cohort sub-accounts.

@@ -61,24 +61,37 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
   }
 
   try {
-    // Create the share (upsert)
-    const share = await prisma.teamShare.upsert({
-      where: {
-        projectId_teamId: {
-          projectId,
-          teamId,
-        },
-      },
-      create: {
-        projectId,
-        teamId,
-        sharedBy: userId,
-        accessLevel,
-      },
-      update: {
-        sharedBy: userId,
-        accessLevel,
-      },
+    const share = await prisma.$transaction(async (tx) => {
+      const share = await tx.teamShare.upsert({
+        where: { projectId_teamId: { projectId, teamId } },
+        create: { projectId, teamId, sharedBy: userId, accessLevel },
+        update: { sharedBy: userId, accessLevel },
+      });
+
+      // Grant access to all current active members. The unique constraint on
+      // (projectId, userId, teamId) makes this idempotent via skipDuplicates.
+      const activeMembers = await tx.teamMember.findMany({
+        where: { teamId, acceptedAt: { not: null }, deactivatedAt: null },
+        select: { userId: true },
+      });
+
+      const memberUserIds = activeMembers
+        .map((m) => m.userId)
+        .filter((id): id is string => id !== null);
+
+      if (memberUserIds.length > 0) {
+        await tx.projectAssignment.createMany({
+          data: memberUserIds.map((memberId) => ({
+            projectId,
+            userId: memberId,
+            teamId,
+            assignedBy: userId,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      return share;
     });
 
     return NextResponse.json({
