@@ -79,22 +79,25 @@ export async function whisperAlign(
       throw new Error(`Local whisper binary not found at: ${whisperCppPath}`);
     }
 
-    // Run whisper.cpp
-    await execa(whisperCppPath, [
-      '-m',
-      modelPath,
-      '-f',
-      audioPath,
-      '-ojf', // Create JSON file
-      '-of',
-      outputBase, // Specify output filename
-      '-ml',
-      '1', // Max line length
-    ]);
+    // reject:false so we can include stdout/stderr in error messages — previously
+    // both were discarded, making the root cause invisible in logs.
+    const result = await execa(
+      whisperCppPath,
+      ['-m', modelPath, '-f', audioPath, '-ojf', '-of', outputBase, '-ml', '1'],
+      { reject: false },
+    );
+
+    if (result.exitCode !== 0) {
+      throw new Error(
+        `whisper.cpp exited ${result.exitCode} | stderr: ${result.stderr?.substring(0, 400)} | stdout: ${result.stdout?.substring(0, 200)}`,
+      );
+    }
 
     // Check if JSON file was created
     if (!fs.existsSync(jsonOutputPath)) {
-      throw new Error(`Whisper finished but JSON file is missing at: ${jsonOutputPath}`);
+      throw new Error(
+        `Whisper finished (exit 0) but JSON file is missing at: ${jsonOutputPath} | stderr: ${result.stderr?.substring(0, 400)} | stdout: ${result.stdout?.substring(0, 200)}`,
+      );
     }
 
     // Read and parse the JSON file
