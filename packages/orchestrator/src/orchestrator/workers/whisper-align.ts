@@ -83,20 +83,20 @@ export async function whisperAlign(
     // both were discarded, making the root cause invisible in logs.
     const result = await execa(
       whisperCppPath,
-      ['-m', modelPath, '-f', audioPath, '-ojf', '-of', outputBase, '-ml', '1'],
+      ['-m', modelPath, '-f', audioPath, '-ng', '-ojf', '-of', outputBase, '-ml', '1'],
       { reject: false },
     );
 
     if (result.exitCode !== 0) {
       throw new Error(
-        `whisper.cpp exited ${result.exitCode} | stderr: ${result.stderr?.substring(0, 400)} | stdout: ${result.stdout?.substring(0, 200)}`,
+        `whisper.cpp exited ${result.exitCode} | stderr: ${result.stderr?.substring(0, 2000)} | stdout: ${result.stdout?.substring(0, 500)}`,
       );
     }
 
     // Check if JSON file was created
     if (!fs.existsSync(jsonOutputPath)) {
       throw new Error(
-        `Whisper finished (exit 0) but JSON file is missing at: ${jsonOutputPath} | stderr: ${result.stderr?.substring(0, 400)} | stdout: ${result.stdout?.substring(0, 200)}`,
+        `Whisper finished (exit 0) but JSON file is missing at: ${jsonOutputPath} | stderr: ${result.stderr?.substring(0, 2000)} | stdout: ${result.stdout?.substring(0, 500)}`,
       );
     }
 
