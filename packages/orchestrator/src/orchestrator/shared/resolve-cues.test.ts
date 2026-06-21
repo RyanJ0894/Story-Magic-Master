@@ -44,26 +44,29 @@ function makeCues(overrides = {}) {
 
 // ── Tests ──────────────────────────────────────────────────────────────────────
 
-describe('getDefaultMixParams — audible ambience gain (#96)', () => {
-  it('returns ambience_gain_db of -18 (raised from -26 for audibility)', () => {
+describe('getDefaultMixParams — 2026-06-20 Ryan +3dB volume bump', () => {
+  // 2026-06-20: Ryan reported "Volumes are slightly lower than desired.
+  // All volumes should be turned up slightly." Bumped each gain +3 dB.
+  // These assertions LOCK the new defaults so they can't quietly drift.
+  it('returns ambience_gain_db of -15 (was -18, bumped +3 dB)', () => {
     const params = getDefaultMixParams();
-    expect(params.ambience_gain_db).toBe(-18);
+    expect(params.ambience_gain_db).toBe(-15);
   });
 
-  it('returns music_gain_db of -22 (background level)', () => {
+  it('returns music_gain_db of -19 (was -22, bumped +3 dB)', () => {
     const params = getDefaultMixParams();
-    expect(params.music_gain_db).toBe(-22);
+    expect(params.music_gain_db).toBe(-19);
   });
 
-  it('returns sfx_gain_db of -12', () => {
+  it('returns sfx_gain_db of -9 (was -12, bumped +3 dB)', () => {
     const params = getDefaultMixParams();
-    expect(params.sfx_gain_db).toBe(-12);
+    expect(params.sfx_gain_db).toBe(-9);
   });
 
   it('applies scene overrides on top of defaults', () => {
     const params = getDefaultMixParams({ ambience_gain_db: -10 });
     expect(params.ambience_gain_db).toBe(-10);
-    expect(params.music_gain_db).toBe(-22);
+    expect(params.music_gain_db).toBe(-19);
   });
 });
 
