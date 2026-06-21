@@ -74,12 +74,21 @@ export interface AudioTuningDto {
   updatedAt: string | null;
 }
 
-/** Defaults returned when no row exists for the user yet. */
+/**
+ * Defaults returned when no row exists for the user yet.
+ *
+ * 2026-06-20 (Ryan 6/15 + 6/21 dev notes): narrationSpeed bumped from
+ * 1.0 → 1.1 because Ryan reported "narration delivery is consistently
+ * a slower pace than desired. We should adjust Narration tempo to be
+ * slightly faster." ElevenLabs accepts 0.7–1.2 so 1.1 is safely in
+ * range. Users who explicitly saved 1.0 will keep their stored value;
+ * this only shifts the fallback for users who haven't customized.
+ */
 export const DEFAULT_AUDIO_TUNING: AudioTuningDto = {
   musicGainOffsetDb: 0,
   ambienceGainOffsetDb: 0,
   sfxGainOffsetDb: 0,
-  narrationSpeed: 1.0,
+  narrationSpeed: 1.1,
   locked: false,
   updatedAt: null,
 };
