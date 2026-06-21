@@ -150,7 +150,25 @@ export class DirectorJSONValidator {
     // Patterns that strongly suggest a line is stage direction, not dialogue.
     // Kept conservative — we'd rather miss a true positive than mis-reassign
     // an actual line of dialogue that happens to look like action.
+    //
+    // 2026-06-21 — Ryan reproducer expanded coverage:
+    //   1. Third-person openings (He/She/They/It + verb)
+    //   2. Environmental subjects (The X verbs / A X rises / Outside…)
+    //   3. Beat / Pause / Silence single-word direction
+    //   4. Camera prepositions (Off her / On the / Through the)
+    //   5. Cinematic narration (WE SEE / WE HEAR / WE FEEL)
+    //   6. Additional transitions (BACK TO / END FLASHBACK / INTERCUT WITH)
+    //   7. ALL-CAPS character name + lowercase action verb ("JACK turns…")
+    //   8. Wrapped action markers ([whispering] / *action* / {action})
+    //   9. Closed SFX vocab (BANG. CRASH. BOOM!) — short ALL-CAPS slipped past
+    //      the >20-char isMostlyUppercase guard.
+    //
+    // Negative-case discipline: every pattern below was checked against the
+    // existing positive-dialogue cases in director-validator-a005.test.ts
+    // AND director-validator-a005-edges.test.ts so it can't mis-reassign
+    // shouted "STOP IT!" or first-person lines starting with "I ".
     const STAGE_DIRECTION_PATTERNS: RegExp[] = [
+      // ── Original 16 patterns ──────────────────────────────────────
       /^\s*\(/,                                  // Leading parenthetical (whispering), (V.O.), etc.
       /^\s*(?:INT|EXT|INT\.\/EXT|I\/E)\b\.?\s/i, // Scene headers
       /^\s*FADE (?:IN|OUT|TO)\b/i,               // Transitions
@@ -167,6 +185,42 @@ export class DirectorJSONValidator {
       /^\s*BEGIN MONTAGE\b/i,
       /^\s*END MONTAGE\b/i,
       /^\s*REVEAL:/i,
+      // ── 2026-06-21 additions ─────────────────────────────────────
+      // 1. Third-person + verb-s: "He turns", "She walks", "They both stare",
+      //    "It begins to rain". First-person "I" + "You" are NOT included
+      //    because they're the typical dialogue grammar.
+      /^\s*(?:He|She|They|It)\s+\w+(?:s|ed|ing)?\s/,
+      // 2. Environmental description: "The wind blows", "The clock ticks",
+      //    "Rain begins", "A whisper rises", "Outside, a car passes".
+      /^\s*The\s+\w+\s+(?:blows|ticks|passes|begins|falls|rises|drips|slams|opens|closes|howls|whistles|creaks|groans|crashes|whispers|echoes|hums|buzzes|drones|chimes|rings|rumbles)\b/i,
+      /^\s*(?:Outside|Inside|Above|Below|Behind|Beside|Across|Around)\b[,\s]/i,
+      /^\s*(?:A|An)\s+\w+\s+(?:rises|falls|begins|ticks|howls|drips|crashes|whispers|echoes|hums|drones|chimes|appears|enters|exits|passes|sounds)\b/i,
+      /^\s*(?:Rain|Snow|Wind|Thunder|Lightning|Silence|Sound|Music|Footsteps|Time|Memories)\s+\w+/i,
+      // 3. Beat / Pause / Silence single-word beats
+      /^\s*(?:Beat|Pause|Silence|Quiet|Stillness)\s*[.!?]?\s*$/i,
+      // 4. Camera preposition shorthand: "Off her stare.", "On the radio.",
+      //    "Through the window." — require a determiner so we don't catch
+      //    spoken "Off you go!" or "On a Thursday".
+      /^\s*(?:Off|On|Through|Above|Below|Beside|Behind|Beneath)\s+(?:her|his|their|its|the|a|an)\b/i,
+      // 5. Cinematic narration WE SEE / WE HEAR / WE FEEL / WE WATCH
+      /^\s*WE\s+(?:SEE|HEAR|FEEL|WATCH|FOLLOW|FIND|PAN|MOVE)\b/i,
+      // 6. Additional transitions
+      /^\s*INTERCUT\s+WITH\b/i,
+      /^\s*BACK\s+TO\b/i,
+      /^\s*END\s+(?:FLASHBACK|MONTAGE|DREAM|SEQUENCE)\b/i,
+      /^\s*FLASHBACK\s*(?::|\b)/i,
+      // 7. ALL-CAPS character name + lowercase action verb: "JACK turns…"
+      //    Requires 2+ uppercase letters, a space, then a known action verb.
+      //    The closed verb vocab keeps this from matching "OK then" or shouts.
+      /^\s*[A-Z]{2,}\s+(?:turns|walks|runs|stops|enters|exits|reaches|grabs|sits|stands|points|looks|backs|sets|picks|pulls|pushes|opens|closes|slams|stares|glares|nods|shakes|smiles|frowns|cries|laughs|whispers|shouts|screams|gasps|sighs|breathes|moves|crosses|approaches|leaves|returns|hesitates|kneels|rises|falls|drops|lifts|holds|gestures)\b/,
+      // 8. Wrapped action markers
+      /^\s*\[/,        // [whispering] Get down.
+      /^\s*\*[^*]/,    // *She looks down.*  (require non-* after to avoid italic emphasis in middle of dialogue)
+      /^\s*\{/,        // {action: glares}
+      // 9. SFX vocab — short ALL-CAPS one-words that slip past the
+      //    isMostlyUppercase >20-char guard. Vocab list keeps "STOP!" /
+      //    "NO!" / "HELP!" out of the false-positive bucket.
+      /^\s*(?:BANG|CRASH|BOOM|THUD|SLAM|POW|BAM|WHOOSH|SMASH|ROAR|RUMBLE|SCREECH|HONK|BUZZ|BEEP|CLICK|DING|GONG|CHIME|TICK|TOCK|KNOCK|TAP|RAP|SNAP|CRACK|HISS|SIZZLE|SPLASH|SPLAT|GUSH|PLOP|WHACK|THWACK|CLANG|CLATTER|RATTLE|CREAK|GROAN|GRUNT)[.!?]\s*$/i,
     ];
 
     // Heuristic: a sentence that's >50% UPPERCASE and >20 chars is almost
