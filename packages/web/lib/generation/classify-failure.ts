@@ -11,6 +11,7 @@ export type FailureKind =
   | 'upstream-tts'
   | 'preflight-voice'
   | 'empty-audio-urls'
+  | 'director-invalid'
   | 'generic';
 
 export interface ClassifiedFailure {
@@ -25,6 +26,8 @@ const MSG_PREFLIGHT_VOICE =
   'Audio generation failed because one or more voices assigned to this script are unavailable from ElevenLabs. The catalog has been updated — please re-run the director step (Generate Scenes) and try again. Substitute voices will be picked automatically.';
 const MSG_EMPTY_AUDIO_URLS =
   'Audio generation completed without producing playable audio. This is often a transient orchestrator-side hiccup and resolves on retry. If you see this twice in a row on the same script, send the job ID to support — the trace will pinpoint the step that returned no audio.';
+const MSG_DIRECTOR_INVALID =
+  'Audio generation failed because the director output is missing required data for some scenes (often a voice assignment). Please re-run the director step (Generate Scenes) and try again. The director will pick valid voices for every line.';
 const MSG_GENERIC =
   'Audio generation failed: no audio was produced. Please try again or contact support.';
 
@@ -65,6 +68,18 @@ export function classifyFailure(lastFailure: string): ClassifiedFailure {
   // that names the actual issue.
   const isEmptyAudioUrls = lastFailure.includes('empty_audio_urls');
   if (isEmptyAudioUrls) return { kind: 'empty-audio-urls', message: MSG_EMPTY_AUDIO_URLS };
+
+  // 2026-06-21: orchestrator-side DirectorJSONSchema rejection. Surfaces
+  // as HTTP 400 with a Zod-style payload like
+  //   "Invalid request: [{...,\"path\":[\"scenes\",0,\"dialogue\",29,\"voice_key\"]...}]"
+  // Hit when A-005 or any other validator left a required field undefined
+  // before the request reached the orchestrator. Telling the user to
+  // re-run the director is the correct action — retrying alone hits the
+  // same cached directorJson and fails identically.
+  const isDirectorInvalid =
+    lastFailure.includes('Invalid request') &&
+    (lastFailure.includes('invalid_type') || lastFailure.includes('voice_key') || lastFailure.includes('scenes'));
+  if (isDirectorInvalid) return { kind: 'director-invalid', message: MSG_DIRECTOR_INVALID };
 
   return { kind: 'generic', message: MSG_GENERIC };
 }

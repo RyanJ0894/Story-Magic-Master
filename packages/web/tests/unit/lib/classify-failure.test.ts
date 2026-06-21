@@ -106,6 +106,29 @@ describe('classifyFailure — generic fallback', () => {
     expect(result.kind).not.toBe('empty-audio-urls');
   });
 
+  // 2026-06-21: director-invalid branch.
+  // Ryan's dev test job 2413af4f-… surfaced an orchestrator HTTP 400
+  // because A-005 reassignment dropped voice_key. Classifier catches
+  // it and tells the user to re-run the director step.
+  it('classifies orchestrator "Invalid request" with voice_key path as director-invalid', () => {
+    const r = classifyFailure(
+      '{"status":"error","message":"Invalid request: [{\\"code\\":\\"invalid_type\\",\\"path\\":[\\"scenes\\",0,\\"dialogue\\",29,\\"voice_key\\"]}]"}',
+    );
+    expect(r.kind).toBe('director-invalid');
+    expect(r.message).toContain('director output is missing required data');
+    expect(r.message).toContain('re-run the director step');
+  });
+
+  it('classifies bare "Invalid request: invalid_type ... scenes" string as director-invalid', () => {
+    const r = classifyFailure('Invalid request: invalid_type at scenes[0].dialogue[40].voice_key');
+    expect(r.kind).toBe('director-invalid');
+  });
+
+  it('plain English "invalid request" without zod path does NOT match director-invalid', () => {
+    const r = classifyFailure('the user made an invalid request earlier');
+    expect(r.kind).not.toBe('director-invalid');
+  });
+
   it('ElevenLabs mention without status code falls through to generic', () => {
     // Important: we don't want to surface "transient retry" for an
     // ElevenLabs error that isn't actually a 5xx — could mislead the

@@ -232,9 +232,44 @@ export class DirectorJSONValidator {
       return upper / letters.length > 0.5;
     };
 
+    // 2026-06-21: hot-path bug — Ryan's dev test hit
+    //   `Invalid request: scenes[0].dialogue[29].voice_key — Required (undefined)`
+    // because the previous A-005 implementation set voice_key to undefined,
+    // then the orchestrator's DirectorJSONSchema rejected the request
+    // BEFORE downstream voice-assignment could fill it back in.
+    //
+    // Two-step fix on this pass:
+    //   1. Find the existing narrator entry in the dialogue (any casing —
+    //      LLMs produce "NARRATOR", "Narrator", "narrator"). Capture both
+    //      its character STRING (to preserve LLM casing) and its
+    //      voice_key.
+    //   2. When reassigning, use those captured values. If no narrator
+    //      exists in the script, fall back to canonical "Narrator" string
+    //      + DEFAULT_NARRATOR_VOICE so voice_key is never left undefined.
+    let existingNarratorChar = 'Narrator';
+    let existingNarratorVoice: string = DEFAULT_NARRATOR_VOICE;
     for (const scene of directorJson.scenes || []) {
       for (const line of scene.dialogue || []) {
-        if (line.character === 'Narrator') continue;
+        if (
+          typeof line.character === 'string' &&
+          line.character.trim().toLowerCase() === 'narrator' &&
+          typeof line.voice_key === 'string' &&
+          line.voice_key.length > 0
+        ) {
+          existingNarratorChar = line.character;
+          existingNarratorVoice = line.voice_key;
+          break;
+        }
+      }
+      if (existingNarratorVoice !== DEFAULT_NARRATOR_VOICE) break;
+    }
+
+    for (const scene of directorJson.scenes || []) {
+      for (const line of scene.dialogue || []) {
+        if (
+          typeof line.character === 'string' &&
+          line.character.trim().toLowerCase() === 'narrator'
+        ) continue;
         if (!line.text || line.text.length === 0) continue;
 
         const looksLikeStageDirection =
@@ -248,11 +283,15 @@ export class DirectorJSONValidator {
             sceneId: scene.scene_id,
             lineId: line.line_id,
           });
-          line.character = 'Narrator';
-          // Drop the voice_key so voice-assignment picks the narrator voice.
-          // We can't just substitute the narrator voice_key here because
-          // the validator may not have access to it (depends on call order).
-          line.voice_key = undefined as unknown as string;
+          line.character = existingNarratorChar;
+          // 2026-06-21: substitute the narrator voice_key in-place. Used to
+          // be undefined with the comment "voice-assignment picks the
+          // narrator voice" — but orchestrate.ts validates DirectorJSONSchema
+          // BEFORE voice-assignment runs, so any undefined voice_key here
+          // causes Invalid request → 400 → "no audio produced" in the UI.
+          // We now reuse the existing narrator's voice_key (captured in the
+          // pre-pass) or DEFAULT_NARRATOR_VOICE as fallback.
+          line.voice_key = existingNarratorVoice;
           reassigned++;
         }
       }
