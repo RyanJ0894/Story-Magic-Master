@@ -169,7 +169,9 @@ describe('processGenerationJob — chunk_index conditional (PR #173)', () => {
   });
 
   it('DOES send chunk_index for a multi-chunk job (so orchestrator skips manifest)', async () => {
-    // SCENES_PER_CHUNK = 14 → 30 scenes = 3 chunks
+    // 2026-06-21: SCENES_PER_CHUNK reduced 14→7 for progressive playback;
+    // 30 scenes now produces 5 chunks (still multi-chunk, which is what
+    // matters for this test — chunk_index must be sent on multi-chunk jobs).
     setupMocks(30, 'https://audio.example.com/audio/proj/chunk.m4a');
 
     await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 3);

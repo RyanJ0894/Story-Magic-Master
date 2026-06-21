@@ -13,8 +13,16 @@
  *   etc.
  */
 
-// ~25 pages ≈ 12–15 scenes at standard screenplay density
-export const SCENES_PER_CHUNK = 14;
+// 2026-06-21 — Ryan 6/21 item Y ("perceived instant" progressive playback):
+// SCENES_PER_CHUNK reduced from 14 → 7. Was: a 15-scene script produced
+// 2 chunks, so the first chunk completed at ~50% of total job time. Now:
+// 15 scenes produces 3 chunks; first chunk completes at ~33%. Combined with
+// the existing firstAudioUrl + segment auto-advance in audio-player.tsx,
+// this materially shortens time-to-first-audio across the 5-25 page range
+// where Ryan does most testing. Tradeoff: more orchestrator round-trips
+// per script. Acceptable — the orchestrator's scene_renders cache (#191)
+// absorbs the per-chunk overhead on retries.
+export const SCENES_PER_CHUNK = 7;
 
 export interface SceneChunk {
   index: number;      // 0-based segment index
