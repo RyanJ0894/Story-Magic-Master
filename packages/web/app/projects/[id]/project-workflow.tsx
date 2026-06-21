@@ -52,6 +52,7 @@ import GenerateButton from './generate-button';
 import AudioPlayer from './audio-player';
 import { ScreenplayPlayer, type NoteComment } from '@/components/project/ScreenplayPlayer';
 import { NotesPanel } from '@/components/project/NotesPanel';
+import { ProjectReactionBar, type ProjectReactionType } from '@/components/project/ProjectReactionBar';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { PreviewButton } from './preview-button';
 import { WorkflowModeSelector } from './workflow-mode-selector';
@@ -661,21 +662,29 @@ export function ProjectWorkflow({
                   />
                 </div>
                 {project.scriptText && (
-                  <div className="flex flex-col sm:grid sm:grid-cols-[1fr_280px] border border-border rounded-lg overflow-hidden sm:h-[560px]">
-                    <div className="overflow-y-auto p-4 max-h-72 sm:max-h-none">
-                      <ScreenplayPlayer
+                  <>
+                    {/* 2026-06-21 — Ryan 6/21 item n: project-level Like /
+                        Pass / Undecided toolbar above the screenplay. Replaces
+                        the old per-scene reactions inside the player. */}
+                    <div className="pb-2">
+                      <ProjectReactionBar projectId={project.id} />
+                    </div>
+                    <div className="flex flex-col sm:grid sm:grid-cols-[1fr_280px] border border-border rounded-lg overflow-hidden sm:h-[560px]">
+                      <div className="overflow-y-auto p-4 max-h-72 sm:max-h-none">
+                        <ScreenplayPlayer
+                          projectId={project.id}
+                          scriptText={project.scriptText}
+                          currentUserId={currentUserId}
+                          onCommentAdded={setLastAddedComment}
+                        />
+                      </div>
+                      <NotesPanel
                         projectId={project.id}
-                        scriptText={project.scriptText}
                         currentUserId={currentUserId}
-                        onCommentAdded={setLastAddedComment}
+                        newComment={lastAddedComment}
                       />
                     </div>
-                    <NotesPanel
-                      projectId={project.id}
-                      currentUserId={currentUserId}
-                      newComment={lastAddedComment}
-                    />
-                  </div>
+                  </>
                 )}
               </>
             ) : isProcessing ? (

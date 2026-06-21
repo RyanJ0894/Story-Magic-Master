@@ -164,6 +164,14 @@ export async function POST(request: Request, { params }: RouteParams) {
         await tx.projectComment.deleteMany({
           where: { projectId, userId, sceneIndex, reactionType: { not: null } },
         });
+      } else if (reactionType && sceneIndex == null) {
+        // 2026-06-21 — Ryan 6/21 item n: project-level reaction
+        // (Like / Dislike / Undecided about the script as a whole).
+        // Mirror the scene-level upsert: delete the user's existing
+        // project-level reaction so only the latest stands.
+        await tx.projectComment.deleteMany({
+          where: { projectId, userId, sceneIndex: null, reactionType: { not: null } },
+        });
       }
       return tx.projectComment.create({
         data: {
