@@ -74,14 +74,16 @@ services:
         - .github/**
 
     # h3-env-source-of-truth-allowed (bootstrap; dashboard owns after first deploy)
-    buildCommand: |
-      npm install -g pnpm@9.1.0 &&
-      curl -fsSL -o /tmp/doppler.tgz https://github.com/DopplerHQ/cli/releases/download/3.76.0/doppler_3.76.0_linux_amd64.tar.gz &&
-      echo "04f1ff30ed162d7af1dba7f11ad6a37ef35099de86a7ec6e261b64b1b337a3f3  /tmp/doppler.tgz" | sha256sum -c - &&
-      tar --overwrite -xzf /tmp/doppler.tgz -C /usr/local/bin doppler &&
-      pnpm install --frozen-lockfile &&
-      doppler run -- sh -c "node scripts/check-env-web.js && pnpm --filter @story-magic/shared exec prisma generate && pnpm --filter @story-magic/web build"
-    startCommand: doppler run -- pnpm --filter @story-magic/web worker
+    # 2026-06-21: matches prod story-magic-worker exactly. Original draft
+    # tried to install Doppler CLI into /usr/local/bin which is now
+    # read-only on Render's build image (`tar: Cannot open: Read-only
+    # file system`). The correct pattern is Doppler NATIVE SYNC: enable
+    # Doppler integration on the service in the Render dashboard
+    # (Settings → Environment → "Sync from Doppler"), point it at
+    # story-magic/dev, and Render injects env vars at deploy time. No
+    # `doppler run` in the start/build command needed.
+    buildCommand: npm install -g pnpm@9.1.0 tsx@4 && pnpm install --frozen-lockfile && pnpm --filter @story-magic/shared exec prisma generate && pnpm --filter @story-magic/web build
+    startCommand: cd packages/web && tsx worker.ts
 
     # h3-env-source-of-truth-allowed — first-deploy env SHAPE only.
     envVars:
@@ -120,16 +122,13 @@ services:
           name: story-magic-redis-dev
           property: connectionString
 
-      # Doppler service token — used by `doppler run` in start/build.
-      # Set this manually in the dashboard to the `story-magic` project,
-      # `dev` config service token. Render's Doppler native sync needs the
-      # token to know which config to read.
-      - key: DOPPLER_TOKEN
-        sync: false
-
-      # Everything below is filled from Doppler `story-magic/dev` via
-      # native sync after first deploy. The values here just declare the
-      # shape so Render's first build doesn't fail with "missing env".
+      # Doppler integration is enabled at the SERVICE level (Render dashboard
+      # → Settings → Environment → "Sync from Doppler"), not via a
+      # DOPPLER_TOKEN env var. Once enabled, Render auto-syncs from the
+      # story-magic/dev config and injects everything below at deploy time.
+      # The keys here declare the SHAPE so Render's first build doesn't
+      # warn about missing required env. Values stay sync:false because
+      # Doppler owns them at runtime.
       - key: CLERK_SECRET_KEY
         sync: false
       - key: ORCHESTRATOR_URL
