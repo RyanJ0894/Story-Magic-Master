@@ -17,6 +17,7 @@ import {
 import { dispatchWebhooks } from '@/lib/webhooks/deliver';
 import { triggerHumanReviewIfPurchased } from '@/lib/human-review/trigger';
 import { chunkScenes, segmentProgressLabel } from '@/lib/generation/chunk-script';
+import { classifyFailure } from '@/lib/generation/classify-failure';
 import { addBreadcrumb, captureMessage } from '@sentry/nextjs';
 import { Prisma } from '@story-magic/shared';
 import { asDirectorJson, type DirectorJson } from '@story-magic/shared';
@@ -604,24 +605,11 @@ export async function processGenerationJob(
         .slice()
         .reverse()
         .find((s) => s.status === 'failed' && s.error)?.error ?? '';
-      const isUpstreamTtsFailure =
-        lastFailure.includes('ElevenLabs') &&
-        (lastFailure.match(/\b5\d\d\b/) !== null || lastFailure.includes('429'));
-      // 2026-06-19: pre-flight voice validator returns 422 with
-      // "voice unavailable" wording. Surface that to the user instead of the
-      // generic message so they know the fix is to re-run the director step,
-      // not "try again" against the same broken voice.
-      const isPreflightVoiceFailure =
-        lastFailure.includes('422') ||
-        lastFailure.includes('voice') && lastFailure.includes('unavailable');
-      let userMessage: string;
-      if (isUpstreamTtsFailure) {
-        userMessage = 'Audio generation failed because the TTS provider (ElevenLabs) is currently returning errors. This is a transient upstream issue — please retry in a few minutes.';
-      } else if (isPreflightVoiceFailure) {
-        userMessage = 'Audio generation failed because one or more voices assigned to this script are unavailable from ElevenLabs. The catalog has been updated — please re-run the director step (Generate Scenes) and try again. Substitute voices will be picked automatically.';
-      } else {
-        userMessage = 'Audio generation failed: no audio was produced. Please try again or contact support.';
-      }
+      // 2026-06-20: extracted to lib/generation/classify-failure.ts so the
+      // three user-facing messages are pinned by unit tests against any
+      // future drift. Three buckets: upstream-tts (transient ElevenLabs
+      // 5xx/429), preflight-voice (422 from PR #338 validator), generic.
+      const { message: userMessage } = classifyFailure(lastFailure);
       throw new Error(userMessage);
     }
 
