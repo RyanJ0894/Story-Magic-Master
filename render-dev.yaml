@@ -3,31 +3,59 @@
 # 2026-06-21 (Chris): the `dev` Render project currently has only three
 # services — story-magic-db-dev, story-magic-orchestrator-dev,
 # story-magic-web-dev. To exercise the full pipeline (queue worker +
-# Redis-backed job-status) we need a worker service that mirrors
-# story-magic-worker on `main`, scaled down and pointed at the `dev`
-# branch.
+# Redis-backed job-status + rate limit) we need:
+#   1. story-magic-redis-dev  — Render Key Value (mirrors prod's
+#      story-magic-redis red-d8m8dmbeo5us73eafa60 created via PR #226)
+#   2. story-magic-worker-dev — queue worker that mirrors
+#      story-magic-worker on `main`, scaled down and pointed at the
+#      `dev` branch.
 #
-# Redis is NOT a Render-managed service in this project — we use
-# Upstash via REST. The dev environment already has UPSTASH_REDIS_REST_*
-# secrets in its Doppler config (story-magic / dev), so no Render Redis
-# is needed; the worker (and web) reach Upstash directly.
-#
-# This file ONLY defines the missing worker. The web/orchestrator/db
-# services in the screenshot were created via the dashboard and are not
-# replicated here — modifying their config lives in their dashboard pages.
+# Redis migration history: PRs #226 + #227 + #228 moved BOTH web AND
+# orchestrator off Upstash REST to Render Key Value (ioredis over TCP).
+# Code now reads REDIS_URL — UPSTASH_REDIS_REST_* are vestigial.
+# This blueprint matches that — no Upstash references.
 #
 # How to apply:
 #   1. From Render dashboard → New + → Blueprint
-#   2. Point at this file (render-dev.yaml) on branch `dev`
-#   3. Render will detect story-magic-worker-dev and create it
-#   4. After first deploy, Doppler native sync fills in the `sync: false`
-#      env vars from story-magic / dev config.
+#   2. **Important**: select `render-dev.yaml` from the file dropdown,
+#      NOT `render.yaml` (which is the prod blueprint and would try to
+#      manage prod services).
+#   3. Pick branch `dev`.
+#   4. Render detects story-magic-redis-dev + story-magic-worker-dev
+#      and offers to create them.
+#   5. After first deploy, set DOPPLER_TOKEN in the worker dashboard
+#      to the story-magic / dev config service token. Doppler native
+#      sync then fills in the rest of the env shape.
+#   6. **Update the existing story-magic-web-dev and
+#      story-magic-orchestrator-dev services** to read REDIS_URL from
+#      story-magic-redis-dev (add a new env var with the fromService
+#      reference, then remove any UPSTASH_REDIS_REST_* entries). These
+#      services were created via dashboard so they're not under this
+#      blueprint's control.
 #
 # h3-env-source-of-truth-allowed
-# Reason: bootstrap a NEW service. After first deploy the dashboard owns
-# build/start commands per the H3 contract.
+# Reason: bootstrap NEW services. After first deploy the dashboard
+# owns build/start commands and most env vars per the H3 contract.
 
 services:
+  # =============================================================================
+  # KEY VALUE (Redis) — DEV
+  # Mirrors prod's story-magic-redis. Used by rate limiter (ioredis +
+  # rate-limiter-flexible) and by the queue worker for BullMQ-style job
+  # state. Same region as the other dev services for sub-ms RTT.
+  # =============================================================================
+  - type: keyvalue
+    name: story-magic-redis-dev
+    region: oregon
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+    # IP allowlist — empty = only allow connections from within the
+    # same Render region (private network). Same posture as prod.
+    ipAllowList: []
+
+  # =============================================================================
+  # QUEUE WORKER — DEV
+  # =============================================================================
   - type: worker
     name: story-magic-worker-dev
     runtime: node
@@ -83,6 +111,15 @@ services:
       - key: QUEUE_CONCURRENCY
         value: "2"
 
+      # Render Key Value — ioredis URL pulled from the new dev Redis
+      # service above. PR #226 dropped UPSTASH_REDIS_REST_* in favor of
+      # this single REDIS_URL; matches prod posture.
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: story-magic-redis-dev
+          property: connectionString
+
       # Doppler service token — used by `doppler run` in start/build.
       # Set this manually in the dashboard to the `story-magic` project,
       # `dev` config service token. Render's Doppler native sync needs the
@@ -102,10 +139,6 @@ services:
       - key: SENTRY_DSN
         sync: false
       - key: SENTRY_AUTH_TOKEN
-        sync: false
-      - key: UPSTASH_REDIS_REST_URL
-        sync: false
-      - key: UPSTASH_REDIS_REST_TOKEN
         sync: false
       - key: OPENAI_API_KEY
         sync: false
