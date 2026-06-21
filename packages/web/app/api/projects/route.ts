@@ -61,6 +61,26 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
       pageCount: pageCount || 0,
     });
 
+    // 2026-06-20 (Ryan project-visibility clarification): notify the actor's
+    // master account(s) that a sub-account created a project. Fire-and-forget
+    // — must never break project creation.
+    try {
+      const { emitProjectCreated, emitScriptUploaded } = await import('@/lib/notifications/producers');
+      await emitProjectCreated(prisma, {
+        projectId: project.id,
+        actorUserId: userId,
+        projectName: project.name,
+      });
+      if (scriptText) {
+        await emitScriptUploaded(prisma, {
+          projectId: project.id,
+          actorUserId: userId,
+          projectName: project.name,
+          pageCount: pageCount ?? null,
+        });
+      }
+    } catch { /* swallow — producer failures must never fail the request */ }
+
     return NextResponse.json(project, { status: 201 });
   } catch {
     return NextResponse.json(

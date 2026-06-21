@@ -424,6 +424,90 @@ export async function emitDecisionMade(
   });
 }
 
+/**
+ * 2026-06-20 — Ryan project-visibility clarification (6/19 + 6/21 emails):
+ *
+ *   "if a sub account creates a new project, uploads a script… that
+ *    activity should show in the associated master account, even if no
+ *    team assignment has been made."
+ *
+ * resolveProjectMaster() above looks at project.userId — useless here
+ * because the actor IS project.userId (sub-account created the project).
+ * Instead we resolve the master via the actor's active TeamMember row →
+ * Team.ownerId.
+ *
+ * If the actor is on multiple teams we notify each of those team owners.
+ * In practice sub-accounts belong to one team; the loop handles edge
+ * cases without us needing to pick a "primary" team.
+ *
+ * Returns the list of (ownerId, teamName) pairs we should notify. Empty
+ * list = actor isn't a sub-account, no notification, no error.
+ */
+async function resolveMastersForActor(
+  prisma: PrismaClient,
+  actorUserId: string,
+): Promise<Array<{ ownerId: string; teamName: string }>> {
+  const memberships = await prisma.teamMember.findMany({
+    where: {
+      userId: actorUserId,
+      status: 'active',
+      deactivatedAt: null,
+    },
+    select: { team: { select: { ownerId: true, name: true } } },
+  });
+  // Self-actions (the actor IS the master of their own team) should be
+  // skipped — masters don't need notifications about their own activity.
+  return memberships
+    .map((m) => ({ ownerId: m.team.ownerId, teamName: m.team.name }))
+    .filter((t) => t.ownerId !== actorUserId);
+}
+
+export async function emitProjectCreated(
+  prisma: PrismaClient,
+  args: { projectId: string; actorUserId: string; projectName: string },
+): Promise<void> {
+  const masters = await resolveMastersForActor(prisma, args.actorUserId);
+  if (masters.length === 0) return;
+  const actorName = await lookupActorName(prisma, args.actorUserId);
+  for (const master of masters) {
+    await emit({
+      prisma,
+      recipientUserId: master.ownerId,
+      alertType: 'project_created',
+      title: `${actorName} created a new project: "${args.projectName}"`,
+      projectId: args.projectId,
+      relatedUserId: args.actorUserId,
+      metadata: { actorName, projectName: args.projectName, teamName: master.teamName },
+    });
+  }
+}
+
+export async function emitScriptUploaded(
+  prisma: PrismaClient,
+  args: { projectId: string; actorUserId: string; projectName: string; pageCount?: number | null },
+): Promise<void> {
+  const masters = await resolveMastersForActor(prisma, args.actorUserId);
+  if (masters.length === 0) return;
+  const actorName = await lookupActorName(prisma, args.actorUserId);
+  const pageDescriptor = args.pageCount ? ` (${args.pageCount}-page script)` : '';
+  for (const master of masters) {
+    await emit({
+      prisma,
+      recipientUserId: master.ownerId,
+      alertType: 'script_uploaded',
+      title: `${actorName} uploaded a script to "${args.projectName}"${pageDescriptor}`,
+      projectId: args.projectId,
+      relatedUserId: args.actorUserId,
+      metadata: {
+        actorName,
+        projectName: args.projectName,
+        pageCount: args.pageCount ?? null,
+        teamName: master.teamName,
+      },
+    });
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────
 
 function formatMoney(cents: number, currency: string): string {

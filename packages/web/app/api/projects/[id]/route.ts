@@ -60,11 +60,23 @@ export const GET = withProjectAuth(async (request, { userId, projectId, project,
 // PATCH - Update a project
 // =============================================================================
 
-export const PATCH = withProjectAuth(async (request, { prisma, projectId }) => {
+export const PATCH = withProjectAuth(async (request, { userId, prisma, projectId }) => {
   const parsed = await parseBody(request, UpdateProjectSchema);
   if ('error' in parsed) return parsed.error;
 
   const { name, script_text, page_count } = parsed.data;
+
+  // Check whether THIS patch is the first script attachment (transition from
+  // null → non-null script_text). Only those should fire script_uploaded so
+  // we don't spam the master on every script tweak.
+  let wasScriptlessBefore = false;
+  if (script_text) {
+    const before = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { scriptText: true },
+    });
+    wasScriptlessBefore = !before?.scriptText;
+  }
 
   try {
     const project = await updateProject(prisma, projectId, {
@@ -72,6 +84,20 @@ export const PATCH = withProjectAuth(async (request, { prisma, projectId }) => {
       scriptText: script_text,
       pageCount: page_count,
     });
+
+    // 2026-06-20 (Ryan project-visibility clarification): notify master if
+    // a sub-account just attached a script for the first time.
+    if (script_text && wasScriptlessBefore) {
+      try {
+        const { emitScriptUploaded } = await import('@/lib/notifications/producers');
+        await emitScriptUploaded(prisma, {
+          projectId,
+          actorUserId: userId,
+          projectName: project.name,
+          pageCount: page_count ?? null,
+        });
+      } catch { /* swallow — producer must never fail the request */ }
+    }
 
     return NextResponse.json({ project });
   } catch {
