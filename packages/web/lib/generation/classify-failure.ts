@@ -7,7 +7,11 @@
  * for the regression-guard cases.
  */
 
-export type FailureKind = 'upstream-tts' | 'preflight-voice' | 'generic';
+export type FailureKind =
+  | 'upstream-tts'
+  | 'preflight-voice'
+  | 'empty-audio-urls'
+  | 'generic';
 
 export interface ClassifiedFailure {
   kind: FailureKind;
@@ -19,6 +23,8 @@ const MSG_UPSTREAM_TTS =
   'Audio generation failed because the TTS provider (ElevenLabs) is currently returning errors. This is a transient upstream issue — please retry in a few minutes.';
 const MSG_PREFLIGHT_VOICE =
   'Audio generation failed because one or more voices assigned to this script are unavailable from ElevenLabs. The catalog has been updated — please re-run the director step (Generate Scenes) and try again. Substitute voices will be picked automatically.';
+const MSG_EMPTY_AUDIO_URLS =
+  'Audio generation completed without producing playable audio. This is often a transient orchestrator-side hiccup and resolves on retry. If you see this twice in a row on the same script, send the job ID to support — the trace will pinpoint the step that returned no audio.';
 const MSG_GENERIC =
   'Audio generation failed: no audio was produced. Please try again or contact support.';
 
@@ -49,6 +55,16 @@ export function classifyFailure(lastFailure: string): ClassifiedFailure {
     lastFailure.includes('422') ||
     (lastFailure.includes('voice') && lastFailure.includes('unavailable'));
   if (isPreflightVoice) return { kind: 'preflight-voice', message: MSG_PREFLIGHT_VOICE };
+
+  // 2026-06-21: emitted by processor.ts when orchestrator returns 200 OK
+  // but with an empty audio_urls array. Pre-this-PR Ryan's 15-page failures
+  // on 6/20 fell through to the generic message because no segment carried
+  // a 'failed' status + error — the silent failure looked like "all chunks
+  // succeeded" but with no actual audio. Now the processor marks the
+  // segment 'failed' with this exact keyword and the user sees a message
+  // that names the actual issue.
+  const isEmptyAudioUrls = lastFailure.includes('empty_audio_urls');
+  if (isEmptyAudioUrls) return { kind: 'empty-audio-urls', message: MSG_EMPTY_AUDIO_URLS };
 
   return { kind: 'generic', message: MSG_GENERIC };
 }

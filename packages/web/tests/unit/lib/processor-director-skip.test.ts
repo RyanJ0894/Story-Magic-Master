@@ -90,7 +90,7 @@ describe('processGenerationJob — Director parse skip', () => {
 
     await expect(
       processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1)
-    ).rejects.toThrow(/audio generation failed/i);
+    ).rejects.toThrow(/audio generation (failed|completed without)/i);
 
     expect(mockOrchestratorGenerate).toHaveBeenCalledWith(
       '/generate-scenes',
@@ -105,7 +105,7 @@ describe('processGenerationJob — Director parse skip', () => {
 
     await expect(
       processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1)
-    ).rejects.toThrow(/audio generation failed/i);
+    ).rejects.toThrow(/audio generation (failed|completed without)/i);
 
     expect(mockOrchestratorGenerate).toHaveBeenCalledWith(
       '/generate-scenes',
@@ -120,7 +120,7 @@ describe('processGenerationJob — Director parse skip', () => {
 
     await expect(
       processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1)
-    ).rejects.toThrow(/audio generation failed/i);
+    ).rejects.toThrow(/audio generation (failed|completed without)/i);
 
     const generateScenesCalls = mockOrchestratorGenerate.mock.calls.filter(
       ([path]: [string]) => path === '/generate-scenes',
@@ -135,7 +135,7 @@ describe('processGenerationJob — Director parse skip', () => {
 
     await expect(
       processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1)
-    ).rejects.toThrow(/audio generation failed/i);
+    ).rejects.toThrow(/audio generation (failed|completed without)/i);
 
     expect(mockOrchestratorGenerate).toHaveBeenCalledWith(
       '/orchestrate',
@@ -150,7 +150,7 @@ describe('processGenerationJob — Director parse skip', () => {
 
     await expect(
       processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1)
-    ).rejects.toThrow(/audio generation failed/i);
+    ).rejects.toThrow(/audio generation (failed|completed without)/i);
 
     const directorSaveCalls = mockPrisma.project.update.mock.calls.filter(
       (args: unknown[]) => {
@@ -168,7 +168,7 @@ describe('processGenerationJob — Director parse skip', () => {
 
     await expect(
       processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1)
-    ).rejects.toThrow(/audio generation failed/i);
+    ).rejects.toThrow(/audio generation (failed|completed without)/i);
 
     const directorSaveCalls = mockPrisma.project.update.mock.calls.filter(
       (args: unknown[]) => {
@@ -187,7 +187,7 @@ describe('processGenerationJob — Director parse skip', () => {
     const overrides = { ALICE: 'voice-abc' };
     await expect(
       processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1, overrides)
-    ).rejects.toThrow(/audio generation failed/i);
+    ).rejects.toThrow(/audio generation (failed|completed without)/i);
 
     expect(mockOrchestratorGenerate).toHaveBeenCalledWith(
       '/generate-scenes',

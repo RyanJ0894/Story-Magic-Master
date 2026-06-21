@@ -86,6 +86,26 @@ describe('classifyFailure — generic fallback', () => {
     expect(result.kind).toBe('generic');
   });
 
+  // ---------------------------------------------------------------
+  // 2026-06-21: empty-audio-urls branch (silent-failure guard).
+  // Ryan's 6/20 10:10/10:22 PM CST 15-page failures fell through to
+  // generic because no segment carried a 'failed' status + error. The
+  // processor now marks the segment 'failed' with this keyword.
+  // ---------------------------------------------------------------
+  it('classifies empty_audio_urls keyword as empty-audio-urls (not generic)', () => {
+    const result = classifyFailure(
+      'empty_audio_urls: orchestrator returned 200 OK with no audio URLs',
+    );
+    expect(result.kind).toBe('empty-audio-urls');
+    expect(result.message).toContain('without producing playable audio');
+    expect(result.message).toContain('job ID');
+  });
+
+  it('plain English "audio urls" does NOT match the underscored keyword', () => {
+    const result = classifyFailure('the user uploaded audio urls in their script');
+    expect(result.kind).not.toBe('empty-audio-urls');
+  });
+
   it('ElevenLabs mention without status code falls through to generic', () => {
     // Important: we don't want to surface "transient retry" for an
     // ElevenLabs error that isn't actually a 5xx — could mislead the

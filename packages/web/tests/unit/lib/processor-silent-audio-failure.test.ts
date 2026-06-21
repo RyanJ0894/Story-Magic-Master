@@ -86,11 +86,11 @@ describe('processGenerationJob — silent audio failure detection', () => {
 
     await expect(
       processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1)
-    ).rejects.toThrow(/audio generation failed/i);
+    ).rejects.toThrow(/audio generation (failed|completed without)/i);
 
     expect(getJobFailCalls()).toHaveLength(1);
     const failCall = getJobFailCalls()[0][0] as { data: { error: string } };
-    expect(failCall.data.error).toMatch(/audio generation failed/i);
+    expect(failCall.data.error).toMatch(/audio generation (failed|completed without)/i);
   });
 
   it('marks job failed when audio_urls is empty array', async () => {
@@ -98,7 +98,7 @@ describe('processGenerationJob — silent audio failure detection', () => {
 
     await expect(
       processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1)
-    ).rejects.toThrow(/audio generation failed/i);
+    ).rejects.toThrow(/audio generation (failed|completed without)/i);
 
     expect(getJobFailCalls()).toHaveLength(1);
   });
@@ -108,7 +108,7 @@ describe('processGenerationJob — silent audio failure detection', () => {
 
     await expect(
       processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 1)
-    ).rejects.toThrow(/audio generation failed/i);
+    ).rejects.toThrow(/audio generation (failed|completed without)/i);
 
     expect(getJobFailCalls()).toHaveLength(1);
   });

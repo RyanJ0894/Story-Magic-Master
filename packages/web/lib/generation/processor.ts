@@ -504,6 +504,52 @@ export async function processGenerationJob(
       const manifest = orchestratorResult.playback_manifest as Record<string, unknown> | undefined;
       lastManifest = manifest ?? lastManifest;
 
+      // 2026-06-21: silent-empty-audio-urls guard. Before this guard, a 200
+      // OK response with audio_urls=[] (or [null]) silently incremented zero
+      // audioOutputs and left this segment with status='ready' and a null
+      // URL. The terminal-failure path then couldn't classify the failure
+      // (no segment had status='failed' + error) and surfaced the generic
+      // "no audio produced" message — exactly Ryan's 6/20 10:10/10:22 PM
+      // CST experience on 15-page scripts. Now we treat empty audio_urls
+      // on a 200 as a failed segment with a discoverable error string.
+      // Root cause may be Render's multi-instance file-system races on
+      // chunked jobs — to be confirmed by the explicit error from this
+      // guard in the next failing run.
+      const nonNullAudioUrls = chunkAudioUrls.filter((u) => typeof u === 'string' && u.length > 0);
+      if (nonNullAudioUrls.length === 0) {
+        const msg = `Orchestrator returned 200 OK on segment ${chunk.index + 1}/${chunks.length} but zero audio URLs after ${chunkSec}s`;
+        log.error('[PIPELINE] orchestrator returned empty audio_urls', undefined, {
+          jobId: jobId.slice(0, 8),
+          chunkIndex: chunk.index,
+          chunkSec,
+          orchestratorResultPreview: JSON.stringify(orchestratorResult).slice(0, 500),
+        });
+        await logJobEvent(
+          jobId, projectId, 'error', 'generating_audio', msg,
+          { chunkIndex: chunk.index, chunkSec },
+          'empty_audio_urls: ' + JSON.stringify(orchestratorResult).slice(0, 400),
+        );
+        addBreadcrumb({
+          category: 'pipeline.chunk',
+          message: `chunk ${chunk.index + 1}/${chunks.length} empty audio_urls`,
+          level: 'error',
+          data: {
+            jobId: jobId.slice(0, 8),
+            chunkIndex: chunk.index,
+            chunkSec,
+            orchestratorResultPreview: JSON.stringify(orchestratorResult).slice(0, 200),
+          },
+        });
+        segmentStatuses[chunk.index].status = 'failed';
+        segmentStatuses[chunk.index].error = 'empty_audio_urls: orchestrator returned 200 OK with no audio URLs';
+        await safeUpdate(
+          prisma.job,
+          { where: { id: jobId }, data: { segments: JSON.parse(JSON.stringify(segmentStatuses)) } },
+          { jobId, projectId, action: 'markSegmentEmptyUrls' },
+        );
+        continue;
+      }
+
       log.info('[PIPELINE] orchestrator chunk complete', {
         jobId: jobId.slice(0, 8),
         chunkIndex: chunk.index,
