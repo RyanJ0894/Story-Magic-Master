@@ -277,11 +277,17 @@ export function isTransientOrchestratorError(err: unknown): boolean {
  * for the typical case while keeping the failure mode obvious when the
  * orchestrator is truly dead (we'll still error within a minute, not 5).
  *
+ * 2026-06-20: bumped default to 90s. Ryan's 6/19 7:15 PM trace still hit
+ * "did not become ready within 60000ms (probed 15x)" on a cold-boot deploy
+ * — whisper.cpp model load adds ~30s to the warm-start window on a fresh
+ * container, taking us past 60s on the unlucky path. 90s covers the worst
+ * case while still failing fast if the orchestrator is genuinely down.
+ *
  * Cheap: each poll is a 10s-timeout HEAD/GET that returns 200 in <100ms on
  * a healthy service. If we're already healthy, this returns in ~50ms.
  */
 export async function waitForOrchestratorReady(
-  maxWaitMs: number = 60_000,
+  maxWaitMs: number = 90_000,
   pollIntervalMs: number = 3_000,
 ): Promise<void> {
   const start = Date.now();
