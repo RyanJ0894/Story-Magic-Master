@@ -1,0 +1,117 @@
+# Render Blueprint for Story Magic — DEV environment additions.
+#
+# 2026-06-21 (Chris): the `dev` Render project currently has only three
+# services — story-magic-db-dev, story-magic-orchestrator-dev,
+# story-magic-web-dev. To exercise the full pipeline (queue worker +
+# Redis-backed job-status) we need a worker service that mirrors
+# story-magic-worker on `main`, scaled down and pointed at the `dev`
+# branch.
+#
+# Redis is NOT a Render-managed service in this project — we use
+# Upstash via REST. The dev environment already has UPSTASH_REDIS_REST_*
+# secrets in its Doppler config (story-magic / dev), so no Render Redis
+# is needed; the worker (and web) reach Upstash directly.
+#
+# This file ONLY defines the missing worker. The web/orchestrator/db
+# services in the screenshot were created via the dashboard and are not
+# replicated here — modifying their config lives in their dashboard pages.
+#
+# How to apply:
+#   1. From Render dashboard → New + → Blueprint
+#   2. Point at this file (render-dev.yaml) on branch `dev`
+#   3. Render will detect story-magic-worker-dev and create it
+#   4. After first deploy, Doppler native sync fills in the `sync: false`
+#      env vars from story-magic / dev config.
+#
+# h3-env-source-of-truth-allowed
+# Reason: bootstrap a NEW service. After first deploy the dashboard owns
+# build/start commands per the H3 contract.
+
+services:
+  - type: worker
+    name: story-magic-worker-dev
+    runtime: node
+    region: oregon
+    plan: starter
+    branch: dev
+    autoDeploy: true
+    numInstances: 1
+
+    # Skip rebuilds for docs/markdown-only changes — same as web + orch.
+    buildFilter:
+      ignoredPaths:
+        - docs/**
+        - "**/*.md"
+        - code-review/**
+        - .github/**
+
+    # h3-env-source-of-truth-allowed (bootstrap; dashboard owns after first deploy)
+    buildCommand: |
+      npm install -g pnpm@9.1.0 &&
+      curl -fsSL -o /tmp/doppler.tgz https://github.com/DopplerHQ/cli/releases/download/3.76.0/doppler_3.76.0_linux_amd64.tar.gz &&
+      echo "04f1ff30ed162d7af1dba7f11ad6a37ef35099de86a7ec6e261b64b1b337a3f3  /tmp/doppler.tgz" | sha256sum -c - &&
+      tar --overwrite -xzf /tmp/doppler.tgz -C /usr/local/bin doppler &&
+      pnpm install --frozen-lockfile &&
+      doppler run -- sh -c "node scripts/check-env-web.js && pnpm --filter @story-magic/shared exec prisma generate && pnpm --filter @story-magic/web build"
+    startCommand: doppler run -- pnpm --filter @story-magic/web worker
+
+    # h3-env-source-of-truth-allowed — first-deploy env SHAPE only.
+    envVars:
+      - key: NODE_VERSION
+        value: "22.12.0"
+      - key: NODE_ENV
+        value: development
+
+      # Same DB as story-magic-web-dev — the Job table is shared.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: story-magic-db-dev
+          property: connectionString
+      - key: DIRECT_DATABASE_URL
+        fromDatabase:
+          name: story-magic-db-dev
+          property: connectionString
+
+      # Lower pool ceiling than prod (db-dev is smaller plan).
+      - key: DATABASE_CONNECTION_LIMIT
+        value: "4"
+
+      # Worker mode + concurrency. Lower than prod since dev traffic is
+      # 1-2 Ryan tests at a time.
+      - key: WORKER_MODE
+        value: standalone
+      - key: QUEUE_CONCURRENCY
+        value: "2"
+
+      # Doppler service token — used by `doppler run` in start/build.
+      # Set this manually in the dashboard to the `story-magic` project,
+      # `dev` config service token. Render's Doppler native sync needs the
+      # token to know which config to read.
+      - key: DOPPLER_TOKEN
+        sync: false
+
+      # Everything below is filled from Doppler `story-magic/dev` via
+      # native sync after first deploy. The values here just declare the
+      # shape so Render's first build doesn't fail with "missing env".
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: ORCHESTRATOR_URL
+        sync: false   # set to https://story-magic-orchestrator-dev.onrender.com
+      - key: SERVICE_SECRET_KEY
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_AUTH_TOKEN
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
