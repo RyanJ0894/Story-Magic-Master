@@ -92,9 +92,22 @@ export default function GenerateButton({
   }, []);
 
   // Poll for queue position
+  // 2026-06-20: added 429 backoff. The route is rate-limited (loose tier,
+  // 60/min) but a flaky network or shared NAT can still occasionally push
+  // a user over. On 429 we honor Retry-After (or default 5s) before the
+  // next poll instead of hammering. Ryan's 6/19 7:38 PM trace showed
+  // 50+ consecutive 429s — purely a client-side cadence issue.
+  const queueBackoffUntilRef = useRef<number>(0);
   const pollQueuePosition = useCallback(async (jobId: string) => {
+    if (Date.now() < queueBackoffUntilRef.current) return; // honor backoff
     try {
       const response = await apiFetch(`/api/jobs/${jobId}/position`);
+      if (response.status === 429) {
+        const retryAfter = parseInt(response.headers.get('Retry-After') ?? '5', 10);
+        const backoffMs = Math.min(Math.max(retryAfter, 1), 30) * 1000;
+        queueBackoffUntilRef.current = Date.now() + backoffMs;
+        return;
+      }
       if (!response.ok) return;
       const data: QueuePosition & { status: string } = await response.json();
       setQueuePosition({
