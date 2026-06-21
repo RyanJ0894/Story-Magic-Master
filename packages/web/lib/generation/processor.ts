@@ -200,14 +200,18 @@ export async function processGenerationJob(
     log.info('[PIPELINE] start', { jobId: jobId.slice(0, 8), projectId, pageCount, scriptLength: scriptText.length });
     await updateJobProgress('initializing', 5, 'Starting generation pipeline...');
 
-    // Wait up to 60s for the orchestrator to be ready before spending an LLM
-    // call. A-001 (2026-06-15): bumped from 30s so we cover Render's full
-    // rolling-deploy window (cold boot incl. whisper-model setup is ~45-55s).
-    // Ryan was hitting the 30s timeout on every test that happened to land
-    // mid-deploy. If the orchestrator is healthy, this returns in ~50ms; if
-    // it's mid-deploy, we wait and probe instead of burning his retry budget.
+    // Wait up to 90s for the orchestrator to be ready before spending an LLM
+    // call. A-001 (2026-06-15): bumped from 30s → 60s for Render's rolling
+    // deploy window. 2026-06-20: bumped to 90s after Ryan's 6/19 trace hit
+    // "did not become ready within 60000ms (probed 15x)" — whisper.cpp model
+    // load adds ~30s on cold-boot.
+    //
+    // Also surface a "service is warming up" user-visible message before
+    // re-throwing, so Ryan sees "deploy in progress, retrying" instead of a
+    // bare error toast.
+    await updateJobProgress('initializing', 6, 'Service is warming up (this can take ~30s after a deploy)…');
     try {
-      await waitForOrchestratorReady(60_000);
+      await waitForOrchestratorReady(90_000);
     } catch (err) {
       if (err instanceof OrchestratorUnreachableError) {
         await logJobEvent(jobId, projectId, 'error', 'initializing',
