@@ -231,6 +231,27 @@ describe('POST /api/projects/[id]/comments — reaction upsert', () => {
     );
     expect(res.status).toBe(400);
   });
+
+  // 2026-06-21 — Ryan 6/21 item n: project-level reaction (no sceneIndex)
+  // The comments route now treats reactionType + no sceneIndex as a
+  // project-level upsert. Mirror dedup logic so only the latest stands.
+  it('deletes existing project-level reaction (sceneIndex omitted) then inserts new', async () => {
+    const res = await POST(
+      jsonRequest({ reactionType: 'like' }),
+      makeParams(PROJECT_ID)
+    );
+    expect(res.status).toBe(201);
+    expect(mockPrisma.projectComment.deleteMany).toHaveBeenCalledWith({
+      where: {
+        projectId: PROJECT_ID,
+        userId: USER_ID,
+        sceneIndex: null,
+        reactionType: { not: null },
+      },
+    });
+    const json = await res.json() as { comment: { reactionType: string } };
+    expect(json.comment.reactionType).toBe('like');
+  });
 });
 
 describe('DELETE /api/projects/[id]/comments/[commentId]', () => {
