@@ -76,7 +76,7 @@ describe('PR #343 — classifyFailure surfaces preflight 422 messages', () => {
 // Ryan's 6/18: "+" without "Add Notes" wording was confusing; invite logo
 // was too small relative to the dashboard.
 // ---------------------------------------------------------------------------
-describe.skip('PR #344 — invite logo + Add Notes label', () => {
+describe('PR #344 — invite logo + Add Notes label', () => {
   it('invite page header logo uses w-12/h-12 (matches signup)', () => {
     const src = readSource('app/invite/[token]/page.tsx');
     // Either the header explicitly uses w-12 h-12 or the comment marks the
@@ -97,7 +97,7 @@ describe.skip('PR #344 — invite logo + Add Notes label', () => {
 // Ryan's 6/18: sub-accounts hit "Failed to save" on notes/reactions, and
 // master never saw the saved comment.
 // ---------------------------------------------------------------------------
-describe.skip('PR #345 — comments POST enforces ProjectAssignment + handles save errors', () => {
+describe('PR #345 — comments POST enforces ProjectAssignment + handles save errors', () => {
   it('comments route checks ProjectAssignment for non-owner access', () => {
     const src = readSource('app/api/projects/[id]/comments/route.ts');
     expect(src).toContain('projectAssignment');
@@ -115,7 +115,7 @@ describe.skip('PR #345 — comments POST enforces ProjectAssignment + handles sa
 // PR #354 — /jobs/position 429 backoff + loose rate-limit
 // Ryan's 6/19 7:38 PM trace: 50+ consecutive 429s flooded the console.
 // ---------------------------------------------------------------------------
-describe.skip('PR #354 — /jobs/position uses loose rate-limit + client backs off on 429', () => {
+describe('PR #354 — /jobs/position uses loose rate-limit + client backs off on 429', () => {
   it('position route is configured with rateLimit: loose', () => {
     const src = readSource('app/api/jobs/[id]/position/route.ts');
     expect(src).toMatch(/rateLimit:\s*['"]loose['"]/);
@@ -133,7 +133,7 @@ describe.skip('PR #354 — /jobs/position uses loose rate-limit + client backs o
 // PR #355 — orchestrator readiness probe 60s → 90s
 // Ryan's 6/19 7:15 PM trace: "did not become ready within 60000ms (probed 15x)".
 // ---------------------------------------------------------------------------
-describe.skip('PR #355 — orchestrator readiness probe default is 90s', () => {
+describe('PR #355 — orchestrator readiness probe default is 90s', () => {
   it('waitForOrchestratorReady default param is 90_000', () => {
     const src = readSource('lib/orchestrator-fetch.ts');
     // Match the default value on the parameter (allows whitespace variation).
@@ -151,7 +151,7 @@ describe.skip('PR #355 — orchestrator readiness probe default is 90s', () => {
 // Ryan's 6/19 + 6/21 (item i): master must see meaningful sub-account
 // activity regardless of team-share / project-assignment state.
 // ---------------------------------------------------------------------------
-describe.skip('PR #356 — feed types include project_created + script_uploaded', () => {
+describe('PR #356 — feed types include project_created + script_uploaded', () => {
   it('feed-types.ts exports the two new alert types', () => {
     const src = readSource('lib/notifications/feed-types.ts');
     expect(src).toContain("'project_created'");
@@ -174,7 +174,7 @@ describe.skip('PR #356 — feed types include project_created + script_uploaded'
 // PR #357 — tuning defaults: +3 dB gains, narrator 1.0 → 1.1
 // Ryan's 6/15 + 6/21 (item k): volumes too low, narration too slow.
 // ---------------------------------------------------------------------------
-describe.skip('PR #357 — tuning defaults bumped (volumes + narrator speed)', () => {
+describe('PR #357 — tuning defaults bumped (volumes + narrator speed)', () => {
   it('DEFAULT_AUDIO_TUNING.narrationSpeed is 1.1', () => {
     const src = readSource('lib/services/audio-tuning.ts');
     expect(src).toMatch(/narrationSpeed:\s*1\.1\b/);
