@@ -74,20 +74,6 @@ install_binary() {
   log "building whisper.cpp ${WHISPER_VERSION} → ${BIN_PATH}"
   rm -rf "${BUILD_DIR}"
 
-  # Install FFmpeg dev libraries so whisper.cpp can be built with
-  # -DWHISPER_FFMPEG=ON, which enables built-in audio decoding and resampling.
-  # Without this, whisper.cpp's read_wav strictly requires 16 kHz mono input
-  # and silently exits 0 without writing JSON for any other sample rate.
-  # Our TTS stems are 48 kHz stereo WAV; the local Homebrew binary handles
-  # them because it's compiled with FFmpeg or Core Audio resampling support.
-  if command -v apt-get >/dev/null 2>&1; then
-    log "installing FFmpeg dev libraries for whisper.cpp FFmpeg integration"
-    apt-get install -y -q libavcodec-dev libavformat-dev libavutil-dev libswresample-dev pkg-config >/dev/null 2>&1 \
-      || log "WARN: apt-get install of FFmpeg dev libs failed — binary will lack resampling support"
-  else
-    log "WARN: apt-get not available — skipping FFmpeg dev lib install; binary may lack resampling support"
-  fi
-
   if ! git clone --depth 1 --branch "${WHISPER_VERSION}" "${WHISPER_REPO}" "${BUILD_DIR}" >/dev/null 2>&1; then
     log "WARN: git clone of whisper.cpp ${WHISPER_VERSION} failed — alignment will use Groq fallback"
     return 1
