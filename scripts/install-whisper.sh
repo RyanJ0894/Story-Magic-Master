@@ -74,6 +74,20 @@ install_binary() {
   log "building whisper.cpp ${WHISPER_VERSION} → ${BIN_PATH}"
   rm -rf "${BUILD_DIR}"
 
+  # Install FFmpeg dev libraries so whisper.cpp can be built with
+  # -DWHISPER_FFMPEG=ON, which enables built-in audio decoding and resampling.
+  # Without this, whisper.cpp's read_wav strictly requires 16 kHz mono input
+  # and silently exits 0 without writing JSON for any other sample rate.
+  # Our TTS stems are 48 kHz stereo WAV; the local Homebrew binary handles
+  # them because it's compiled with FFmpeg or Core Audio resampling support.
+  if command -v apt-get >/dev/null 2>&1; then
+    log "installing FFmpeg dev libraries for whisper.cpp FFmpeg integration"
+    apt-get install -y -q libavcodec-dev libavformat-dev libavutil-dev libswresample-dev pkg-config >/dev/null 2>&1 \
+      || log "WARN: apt-get install of FFmpeg dev libs failed — binary will lack resampling support"
+  else
+    log "WARN: apt-get not available — skipping FFmpeg dev lib install; binary may lack resampling support"
+  fi
+
   if ! git clone --depth 1 --branch "${WHISPER_VERSION}" "${WHISPER_REPO}" "${BUILD_DIR}" >/dev/null 2>&1; then
     log "WARN: git clone of whisper.cpp ${WHISPER_VERSION} failed — alignment will use Groq fallback"
     return 1
@@ -89,6 +103,10 @@ install_binary() {
   # 2026-06-13 incident: build appeared to succeed, but `whisper --help`
   # printed "error while loading shared libraries: libwhisper.so.1" and
   # alignment silently fell through to Groq for 24 h before we noticed.
+  #
+  # -DWHISPER_FFMPEG=ON enables FFmpeg-based audio decoding so whisper.cpp
+  # can read and resample any sample rate (e.g. our 48 kHz stereo stems),
+  # matching the behaviour of the local Homebrew binary.
   (
     cd "${BUILD_DIR}" || exit 1
     if command -v cmake >/dev/null 2>&1 && [[ -f CMakeLists.txt ]]; then
@@ -97,6 +115,7 @@ install_binary() {
         -DBUILD_SHARED_LIBS=OFF \
         -DWHISPER_BUILD_TESTS=OFF \
         -DWHISPER_BUILD_EXAMPLES=ON \
+        -DWHISPER_FFMPEG=ON \
         >/dev/null 2>&1
       cmake --build build --config Release -j 2 >/dev/null 2>&1 || true
       # Newer cmake builds produce ./build/bin/main or whisper-cli
