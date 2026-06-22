@@ -108,14 +108,24 @@ export function resolveCuesToMixInputs(opts: ResolveCuesOptions): ResolveCuesRes
  * Default mix parameters for professional audio output.
  * Scene-level overrides via scene.mix are spread on top.
  *
- * Gain levels (#96): ambience raised from -26 to -18 dB so room tone is
- * clearly audible without competing with dialogue.
+ * Gain levels:
+ *   - #96 (earlier): ambience raised from -26 to -18 dB so room tone is
+ *     clearly audible without competing with dialogue.
+ *   - 2026-06-20 (Ryan 6/15 + 6/21 dev notes): music/ambience/SFX all +3 dB
+ *     because Ryan reported "Volumes are slightly lower than desired. All
+ *     volumes should be turned up slightly." Per-user offsets in
+ *     audio_tuning table compose on top of this baseline, so users who
+ *     don't like the new defaults can dial them back via the tuning UI.
+ *
+ *   music_gain_db:    -22 → -19
+ *   ambience_gain_db: -18 → -15
+ *   sfx_gain_db:      -12 →  -9
  */
 export function getDefaultMixParams(sceneOverrides?: Record<string, unknown>) {
   return {
-    music_gain_db: -22,
-    ambience_gain_db: -18,
-    sfx_gain_db: -12,
+    music_gain_db: -19,
+    ambience_gain_db: -15,
+    sfx_gain_db: -9,
     target_lufs: -16,
     true_peak_db: -1.5,
     use_dialogue_processing: true,
