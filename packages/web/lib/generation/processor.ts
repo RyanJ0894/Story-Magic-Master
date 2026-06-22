@@ -152,7 +152,11 @@ export async function processGenerationJob(
   userId: string,
   scriptText: string,
   pageCount: number,
-  voiceOverrides: Record<string, string> = {}
+  voiceOverrides: Record<string, string> = {},
+  // #372: when true, the orchestrator bypasses scene_renders cache for
+  // this run only. directorJson reuse still applies (no LLM re-runs).
+  // Set by the "Re-render audio (reuse cached AI)" UI toggle.
+  forceFreshTts: boolean = false,
 ) {
   const jobStart = Date.now();
   const elapsed = () => Math.round((Date.now() - jobStart) / 1000);
@@ -456,6 +460,9 @@ export async function processGenerationJob(
         // B-005: forward the user's locked tuning. Orchestrator (#301/#305)
         // applies the values to the cache hash + TTS speed + mix gains.
         ...(audioTuning ? { audio_tuning: audioTuning } : {}),
+        // #372: per-run TTS cache bypass. Only sent when true to keep the
+        // request body clean for the common path.
+        ...(forceFreshTts ? { force_fresh_tts: true } : {}),
       });
       const chunkSec = Math.round((Date.now() - chunkStart) / 1000);
 

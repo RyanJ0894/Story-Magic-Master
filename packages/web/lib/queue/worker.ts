@@ -305,6 +305,8 @@ registerProcessor('audio_generation', async (job, context) => {
     scriptText?: string;
     pageCount?: number;
     voiceOverrides?: Record<string, string>;
+    // #372: per-run TTS cache bypass — see processor.ts.
+    forceFreshTts?: boolean;
   } | undefined;
 
   if (!metadata?.scriptText) {
@@ -320,6 +322,7 @@ registerProcessor('audio_generation', async (job, context) => {
     metadata.scriptText,
     metadata.pageCount || 1,
     metadata.voiceOverrides || {},
+    metadata.forceFreshTts === true,
   );
 });
 

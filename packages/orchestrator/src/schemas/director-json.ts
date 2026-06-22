@@ -180,6 +180,11 @@ export const OrchestrateRequestSchema = z.object({
       narrationSpeed: z.number().min(0.85).max(1.20),
     })
     .optional(),
+  // #372 (2026-06-22): per-run bypass of the scene_renders cache so QA
+  // can exercise the TTS path without burning Anthropic on the already-
+  // cached directorJson. The "Re-render audio (reuse cached AI)" UI
+  // toggle sets this. Snake-case to match the rest of this schema.
+  force_fresh_tts: z.boolean().optional(),
 });
 
 export type OrchestrateRequest = z.infer<typeof OrchestrateRequestSchema>;

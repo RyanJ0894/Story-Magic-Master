@@ -129,7 +129,17 @@ export interface OrchestrateAudioTuning {
  */
 export async function orchestrate(
   directorJSON: unknown,
-  options: { chunkIndex?: number; audioTuning?: OrchestrateAudioTuning } = {},
+  options: {
+    chunkIndex?: number;
+    audioTuning?: OrchestrateAudioTuning;
+    /**
+     * #372: when true, every scene_renders lookup is treated as a MISS.
+     * Used by the "Re-render audio (reuse cached AI)" UI toggle so QA
+     * can exercise the TTS path without burning Anthropic on already-
+     * cached directorJson. Fresh output is still written to the cache.
+     */
+    forceFreshTts?: boolean;
+  } = {},
 ): Promise<OrchestrationResult> {
   log.info('Validating Director JSON');
   const parsed = DirectorJSONSchema.safeParse(directorJSON);
@@ -179,6 +189,7 @@ export async function orchestrate(
       director.project_id,
       scene.scene_id,
       sceneContentHash,
+      { forceFreshTts: options.forceFreshTts },
     );
     if (cachedScenePath) {
       log.info('[scene-cache] HIT — reusing cached scene render', {
@@ -381,7 +392,12 @@ export async function orchestrateParallel(
   directorJSON: unknown,
   onProgress?: PipelineProgressCallback,
   emotionOverrides: Record<string, string> = {},
-  options: { chunkIndex?: number; audioTuning?: OrchestrateAudioTuning } = {},
+  options: {
+    chunkIndex?: number;
+    audioTuning?: OrchestrateAudioTuning;
+    /** #372: bypass scene_renders cache to force fresh TTS — see `orchestrate`. */
+    forceFreshTts?: boolean;
+  } = {},
 ): Promise<OrchestrationResult> {
   // Step 0: Validate
   if (onProgress) {
@@ -440,6 +456,7 @@ export async function orchestrateParallel(
         director.project_id,
         sh.scene.scene_id,
         sh.contentHash,
+        { forceFreshTts: options.forceFreshTts },
       );
       if (cachedPath) {
         cachedResults.push({
