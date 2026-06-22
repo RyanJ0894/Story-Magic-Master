@@ -366,7 +366,7 @@ services:
     # Node/pnpm versions
     buildCommand: |
       apt-get update -q &&
-      apt-get install -y libavcodec-dev libavformat-dev libavutil-dev libswresample-dev pkg-config &&
+      apt-get install -y cmake libavcodec-dev libavformat-dev libavutil-dev libswresample-dev pkg-config &&
       npm install -g pnpm@9.1.0 &&
       curl -fsSL -o /tmp/doppler.tgz https://github.com/DopplerHQ/cli/releases/download/3.76.0/doppler_3.76.0_linux_amd64.tar.gz &&
       echo "04f1ff30ed162d7af1dba7f11ad6a37ef35099de86a7ec6e261b64b1b337a3f3  /tmp/doppler.tgz" | sha256sum -c - &&
