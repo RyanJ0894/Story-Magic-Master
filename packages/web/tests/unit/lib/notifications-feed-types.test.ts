@@ -17,7 +17,7 @@ import {
 } from '@/lib/notifications/feed-types';
 
 describe('FEED_ALERT_TYPES', () => {
-  it('matches the 12 types — original 8 (#174) + 4 engagement triggers (#331)', () => {
+  it('matches the 14 types — original 8 (#174) + 4 engagement (#331) + 2 project-visibility (2026-06-20)', () => {
     expect(FEED_ALERT_TYPES).toEqual([
       // Original 8 from #174
       'team_member_joined',
@@ -33,6 +33,9 @@ describe('FEED_ALERT_TYPES', () => {
       'listen_complete',
       'note_added',
       'decision_made',
+      // 2026-06-20 — Ryan project-visibility clarification
+      'project_created',
+      'script_uploaded',
     ]);
   });
 

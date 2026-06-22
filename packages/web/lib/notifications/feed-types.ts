@@ -36,6 +36,13 @@ export const FEED_ALERT_TYPES = [
   'listen_complete',             // sub-account finished listening to a script
   'note_added',                  // sub-account added a project note
   'decision_made',               // sub-account marked like / pass / undecided
+  // 2026-06-20 — Ryan project-visibility clarification:
+  // "if a sub account creates a new project, uploads a script… that
+  // activity should show in the associated master account, even if no
+  // team assignment has been made." Resolves master via the actor's team
+  // membership (Team.ownerId), not via project.userId.
+  'project_created',             // sub-account created a new project
+  'script_uploaded',             // sub-account uploaded a script into a project
 ] as const;
 
 export type FeedAlertType = (typeof FEED_ALERT_TYPES)[number];
@@ -60,6 +67,8 @@ const SEVERITY_BY_TYPE: Record<FeedAlertType, Severity> = {
   listen_complete: 'info',
   note_added: 'info',
   decision_made: 'info',
+  project_created: 'info',
+  script_uploaded: 'info',
 };
 
 export function severityFor(alertType: string): Severity {

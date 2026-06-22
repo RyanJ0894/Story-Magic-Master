@@ -9,6 +9,7 @@ import { withAuth } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { parseScreenplay, getProjectNameFromFilename } from '@/lib/upload/parse-screenplay';
 import { createProject } from '@/lib/services/projects';
+import { log } from '@/lib/logger';
 
 const ACCEPTED_EXTENSIONS = new Set(['.txt', '.md', '.docx', '.pdf', '.fountain', '.fdx']);
 
@@ -80,6 +81,29 @@ export const POST = withAuth(
         scriptText: text || null,
         pageCount,
       });
+
+      try {
+        const { emitProjectCreated, emitScriptUploaded } = await import('@/lib/notifications/producers');
+        await emitProjectCreated(prisma, {
+          projectId: project.id,
+          actorUserId: userId,
+          projectName: project.name,
+        });
+        if (text) {
+          await emitScriptUploaded(prisma, {
+            projectId: project.id,
+            actorUserId: userId,
+            projectName: project.name,
+            pageCount: pageCount ?? null,
+          });
+        }
+      } catch (err) {
+        log.warn('[projects/upload] emitProjectCreated failed (swallowed)', {
+          userId,
+          projectId: project.id,
+          err: err instanceof Error ? err.message : String(err),
+        });
+      }
 
       return NextResponse.json(
         { id: project.id, name: project.name, pageCount },

@@ -24,6 +24,8 @@ import {
   emitListenComplete,
   emitNoteAdded,
   emitDecisionMade,
+  emitProjectCreated,
+  emitScriptUploaded,
 } from '@/lib/notifications/producers';
 
 vi.mock('@/lib/logger', () => ({
@@ -407,5 +409,137 @@ describe('emitDecisionMade (#331)', () => {
 
     const data = alertCreate.mock.calls[0][0].data;
     expect(data.title).toContain('A team member');
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────
+// 2026-06-20 — Ryan project-visibility clarification producers
+// emitProjectCreated + emitScriptUploaded use a different resolver path
+// than #331 producers: they look up via TeamMember (not Project.userId).
+// ──────────────────────────────────────────────────────────────────────
+
+function makeTeamActorPrisma() {
+  const alertCreate = vi.fn(async (args: unknown) => ({ id: 'mock', ...(args as Record<string, unknown>) }));
+  const teamMemberFind = vi.fn();
+  const profileFind = vi.fn();
+  return {
+    alertCreate, teamMemberFind, profileFind,
+    prisma: {
+      alert: { create: alertCreate },
+      teamMember: { findMany: teamMemberFind },
+      profile: { findUnique: profileFind },
+    } as unknown as Parameters<typeof emitProjectCreated>[0],
+  };
+}
+
+describe('emitProjectCreated (2026-06-20, Ryan project-visibility)', () => {
+  it('writes alert to each master team owner of the actor', async () => {
+    const { prisma, teamMemberFind, profileFind, alertCreate } = makeTeamActorPrisma();
+    teamMemberFind.mockResolvedValueOnce([
+      { team: { ownerId: 'master_id', name: 'Acme' } },
+    ]);
+    profileFind.mockResolvedValueOnce({ fullName: 'Alex Doe', email: 'alex@example.com' });
+
+    await emitProjectCreated(prisma, {
+      projectId: 'proj-1',
+      actorUserId: 'sub_id',
+      projectName: 'Manhattan',
+    });
+
+    expect(alertCreate).toHaveBeenCalledTimes(1);
+    const data = alertCreate.mock.calls[0][0].data;
+    expect(data.userId).toBe('master_id');
+    expect(data.alertType).toBe('project_created');
+    expect(data.title).toContain('Alex Doe');
+    expect(data.title).toContain('Manhattan');
+    expect(data.title).toContain('created');
+    expect(data.relatedUserId).toBe('sub_id');
+    expect(data.metadata).toMatchObject({ teamName: 'Acme' });
+  });
+
+  it('emits one alert per master when actor belongs to multiple teams', async () => {
+    const { prisma, teamMemberFind, profileFind, alertCreate } = makeTeamActorPrisma();
+    teamMemberFind.mockResolvedValueOnce([
+      { team: { ownerId: 'master_a', name: 'Acme' } },
+      { team: { ownerId: 'master_b', name: 'Beta' } },
+    ]);
+    profileFind.mockResolvedValueOnce({ fullName: 'Sub' });
+
+    await emitProjectCreated(prisma, {
+      projectId: 'p',
+      actorUserId: 'sub',
+      projectName: 'X',
+    });
+
+    expect(alertCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it('does NOT emit when actor IS the team owner (self-action)', async () => {
+    const { prisma, teamMemberFind, alertCreate } = makeTeamActorPrisma();
+    teamMemberFind.mockResolvedValueOnce([
+      { team: { ownerId: 'same_user', name: 'Acme' } },
+    ]);
+
+    await emitProjectCreated(prisma, {
+      projectId: 'p',
+      actorUserId: 'same_user',
+      projectName: 'X',
+    });
+
+    expect(alertCreate).not.toHaveBeenCalled();
+  });
+
+  it('skips silently when actor has no team memberships', async () => {
+    const { prisma, teamMemberFind, alertCreate } = makeTeamActorPrisma();
+    teamMemberFind.mockResolvedValueOnce([]);
+
+    await emitProjectCreated(prisma, {
+      projectId: 'p',
+      actorUserId: 'solo_user',
+      projectName: 'X',
+    });
+
+    expect(alertCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe('emitScriptUploaded (2026-06-20, Ryan project-visibility)', () => {
+  it('writes alert with page count in title when provided', async () => {
+    const { prisma, teamMemberFind, profileFind, alertCreate } = makeTeamActorPrisma();
+    teamMemberFind.mockResolvedValueOnce([
+      { team: { ownerId: 'master', name: 'Acme' } },
+    ]);
+    profileFind.mockResolvedValueOnce({ fullName: 'Sub' });
+
+    await emitScriptUploaded(prisma, {
+      projectId: 'p',
+      actorUserId: 'sub',
+      projectName: 'Hamilton',
+      pageCount: 87,
+    });
+
+    const data = alertCreate.mock.calls[0][0].data;
+    expect(data.alertType).toBe('script_uploaded');
+    expect(data.title).toContain('Hamilton');
+    expect(data.title).toContain('87-page');
+    expect(data.metadata).toMatchObject({ pageCount: 87 });
+  });
+
+  it('omits page descriptor when pageCount is null/missing', async () => {
+    const { prisma, teamMemberFind, profileFind, alertCreate } = makeTeamActorPrisma();
+    teamMemberFind.mockResolvedValueOnce([
+      { team: { ownerId: 'master', name: 'Acme' } },
+    ]);
+    profileFind.mockResolvedValueOnce({ fullName: 'Sub' });
+
+    await emitScriptUploaded(prisma, {
+      projectId: 'p',
+      actorUserId: 'sub',
+      projectName: 'Untitled',
+      pageCount: null,
+    });
+
+    const data = alertCreate.mock.calls[0][0].data;
+    expect(data.title).not.toContain('-page');
   });
 });
