@@ -17,6 +17,7 @@ import {
 import { dispatchWebhooks } from '@/lib/webhooks/deliver';
 import { triggerHumanReviewIfPurchased } from '@/lib/human-review/trigger';
 import { chunkScenes, segmentProgressLabel } from '@/lib/generation/chunk-script';
+import { classifyFailure } from '@/lib/generation/classify-failure';
 import { addBreadcrumb, captureMessage } from '@sentry/nextjs';
 import { Prisma } from '@story-magic/shared';
 import { asDirectorJson, type DirectorJson } from '@story-magic/shared';
@@ -503,6 +504,52 @@ export async function processGenerationJob(
       const manifest = orchestratorResult.playback_manifest as Record<string, unknown> | undefined;
       lastManifest = manifest ?? lastManifest;
 
+      // 2026-06-21: silent-empty-audio-urls guard. Before this guard, a 200
+      // OK response with audio_urls=[] (or [null]) silently incremented zero
+      // audioOutputs and left this segment with status='ready' and a null
+      // URL. The terminal-failure path then couldn't classify the failure
+      // (no segment had status='failed' + error) and surfaced the generic
+      // "no audio produced" message — exactly Ryan's 6/20 10:10/10:22 PM
+      // CST experience on 15-page scripts. Now we treat empty audio_urls
+      // on a 200 as a failed segment with a discoverable error string.
+      // Root cause may be Render's multi-instance file-system races on
+      // chunked jobs — to be confirmed by the explicit error from this
+      // guard in the next failing run.
+      const nonNullAudioUrls = chunkAudioUrls.filter((u) => typeof u === 'string' && u.length > 0);
+      if (nonNullAudioUrls.length === 0) {
+        const msg = `Orchestrator returned 200 OK on segment ${chunk.index + 1}/${chunks.length} but zero audio URLs after ${chunkSec}s`;
+        log.error('[PIPELINE] orchestrator returned empty audio_urls', undefined, {
+          jobId: jobId.slice(0, 8),
+          chunkIndex: chunk.index,
+          chunkSec,
+          orchestratorResultPreview: JSON.stringify(orchestratorResult).slice(0, 500),
+        });
+        await logJobEvent(
+          jobId, projectId, 'error', 'generating_audio', msg,
+          { chunkIndex: chunk.index, chunkSec },
+          'empty_audio_urls: ' + JSON.stringify(orchestratorResult).slice(0, 400),
+        );
+        addBreadcrumb({
+          category: 'pipeline.chunk',
+          message: `chunk ${chunk.index + 1}/${chunks.length} empty audio_urls`,
+          level: 'error',
+          data: {
+            jobId: jobId.slice(0, 8),
+            chunkIndex: chunk.index,
+            chunkSec,
+            orchestratorResultPreview: JSON.stringify(orchestratorResult).slice(0, 200),
+          },
+        });
+        segmentStatuses[chunk.index].status = 'failed';
+        segmentStatuses[chunk.index].error = 'empty_audio_urls: orchestrator returned 200 OK with no audio URLs';
+        await safeUpdate(
+          prisma.job,
+          { where: { id: jobId }, data: { segments: JSON.parse(JSON.stringify(segmentStatuses)) } },
+          { jobId, projectId, action: 'markSegmentEmptyUrls' },
+        );
+        continue;
+      }
+
       log.info('[PIPELINE] orchestrator chunk complete', {
         jobId: jobId.slice(0, 8),
         chunkIndex: chunk.index,
@@ -604,24 +651,11 @@ export async function processGenerationJob(
         .slice()
         .reverse()
         .find((s) => s.status === 'failed' && s.error)?.error ?? '';
-      const isUpstreamTtsFailure =
-        lastFailure.includes('ElevenLabs') &&
-        (lastFailure.match(/\b5\d\d\b/) !== null || lastFailure.includes('429'));
-      // 2026-06-19: pre-flight voice validator returns 422 with
-      // "voice unavailable" wording. Surface that to the user instead of the
-      // generic message so they know the fix is to re-run the director step,
-      // not "try again" against the same broken voice.
-      const isPreflightVoiceFailure =
-        lastFailure.includes('422') ||
-        lastFailure.includes('voice') && lastFailure.includes('unavailable');
-      let userMessage: string;
-      if (isUpstreamTtsFailure) {
-        userMessage = 'Audio generation failed because the TTS provider (ElevenLabs) is currently returning errors. This is a transient upstream issue — please retry in a few minutes.';
-      } else if (isPreflightVoiceFailure) {
-        userMessage = 'Audio generation failed because one or more voices assigned to this script are unavailable from ElevenLabs. The catalog has been updated — please re-run the director step (Generate Scenes) and try again. Substitute voices will be picked automatically.';
-      } else {
-        userMessage = 'Audio generation failed: no audio was produced. Please try again or contact support.';
-      }
+      // 2026-06-20: extracted to lib/generation/classify-failure.ts so the
+      // three user-facing messages are pinned by unit tests against any
+      // future drift. Three buckets: upstream-tts (transient ElevenLabs
+      // 5xx/429), preflight-voice (422 from PR #338 validator), generic.
+      const { message: userMessage } = classifyFailure(lastFailure);
       throw new Error(userMessage);
     }
 

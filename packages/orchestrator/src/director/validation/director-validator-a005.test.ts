@@ -91,14 +91,42 @@ describe('DirectorJSONValidator — A-005 stage-direction auto-reassignment', ()
     expect(json.scenes[0].dialogue[1].character).toBe('Sarah');
   });
 
-  it('clears voice_key when reassigning so voice-assignment picks the narrator voice', () => {
+  it('sets voice_key to a real narrator voice (not undefined) so DirectorJSONSchema accepts the JSON', () => {
+    // 2026-06-21: previously this expected `voice_key` to be falsy on the
+    // assumption that downstream voice-assignment would fill it in. But
+    // the orchestrator runs DirectorJSONSchema validation BEFORE voice
+    // assignment, so undefined voice_key produced HTTP 400 in dev (Ryan
+    // job 2413af4f-… on 2026-06-21). A-005 now substitutes either the
+    // script's existing narrator voice_key OR DEFAULT_NARRATOR_VOICE.
     const json = makeJson([
+      { character: 'Narrator', text: 'Some real narrator line.' },
       { character: 'Lucky', text: '(beat)' },
     ]);
     validator.validate(json);
+    const reassigned = json.scenes[0].dialogue[1];
+    expect(reassigned.character).toBe('Narrator');
+    expect(typeof reassigned.voice_key).toBe('string');
+    expect(reassigned.voice_key.length).toBeGreaterThan(0);
+  });
+
+  it('falls back to DEFAULT_NARRATOR_VOICE when the script has no narrator at all', () => {
+    const json = makeJson([{ character: 'Lucky', text: '(beat)' }]);
+    validator.validate(json);
     const line = json.scenes[0].dialogue[0];
     expect(line.character).toBe('Narrator');
-    expect(line.voice_key).toBeFalsy(); // undefined OR empty — either is fine
+    expect(typeof line.voice_key).toBe('string');
+    expect(line.voice_key.length).toBeGreaterThan(0);
+  });
+
+  it("preserves the LLM's narrator casing (e.g. uppercase NARRATOR) when reassigning", () => {
+    const json = makeJson([
+      { character: 'NARRATOR', text: 'Establishing line.' },
+      { character: 'Lucky', text: 'CUT TO:' },
+    ]);
+    validator.validate(json);
+    expect(json.scenes[0].dialogue[1].character).toBe('NARRATOR');
+    // voice_key matches the existing NARRATOR's voice_key, not a default
+    expect(json.scenes[0].dialogue[1].voice_key).toBe(json.scenes[0].dialogue[0].voice_key);
   });
 
   it('handles a mixed scene without touching narrator lines', () => {
