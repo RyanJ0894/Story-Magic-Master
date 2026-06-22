@@ -165,4 +165,41 @@ describe('AudioTuningPanel', () => {
       addSpy.mockRestore();
     });
   });
+
+  // UX-I-03 (2026-06-22): Reset-to-defaults must also clear the
+  // server-side locked flag when the row was previously Locked, otherwise
+  // the UI shows defaults while the server still uses the old Locked
+  // values on next generation.
+  describe('Reset to defaults — UX-I-03 unlocks server when previously Locked', () => {
+    it('PATCHes locked=false when Reset is clicked from a Locked state', async () => {
+      const user = userEvent.setup();
+      // Mock the unlock PATCH response.
+      mockFetchOnce({ data: { ...lockedTuning, locked: false } });
+      render(<AudioTuningPanel initial={lockedTuning} />);
+
+      const resetBtn = screen.getByRole('button', { name: /reset to defaults/i });
+      await user.click(resetBtn);
+
+      await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(1));
+      const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      const body = JSON.parse(init.body);
+      // ONLY locked:false — values aren't sent so the server can keep its
+      // own audit of what was previously Locked, and Lock can re-write
+      // anything from a clean state.
+      expect(body).toEqual({ locked: false });
+    });
+
+    it('does NOT PATCH when Reset is clicked from an unlocked state (no-op on server)', async () => {
+      const user = userEvent.setup();
+      const fetchSpy = vi.fn();
+      globalThis.fetch = fetchSpy as typeof fetch;
+      render(<AudioTuningPanel initial={baseTuning} />);
+
+      const resetBtn = screen.getByRole('button', { name: /reset to defaults/i });
+      await user.click(resetBtn);
+
+      // No fetch — purely a local slider reset.
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
 });
