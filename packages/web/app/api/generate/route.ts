@@ -16,6 +16,12 @@ const GenerateRequestSchema = z.object({
   projectId: z.string().uuid('Invalid project ID format'),
   jobId: z.string().uuid('Invalid job ID format').optional(),
   workflowMode: z.enum(['automatic', 'fine_tuned']).optional().default('fine_tuned'),
+  // #372: per-run flag. When true, this generation bypasses the scene_renders
+  // cache so ElevenLabs re-runs; directorJson is still reused (the AI side
+  // stays cached). Surfaced by the "Re-render audio (reuse cached AI)" UI
+  // toggle for QA/test cycles where we want to exercise the TTS path
+  // without burning Anthropic on already-cached director output.
+  forceFreshTts: z.boolean().optional().default(false),
 });
 
 // =============================================================================
@@ -61,7 +67,7 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
   const parsed = await parseBody(request, GenerateRequestSchema);
   if ('error' in parsed) return parsed.error;
 
-  const { projectId, workflowMode } = parsed.data;
+  const { projectId, workflowMode, forceFreshTts } = parsed.data;
   let { jobId } = parsed.data;
 
   // Fetch project
@@ -74,6 +80,16 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
       error: 'Project not found',
       code: 'PROJECT_NOT_FOUND',
     }, { status: 404 });
+  }
+
+  // #372: forceFreshTts requires an existing directorJson to be meaningful.
+  // The UI gates the toggle on the same condition; this is defense-in-depth
+  // so a misbehaving client can't ask for a no-op flag combo.
+  if (forceFreshTts && !project.directorJson) {
+    return NextResponse.json({
+      error: 'Cannot reuse cached AI: no prior generation exists for this project. Run a normal generation first.',
+      code: 'NO_DIRECTOR_CACHE',
+    }, { status: 400 });
   }
 
   // Validate script content
@@ -186,6 +202,9 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
           scriptText: sanitizedScript,
           pageCount: project.pageCount,
           voiceOverrides,
+          // #372: only stored when true to keep the JSON small for the
+          // common path. Worker reads `metadata.forceFreshTts === true`.
+          ...(forceFreshTts ? { forceFreshTts: true } : {}),
         },
       },
     },

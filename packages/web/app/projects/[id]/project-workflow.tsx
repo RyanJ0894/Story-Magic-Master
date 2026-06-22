@@ -657,6 +657,7 @@ export function ProjectWorkflow({
                     pageCount={project.pageCount}
                     status={project.status}
                     hasScript={!!project.scriptText}
+                    hasDirectorCache={hasDirectorJson}
                     label="Regenerate"
                     workflowMode="automatic"
                   />
@@ -764,6 +765,7 @@ export function ProjectWorkflow({
                   pageCount={project.pageCount}
                   status={project.status}
                   hasScript={!!project.scriptText}
+                  hasDirectorCache={hasDirectorJson}
                   label="Retry"
                   workflowMode="automatic"
                   onJobStarted={() => { setRetryStarted(true); setErrorExpanded(false); setProgressiveAudioUrl(null); setProgressiveSegmentUrls([]); }}
@@ -784,6 +786,7 @@ export function ProjectWorkflow({
                     pageCount={project.pageCount}
                     status={project.status}
                     hasScript={!!project.scriptText}
+                    hasDirectorCache={hasDirectorJson}
                     label="Generate Now"
                     workflowMode="automatic"
                     onJobStarted={() => { setProgressiveAudioUrl(null); setProgressiveSegmentUrls([]); }}
@@ -904,6 +907,7 @@ export function ProjectWorkflow({
                   pageCount={project.pageCount}
                   status={project.status}
                   hasScript={!!project.scriptText}
+                  hasDirectorCache={hasDirectorJson}
                   label={hasFailed ? 'Retry' : 'Generate'}
                 />
               )}
@@ -1055,6 +1059,7 @@ export function ProjectWorkflow({
                         pageCount={project.pageCount}
                         status={project.status}
                         hasScript={!!project.scriptText}
+                        hasDirectorCache={hasDirectorJson}
                         label="Regenerate"
                       />
                     </div>
@@ -1114,6 +1119,7 @@ export function ProjectWorkflow({
                         pageCount={project.pageCount}
                         status={project.status}
                         hasScript={!!project.scriptText}
+                        hasDirectorCache={hasDirectorJson}
                         label="Retry Generation"
                         onJobStarted={() => { setRetryStarted(true); setErrorExpanded(false); }}
                       />
@@ -1130,6 +1136,7 @@ export function ProjectWorkflow({
                         pageCount={project.pageCount}
                         status={project.status}
                         hasScript={!!project.scriptText}
+                        hasDirectorCache={hasDirectorJson}
                       />
                     </div>
                   )}
