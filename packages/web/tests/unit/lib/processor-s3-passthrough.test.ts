@@ -156,7 +156,9 @@ describe('processGenerationJob — S3 URL passthrough (PR #173)', () => {
 
 describe('processGenerationJob — chunk_index conditional (PR #173)', () => {
   it('does NOT send chunk_index for a single-chunk job (so orchestrator runs full S3 pipeline)', async () => {
-    setupMocks(5, 'https://audio.example.com/audio/proj/episode.m4a');
+    // 2026-06-22: chunking now uses FIRST_CHUNK_SCENES (2) for the small
+    // first chunk. Scripts with ≤ FIRST_CHUNK_SCENES stay single-chunk.
+    setupMocks(2, 'https://audio.example.com/audio/proj/episode.m4a');
 
     await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 3);
 

@@ -13,16 +13,30 @@
  *   etc.
  */
 
-// 2026-06-21 — Ryan 6/21 item Y ("perceived instant" progressive playback):
-// SCENES_PER_CHUNK reduced from 14 → 7. Was: a 15-scene script produced
-// 2 chunks, so the first chunk completed at ~50% of total job time. Now:
-// 15 scenes produces 3 chunks; first chunk completes at ~33%. Combined with
-// the existing firstAudioUrl + segment auto-advance in audio-player.tsx,
-// this materially shortens time-to-first-audio across the 5-25 page range
-// where Ryan does most testing. Tradeoff: more orchestrator round-trips
-// per script. Acceptable — the orchestrator's scene_renders cache (#191)
-// absorbs the per-chunk overhead on retries.
+// 2026-06-21 (Ryan 6/21 item Y, "perceived instant" progressive playback)
+// + 2026-06-22 follow-up: Ryan asked "can we set playback to start at 10
+// or 15% instead of 33%?"
+//
+// Two knobs:
+//   - SCENES_PER_CHUNK = 7  → mid-script chunks. 7 scenes amortizes the
+//     per-chunk fixed overhead (orchestrator round-trip, pre-flight voice
+//     probe, mix setup) without slowing total wall time.
+//   - FIRST_CHUNK_SCENES = 2 → the FIRST chunk is intentionally tiny so
+//     time-to-first-audio is minimized regardless of total script length.
+//
+// Time-to-first-audio table:
+//   5 scenes  → chunks [2,3]            first audio at ~40%
+//   10 scenes → chunks [2,7,1]          first audio at ~20%
+//   15 scenes → chunks [2,7,6]          first audio at ~13%
+//   30 scenes → chunks [2,7,7,7,7]     first audio at ~7%
+//  100 scenes → chunks [2,7,7,…,2]    first audio at ~2%
+//
+// Trade-off: a 2-scene first chunk has higher per-scene overhead than a
+// 7-scene chunk. For very short scripts (≤ FIRST_CHUNK_SCENES) we collapse
+// back to a single chunk — no benefit from making chunk 0 small if the
+// whole script fits in one fast pass anyway.
 export const SCENES_PER_CHUNK = 7;
+export const FIRST_CHUNK_SCENES = 2;
 
 export interface SceneChunk {
   index: number;      // 0-based segment index
@@ -33,15 +47,34 @@ export interface SceneChunk {
 
 /**
  * Split a flat scenes array into ordered chunks.
+ *
  * Always returns at least one chunk (even if scenes.length === 0).
+ *
+ * Sizing rules:
+ *   - 0 scenes              → 1 empty chunk (no-op job)
+ *   - ≤ FIRST_CHUNK_SCENES  → 1 chunk (script too short to benefit from a
+ *                              tiny opening chunk)
+ *   - Otherwise              → [first FIRST_CHUNK_SCENES, then standard
+ *                              SCENES_PER_CHUNK each]
  */
 export function chunkScenes(scenes: unknown[]): SceneChunk[] {
   if (scenes.length === 0) {
     return [{ index: 0, scenes: [], startScene: 0, endScene: 0 }];
   }
+  if (scenes.length <= FIRST_CHUNK_SCENES) {
+    return [{ index: 0, scenes, startScene: 0, endScene: scenes.length - 1 }];
+  }
 
   const chunks: SceneChunk[] = [];
-  for (let i = 0; i < scenes.length; i += SCENES_PER_CHUNK) {
+  // Small first chunk for fast time-to-first-audio.
+  chunks.push({
+    index: 0,
+    scenes: scenes.slice(0, FIRST_CHUNK_SCENES),
+    startScene: 0,
+    endScene: FIRST_CHUNK_SCENES - 1,
+  });
+  // Standard-size chunks for the rest.
+  for (let i = FIRST_CHUNK_SCENES; i < scenes.length; i += SCENES_PER_CHUNK) {
     const slice = scenes.slice(i, i + SCENES_PER_CHUNK);
     chunks.push({
       index: chunks.length,
