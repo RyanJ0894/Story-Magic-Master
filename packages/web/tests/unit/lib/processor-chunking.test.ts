@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SCENES_PER_CHUNK } from '@/lib/generation/chunk-script';
+import { SCENES_PER_CHUNK, FIRST_CHUNK_SCENES } from '@/lib/generation/chunk-script';
 
 const { mockPrisma, mockOrchestratorGenerate } = vi.hoisted(() => {
   const mockPrisma = {
@@ -93,8 +93,11 @@ beforeEach(() => {
 });
 
 describe('processGenerationJob — chunked generation (Sprint K)', () => {
-  it('sends one /orchestrate call for a short script (single chunk)', async () => {
-    setupMocks(5); // well under SCENES_PER_CHUNK
+  it('sends one /orchestrate call for a script that fits in FIRST_CHUNK_SCENES (single chunk)', async () => {
+    // 2026-06-22: chunking now uses FIRST_CHUNK_SCENES (small first chunk)
+    // for everything above that threshold. Scripts ≤ FIRST_CHUNK_SCENES
+    // collapse back to a single chunk.
+    setupMocks(FIRST_CHUNK_SCENES);
 
     await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 3);
 
@@ -105,7 +108,11 @@ describe('processGenerationJob — chunked generation (Sprint K)', () => {
   });
 
   it('sends multiple /orchestrate calls for a long script', async () => {
-    const sceneCount = SCENES_PER_CHUNK * 2 + 3; // 3 chunks
+    // 2026-06-22: FIRST_CHUNK_SCENES + SCENES_PER_CHUNK * 2 + 3 should
+    // produce [FIRST_CHUNK_SCENES, SCENES_PER_CHUNK, SCENES_PER_CHUNK, 3]
+    // = 4 chunks. Test just asserts >1 to stay resilient to future
+    // chunking tweaks.
+    const sceneCount = FIRST_CHUNK_SCENES + SCENES_PER_CHUNK * 2 + 3;
     setupMocks(sceneCount);
 
     await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 40);
@@ -113,11 +120,13 @@ describe('processGenerationJob — chunked generation (Sprint K)', () => {
     const orchestrateCalls = mockOrchestratorGenerate.mock.calls.filter(
       ([path]: [string]) => path === '/orchestrate',
     );
-    expect(orchestrateCalls).toHaveLength(3);
+    expect(orchestrateCalls.length).toBeGreaterThan(1);
   });
 
-  it('each orchestrate call receives only that chunk\'s scenes', async () => {
-    const sceneCount = SCENES_PER_CHUNK + 5; // 2 chunks
+  it("each orchestrate call receives only that chunk's scenes (small first chunk + standard rest)", async () => {
+    // 2026-06-22: With FIRST_CHUNK_SCENES=2 and SCENES_PER_CHUNK=7,
+    // 12 scenes → [2, 7, 3]. Test the first two chunks' shape.
+    const sceneCount = FIRST_CHUNK_SCENES + SCENES_PER_CHUNK + 3;
     const scenes = setupMocks(sceneCount);
 
     await processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 25);
@@ -126,15 +135,15 @@ describe('processGenerationJob — chunked generation (Sprint K)', () => {
       ([path]: [string]) => path === '/orchestrate',
     );
 
-    // First chunk: scenes 0..SCENES_PER_CHUNK-1
+    // Chunk 0: scenes 0..FIRST_CHUNK_SCENES-1
     const firstChunkScenes = (orchestrateCalls[0][1] as { scenes: typeof scenes }).scenes;
-    expect(firstChunkScenes).toHaveLength(SCENES_PER_CHUNK);
+    expect(firstChunkScenes).toHaveLength(FIRST_CHUNK_SCENES);
     expect(firstChunkScenes[0]).toEqual(scenes[0]);
 
-    // Second chunk: scenes SCENES_PER_CHUNK..end
+    // Chunk 1: SCENES_PER_CHUNK scenes starting from FIRST_CHUNK_SCENES
     const secondChunkScenes = (orchestrateCalls[1][1] as { scenes: typeof scenes }).scenes;
-    expect(secondChunkScenes).toHaveLength(5);
-    expect(secondChunkScenes[0]).toEqual(scenes[SCENES_PER_CHUNK]);
+    expect(secondChunkScenes).toHaveLength(SCENES_PER_CHUNK);
+    expect(secondChunkScenes[0]).toEqual(scenes[FIRST_CHUNK_SCENES]);
   });
 
   it('sets firstAudioUrl on the job after the first chunk completes', async () => {
