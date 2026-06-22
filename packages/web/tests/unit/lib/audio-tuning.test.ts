@@ -88,6 +88,20 @@ describe('TUNING_RANGES', () => {
   });
 });
 
+describe('DEFAULT_AUDIO_TUNING — 2026-06-20 narrator-speed bump', () => {
+  // Ryan 6/15 + 6/21: "narration delivery is consistently a slower pace
+  // than desired. We should adjust Narration tempo to be slightly faster."
+  // Pinned so the default can't quietly drift back.
+  it('narrationSpeed default is 1.1 (was 1.0)', () => {
+    expect(DEFAULT_AUDIO_TUNING.narrationSpeed).toBe(1.1);
+  });
+  it('all gain offsets stay at 0 — relative tuning baseline lives in mixer', () => {
+    expect(DEFAULT_AUDIO_TUNING.musicGainOffsetDb).toBe(0);
+    expect(DEFAULT_AUDIO_TUNING.ambienceGainOffsetDb).toBe(0);
+    expect(DEFAULT_AUDIO_TUNING.sfxGainOffsetDb).toBe(0);
+  });
+});
+
 describe('getAudioTuning', () => {
   it('returns defaults when no row exists for the user', async () => {
     const { prisma } = makePrisma(null);
