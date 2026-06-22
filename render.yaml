@@ -346,7 +346,8 @@ services:
   # =============================================================================
   - type: web
     name: story-magic-orchestrator
-    runtime: node
+    runtime: docker
+    dockerfilePath: packages/orchestrator/Dockerfile
     region: oregon
     plan: starter
     branch: main
@@ -363,18 +364,8 @@ services:
         - code-review/**
         - .github/**
 
-    # Node/pnpm versions
-    buildCommand: |
-      apt-get update -q &&
-      apt-get install -y cmake libavcodec-dev libavformat-dev libavutil-dev libswresample-dev pkg-config &&
-      npm install -g pnpm@9.1.0 &&
-      curl -fsSL -o /tmp/doppler.tgz https://github.com/DopplerHQ/cli/releases/download/3.76.0/doppler_3.76.0_linux_amd64.tar.gz &&
-      echo "04f1ff30ed162d7af1dba7f11ad6a37ef35099de86a7ec6e261b64b1b337a3f3  /tmp/doppler.tgz" | sha256sum -c - &&
-      tar --overwrite -xzf /tmp/doppler.tgz -C /usr/local/bin doppler &&
-      pnpm install --frozen-lockfile &&
-      bash scripts/install-whisper.sh &&
-      doppler run -- sh -c "node scripts/check-env-orchestrator.js && pnpm --filter @story-magic/shared exec prisma generate && pnpm --filter @story-magic/orchestrator build"
-    startCommand: doppler run -- pnpm --filter @story-magic/orchestrator start
+    # Doppler injects secrets; env check runs before start to catch misconfiguration.
+    startCommand: doppler run -- sh -c "node scripts/check-env-orchestrator.js && pnpm --filter @story-magic/orchestrator start"
 
     # Health check
     healthCheckPath: /health
