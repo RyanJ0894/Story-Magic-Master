@@ -450,7 +450,7 @@ async function resolveMastersForActor(
   const memberships = await prisma.teamMember.findMany({
     where: {
       userId: actorUserId,
-      status: 'active',
+      status: 'accepted',
       deactivatedAt: null,
     },
     select: { team: { select: { ownerId: true, name: true } } },

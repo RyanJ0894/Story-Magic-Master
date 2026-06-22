@@ -9,6 +9,7 @@ import { withAuth, parseBody } from '@/lib/api/middleware';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { listProjects, createProject } from '@/lib/services/projects';
+import { log } from '@/lib/logger';
 
 // =============================================================================
 // Input Validation
@@ -79,7 +80,13 @@ export const POST = withAuth(async (request, { userId, prisma }) => {
           pageCount: pageCount ?? null,
         });
       }
-    } catch { /* swallow — producer failures must never fail the request */ }
+    } catch (err) {
+      log.warn('[projects] emitProjectCreated failed (swallowed)', {
+        userId,
+        projectId: project.id,
+        err: err instanceof Error ? err.message : String(err),
+      });
+    }
 
     return NextResponse.json(project, { status: 201 });
   } catch {
