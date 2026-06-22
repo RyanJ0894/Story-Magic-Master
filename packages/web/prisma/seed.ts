@@ -26,6 +26,23 @@ async function main() {
     },
   });
 
+  // DT-30-M-2 (2026-06-22): profile + subscription row must stay in sync —
+  // cost-rollup queries join on subscriptions, so a profile with no
+  // subscription row was undercounting Pro/Studio/Enterprise users in dev.
+  // Limits below match `TIER_LIMITS.pro` in lib/services/tier-provision.ts.
+  await prisma.subscription.upsert({
+    where: { id: '00000000-dead-beef-0000-000000000099' },
+    update: { plan: 'pro', status: 'active' },
+    create: {
+      id: '00000000-dead-beef-0000-000000000099',
+      userId: DEV_USER_ID,
+      plan: 'pro',
+      status: 'active',
+      generationsLimit: 20,
+      downloadsLimit: 5,
+    },
+  });
+
   // Standard project
   await prisma.project.upsert({
     where: { id: DEV_PROJECT_ID },

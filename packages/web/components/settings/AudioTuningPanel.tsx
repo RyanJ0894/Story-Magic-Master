@@ -82,11 +82,35 @@ export function AudioTuningPanel({ initial }: AudioTuningPanelProps) {
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
 
-  function resetToDefaults() {
+  async function resetToDefaults() {
     setMusicOffset(0);
     setAmbienceOffset(0);
     setSfxOffset(0);
     setNarrationSpeed(1.0);
+    // UX-I-03 (2026-06-22): if we were previously Locked, also clear the
+    // server-side locked flag. Previously Reset only updated the UI sliders,
+    // leaving the server with the old Locked values — so subsequent
+    // generations used the still-Locked old values, not the displayed
+    // defaults. Now Reset = "go back to baseline AND unlock so user has to
+    // re-Lock if they want the new state persisted."
+    if (locked) {
+      try {
+        const res = await fetch('/api/settings/audio-tuning', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'story-magic' },
+          body: JSON.stringify({ locked: false }),
+        });
+        if (res.ok) {
+          setLocked(false);
+          toast.success('Reset to defaults — settings unlocked');
+        } else {
+          // Roll back locked state if PATCH failed so the badge stays accurate.
+          toast.error('Reset failed — please retry');
+        }
+      } catch {
+        toast.error('Reset failed — network error');
+      }
+    }
   }
 
   async function generatePreview() {
