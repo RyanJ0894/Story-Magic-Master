@@ -657,6 +657,7 @@ export function ProjectWorkflow({
                     pageCount={project.pageCount}
                     status={project.status}
                     hasScript={!!project.scriptText}
+                    hasDirectorCache={hasDirectorJson}
                     label="Regenerate"
                     workflowMode="automatic"
                   />
@@ -692,8 +693,8 @@ export function ProjectWorkflow({
                 {/* Fast Start: show audio player as soon as first segment is ready */}
                 {progressiveAudioUrl && (
                   <div className="space-y-1">
-                    <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                      Audio started — more generating in background…
+                    <p className="text-sm text-emerald-700 dark:text-emerald-300 font-semibold">
+                      ▶ Your screenplay is ready — press play. The rest streams as it generates.
                     </p>
                     <AudioPlayer
                       outputs={[{ id: 'progressive', fileName: 'preview.m4a', filePath: '' }]}
@@ -703,10 +704,16 @@ export function ProjectWorkflow({
                     />
                   </div>
                 )}
-                <div className="flex items-center gap-3">
-                  <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
-                  <span>Generating audio... This may take a few minutes.</span>
-                </div>
+                {/* 2026-06-21: hide the "Generating audio…" copy once the first
+                    chunk has shipped — it contradicts the "ready, press play"
+                    message above. Keep the inline progress bar so the user can
+                    still see how much of the script has rendered. */}
+                {!progressiveAudioUrl && (
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
+                    <span>Generating audio... This may take a few minutes.</span>
+                  </div>
+                )}
                 {latestJob?.progress && (
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
@@ -758,6 +765,7 @@ export function ProjectWorkflow({
                   pageCount={project.pageCount}
                   status={project.status}
                   hasScript={!!project.scriptText}
+                  hasDirectorCache={hasDirectorJson}
                   label="Retry"
                   workflowMode="automatic"
                   onJobStarted={() => { setRetryStarted(true); setErrorExpanded(false); setProgressiveAudioUrl(null); setProgressiveSegmentUrls([]); }}
@@ -778,6 +786,7 @@ export function ProjectWorkflow({
                     pageCount={project.pageCount}
                     status={project.status}
                     hasScript={!!project.scriptText}
+                    hasDirectorCache={hasDirectorJson}
                     label="Generate Now"
                     workflowMode="automatic"
                     onJobStarted={() => { setProgressiveAudioUrl(null); setProgressiveSegmentUrls([]); }}
@@ -898,6 +907,7 @@ export function ProjectWorkflow({
                   pageCount={project.pageCount}
                   status={project.status}
                   hasScript={!!project.scriptText}
+                  hasDirectorCache={hasDirectorJson}
                   label={hasFailed ? 'Retry' : 'Generate'}
                 />
               )}
@@ -1049,6 +1059,7 @@ export function ProjectWorkflow({
                         pageCount={project.pageCount}
                         status={project.status}
                         hasScript={!!project.scriptText}
+                        hasDirectorCache={hasDirectorJson}
                         label="Regenerate"
                       />
                     </div>
@@ -1108,6 +1119,7 @@ export function ProjectWorkflow({
                         pageCount={project.pageCount}
                         status={project.status}
                         hasScript={!!project.scriptText}
+                        hasDirectorCache={hasDirectorJson}
                         label="Retry Generation"
                         onJobStarted={() => { setRetryStarted(true); setErrorExpanded(false); }}
                       />
@@ -1124,6 +1136,7 @@ export function ProjectWorkflow({
                         pageCount={project.pageCount}
                         status={project.status}
                         hasScript={!!project.scriptText}
+                        hasDirectorCache={hasDirectorJson}
                       />
                     </div>
                   )}

@@ -129,6 +129,45 @@ describe('classifyFailure — generic fallback', () => {
     expect(r.kind).not.toBe('director-invalid');
   });
 
+  // ---------------------------------------------------------------
+  // 2026-06-22 (issue #366): llm-quota branch. Ryan's dev job
+  // e43cd33a-… failed 4× because OpenAI returned insufficient_quota
+  // (account-level billing exhaustion). Pre-#366 the orchestrator's
+  // retry-failure body fell through to MSG_GENERIC, which tells the
+  // user to "try again" — actively wrong advice for a billing event.
+  // ---------------------------------------------------------------
+  it('classifies orchestrator body with "insufficient_quota" as llm-quota', () => {
+    const r = classifyFailure(
+      '{"project_id":"5f44a2c9-...","success":false,"message":"Failed after 3 attempts. Last error: insufficient_quota: You exceeded your current quota..."}',
+    );
+    expect(r.kind).toBe('llm-quota');
+    expect(r.message).toContain('billing or quota issue');
+    expect(r.message).toContain('contact support');
+    expect(r.message).not.toMatch(/please (try|retry)/i);
+  });
+
+  it('classifies the OpenAI human-readable quota phrase as llm-quota', () => {
+    // The exact wording from the e43cd33a-… orchestrator response body.
+    const r = classifyFailure(
+      'Failed after 3 attempts. Last error: You exceeded your current quota, please check your plan and billing details.',
+    );
+    expect(r.kind).toBe('llm-quota');
+  });
+
+  it('classifies Anthropic credit_balance_too_low as llm-quota', () => {
+    const r = classifyFailure(
+      '{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API.","code":"credit_balance_too_low"}}',
+    );
+    expect(r.kind).toBe('llm-quota');
+  });
+
+  it('plain English "quota" mention without billing wording does NOT match', () => {
+    // Don't false-positive on unrelated quota messages (e.g. user-tier
+    // generation limits surfaced from our own DB).
+    const r = classifyFailure('user has hit their monthly generation quota');
+    expect(r.kind).not.toBe('llm-quota');
+  });
+
   it('ElevenLabs mention without status code falls through to generic', () => {
     // Important: we don't want to surface "transient retry" for an
     // ElevenLabs error that isn't actually a 5xx — could mislead the

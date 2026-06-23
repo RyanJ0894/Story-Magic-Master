@@ -13,6 +13,7 @@ import ffmpegStatic from 'ffmpeg-static';
 import ffprobeStatic from 'ffprobe-static';
 import { execa } from 'execa';
 import { withRetry, RetryableError } from './retry.js';
+import { classifyElevenLabsError, parseRetryAfter } from './elevenlabs-error.js';
 import fs from 'fs';
 import { log } from './logger.js';
 import { getRequestContext } from './request-context.js';
@@ -255,13 +256,40 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
           const errorText = await res.text();
           const responseHeaders: Record<string, string> = {};
           res.headers.forEach((value, key) => { responseHeaders[key] = value; });
+
+          // #378: classify the error body so log queries can pivot on
+          // the ElevenLabs sub-type (system_busy vs too_many_concurrent_
+          // requests vs rate_limit_exceeded vs quota_exceeded). Each
+          // implies a different operator action; treating them as one
+          // blob ("429") destroyed our ability to tune for the grant
+          // tier. See packages/orchestrator/src/lib/elevenlabs-error.ts.
+          const classification = classifyElevenLabsError(res.status, errorText);
+          const retryAfterMs = parseRetryAfter(
+            readHeader('retry-after') ?? readHeader('Retry-After'),
+          );
+
           log.warn('ElevenLabs non-OK response', {
             status: res.status,
             voiceId: vid,
+            errorKind: classification.kind,
+            matchedToken: classification.matchedToken,
+            retryAfterMs,
+            shouldLowerConcurrency: classification.shouldLowerConcurrency,
             body: errorText,
             headers: responseHeaders,
           });
-          if (res.status === 402) {
+
+          // Loud operator signal: if we keep seeing this in dev/prod
+          // it's our fault, not ElevenLabs'. Surfaces in any log search
+          // for "lower TTS_CONCURRENCY" so the next deploy can tune it.
+          if (classification.shouldLowerConcurrency) {
+            log.warn(
+              '[tts] ElevenLabs reports too_many_concurrent_requests — consider lowering TTS_CONCURRENCY',
+              { voiceId: vid, currentConcurrencyEnv: process.env.TTS_CONCURRENCY ?? 'unset' },
+            );
+          }
+
+          if (res.status === 402 || classification.kind === 'quota_exceeded') {
             // Payment Required — ElevenLabs account is past due or over quota.
             // Do not retry; surface a human-readable message.
             throw new RetryableError(
@@ -279,9 +307,10 @@ export async function ttsGenerate(opts: TTSOptions): Promise<Buffer> {
           }
           if (res.status === 429 || res.status >= 500) {
             throw new RetryableError(
-              `ElevenLabs TTS failed ${res.status}: ${errorText}`,
+              `ElevenLabs TTS failed ${res.status} (${classification.kind}): ${errorText}`,
               res.status,
-              true
+              true,
+              retryAfterMs ?? undefined,
             );
           }
           throw new RetryableError(

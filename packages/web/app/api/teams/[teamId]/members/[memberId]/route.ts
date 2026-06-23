@@ -65,6 +65,15 @@ export const PATCH = withAuth(async (request, { userId, prisma, params }) => {
       data: { deactivatedAt: new Date() },
     });
 
+    // #346 (2026-06-23): revoke Clerk sessions + suspend Profile so the
+    // deactivated sub-account can't keep using the app on their existing
+    // JWT (Ryan's 2026-06-18 report). Best-effort — failures don't block
+    // the deactivation.
+    if (member.userId) {
+      const { revokeAndSuspendUser } = await import('@/lib/services/auth-suspension');
+      await revokeAndSuspendUser(prisma, member.userId);
+    }
+
     // Fire-and-forget email — don't fail the request if email fails
     const recipientEmail = member.user?.email ?? member.invitedEmail;
     if (recipientEmail) {
@@ -103,6 +112,14 @@ export const PATCH = withAuth(async (request, { userId, prisma, params }) => {
     where: { id: memberId },
     data: { deactivatedAt: null },
   });
+
+  // #346 (2026-06-23): clear the suspended flag so the user can sign
+  // back in. No Clerk action — their sessions are already gone; next
+  // sign-in mints a fresh one.
+  if (member.userId) {
+    const { unsuspendUser } = await import('@/lib/services/auth-suspension');
+    await unsuspendUser(prisma, member.userId);
+  }
 
   const recipientEmail = member.user?.email ?? member.invitedEmail;
   if (recipientEmail) {

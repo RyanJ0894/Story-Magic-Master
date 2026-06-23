@@ -45,6 +45,13 @@ interface GenerateButtonProps {
   label?: string;
   workflowMode?: 'automatic' | 'fine_tuned';
   hasScript?: boolean;
+  /**
+   * #372: when true, render the "Re-render audio (reuse cached AI)"
+   * toggle. Should reflect whether `project.directorJson` is non-null —
+   * the AI cache must exist or the toggle would be a no-op (the server
+   * also rejects with NO_DIRECTOR_CACHE as defense-in-depth).
+   */
+  hasDirectorCache?: boolean;
   onJobStarted?: () => void;
   /** Called as soon as the first audio segment is ready — before full job completion */
   onFirstAudioReady?: (audioUrl: string) => void;
@@ -61,12 +68,16 @@ export default function GenerateButton({
   label = 'Generate Audio',
   workflowMode = 'fine_tuned',
   hasScript = true,
+  hasDirectorCache = false,
   onJobStarted,
   onFirstAudioReady,
   onSegmentsUpdate,
 }: GenerateButtonProps) {
   const { userId, isSignedIn, getToken } = useAuth();
   const [loading, setLoading] = useState(false);
+  // #372: per-run toggle. Defaults off so the common path is the normal
+  // full pipeline; user opts in to bypass the scene_renders cache.
+  const [forceFreshTts, setForceFreshTts] = useState(false);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
   const firstAudioFiredRef = useRef(false);
@@ -286,6 +297,8 @@ export default function GenerateButton({
         body: JSON.stringify({
           projectId,
           workflowMode,
+          // #372: only sent when true; the API schema defaults it to false.
+          ...(forceFreshTts ? { forceFreshTts: true } : {}),
         }),
       });
 
@@ -477,16 +490,49 @@ export default function GenerateButton({
     </Button>
   );
 
+  // #372: "Re-render audio (reuse cached AI)" toggle. Only shown when a
+  // prior generation has cached the directorJson — otherwise the toggle
+  // would be a no-op (and the API rejects with NO_DIRECTOR_CACHE).
+  const freshTtsToggle = hasDirectorCache && !loading && status !== 'processing' ? (
+    <label
+      className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer select-none"
+      data-testid="force-fresh-tts-toggle"
+    >
+      <input
+        type="checkbox"
+        checked={forceFreshTts}
+        onChange={(e) => setForceFreshTts(e.target.checked)}
+        className="mt-0.5 accent-primary cursor-pointer"
+        aria-describedby="force-fresh-tts-help"
+      />
+      <span>
+        <span className="font-medium text-foreground">Re-render audio (reuse cached AI)</span>
+        <span id="force-fresh-tts-help" className="block">
+          Skip the AI step using the cached director output; re-run TTS only.
+          Useful for testing voice changes without burning the AI cost.
+        </span>
+      </span>
+    </label>
+  ) : null;
+
   if (workflowMode === 'automatic' && !loading) {
     return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>{button}</TooltipTrigger>
-          <TooltipContent>Audio starts in ~90 seconds</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <div className="flex flex-col gap-3 items-start">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>{button}</TooltipTrigger>
+            <TooltipContent>Audio starts in ~90 seconds</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        {freshTtsToggle}
+      </div>
     );
   }
 
-  return button;
+  return freshTtsToggle ? (
+    <div className="flex flex-col gap-3 items-start">
+      {button}
+      {freshTtsToggle}
+    </div>
+  ) : button;
 }

@@ -218,6 +218,39 @@ describe('findCachedSceneRender', () => {
     expect(result).toBeNull();
     expect(mockFindUnique).not.toHaveBeenCalled();
   });
+
+  // #372: per-run TTS cache bypass — the "Re-render audio (reuse cached AI)"
+  // UI toggle sets this. Must return null without touching the DB, even
+  // when SCENE_CACHE_DISABLED is unset (i.e. cache is otherwise enabled).
+  it('returns null + skips DB call when forceFreshTts=true', async () => {
+    const result = await findCachedSceneRender(
+      'proj_1',
+      'scene_001',
+      'abc123',
+      { forceFreshTts: true },
+    );
+    expect(result).toBeNull();
+    expect(mockFindUnique).not.toHaveBeenCalled();
+  });
+
+  // The negation: forceFreshTts=false (or absent) must NOT short-circuit
+  // — normal cache logic continues. Without this guard, a default-undefined
+  // option could be misread as truthy and accidentally bypass every lookup.
+  it('does NOT bypass cache when forceFreshTts=false', async () => {
+    mockFindUnique.mockResolvedValueOnce({
+      contentHash: 'abc123',
+      scenePath: '/tmp/scene.m4a',
+    });
+    mockExistsSync.mockReturnValueOnce(true);
+    const result = await findCachedSceneRender(
+      'proj_1',
+      'scene_001',
+      'abc123',
+      { forceFreshTts: false },
+    );
+    expect(result).toBe('/tmp/scene.m4a');
+    expect(mockFindUnique).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('recordSceneRender', () => {

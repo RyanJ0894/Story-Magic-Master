@@ -84,12 +84,15 @@ interface LineTask {
  *
  * @param director - The full director JSON with all scenes
  * @param onProgress - Optional callback for progress updates
- * @param concurrency - Max concurrent ElevenLabs API calls (default: 12)
+ * @param concurrency - Max concurrent ElevenLabs API calls (default: 2).
+ *   #378: matches the grant-tier cap. Callers in pipeline.ts pass an
+ *   env-driven value (TTS_CONCURRENCY) so the default only fires for
+ *   tests / direct callers.
  */
 export async function parallelTTSGenerate(
   director: DirectorJSON,
   onProgress?: TTSProgressCallback,
-  concurrency: number = 12,
+  concurrency: number = 2,
   emotionOverrides: Record<string, string> = {},
   // B-003b (2026-06-15): per-user audio tuning. Currently only narrationSpeed
   // affects TTS (applied to Narrator-character lines).

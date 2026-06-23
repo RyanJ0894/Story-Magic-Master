@@ -40,6 +40,8 @@ story-magic/
 pnpm install              # Install all workspace dependencies
 doppler run -- pnpm dev   # Start all services (secrets from Doppler — preferred)
 pnpm dev                  # Start all services (uses .env.local if Doppler not available)
+# Changing Doppler secrets? Batch them in a SINGLE `doppler secrets set K1=v1 K2=v2 ...`
+# call — each call triggers a separate Render redeploy. See packages/web/scripts/runbooks/doppler-secret-changes.md
 pnpm dev:web              # Web only (port 22000)
 pnpm dev:orchestrator     # Orchestrator only (port 22002)
 pnpm build                # Build all packages

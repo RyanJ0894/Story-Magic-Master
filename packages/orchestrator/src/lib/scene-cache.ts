@@ -128,8 +128,19 @@ export async function findCachedSceneRender(
   projectId: string,
   sceneId: string,
   contentHash: string,
+  options?: { forceFreshTts?: boolean },
 ): Promise<string | null> {
   if (!isSceneCacheEnabled()) return null;
+
+  // #372: per-run opt-in bypass. The caller wants fresh TTS even though
+  // directorJson reuse means the AI side stays cached. We treat every
+  // lookup as a miss so the full TTS + alignment + mix path re-runs; the
+  // subsequent `recordSceneRender` still upserts the fresh result so the
+  // next normal run can hit it.
+  if (options?.forceFreshTts) {
+    log.debug('[scene-cache] bypass — forceFreshTts requested', { projectId, sceneId });
+    return null;
+  }
 
   try {
     const row = await prisma.sceneRender.findUnique({

@@ -12,6 +12,7 @@ export type FailureKind =
   | 'preflight-voice'
   | 'empty-audio-urls'
   | 'director-invalid'
+  | 'llm-quota'
   | 'generic';
 
 export interface ClassifiedFailure {
@@ -28,6 +29,8 @@ const MSG_EMPTY_AUDIO_URLS =
   'Audio generation completed without producing playable audio. This is often a transient orchestrator-side hiccup and resolves on retry. If you see this twice in a row on the same script, send the job ID to support — the trace will pinpoint the step that returned no audio.';
 const MSG_DIRECTOR_INVALID =
   'Audio generation failed because the director output is missing required data for some scenes (often a voice assignment). Please re-run the director step (Generate Scenes) and try again. The director will pick valid voices for every line.';
+const MSG_LLM_QUOTA =
+  'Audio generation failed because the AI provider has reported a billing or quota issue on our account. This is not a problem with your script — please contact support so we can top up the account. Retrying will not help until the account is replenished.';
 const MSG_GENERIC =
   'Audio generation failed: no audio was produced. Please try again or contact support.';
 
@@ -80,6 +83,18 @@ export function classifyFailure(lastFailure: string): ClassifiedFailure {
     lastFailure.includes('Invalid request') &&
     (lastFailure.includes('invalid_type') || lastFailure.includes('voice_key') || lastFailure.includes('scenes'));
   if (isDirectorInvalid) return { kind: 'director-invalid', message: MSG_DIRECTOR_INVALID };
+
+  // 2026-06-22 (issue #366): LLM provider billing/quota exhaustion. Ryan's
+  // dev job e43cd33a-… failed 4× with the generic "Script parsing failed"
+  // surface, because the orchestrator wrapped OpenAI's `insufficient_quota`
+  // 429 inside its retry-failure body. Telling the user to "try again" is
+  // wrong — every retry hits the same dry account. Match the OpenAI machine
+  // code, the OpenAI human phrase, and Anthropic's equivalent.
+  const isLlmQuota =
+    lastFailure.includes('insufficient_quota') ||
+    lastFailure.includes('exceeded your current quota') ||
+    lastFailure.includes('credit_balance_too_low');
+  if (isLlmQuota) return { kind: 'llm-quota', message: MSG_LLM_QUOTA };
 
   return { kind: 'generic', message: MSG_GENERIC };
 }

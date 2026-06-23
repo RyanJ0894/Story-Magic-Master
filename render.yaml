@@ -442,9 +442,13 @@ services:
       - key: LOG_LEVEL
         value: info
 
-      # TTS concurrency (reduced for starter plan 512MB RAM)
+      # TTS concurrency. Lowered to 2 per #378 — ElevenLabs grant-tier
+      # accounts (Starter/Creator) cap at 2–3 parallel before returning
+      # `too_many_concurrent_requests`. The code-side default is also 2,
+      # so this override now just documents the choice for ops; raise
+      # back to 4–6 once we're off the grant and on a paid tier.
       - key: TTS_CONCURRENCY
-        value: "3"
+        value: "2"
 
       # Web frontend URL (for CORS allowlist on orchestrator)
       - key: WEB_URL

@@ -1,0 +1,149 @@
+# Render Blueprint for Story Magic — DEV environment additions.
+#
+# 2026-06-21 (Chris): the `dev` Render project currently has only three
+# services — story-magic-db-dev, story-magic-orchestrator-dev,
+# story-magic-web-dev. To exercise the full pipeline (queue worker +
+# Redis-backed job-status + rate limit) we need:
+#   1. story-magic-redis-dev  — Render Key Value (mirrors prod's
+#      story-magic-redis red-d8m8dmbeo5us73eafa60 created via PR #226)
+#   2. story-magic-worker-dev — queue worker that mirrors
+#      story-magic-worker on `main`, scaled down and pointed at the
+#      `dev` branch.
+#
+# Redis migration history: PRs #226 + #227 + #228 moved BOTH web AND
+# orchestrator off Upstash REST to Render Key Value (ioredis over TCP).
+# Code now reads REDIS_URL — UPSTASH_REDIS_REST_* are vestigial.
+# This blueprint matches that — no Upstash references.
+#
+# How to apply:
+#   1. From Render dashboard → New + → Blueprint
+#   2. **Important**: select `render-dev.yaml` from the file dropdown,
+#      NOT `render.yaml` (which is the prod blueprint and would try to
+#      manage prod services).
+#   3. Pick branch `dev`.
+#   4. Render detects story-magic-redis-dev + story-magic-worker-dev
+#      and offers to create them.
+#   5. After first deploy, set DOPPLER_TOKEN in the worker dashboard
+#      to the story-magic / dev config service token. Doppler native
+#      sync then fills in the rest of the env shape.
+#   6. **Update the existing story-magic-web-dev and
+#      story-magic-orchestrator-dev services** to read REDIS_URL from
+#      story-magic-redis-dev (add a new env var with the fromService
+#      reference, then remove any UPSTASH_REDIS_REST_* entries). These
+#      services were created via dashboard so they're not under this
+#      blueprint's control.
+#
+# h3-env-source-of-truth-allowed
+# Reason: bootstrap NEW services. After first deploy the dashboard
+# owns build/start commands and most env vars per the H3 contract.
+
+services:
+  # =============================================================================
+  # KEY VALUE (Redis) — DEV
+  # Mirrors prod's story-magic-redis. Used by rate limiter (ioredis +
+  # rate-limiter-flexible) and by the queue worker for BullMQ-style job
+  # state. Same region as the other dev services for sub-ms RTT.
+  # =============================================================================
+  - type: keyvalue
+    name: story-magic-redis-dev
+    region: oregon
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+    # IP allowlist — empty = only allow connections from within the
+    # same Render region (private network). Same posture as prod.
+    ipAllowList: []
+
+  # =============================================================================
+  # QUEUE WORKER — DEV
+  # =============================================================================
+  - type: worker
+    name: story-magic-worker-dev
+    runtime: node
+    region: oregon
+    plan: starter
+    branch: dev
+    autoDeploy: true
+    numInstances: 1
+
+    # Skip rebuilds for docs/markdown-only changes — same as web + orch.
+    buildFilter:
+      ignoredPaths:
+        - docs/**
+        - "**/*.md"
+        - code-review/**
+        - .github/**
+
+    # h3-env-source-of-truth-allowed (bootstrap; dashboard owns after first deploy)
+    # 2026-06-21: matches prod story-magic-worker exactly. Original draft
+    # tried to install Doppler CLI into /usr/local/bin which is now
+    # read-only on Render's build image (`tar: Cannot open: Read-only
+    # file system`). The correct pattern is Doppler NATIVE SYNC: enable
+    # Doppler integration on the service in the Render dashboard
+    # (Settings → Environment → "Sync from Doppler"), point it at
+    # story-magic/dev, and Render injects env vars at deploy time. No
+    # `doppler run` in the start/build command needed.
+    buildCommand: npm install -g pnpm@9.1.0 tsx@4 && pnpm install --frozen-lockfile && pnpm --filter @story-magic/shared exec prisma generate && pnpm --filter @story-magic/web build
+    startCommand: cd packages/web && tsx worker.ts
+
+    # h3-env-source-of-truth-allowed — first-deploy env SHAPE only.
+    envVars:
+      - key: NODE_VERSION
+        value: "22.12.0"
+      - key: NODE_ENV
+        value: development
+
+      # Same DB as story-magic-web-dev — the Job table is shared.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: story-magic-db-dev
+          property: connectionString
+      - key: DIRECT_DATABASE_URL
+        fromDatabase:
+          name: story-magic-db-dev
+          property: connectionString
+
+      # Lower pool ceiling than prod (db-dev is smaller plan).
+      - key: DATABASE_CONNECTION_LIMIT
+        value: "4"
+
+      # Worker mode + concurrency. Lower than prod since dev traffic is
+      # 1-2 Ryan tests at a time.
+      - key: WORKER_MODE
+        value: standalone
+      - key: QUEUE_CONCURRENCY
+        value: "2"
+
+      # Render Key Value — ioredis URL pulled from the new dev Redis
+      # service above. PR #226 dropped UPSTASH_REDIS_REST_* in favor of
+      # this single REDIS_URL; matches prod posture.
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: story-magic-redis-dev
+          property: connectionString
+
+      # Doppler integration is enabled at the SERVICE level (Render dashboard
+      # → Settings → Environment → "Sync from Doppler"), not via a
+      # DOPPLER_TOKEN env var. Once enabled, Render auto-syncs from the
+      # story-magic/dev config and injects everything below at deploy time.
+      # The keys here declare the SHAPE so Render's first build doesn't
+      # warn about missing required env. Values stay sync:false because
+      # Doppler owns them at runtime.
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: ORCHESTRATOR_URL
+        sync: false   # set to https://story-magic-orchestrator-dev.onrender.com
+      - key: SERVICE_SECRET_KEY
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_AUTH_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false

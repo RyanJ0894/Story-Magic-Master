@@ -11,6 +11,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { ThumbsUp, ThumbsDown, HelpCircle, Plus, X, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { ProjectReactionBar } from './ProjectReactionBar';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -236,9 +237,19 @@ export function ScreenplayPlayer({
 
   // Build lookup maps from sceneIndex
   const notesByScene = new Map<number, NoteComment[]>();
-  const reactionByScene = new Map<number, string>(); // current user's reaction
+  const reactionByScene = new Map<number, string>(); // current user's reaction (scene-level, legacy)
+  // #348 (2026-06-23): project-level reaction (Like/Dislike/Undecided about
+  // the script as a whole). Stored on a ProjectComment row with
+  // sceneIndex=null + reactionType set — backend wiring landed 2026-06-21.
+  let projectReaction: string | null = null;
   for (const c of comments) {
-    if (c.sceneIndex == null) continue;
+    if (c.sceneIndex == null) {
+      // Project-level: pick the current user's reaction if present.
+      if (c.reactionType && c.userId === currentUserId) {
+        projectReaction = c.reactionType;
+      }
+      continue;
+    }
     if (c.text) {
       const arr = notesByScene.get(c.sceneIndex) ?? [];
       arr.push(c);
@@ -303,6 +314,13 @@ export function ScreenplayPlayer({
     }
   }
 
+  // #348: per-scene reactions are disabled by default. The opt-in flag exists
+  // for stakeholders who want both per-scene AND project-level controls (the
+  // issue body specifically asked us to keep the wiring under a flag).
+  // To re-enable scene-level reactions set NEXT_PUBLIC_FF_SCENE_REACTIONS=true.
+  const sceneLevelReactionsEnabled =
+    process.env.NEXT_PUBLIC_FF_SCENE_REACTIONS === 'true';
+
   return (
     <div
       data-testid="screenplay-player"
@@ -311,6 +329,19 @@ export function ScreenplayPlayer({
       aria-label="Screenplay"
       className="font-mono text-sm leading-relaxed space-y-0.5 px-2"
     >
+      {/* #348 (2026-06-23): project-level reaction bar — Ryan's intent is
+          "Like / Dislike / Undecided about the script as a whole." Reuses
+          the existing ProjectReactionBar component (built 2026-06-21 for
+          Ryan 6/21 item n) so the wiring is shared with the Projects-list
+          badge. Replaces the per-scene strip that used to render at every
+          scene-heading; that's now feature-flagged off by default. */}
+      <div className="mb-3">
+        <ProjectReactionBar
+          projectId={projectId}
+          initialReaction={projectReaction as 'like' | 'dislike' | 'undecided' | null}
+        />
+      </div>
+
       {blocks.map((block, i) => {
         const sceneNotes = notesByScene.get(block.sceneIndex) ?? [];
         const hasNote = sceneNotes.length > 0;
@@ -387,8 +418,11 @@ export function ScreenplayPlayer({
                   <span>Add Notes</span>
                 </button>
 
-                {/* Scene-level reactions — only on scene headings */}
-                {block.type === 'scene-heading' && (
+                {/* Scene-level reactions — feature-flagged off by default
+                    (#348). Project-level reaction strip is rendered at the
+                    top of the player; per-scene strip stays available for
+                    stakeholders who want both via NEXT_PUBLIC_FF_SCENE_REACTIONS=true. */}
+                {sceneLevelReactionsEnabled && block.type === 'scene-heading' && (
                   <>
                     <ReactionButton
                       icon={<ThumbsUp className="w-3 h-3" />}

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiFetch } from '@/lib/api/fetch';
+import { apiFetchWithRetry } from '@/lib/api/fetch';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -104,7 +104,12 @@ export function UploadScreenplay({
       if (name.trim()) formData.append('name', name.trim());
       if (description.trim()) formData.append('description', description.trim());
 
-      const response = await apiFetch('/api/projects/upload', {
+      // #368: retry on Cloudflare 524 / 502 / 503 / 504 — these are
+      // origin-cutover plumbing errors during Render rolling deploys.
+      // The endpoint runs synchronous PDF/DOCX extraction so a successful
+      // 201 is the only way to know the project was created; otherwise we
+      // surface the final error to the user as before.
+      const response = await apiFetchWithRetry('/api/projects/upload', {
         method: 'POST',
         body: formData,
       });
