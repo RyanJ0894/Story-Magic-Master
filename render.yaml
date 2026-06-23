@@ -45,10 +45,10 @@ services:
       npm install -g pnpm@9.1.0 &&
       curl -fsSL -o /tmp/doppler.tgz https://github.com/DopplerHQ/cli/releases/download/3.76.0/doppler_3.76.0_linux_amd64.tar.gz &&
       echo "04f1ff30ed162d7af1dba7f11ad6a37ef35099de86a7ec6e261b64b1b337a3f3  /tmp/doppler.tgz" | sha256sum -c - &&
-      tar --overwrite -xzf /tmp/doppler.tgz -C /usr/local/bin doppler &&
+      mkdir -p .bin && tar --overwrite -xzf /tmp/doppler.tgz -C .bin doppler &&
       pnpm install --frozen-lockfile &&
-      doppler run -- sh -c "node scripts/check-env-web.js && pnpm --filter @story-magic/shared exec prisma generate && pnpm --filter @story-magic/web build"
-    startCommand: doppler run -- sh -c "pnpm --filter @story-magic/shared exec prisma migrate deploy && pnpm --filter @story-magic/web start"
+      .bin/doppler run -- sh -c "node scripts/check-env-web.js && pnpm --filter @story-magic/shared exec prisma generate && pnpm --filter @story-magic/web build"
+    startCommand: .bin/doppler run -- sh -c "pnpm --filter @story-magic/shared exec prisma migrate deploy && pnpm --filter @story-magic/web start"
 
     # Health check
     healthCheckPath: /api/health
@@ -277,10 +277,10 @@ services:
       npm install -g pnpm@9.1.0 &&
       curl -fsSL -o /tmp/doppler.tgz https://github.com/DopplerHQ/cli/releases/download/3.76.0/doppler_3.76.0_linux_amd64.tar.gz &&
       echo "04f1ff30ed162d7af1dba7f11ad6a37ef35099de86a7ec6e261b64b1b337a3f3  /tmp/doppler.tgz" | sha256sum -c - &&
-      tar --overwrite -xzf /tmp/doppler.tgz -C /usr/local/bin doppler &&
+      mkdir -p .bin && tar --overwrite -xzf /tmp/doppler.tgz -C .bin doppler &&
       pnpm install --frozen-lockfile &&
-      doppler run -- sh -c "node scripts/check-env-web.js && pnpm --filter @story-magic/shared exec prisma generate && pnpm --filter @story-magic/web build"
-    startCommand: doppler run -- pnpm --filter @story-magic/web worker
+      .bin/doppler run -- sh -c "node scripts/check-env-web.js && pnpm --filter @story-magic/shared exec prisma generate && pnpm --filter @story-magic/web build"
+    startCommand: .bin/doppler run -- pnpm --filter @story-magic/web worker
 
     # h3-env-source-of-truth-allowed
     # New-service bootstrap envVars block — values come from Doppler via the
