@@ -23,6 +23,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/orchestrator/package.json ./packages/orchestrator/
 COPY packages/web/package.json ./packages/web/
+# Schema must be present before pnpm install — packages/web postinstall runs
+# prisma generate, which needs the schema file.
+COPY packages/shared/prisma ./packages/shared/prisma/
 
 RUN pnpm install --frozen-lockfile
 
