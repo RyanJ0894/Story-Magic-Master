@@ -55,6 +55,8 @@ services:
 
     # Environment variables
     envVars:
+      - key: DOPPLER_TOKEN
+        sync: false
       - key: NODE_VERSION
         value: "22.12.0"
       - key: NODE_ENV
@@ -287,6 +289,8 @@ services:
     # native sync after first deploy, this is just the SHAPE so Render knows
     # which keys exist.
     envVars:
+      - key: DOPPLER_TOKEN
+        sync: false
       - key: NODE_VERSION
         value: "22.12.0"
       - key: NODE_ENV
@@ -378,6 +382,8 @@ services:
 
     # Environment variables
     envVars:
+      - key: DOPPLER_TOKEN
+        sync: false
       - key: NODE_VERSION
         value: "22.12.0"
       - key: NODE_ENV
