@@ -499,6 +499,18 @@ export async function removeMember(
     data: { status: 'removed' },
   });
 
+  // #346 (2026-06-23): revoke the Clerk session + flag the Profile as
+  // suspended. Before this, "remove member" left the underlying Clerk
+  // user fully functional — they could sign in again with the same JWT
+  // and continue using the app. Per the Phase-1 plan we do NOT hard-
+  // delete the Clerk user (would orphan their own projects if they're
+  // also a master on a different team); we just suspend + revoke
+  // sessions. Best-effort: failures don't block the team change.
+  if (member?.userId) {
+    const { revokeAndSuspendUser } = await import('./auth-suspension');
+    await revokeAndSuspendUser(prisma, member.userId);
+  }
+
   // #174 PR β: emit team_member_left to the master account. Producer
   // swallows DB errors so a logging hiccup never blocks the removal.
   if (member?.userId) {
