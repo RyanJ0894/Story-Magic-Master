@@ -12,6 +12,7 @@ RUN apt-get update -q && apt-get install -y --no-install-recommends \
     libavformat-dev \
     libavutil-dev \
     libswresample-dev \
+    libasound2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g pnpm@9.1.0
@@ -51,6 +52,7 @@ RUN apt-get update -q && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
     ca-certificates \
+    libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Doppler CLI — used in the startCommand to inject secrets at runtime.
