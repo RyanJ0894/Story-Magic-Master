@@ -103,7 +103,7 @@ install_binary() {
         -DWHISPER_BUILD_EXAMPLES=ON \
         -DWHISPER_FFMPEG=ON \
         >/dev/null 2>&1
-      cmake --build build --config Release -j 2 >/dev/null 2>&1 || true
+      cmake --build build --config Release -j 2
       # Newer cmake builds produce ./build/bin/main or whisper-cli
       for cand in build/bin/whisper-cli build/bin/main build/bin/whisper; do
         if [[ -x "${cand}" ]]; then
