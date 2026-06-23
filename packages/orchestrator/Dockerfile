@@ -47,6 +47,7 @@ FROM node:22-bookworm-slim AS runtime
 RUN apt-get update -q && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Doppler CLI — used in the startCommand to inject secrets at runtime.
