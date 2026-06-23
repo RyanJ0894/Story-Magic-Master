@@ -153,3 +153,53 @@ describe('whisperAlign fallback chain', () => {
     expect(fetchMock.mock.calls[0][0]).toContain('api.groq.com');
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────
+// #383 (2026-06-22): pre-convert to 16 kHz mono PCM regression guard.
+//
+// Peter found that the static whisper.cpp Docker build was failing on
+// non-16 kHz input because whisper-cli's miniaudio-based resampler was
+// reaching for a dependency missing from the slim runtime image. The fix
+// pre-converts via ffmpeg in our code before invoking whisper, so the
+// static binary never enters that code path.
+//
+// These tests pin the call shape — if anyone removes the pre-convert or
+// changes its args (e.g. drops `-ac 1` or `-ar 16000`), the binary will
+// silently start failing again the next time we hit a static-build env.
+// ──────────────────────────────────────────────────────────────────────────
+describe('whisperAlign — #383 pre-convert to 16 kHz mono', () => {
+  // Re-mock execa per test so we can inspect ffmpeg invocation.
+  // We grab the mocked execa via vi.mocked import.
+
+  it('exports a standalone preconvertFor16kMono helper', async () => {
+    const { preconvertFor16kMono } = await import('./whisper-align.js');
+    expect(typeof preconvertFor16kMono).toBe('function');
+  });
+
+  it('preconvertFor16kMono invokes ffmpeg with -ar 16000 -ac 1 -c:a pcm_s16le', async () => {
+    const { execa } = await import('execa');
+    const mockExeca = execa as unknown as ReturnType<typeof vi.fn>;
+    mockExeca.mockClear();
+    // Make ffmpeg call succeed for this test.
+    mockExeca.mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
+
+    const { preconvertFor16kMono } = await import('./whisper-align.js');
+    const out = await preconvertFor16kMono('/tmp/orig.wav');
+
+    expect(mockExeca).toHaveBeenCalledTimes(1);
+    const [, argv] = mockExeca.mock.calls[0] as [string, string[]];
+    // The exact arg sequence matters — whisper-cli expects 16 kHz mono
+    // pcm_s16le. Drop any of these and miniaudio re-enters.
+    expect(argv).toContain('-ar');
+    expect(argv).toContain('16000');
+    expect(argv).toContain('-ac');
+    expect(argv).toContain('1');
+    expect(argv).toContain('-c:a');
+    expect(argv).toContain('pcm_s16le');
+    // Input file is forwarded as-is.
+    expect(argv).toContain('/tmp/orig.wav');
+    // Output is a fresh tmp WAV — caller responsibility to clean up.
+    expect(out).toMatch(/\.wav$/);
+    expect(out).not.toBe('/tmp/orig.wav');
+  });
+});
