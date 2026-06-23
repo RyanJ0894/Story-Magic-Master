@@ -328,6 +328,11 @@ export async function waitForOrchestratorReady(
 /**
  * POST to orchestrator for long-running generation tasks (20 min timeout, 1 retry).
  * 20 minutes accommodates 100-page scripts: TTS + assembly + concatenation.
+ *
+ * The orchestrator streams SSE progress events to keep Render's 300 s proxy
+ * timeout at bay. We buffer the full stream, extract the last `data:` event
+ * (which carries the JSON result or error), and return a synthetic Response
+ * so callers see the same interface as before.
  */
 export async function orchestratorGenerate(
   path: string,
@@ -340,5 +345,32 @@ export async function orchestratorGenerate(
     retries: 1,
     retryBaseDelayMs: 2_000,
   });
-  return response;
+
+  const ct = response.headers.get('content-type') ?? '';
+  if (!ct.includes('text/event-stream')) {
+    // Fast error paths (400/403/404/422/503) return plain JSON — pass through.
+    return response;
+  }
+
+  // Consume SSE stream. Progress events are discarded; the last `data:` event
+  // is the result (type: 'result') sent by the orchestrator after the pipeline.
+  const text = await response.text();
+  const lastData = text
+    .split('\n')
+    .filter((line) => line.startsWith('data: '))
+    .at(-1)
+    ?.slice(6)
+    .trim();
+
+  if (!lastData) {
+    throw new Error('SSE stream from orchestrator ended without a result event');
+  }
+
+  const parsed: Record<string, unknown> = JSON.parse(lastData);
+  const status = parsed['status'] === 'error' ? 500 : 200;
+
+  return new Response(JSON.stringify(parsed), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }

@@ -61,11 +61,23 @@ vi.mock('../../lib/ffmpeg-validator.js', () => ({
 // Imports (after mocks are registered)
 // ---------------------------------------------------------------------------
 
+import { Readable } from 'node:stream';
 import type { MixOptions, MixInputs, MixParams, SFXInput } from './mixer.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+// analyzeRMSEnvelope reads subprocess.stderr as a Readable stream. This helper
+// creates a mock subprocess whose .stderr property is a stream emitting the
+// given text content so the readline interface gets the expected lines.
+function makeStreamingSubprocess(stderrContent: string) {
+  const stderrStream = Readable.from([stderrContent]);
+  return Object.assign(
+    Promise.resolve({ stdout: '', stderr: stderrContent }),
+    { stderr: stderrStream },
+  );
+}
 
 function baseMixOptions(overrides: Partial<MixOptions> = {}): MixOptions {
   return {
@@ -742,11 +754,11 @@ describe('mixScene', () => {
           args &&
           args.some((a: string) => typeof a === 'string' && a.includes('astats'))
         ) {
-          // Simulate RMS output lines
+          // Simulate RMS output lines via a Readable stream (analyzeRMSEnvelope reads subprocess.stderr as a stream)
           const lines = Array.from({ length: 20 }, (_, i) =>
             `lavfi.astats.Overall.RMS_level=${-30 + (i % 5) * 3}`
           ).join('\n');
-          return Promise.resolve({ stdout: '', stderr: lines });
+          return makeStreamingSubprocess(lines);
         }
         // loudnorm
         if (args && args.includes('-f') && args.includes('null')) {
@@ -858,7 +870,7 @@ describe('mixScene', () => {
           args &&
           args.some((a: string) => typeof a === 'string' && a.includes('astats'))
         ) {
-          return Promise.resolve({ stdout: '', stderr: manyRmsLines });
+          return makeStreamingSubprocess(manyRmsLines);
         }
         if (args && args.includes('-f') && args.includes('null')) {
           return Promise.resolve({
