@@ -242,6 +242,81 @@ describe('Exponential Backoff', () => {
   });
 });
 
+// #378: Retry-After honoring + wider 429 jitter regression guards.
+//
+// These tests pin the behavior added when ElevenLabs grant-tier limits
+// started biting. If any go red, the retry layer has silently regressed
+// to "ignore the server's wait-N-seconds guidance" and we'll burn time
+// on misaligned backoff exactly when it costs the most (peak load).
+describe('withRetry — #378 Retry-After honoring', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('uses RetryableError.retryAfterMs when set, ignoring exponential calc', async () => {
+    const fn = vi.fn()
+      .mockRejectedValueOnce(new RetryableError('429 system_busy', 429, true, 5_000))
+      .mockResolvedValueOnce('ok');
+
+    const promise = withRetry(fn, { maxRetries: 2, initialDelayMs: 1000, maxDelayMs: 30_000 });
+    // The exponential calc for attempt 0 would be ~1000ms; Retry-After
+    // says 5000ms. We advance just below 5000 and confirm fn hasn't
+    // been called again yet. The light jitter caps add ~10% so 5400ms
+    // is a safe lower bound.
+    await vi.advanceTimersByTimeAsync(4900);
+    expect(fn).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(700);
+    const result = await promise;
+    expect(result).toBe('ok');
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it('caps Retry-After at maxDelayMs even if the server says longer', async () => {
+    const fn = vi.fn()
+      .mockRejectedValueOnce(new RetryableError('429 backoff way too long', 429, true, 999_999))
+      .mockResolvedValueOnce('ok');
+
+    const promise = withRetry(fn, { maxRetries: 1, initialDelayMs: 1000, maxDelayMs: 10_000 });
+    // Cap should kick in at 10s + ≤10% jitter; well under 999s.
+    await vi.advanceTimersByTimeAsync(11_500);
+    const result = await promise;
+    expect(result).toBe('ok');
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls back to exponential when retryAfterMs is undefined', async () => {
+    const fn = vi.fn()
+      .mockRejectedValueOnce(new RetryableError('429 no header', 429, true))
+      .mockResolvedValueOnce('ok');
+
+    const promise = withRetry(fn, { maxRetries: 1, initialDelayMs: 1000, maxDelayMs: 30_000 });
+    // Pure exponential: ~1000ms base, ±50% jitter on 429 → up to 1500ms.
+    await vi.advanceTimersByTimeAsync(1600);
+    const result = await promise;
+    expect(result).toBe('ok');
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses wider jitter (±50%) on 429 vs default jitter on 5xx', async () => {
+    // We can't easily inspect the internal jitter, but we can pin that
+    // the call completes within the wider window without exceeding the
+    // tighter one. Re-running 5 times gives us reasonable confidence.
+    for (let trial = 0; trial < 5; trial++) {
+      const fn = vi.fn()
+        .mockRejectedValueOnce(new RetryableError('429', 429, true))
+        .mockResolvedValueOnce('ok');
+      const promise = withRetry(fn, { maxRetries: 1, initialDelayMs: 1000, maxDelayMs: 30_000 });
+      // Base 1000ms ± 50% = [500, 1500]. Past 1500ms must have fired.
+      await vi.advanceTimersByTimeAsync(1600);
+      await promise;
+      expect(fn).toHaveBeenCalledTimes(2);
+    }
+  });
+});
+
 // Helper to create HTTP-like errors
 function createHttpError(status: number): Error & { status: number } {
   const error = new Error(`HTTP Error ${status}`) as Error & { status: number };

@@ -46,12 +46,21 @@ export interface RetryOptions {
 export class RetryableError extends Error {
   status: number;
   isRetryable: boolean;
+  /**
+   * #378: when set, the retry layer uses this as the wait-before-next
+   * attempt instead of computing an exponential delay. Captured from
+   * the `Retry-After` response header (see audio.ts) so we honor the
+   * provider's own guidance — pure exponential ignores ElevenLabs
+   * telling us "wait 30s" when their infra is degraded.
+   */
+  retryAfterMs?: number;
 
-  constructor(message: string, status: number, isRetryable = true) {
+  constructor(message: string, status: number, isRetryable = true, retryAfterMs?: number) {
     super(message);
     this.name = 'RetryableError';
     this.status = status;
     this.isRetryable = isRetryable;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -94,12 +103,45 @@ export async function withRetry<T>(
         throw err;
       }
 
-      // Calculate backoff with exponential growth + jitter
-      const baseDelay = Math.min(initialDelayMs * Math.pow(2, attempt), maxDelayMs);
-      const jitter = baseDelay * jitterFactor * (Math.random() * 2 - 1);
-      const delay = Math.max(0, baseDelay + jitter);
+      // #378: honor `Retry-After` from the server when we have it. The
+      // exponential calc is a guess; if ElevenLabs (or anyone else)
+      // tells us how long to wait, we should listen — pure exponential
+      // either undershoots (next attempt also 429s) or overshoots
+      // (wastes seconds the server has already recovered from). Cap at
+      // maxDelayMs so a misbehaving server can't pin us indefinitely.
+      const serverRetryAfterMs =
+        err instanceof RetryableError && typeof err.retryAfterMs === 'number'
+          ? Math.min(err.retryAfterMs, maxDelayMs)
+          : null;
 
-      log.warn('Retry attempt failed', { attempt: attempt + 1, maxRetries, status, delayMs: Math.round(delay) });
+      let delay: number;
+      let strategy: 'retry-after' | 'exponential';
+      if (serverRetryAfterMs !== null) {
+        // Even when honoring Retry-After, add light jitter so concurrent
+        // workers receiving the same Retry-After value don't synchronize
+        // on the millisecond — small enough to keep the server's intent.
+        const lightJitter = serverRetryAfterMs * 0.1 * Math.random();
+        delay = serverRetryAfterMs + lightJitter;
+        strategy = 'retry-after';
+      } else {
+        // Exponential growth + jitter. For 429 specifically we widen
+        // the jitter window (±50% vs ±20% default) to spread out
+        // concurrent retry waves — the grant-tier concurrency cap means
+        // tightly-clustered retries thundering-herd the next attempt.
+        const baseDelay = Math.min(initialDelayMs * Math.pow(2, attempt), maxDelayMs);
+        const effectiveJitter = status === 429 ? Math.max(jitterFactor, 0.5) : jitterFactor;
+        const jitter = baseDelay * effectiveJitter * (Math.random() * 2 - 1);
+        delay = Math.max(0, baseDelay + jitter);
+        strategy = 'exponential';
+      }
+
+      log.warn('Retry attempt failed', {
+        attempt: attempt + 1,
+        maxRetries,
+        status,
+        delayMs: Math.round(delay),
+        strategy,
+      });
 
       await new Promise((resolve) => setTimeout(resolve, delay));
     }

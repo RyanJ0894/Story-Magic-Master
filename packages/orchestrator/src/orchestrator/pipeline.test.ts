@@ -547,7 +547,7 @@ describe('orchestrateParallel (parallel pipeline)', () => {
         scenes: expect.any(Array),
       }),
       expect.any(Function), // onProgress callback
-      6, // default concurrency (from TTS_CONCURRENCY env or fallback)
+      2, // #378: default concurrency dropped 6→2 to match ElevenLabs grant-tier cap
       {}, // default empty emotion overrides
       expect.objectContaining({}), // B-003b options ({narrationSpeed?})
     );
