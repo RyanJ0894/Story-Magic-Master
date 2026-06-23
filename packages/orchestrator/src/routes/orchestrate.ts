@@ -149,6 +149,7 @@ async function handleOrchestrate(req: Request, res: Response): Promise<void> {
     model: directorModel,
   });
 
+  // ── Phase 1: director parsing + voice pre-flight (fast; JSON errors still safe) ──
   let directorJSON: DirectorJSON;
 
   try {
@@ -215,33 +216,63 @@ async function handleOrchestrate(req: Request, res: Response): Promise<void> {
         err: err instanceof Error ? err.message : String(err),
       });
     }
-
-    log.info('Starting orchestration', { projectId: project_id, sceneCount: directorJSON.scenes.length });
-
-    // Check if parallel processing is requested (default: true)
-    const useParallel = req.query.parallel !== 'false';
-
-    // Run the orchestration pipeline
-    const result = useParallel
-      ? await orchestrateParallel(directorJSON, (progress: PipelineProgress) => {
-          log.info('Orchestration progress', { projectId: project_id, step: progress.step, percent: progress.percent, message: progress.message });
-        }, emotion_overrides ?? {}, { chunkIndex: chunk_index, audioTuning: audio_tuning, forceFreshTts: force_fresh_tts })
-      : await orchestrate(directorJSON, { chunkIndex: chunk_index, audioTuning: audio_tuning, forceFreshTts: force_fresh_tts });
-
-    res.json({
-      status: 'success',
-      project_id,
-      audio_urls: result.audio_urls || [],
-      playback_manifest: result.manifest,
-      ...(result.mix_warnings?.length ? { warnings: result.mix_warnings } : {}),
-    } as OrchestrateResponse);
   } catch (error) {
-    log.error('Orchestration failed', error instanceof Error ? error : new Error(String(error)), { projectId: project_id });
+    log.error('Pre-pipeline error', error instanceof Error ? error : new Error(String(error)), { projectId: project_id });
     res.status(500).json({
       status: 'error',
       project_id,
       message: error instanceof Error ? error.message : 'Unknown error',
     } as OrchestrateResponse);
+    return;
+  }
+
+  // ── Phase 2: long-running audio pipeline — switch to SSE ─────────────────────
+  // Render's proxy closes connections after ~300 s without any response bytes,
+  // regardless of instance size. All fast validation paths returned above; from
+  // here we stream SSE progress events so the proxy sees activity every few
+  // seconds. The final event carries the JSON result (or error).
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // disable nginx/Cloudflare response buffering
+  res.flushHeaders();
+
+  const sendEvent = (data: object): void => {
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    }
+  };
+
+  log.info('Starting orchestration', { projectId: project_id, sceneCount: directorJSON.scenes.length });
+
+  const useParallel = req.query.parallel !== 'false';
+
+  try {
+    const result = useParallel
+      ? await orchestrateParallel(directorJSON, (progress: PipelineProgress) => {
+          log.info('Orchestration progress', { projectId: project_id, step: progress.step, percent: progress.percent, message: progress.message });
+          sendEvent({ type: 'progress', step: progress.step, percent: progress.percent, message: progress.message });
+        }, emotion_overrides ?? {}, { chunkIndex: chunk_index, audioTuning: audio_tuning, forceFreshTts: force_fresh_tts })
+      : await orchestrate(directorJSON, { chunkIndex: chunk_index, audioTuning: audio_tuning, forceFreshTts: force_fresh_tts });
+
+    sendEvent({
+      type: 'result',
+      status: 'success',
+      project_id,
+      audio_urls: result.audio_urls || [],
+      playback_manifest: result.manifest,
+      ...(result.mix_warnings?.length ? { warnings: result.mix_warnings } : {}),
+    } as OrchestrateResponse & { type: string });
+    res.end();
+  } catch (error) {
+    log.error('Orchestration failed', error instanceof Error ? error : new Error(String(error)), { projectId: project_id });
+    sendEvent({
+      type: 'result',
+      status: 'error',
+      project_id,
+      message: error instanceof Error ? error.message : 'Unknown error',
+    } as OrchestrateResponse & { type: string });
+    res.end();
   }
 }
 

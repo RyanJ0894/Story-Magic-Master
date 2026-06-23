@@ -105,7 +105,9 @@ async function post(
           res.on('end', () => {
             server.close();
             try {
-              resolve({ status: res.statusCode ?? 0, body: JSON.parse(data) });
+              // SSE responses: extract the last `data:` event; plain JSON for fast error paths.
+              const lastData = data.split('\n').filter(l => l.startsWith('data: ')).at(-1)?.slice(6).trim();
+              resolve({ status: res.statusCode ?? 0, body: JSON.parse(lastData ?? data) });
             } catch (e) {
               reject(e);
             }
@@ -230,12 +232,14 @@ describe('orchestrate: happy path', () => {
     expect(body.status).toBe('error');
   });
 
-  it('returns 500 when orchestration throws', async () => {
+  it('returns 200 with error body when orchestration throws', async () => {
+    // Once SSE headers are flushed, the HTTP status is always 200 — errors are
+    // conveyed in the final `data:` event body (status: 'error').
     mockOrchParallel.mockRejectedValue(new Error('FFmpeg crash'));
 
     const { status, body } = await post({ project_id: TEST_PROJECT_ID, scenes: [VALID_SCENE] });
 
-    expect(status).toBe(500);
+    expect(status).toBe(200);
     expect(body.status).toBe('error');
     expect(body.message).toContain('FFmpeg crash');
   });

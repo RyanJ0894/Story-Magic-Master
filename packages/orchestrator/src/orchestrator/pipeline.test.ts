@@ -699,7 +699,7 @@ describe('orchestrateParallel (parallel pipeline)', () => {
       }),
       expect.any(Object), // stems_by_scene
       expect.stringContaining('00000000-0000-0000-0000-000000000002'), // projectDir
-      3, // sceneConcurrency
+      1, // sceneConcurrency — SCENE_CONCURRENCY env default
       expect.any(Function), // onProgress callback
       expect.objectContaining({}), // B-003b gain offsets
     );

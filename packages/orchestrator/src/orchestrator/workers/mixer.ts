@@ -11,6 +11,7 @@
  * - EBU R128 loudness targeting (-16 LUFS for streaming)
  */
 
+import { createInterface } from 'node:readline';
 import { execa } from 'execa';
 import ffmpegStatic from 'ffmpeg-static';
 import ffprobeStatic from 'ffprobe-static';
@@ -201,9 +202,22 @@ async function loopAudioToLength(
  * Enhanced RMS envelope with better time resolution
  * Uses 50ms hop for smoother ducking response
  */
-async function analyzeRMSEnvelope(dialoguePath: string, hop: number = 0.05): Promise<RMSEnvelopePoint[]> {
+const RMS_STDERR_HEAD = 20;
+
+async function analyzeRMSEnvelope(dialoguePath: string, hop: number = 0.05, timeoutMs: number = 60_000): Promise<RMSEnvelopePoint[]> {
+  const env: RMSEnvelopePoint[] = [];
+  let t = 0;
+  // Capture the first N lines outside the try so the catch can log them.
+  // FFmpeg writes its banner and any fatal errors early; later lines are just
+  // bulk metadata output we don't need for diagnosis.
+  const stderrHead: string[] = [];
+
   try {
-    const result = await execa(
+    // buffer: false — do not accumulate stderr in memory. For a 10-min dialogue at
+    // 50 ms hop, astats+ametadata emits ~12 000 data points (~several MB of text).
+    // Buffering that in the ExecaError on timeout produced very large log lines.
+    // stdout: 'ignore' — the null muxer writes nothing to stdout; discard it.
+    const subprocess = execa(
       ffmpeg,
       [
         '-i',
@@ -214,15 +228,14 @@ async function analyzeRMSEnvelope(dialoguePath: string, hop: number = 0.05): Pro
         'null',
         '-',
       ],
-      { timeout: 30000 }
+      { timeout: timeoutMs, buffer: false, stdout: 'ignore' },
     );
 
-    const output = result.stderr || '';
-    const env: RMSEnvelopePoint[] = [];
-    let t = 0;
+    // Stream stderr line-by-line; build the envelope incrementally.
+    const rl = createInterface({ input: subprocess.stderr!, crlfDelay: Infinity });
+    for await (const line of rl) {
+      if (stderrHead.length < RMS_STDERR_HEAD) stderrHead.push(line);
 
-    const lines = output.split('\n');
-    for (const line of lines) {
       if (line.includes('lavfi.astats.Overall.RMS_level=')) {
         const match = line.match(/lavfi\.astats\.Overall\.RMS_level=([-\d.]+)/);
         if (match) {
@@ -235,11 +248,12 @@ async function analyzeRMSEnvelope(dialoguePath: string, hop: number = 0.05): Pro
       }
     }
 
+    await subprocess;
+
     if (env.length === 0) {
       log.warn('RMS analysis returned empty, using fallback envelope');
       const duration = await audioDurationSec(dialoguePath);
       const numSamples = Math.ceil(duration / hop);
-
       for (let i = 0; i < numSamples; i++) {
         env.push({ t: i * hop, rmsDb: -35 });
       }
@@ -247,7 +261,11 @@ async function analyzeRMSEnvelope(dialoguePath: string, hop: number = 0.05): Pro
 
     return env;
   } catch (error) {
-    log.warn('RMS analysis error, returning default envelope', { error: (error as Error).message });
+    const timedOut = (error as { timedOut?: boolean }).timedOut === true;
+    log.warn('RMS analysis error, returning default envelope', {
+      error: timedOut ? `timed out after ${timeoutMs}ms` : (error as Error).message,
+      stderrHead,
+    });
     return [{ t: 0, rmsDb: -35 }];
   }
 }
@@ -706,7 +724,9 @@ export async function mixScene(options: MixOptions): Promise<MixManifest> {
   if (use_advanced_ducking) {
     log.info('Analyzing dialogue for advanced ducking', { resolutionMs: 50 });
     try {
-      const env = await analyzeRMSEnvelope(inputs.dialogue, 0.05);
+      // Allow at least 60s; scale up by 1s per 5s of audio (20× real-time floor) for long scenes on constrained CPUs.
+      const rmsTimeoutMs = Math.max(60_000, Math.ceil(sceneDuration / 5) * 1_000);
+      const env = await analyzeRMSEnvelope(inputs.dialogue, 0.05, rmsTimeoutMs);
 
       if (env.length > 0) {
         const rawCurve = buildAdvancedDuckCurve(env, 0.15);

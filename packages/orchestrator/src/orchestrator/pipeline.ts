@@ -544,7 +544,7 @@ export async function orchestrateParallel(
       subsetDirector,
       ttsResult.stems_by_scene,
       projectDir,
-      3, // Scene concurrency
+      parseInt(process.env.SCENE_CONCURRENCY ?? '1', 10), // Env-tunable; default 1 to prevent OOM on standard instances
       (stitchProgress) => {
         if (onProgress) {
           const basePercent = 60;

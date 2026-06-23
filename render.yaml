@@ -450,6 +450,14 @@ services:
       - key: TTS_CONCURRENCY
         value: "2"
 
+      # Scene assembly concurrency. Each concurrent scene holds 2–3 large
+      # uncompressed PCM WAV files (music looped + ambience looped + mixed
+      # temp output) plus FFmpeg process overhead — easily 200–500 MB per
+      # scene on longer scripts. Keep at 1 on standard (2 GB); raise to 2
+      # only after confirming headroom under peak load.
+      - key: SCENE_CONCURRENCY
+        value: "1"
+
       # Web frontend URL (for CORS allowlist on orchestrator)
       - key: WEB_URL
         sync: false
