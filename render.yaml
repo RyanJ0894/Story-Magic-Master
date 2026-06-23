@@ -256,7 +256,7 @@ services:
     name: story-magic-worker
     runtime: node
     region: oregon
-    plan: starter
+    plan: standard
     branch: main
     autoDeploy: true
     numInstances: 1
@@ -354,7 +354,7 @@ services:
     dockerfilePath: packages/orchestrator/Dockerfile
     dockerContext: .
     region: oregon
-    plan: starter
+    plan: standard
     branch: main
     autoDeploy: true
     # Scale up: increase numInstances when traffic demands.
@@ -525,4 +525,3 @@ services:
 #   basic-4gb:   $45/mo  - 4GB RAM, 64GB storage
 #
 # Note: Database plan "starter" is legacy. Use "basic-256mb" for new databases.
-# Orchestrator is on starter for cost savings. Upgrade to standard if FFmpeg OOMs on long scripts.
