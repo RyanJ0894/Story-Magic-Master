@@ -70,5 +70,6 @@ EXPOSE $PORT
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:${PORT}/health || exit 1
 
-# startCommand in render.yaml overrides this, but provides a sane default.
-CMD ["node", "packages/orchestrator/dist/index.js"]
+# Doppler injects secrets via DOPPLER_TOKEN (set in Render env vars).
+# Env check runs before start to catch misconfiguration early.
+CMD ["doppler", "run", "--", "sh", "-c", "node scripts/check-env-orchestrator.js && pnpm --filter @story-magic/orchestrator start"]

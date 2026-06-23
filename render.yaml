@@ -348,6 +348,7 @@ services:
     name: story-magic-orchestrator
     runtime: docker
     dockerfilePath: packages/orchestrator/Dockerfile
+    dockerContext: .
     region: oregon
     plan: starter
     branch: main
@@ -364,8 +365,7 @@ services:
         - code-review/**
         - .github/**
 
-    # Doppler injects secrets; env check runs before start to catch misconfiguration.
-    startCommand: doppler run -- sh -c "node scripts/check-env-orchestrator.js && pnpm --filter @story-magic/orchestrator start"
+    # startCommand is not allowed for docker runtime — start logic lives in Dockerfile CMD.
 
     # Health check
     healthCheckPath: /health
