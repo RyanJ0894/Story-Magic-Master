@@ -243,6 +243,17 @@ async function handleOrchestrate(req: Request, res: Response): Promise<void> {
     }
   };
 
+  // Node.js undici (native fetch) has a 300 s body-read timeout that fires if
+  // no bytes arrive while the caller is consuming the SSE stream. Progress
+  // events only arrive at the start of each pipeline step, so a single long
+  // step (TTS batch, scene assembly) can easily exceed 300 s of silence.
+  // Sending an SSE comment every 25 s keeps the body-read timer from firing.
+  // Comments (": …\n\n") are valid SSE protocol and are silently discarded by
+  // any SSE parser or response.text() consumer.
+  const heartbeat = setInterval(() => {
+    if (!res.writableEnded) res.write(': heartbeat\n\n');
+  }, 25_000);
+
   log.info('Starting orchestration', { projectId: project_id, sceneCount: directorJSON.scenes.length });
 
   const useParallel = req.query.parallel !== 'false';
@@ -273,6 +284,8 @@ async function handleOrchestrate(req: Request, res: Response): Promise<void> {
       message: error instanceof Error ? error.message : 'Unknown error',
     } as OrchestrateResponse & { type: string });
     res.end();
+  } finally {
+    clearInterval(heartbeat);
   }
 }
 
