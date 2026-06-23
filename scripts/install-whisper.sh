@@ -89,6 +89,10 @@ install_binary() {
   # 2026-06-13 incident: build appeared to succeed, but `whisper --help`
   # printed "error while loading shared libraries: libwhisper.so.1" and
   # alignment silently fell through to Groq for 24 h before we noticed.
+  #
+  # -DWHISPER_FFMPEG=ON enables FFmpeg-based audio decoding so whisper.cpp
+  # can read and resample any sample rate (e.g. our 48 kHz stereo stems),
+  # matching the behaviour of the local Homebrew binary.
   (
     cd "${BUILD_DIR}" || exit 1
     if command -v cmake >/dev/null 2>&1 && [[ -f CMakeLists.txt ]]; then
@@ -97,8 +101,9 @@ install_binary() {
         -DBUILD_SHARED_LIBS=OFF \
         -DWHISPER_BUILD_TESTS=OFF \
         -DWHISPER_BUILD_EXAMPLES=ON \
+        -DWHISPER_FFMPEG=ON \
         >/dev/null 2>&1
-      cmake --build build --config Release -j 2 >/dev/null 2>&1 || true
+      cmake --build build --config Release -j 2
       # Newer cmake builds produce ./build/bin/main or whisper-cli
       for cand in build/bin/whisper-cli build/bin/main build/bin/whisper; do
         if [[ -x "${cand}" ]]; then

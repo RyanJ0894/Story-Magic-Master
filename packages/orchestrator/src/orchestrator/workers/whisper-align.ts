@@ -15,6 +15,7 @@
  */
 
 import { execa } from 'execa';
+import ffmpegStatic from 'ffmpeg-static';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -22,6 +23,10 @@ import crypto from 'crypto';
 import { withRetry } from '../../lib/retry.js';
 import { log } from '../../lib/logger.js';
 import { dedupedWarn } from '../../lib/dedup-logger.js';
+
+// ffmpeg-static binary path. Used to pre-convert audio to 16 kHz mono PCM
+// before invoking whisper-cli — see preconvertFor16kMono below for why.
+const ffmpegPath = ffmpegStatic as unknown as string;
 
 export interface WordTimestamp {
   word: string;
@@ -39,6 +44,43 @@ interface WhisperSegment {
 
 interface WhisperOutput {
   transcription?: WhisperSegment[];
+}
+
+/**
+ * Pre-convert audio to the canonical 16 kHz mono PCM s16le WAV that
+ * whisper-cli expects.
+ *
+ * Why: our TTS pipeline produces 48 kHz stereo WAV (audio.ts:115's
+ * `transcodePcmToWav` uses `-ar 48000 -ac 2`). Whisper-cli internally
+ * resamples to 16 kHz mono via miniaudio's bundled decoder/resampler.
+ * Across whisper.cpp versions and static-build environments, that
+ * miniaudio code path has been unreliable (see #383 thread — Peter's
+ * trace 2026-06-22 found the prod static build was missing a
+ * dependency miniaudio reaches for when downsampling).
+ *
+ * Solution: do the resample ourselves with ffmpeg (already linked via
+ * `ffmpeg-static`), so the static whisper binary receives audio in its
+ * native input format and never enters the resample code path. ~50–100
+ * ms per call on a short scene WAV — work whisper would have done
+ * internally anyway, just moved to a layer we control.
+ *
+ * Returns the path to the converted file. Caller is responsible for
+ * unlinking it after use.
+ */
+export async function preconvertFor16kMono(audioPath: string): Promise<string> {
+  const converted = path.join(
+    os.tmpdir(),
+    `w16_${crypto.randomBytes(8).toString('hex')}.wav`,
+  );
+  await execa(ffmpegPath, [
+    '-v', 'error',
+    '-i', audioPath,
+    '-ar', '16000',
+    '-ac', '1',
+    '-c:a', 'pcm_s16le',
+    '-y', converted,
+  ]);
+  return converted;
 }
 
 /**
@@ -79,40 +121,65 @@ export async function whisperAlign(
       throw new Error(`Local whisper binary not found at: ${whisperCppPath}`);
     }
 
-    // reject:false so we can include stdout/stderr in error messages — previously
-    // both were discarded, making the root cause invisible in logs.
-    const result = await execa(
-      whisperCppPath,
-      ['-m', modelPath, '-f', audioPath, '-ng', '-ojf', '-of', outputBase, '-ml', '1'],
-      { reject: false },
-    );
-
-    if (result.exitCode !== 0) {
-      throw new Error(
-        `whisper.cpp exited ${result.exitCode} | stderr: ${result.stderr?.substring(0, 2000)} | stdout: ${result.stdout?.substring(0, 500)}`,
-      );
-    }
-
-    // Check if JSON file was created
-    if (!fs.existsSync(jsonOutputPath)) {
-      throw new Error(
-        `Whisper finished (exit 0) but JSON file is missing at: ${jsonOutputPath} | stderr: ${result.stderr?.substring(0, 2000)} | stdout: ${result.stdout?.substring(0, 500)}`,
-      );
-    }
-
-    // Read and parse the JSON file
-    const jsonContent = fs.readFileSync(jsonOutputPath, 'utf8');
-    const words = parseWhisperCppOutput(jsonContent, expectedText);
-
-    // Cleanup: Delete the generated .json file
+    // Pre-convert to whisper's native 16 kHz mono PCM. See preconvertFor16kMono
+    // above for the rationale — bypasses the miniaudio resample path that
+    // proved unreliable in the static Docker build (#383 thread).
+    let preconvertedPath: string | null = null;
     try {
-      fs.unlinkSync(jsonOutputPath);
-    } catch (e) {
-      log.warn('Could not delete temp JSON file', { error: (e as Error).message });
+      preconvertedPath = await preconvertFor16kMono(audioPath);
+    } catch (preErr) {
+      throw new Error(
+        `ffmpeg pre-convert to 16 kHz mono failed before whisper.cpp invocation: ${(preErr as Error).message}`,
+      );
     }
 
-    log.debug('Whisper alignment complete', { wordCount: words.length });
-    return words;
+    try {
+      // reject:false so we can include stdout/stderr in error messages — previously
+      // both were discarded, making the root cause invisible in logs.
+      const result = await execa(
+        whisperCppPath,
+        ['-m', modelPath, '-f', preconvertedPath, '-ng', '-ojf', '-of', outputBase, '-ml', '1'],
+        { reject: false },
+      );
+
+      if (result.exitCode !== 0) {
+        throw new Error(
+          `whisper.cpp exited ${result.exitCode} | stderr: ${result.stderr?.substring(0, 2000)} | stdout: ${result.stdout?.substring(0, 500)}`,
+        );
+      }
+
+      // Check if JSON file was created
+      if (!fs.existsSync(jsonOutputPath)) {
+        throw new Error(
+          `Whisper finished (exit 0) but JSON file is missing at: ${jsonOutputPath} | stderr: ${result.stderr?.substring(0, 2000)} | stdout: ${result.stdout?.substring(0, 500)}`,
+        );
+      }
+
+      // Read and parse the JSON file
+      const jsonContent = fs.readFileSync(jsonOutputPath, 'utf8');
+      const words = parseWhisperCppOutput(jsonContent, expectedText);
+
+      // Cleanup: Delete the generated .json file
+      try {
+        fs.unlinkSync(jsonOutputPath);
+      } catch (e) {
+        log.warn('Could not delete temp JSON file', { error: (e as Error).message });
+      }
+
+      log.debug('Whisper alignment complete', { wordCount: words.length });
+      return words;
+    } finally {
+      // Always clean up the 16 kHz temp WAV, even if whisper-cli errored
+      // or the JSON parse failed — otherwise /tmp fills up at one short
+      // WAV per scene across the lifetime of the container.
+      if (preconvertedPath) {
+        try {
+          fs.unlinkSync(preconvertedPath);
+        } catch (e) {
+          log.warn('Could not delete 16k pre-converted WAV', { error: (e as Error).message });
+        }
+      }
+    }
   } catch (err) {
     const errMsg = (err as Error).message;
     // Both API paths transcribe via OpenAI-compatible `/audio/transcriptions`,
