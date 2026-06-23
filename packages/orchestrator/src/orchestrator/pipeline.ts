@@ -526,7 +526,9 @@ export async function orchestrateParallel(
           });
         }
       },
-      parseInt(process.env.TTS_CONCURRENCY || '6', 10), // Configurable; reduce for memory-constrained envs
+      // #378: default dropped from 6→2 to match ElevenLabs grant-tier
+      // concurrency cap; tts.ts uses the same env + default.
+      parseInt(process.env.TTS_CONCURRENCY || '2', 10),
       emotionOverrides,
       { narrationSpeed: options.audioTuning?.narrationSpeed },
     );

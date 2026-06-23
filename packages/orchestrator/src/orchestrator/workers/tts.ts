@@ -29,9 +29,13 @@ export async function ttsForScene(
   scene: Scene,
   options: { narrationSpeed?: number } = {},
 ): Promise<StemResult[]> {
-  // Increase concurrency to 8 for faster processing
-  // ElevenLabs Creator tier supports higher concurrency
-  const limit = pLimit(8);
+  // #378: TTS concurrency now reads TTS_CONCURRENCY env (default 2) so
+  // all three TTS call sites (tts.ts, parallel-tts.ts, pipeline.ts)
+  // resolve through the same knob. Default 2 matches ElevenLabs grant-
+  // tier guidance (Starter/Creator accounts cap at 2–3 parallel before
+  // returning too_many_concurrent_requests). Production override via
+  // TTS_CONCURRENCY in render.yaml or Doppler.
+  const limit = pLimit(parseInt(process.env.TTS_CONCURRENCY || '2', 10));
 
   log.debug('Processing dialogue lines for scene', {
     sceneId: scene.scene_id,
