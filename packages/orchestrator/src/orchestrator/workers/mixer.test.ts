@@ -922,6 +922,33 @@ describe('mixScene', () => {
       expect(astatsCall).toBeDefined();
     });
 
+    // PR γ (2026-06-23) regression guard: the main filter_complex mix call
+    // must pass `-threads 0` as a GLOBAL option (before -i) so ffmpeg
+    // auto-picks the optimal thread count. On standard/Pro Render plans
+    // this unlocks the 2–4× speedup that motivated the PR. If anyone
+    // "cleans up" the threads flag, this lights up before the prod
+    // regression (back to single-threaded per-scene mix).
+    it('passes -threads 0 as a global option on the main mix execa call', async () => {
+      const { mixScene } = await import('./mixer.js');
+      const options = baseMixOptions();
+      await mixScene(options);
+
+      // The main mix call is the one whose argv includes the outWav path.
+      // (Same anchor as the existing dialogue-only-mix test in this file.)
+      const mixCall = execaMock.mock.calls.find((call: unknown[]) => {
+        const args = call[1] as string[] | undefined;
+        return Array.isArray(args) && args.includes(options.outWav);
+      });
+      expect(mixCall).toBeDefined();
+      const args = mixCall![1] as string[];
+      const threadsIdx = args.indexOf('-threads');
+      expect(threadsIdx).toBeGreaterThanOrEqual(0);
+      expect(args[threadsIdx + 1]).toBe('0');
+      // Global option = before the first -i.
+      const firstInputIdx = args.indexOf('-i');
+      expect(threadsIdx).toBeLessThan(firstInputIdx);
+    });
+
     it('should fall back to sidechain when duck curve is too complex', async () => {
       // When the downsampled curve exceeds 500 segments, the mixer
       // sets duckCurve = null and falls back to sidechain compression.

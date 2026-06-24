@@ -411,9 +411,11 @@ async function loudnormTwoPass(
   const codecArgs = codecArgsForOutPath(outPath);
 
   try {
+    // PR γ: -threads 0 → auto-pick thread count. loudnorm measurement is
+    // CPU-bound and benefits from multi-core on standard/Pro plans.
     const pass1 = await execa(
       ffmpeg,
-      ['-i', inputPath, '-af', `loudnorm=I=${I}:TP=${TP}:LRA=${LRA}:print_format=json`, '-f', 'null', '-'],
+      ['-threads', '0', '-i', inputPath, '-af', `loudnorm=I=${I}:TP=${TP}:LRA=${LRA}:print_format=json`, '-f', 'null', '-'],
       {
         reject: false,
         timeout: 60000,
@@ -440,6 +442,7 @@ async function loudnormTwoPass(
       await execa(
         ffmpeg,
         [
+          '-threads', '0', // PR γ: auto thread count
           '-i',
           inputPath,
           '-af',
@@ -463,6 +466,7 @@ async function loudnormTwoPass(
       await execa(
         ffmpeg,
         [
+          '-threads', '0', // PR γ: auto thread count
           '-i',
           inputPath,
           '-af',
@@ -484,6 +488,7 @@ async function loudnormTwoPass(
     await execa(
       ffmpeg,
       [
+        '-threads', '0', // PR γ: auto thread count
         '-i',
         inputPath,
         '-af',
@@ -509,7 +514,7 @@ async function loudnormTwoPass(
     log.info('Applying fallback normalization');
     await execa(
       ffmpeg,
-      ['-i', inputPath, '-af', `volume=-6dB`, '-ar', '48000', ...codecArgs, '-y', outPath],
+      ['-threads', '0', '-i', inputPath, '-af', `volume=-6dB`, '-ar', '48000', ...codecArgs, '-y', outPath],
       { timeout: 30000 }
     );
 
@@ -682,6 +687,7 @@ export async function mixScene(options: MixOptions): Promise<MixManifest> {
     const filterChain = use_dialogue_processing ? buildDialogueChain() : 'anull';
 
     await execa(ffmpeg, [
+      '-threads', '0', // PR γ: auto thread count (see filter_complex mix call)
       '-i',
       inputs.dialogue,
       '-af',
@@ -890,7 +896,12 @@ export async function mixScene(options: MixOptions): Promise<MixManifest> {
   }
 
   // Build and execute FFmpeg command
-  const ffmpegArgs = ['-i', inputs.dialogue];
+  // PR γ (2026-06-23): -threads 0 lets ffmpeg pick the optimal thread
+  // count. On the standard/Pro Render plans this unlocks 2–4× speedup
+  // on the per-scene mix (filter_complex + AAC encode). On 1-vCPU envs
+  // it harmlessly falls back to 1. Placed as a GLOBAL option (before -i)
+  // so it applies to decoders + filters + encoders consistently.
+  const ffmpegArgs = ['-threads', '0', '-i', inputs.dialogue];
   if (musicPath) ffmpegArgs.push('-i', musicPath);
   if (ambiencePath) ffmpegArgs.push('-i', ambiencePath);
 
