@@ -42,12 +42,30 @@ router.post('/preview', async (req: Request, res: Response): Promise<void> => {
   const { project_id, scene } = parsed.data;
   setProjectScope(project_id);
 
+  // PR ε (2026-06-24): SSE conversion — preview pipeline runs TTS + mix on
+  // a single scene, which is normally fast but can exceed Render's ~300 s
+  // inter-service proxy timeout when ElevenLabs is degraded. Heartbeat
+  // every 25 s keeps the connection (and undici's body-read timer) alive.
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const sendEvent = (data: object): void => {
+    if (!res.writableEnded) res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+  const heartbeat = setInterval(() => {
+    if (!res.writableEnded) res.write(': heartbeat\n\n');
+  }, 25_000);
+
   try {
     log.info('Generating scene preview', { projectId: project_id, sceneId: scene.scene_id });
 
     const result = await generatePreview(project_id, scene);
 
-    res.json({
+    sendEvent({
+      type: 'result',
       status: 'success',
       project_id: result.project_id,
       scene_id: result.scene_id,
@@ -55,14 +73,19 @@ router.post('/preview', async (req: Request, res: Response): Promise<void> => {
       preview_path: result.preview_path,
       duration_seconds: result.duration_seconds,
     });
+    res.end();
   } catch (error) {
     log.error('Preview generation failed', error instanceof Error ? error : new Error(String(error)), { projectId: project_id, sceneId: scene.scene_id });
-    res.status(500).json({
+    sendEvent({
+      type: 'result',
       status: 'error',
       project_id,
       scene_id: scene.scene_id,
       message: error instanceof Error ? error.message : 'Unknown error',
     });
+    res.end();
+  } finally {
+    clearInterval(heartbeat);
   }
 });
 

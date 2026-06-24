@@ -87,6 +87,26 @@ router.post('/analyze', async (req: Request, res: Response): Promise<void> => {
   // healthy run, but tight enough to surface real provider issues fast.
   const budgetMs = getWallClockBudgetMs('ANALYZE_WALLCLOCK_BUDGET_MS', 120_000);
 
+  // PR ε (2026-06-24): SSE conversion — see /orchestrate and /generate-scenes
+  // for the rationale. Render's inter-service proxy closes idle connections
+  // after ~300 s. The wall-clock budget is 120 s today but ANALYZE_WALLCLOCK_
+  // BUDGET_MS can be raised; without SSE, anyone bumping it past 300 s would
+  // walk into the silent connection-drop class. analyzeScript already exposes
+  // a progress callback, so we forward those events as SSE `progress` events
+  // on top of the load-bearing 25 s heartbeat.
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const sendEvent = (data: object): void => {
+    if (!res.writableEnded) res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+  const heartbeat = setInterval(() => {
+    if (!res.writableEnded) res.write(': heartbeat\n\n');
+  }, 25_000);
+
   try {
     const startTime = Date.now();
 
@@ -101,6 +121,7 @@ router.post('/analyze', async (req: Request, res: Response): Promise<void> => {
         },
         (progress) => {
           log.info('Analysis progress', { projectId: project_id, phase: progress.phase, percent: progress.percent, currentTask: progress.current_task });
+          sendEvent({ type: 'progress', phase: progress.phase, percent: progress.percent, current_task: progress.current_task });
         }
       ),
       budgetMs,
@@ -110,7 +131,8 @@ router.post('/analyze', async (req: Request, res: Response): Promise<void> => {
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     log.info('Script analysis complete', { projectId: project_id, durationSeconds: parseFloat(duration), overallScore: result.overall_score, coverageVerdict: result.coverage_verdict });
 
-    res.json({
+    sendEvent({
+      type: 'result',
       status: 'success',
       analysis: result,
       metadata: {
@@ -118,23 +140,30 @@ router.post('/analyze', async (req: Request, res: Response): Promise<void> => {
         model: 'gpt-4o',
       },
     });
+    res.end();
   } catch (error) {
     if (error instanceof BudgetExceededError) {
-      log.warn('Script analysis exceeded wall-clock budget — returning 503', {
+      log.warn('Script analysis exceeded wall-clock budget — emitting SSE error', {
         projectId: project_id,
         budgetMs: error.budgetMs,
       });
-      res.status(503).json({
+      sendEvent({
+        type: 'result',
         status: 'error',
         message: `Analysis took longer than ${Math.round(error.budgetMs / 1000)}s — please retry. If this keeps happening, the upstream LLM provider may be degraded.`,
       });
+      res.end();
       return;
     }
     log.error('Script analysis failed', error instanceof Error ? error : new Error(String(error)), { projectId: project_id });
-    res.status(500).json({
+    sendEvent({
+      type: 'result',
       status: 'error',
       message: error instanceof Error ? error.message : 'Analysis failed',
     });
+    res.end();
+  } finally {
+    clearInterval(heartbeat);
   }
 });
 
