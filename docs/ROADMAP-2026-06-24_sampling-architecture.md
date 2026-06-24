@@ -6,6 +6,38 @@
 
 ---
 
+## What Peter's PR #407 teaches us (added 2026-06-24)
+
+While drafting Phase B, Peter shipped #407 fixing a class of failure we
+hadn't surfaced in the design doc: `NoObjectGeneratedError` on dense
+15-scene chunks exceeding the 16 K output token cap. His fix made
+`SCENES_PER_CHUNK` and `SCENE_CONSTRUCTION_MAX_TOKENS` env-tunable with
+new defaults of 10 and 32768 respectively.
+
+The architectural lesson: **output-token budget management is as
+important as input** for the director pipeline. Our sampling work has
+focused on shrinking *input* (Phase A's regex Pass 0, Phase B's stitched
+sample for Pass 2). Output budget was implicit. After #407 it has to be
+explicit:
+
+1. **Dense scenes can blow the output cap** — high dialogue density (lots
+   of short lines per scene) means high output tokens per scene. The
+   chunk size that's safe for a sparse procedural is unsafe for a
+   dialogue-driven drama.
+2. **Streaming vs non-streaming changes the safe ceiling.** Per #407's
+   `render.yaml` comment, non-streaming requests should stay under ~16 K
+   to avoid SDK HTTP timeouts. 32 K is configured but actual runs may
+   still need to stay lower unless `generateStructuredOutput` is
+   streaming.
+3. **Chunk size belongs in the same decision tree as `CharacterIndex`.**
+   Pass 0 already tells us chars-per-scene density; Phase D should use
+   that to *pick* the chunk size per script instead of hardcoding a
+   global default.
+
+Phase D has been revised (5 SP, up from 3) to fold this in — see below.
+
+---
+
 ## Honest framing (refined from the design doc)
 
 The architectural argument holds, with these corrections to my initial numbers:
@@ -84,24 +116,39 @@ The savings are still meaningful at scale (1000 long runs/month → ~$100–200/
 - Discrepancy rate < 2 % over 2 weeks
 - Peter approval to flip default
 
-### Phase D — Pass 3 prompt refinement (3 SP)
+### Phase D — Pass 3 prompt refinement + adaptive chunk sizing (5 SP, revised after PR #407)
 
-**Status:** queued (after Phase B)
+**Status:** queued (after Phase B and Peter's #407)
 **Owner:** Claude / Chris
-**Dependencies:** Phase B shipped (so voice context is settled pre-Pass-3)
+**Dependencies:** Phase B shipped (so voice context is settled pre-Pass-3); PR #407 merged (chunk size + output budget are env-tunable)
 **Risk:** medium — touches the largest LLM pass
+
+**Incorporates Peter's #407 insight:** SceneConstructionAgent was crashing
+with `NoObjectGeneratedError` because dense 15-scene chunks exceeded the
+16K output token cap. His fix moved chunk size + max-tokens to env
+(`SCENES_PER_CHUNK=10`, `SCENE_CONSTRUCTION_MAX_TOKENS=32768`) with a
+critical caveat: **non-streaming requests should stay under ~16K to avoid
+SDK HTTP timeouts. 32K is safe only with streaming.**
+
+Treating output-token budget as a first-class concern reframes Phase D:
+the goal isn't just a "tighter prompt"; it's making chunk size **adaptive**
+to script density, using Pass 0's `CharacterIndex` as the signal.
 
 | Task | SP |
 |---|----|
-| D-1 | Strip voice/character preamble from Pass 3 system prompt |
-| D-2 | Pre-tag character cues in chunk input using `CharacterIndex` offsets |
-| D-3 | Feature flag `DIRECTOR_PASS3_TIGHT_PROMPT` (default OFF) |
-| D-4 | A/B test prompt variants on dev |
-| D-5 | Measure: chunks-per-second, output schema validation rate, scene fidelity (manual spot check) |
+| D-1 | Strip voice/character preamble from Pass 3 system prompt (voice context is settled in Phase B) |
+| D-2 | Pre-tag character cues in chunk input using `CharacterIndex` offsets — Pass 3 doesn't have to re-detect them |
+| D-3 | **Adaptive chunk sizing.** Compute chars-per-scene from Pass 0's scene boundaries; if dense (>3K chars/scene avg), drop chunk size to 5–7; if sparse (<1K chars/scene avg), raise to 12–15. Target each chunk's projected output size at ~70% of `SCENE_CONSTRUCTION_MAX_TOKENS`. |
+| D-4 | **Output-token telemetry.** Log projected vs actual output size per chunk so we see when chunks come close to the cap *before* they fail. |
+| D-5 | Feature flag `DIRECTOR_PASS3_ADAPTIVE_CHUNKS` (default OFF) gates D-3 + D-4. D-1/D-2 trim-prompt changes ship unflagged after A/B. |
+| D-6 | Measure: chunks-per-second, output schema validation rate, `NoObjectGeneratedError` rate before/after |
 
 **Exit criteria:**
 - No regression in `DirectorJSONValidator` pass rate
-- Wall-clock measurable improvement (≥ 5 % per-chunk)
+- Wall-clock measurable improvement (≥ 5% per-chunk)
+- Adaptive sizing reduces output-cap near-miss rate to <1% on dense scripts (signal from D-4 telemetry)
+
+**Open question Peter's PR surfaced:** is `generateStructuredOutput` currently streaming? If not, the 32K cap is only safe to *configure* — actual runs would still need to stay under ~16K to avoid SDK HTTP timeouts. Worth confirming before Phase D ships.
 
 ### Phase E — Advanced Consistency Check (8 SP)
 
@@ -145,7 +192,7 @@ The savings are still meaningful at scale (1000 long runs/month → ~$100–200/
 - Telemetry shows cost savings ≥ 20 % on Pass 3 audio cue portion
 - No audible regression in spot listens
 
-### Total: 31 SP across 6 phases
+### Total: 33 SP across 6 phases (+2 for Phase D's #407 incorporation)
 
 ---
 
