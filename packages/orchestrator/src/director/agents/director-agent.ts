@@ -119,6 +119,43 @@ export class DirectorAgent {
 
     const pipelineStart = Date.now();
 
+    // ── Phase A SHADOW MODE ────────────────────────────────────────────
+    // Run the deterministic CharacterIndex + IntroStitcher purely for
+    // telemetry. Output is logged, not used. We need 1–2 weeks of real-
+    // upload data to calibrate the confidence threshold + measure regex
+    // accuracy against LLM Pass 1 before Phase B/C flip behavior.
+    // Wrapped in try/catch so a shadow-mode bug can never affect the
+    // live pipeline.
+    try {
+      const { buildCharacterIndex } = await import('../sampling/character-index.js');
+      const { stitchIntroSample } = await import('../sampling/intro-stitcher.js');
+      const shadowStart = Date.now();
+      const index = buildCharacterIndex(input.script_text);
+      const sample = stitchIntroSample(input.script_text, index);
+      log.info('[DirectorAgent] Phase A shadow: deterministic index + sample', {
+        project_id: input.project_id,
+        shadowMs: Date.now() - shadowStart,
+        pass0Confidence: index.confidence.toFixed(2),
+        pass0ConfidenceReason: index.confidenceReason,
+        pass0Characters: index.characters.size,
+        pass0TotalCues: index.totalCueCount,
+        pass0Scenes: index.scenes.length,
+        sampleOriginalChars: sample.originalChars,
+        sampleStitchedChars: sample.stitchedChars,
+        sampleDedupRatio:
+          sample.originalChars > 0
+            ? (sample.stitchedChars / sample.originalChars).toFixed(3)
+            : '0',
+        sampleCharactersCovered: sample.charactersCovered.length,
+        sampleCharactersMissing: sample.charactersMissing.length,
+      });
+    } catch (shadowErr) {
+      log.warn('[DirectorAgent] Phase A shadow failed (non-fatal)', {
+        project_id: input.project_id,
+        error: shadowErr instanceof Error ? shadowErr.message : String(shadowErr),
+      });
+    }
+
     try {
       // ── Pass 1: Extract characters ──────────────────────────────────────
       const extractor = new CharacterExtractionAgent({ model: this.model });
@@ -126,8 +163,11 @@ export class DirectorAgent {
         project_id: input.project_id,
         script_text: input.script_text,
       });
+      // Phase A telemetry: log the LLM character count alongside the
+      // shadow regex count so we can compute overlap rate in queries.
       log.info('[DirectorAgent] Pass 1 complete', {
         characterCount: manifest.characters.length,
+        pass1LlmCharacterCount: manifest.characters.length,
       });
 
       // ── Pass 2: Assign voices (skipped if cachedVoiceMap provided) ─────────
