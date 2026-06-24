@@ -161,6 +161,39 @@ async function handleGenerateScenes(req: Request, res: Response): Promise<void> 
   // Attach model to req so pino-http can include it in access log error messages
   (req as unknown as Record<string, unknown>).llmModel = directorModel;
 
+  // ── Phase 2: long-running director pipeline — switch to SSE ─────────────────
+  // Same fix as #394 ported to /generate-scenes. Render's proxy closes
+  // inter-service connections after ~300 s without any response bytes,
+  // regardless of instance size. For 10-page+ scripts the director phase
+  // (CharacterExtraction + VoiceMap + SceneConstruction + AudioDirectorAgent +
+  // OpenAI embedding lookups, all serial under TTS_CONCURRENCY=2) routinely
+  // crosses 300 s, so we stream SSE comments to keep the connection alive
+  // and send the final result as a single SSE data event. The web-side
+  // orchestratorGenerate already handles both JSON and SSE responses
+  // transparently — no client change needed.
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // disable nginx/Cloudflare response buffering
+  res.flushHeaders();
+
+  const sendEvent = (data: object): void => {
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    }
+  };
+
+  // Node.js undici (native fetch) has a 300 s body-read timeout that fires if
+  // no bytes arrive while the caller is consuming the SSE stream. processScript
+  // has no progress callback — the entire director run is a single opaque
+  // operation that can take minutes — so a heartbeat comment every 25 s is
+  // the only thing keeping the body-read timer from firing. Comments
+  // (": …\n\n") are valid SSE protocol and are silently discarded by any SSE
+  // parser or response.text() consumer.
+  const heartbeat = setInterval(() => {
+    if (!res.writableEnded) res.write(': heartbeat\n\n');
+  }, 25_000);
+
   try {
     log.info('Starting scene generation', { projectId: project_id, scriptLength: script_text.length, estimatedPages, model: directorModel });
     if (voice_overrides && Object.keys(voice_overrides).length > 0) {
@@ -178,7 +211,8 @@ async function handleGenerateScenes(req: Request, res: Response): Promise<void> 
     const processingTime = (Date.now() - start) / 1000;
     log.info('Scene generation complete', { projectId: project_id, processingTimeSeconds: processingTime, sceneCount: result.director_json.scenes.length });
 
-    res.json({
+    sendEvent({
+      type: 'result',
       project_id,
       success: true,
       scene_count: result.director_json.scenes.length,
@@ -187,14 +221,24 @@ async function handleGenerateScenes(req: Request, res: Response): Promise<void> 
       director_json: result.director_json,
       validation_report: result.validation_report,
     });
+    res.end();
   } catch (error) {
     log.error('Scene generation failed', error instanceof Error ? error : new Error(String(error)), { projectId: project_id, model: directorModel });
-    res.status(500).json({
+    // Once SSE headers are flushed, the HTTP status is locked at 200 —
+    // errors are conveyed in the final `data:` event body. The web-side
+    // orchestratorFetch wrapper maps `status: 'error'` → HTTP 500 for the
+    // synthetic Response so callers see the existing contract.
+    sendEvent({
+      type: 'result',
       project_id,
       success: false,
+      status: 'error',
       message: error instanceof Error ? error.message : 'Unknown error',
       processing_time: (Date.now() - start) / 1000,
-    } as GenerateScenesResponse);
+    });
+    res.end();
+  } finally {
+    clearInterval(heartbeat);
   }
 }
 

@@ -105,7 +105,12 @@ async function post(
           res.on('end', () => {
             server.close();
             try {
-              resolve({ status: res.statusCode ?? 0, body: JSON.parse(data) });
+              // SSE responses: extract the last `data:` event; plain JSON for fast
+              // pre-flight error paths (400/403/404/422/503) returned before the
+              // SSE headers flush. Same pattern as orchestrate.test.ts's post()
+              // helper after PR #394.
+              const lastData = data.split('\n').filter(l => l.startsWith('data: ')).at(-1)?.slice(6).trim();
+              resolve({ status: res.statusCode ?? 0, body: JSON.parse(lastData ?? data) });
             } catch (e) {
               reject(e);
             }
@@ -225,20 +230,77 @@ describe('generate-scenes happy path', () => {
     );
   });
 
+  // PR δ (2026-06-24): regression guard for the SSE conversion. The wire
+  // format must be `text/event-stream` once we're past the fast pre-flight
+  // error paths, and the response body must include at least one `data:`
+  // event whose payload contains `director_json`. If anyone "cleans up" the
+  // SSE setup to plain JSON, this lights up before prod regresses to the
+  // 300 s Render-proxy timeout that caused the 2026-06-24 04:56:32 incident.
+  it('emits SSE on the long-running path with the result as a final data event', async () => {
+    mockProcessScript.mockResolvedValue({ director_json: VALID_DIRECTOR_JSON, validation_report: {} });
+
+    // Raw HTTP probe so we can inspect headers + body shape directly (the
+    // `post()` helper hides the wire format by parsing the last data event).
+    mockGetEnv.mockReturnValue(DEFAULT_ENV);
+    mockCheckAIProviders.mockResolvedValue({ canProceed: true, results: [], blockedBy: [] });
+
+    const app = express();
+    app.use(express.json());
+    app.use('/', router);
+
+    const result = await new Promise<{ contentType: string; raw: string }>((resolve, reject) => {
+      const server = http.createServer(app);
+      server.listen(0, () => {
+        const { port } = server.address() as { port: number };
+        const payload = JSON.stringify({ project_id: TEST_PROJECT_ID, script_text: 'INT. ROOM - DAY\n\nJOHN\nHi.' });
+        const req = http.request(
+          { hostname: '127.0.0.1', port, path: '/generate-scenes', method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } },
+          (res) => {
+            let data = '';
+            res.on('data', (c) => { data += c; });
+            res.on('end', () => {
+              server.close();
+              resolve({ contentType: String(res.headers['content-type'] ?? ''), raw: data });
+            });
+          },
+        );
+        req.on('error', (e) => { server.close(); reject(e); });
+        req.write(payload);
+        req.end();
+      });
+    });
+
+    // Content-Type must be text/event-stream — that's the load-bearing
+    // header that tells the web-side wrapper to consume SSE.
+    expect(result.contentType).toContain('text/event-stream');
+    // Body must contain at least one `data:` event with the director_json.
+    const dataLines = result.raw.split('\n').filter((l) => l.startsWith('data: '));
+    expect(dataLines.length).toBeGreaterThan(0);
+    const lastEvent = JSON.parse(dataLines.at(-1)!.slice('data: '.length).trim());
+    expect(lastEvent.director_json).toBeDefined();
+  });
+
   it('returns 400 for missing project_id', async () => {
     const { status, body } = await post({ script_text: 'INT. ROOM - DAY\n\nJOHN\nHi.' });
     expect(status).toBe(400);
     expect(body.success).toBe(false);
   });
 
-  it('returns 500 when processScript throws', async () => {
+  it('returns 200 with error body when processScript throws', async () => {
+    // PR δ (SSE conversion): once SSE headers are flushed, the HTTP status is
+    // always 200 — errors are conveyed in the final `data:` event body with
+    // `status: 'error'`. The web-side `orchestratorFetch` wrapper maps that
+    // to a synthetic HTTP 500 Response so existing callers see the prior
+    // contract. Same pattern as orchestrate.test.ts after PR #394.
     mockProcessScript.mockRejectedValue(new Error('LLM timeout'));
 
     const { status, body } = await post(
       { project_id: TEST_PROJECT_ID, script_text: 'INT. ROOM - DAY\n\nJOHN\nHi.' }
     );
 
-    expect(status).toBe(500);
+    expect(status).toBe(200);
+    expect(body.status).toBe('error');
     expect(body.success).toBe(false);
     expect(body.message).toContain('LLM timeout');
   });

@@ -10,7 +10,9 @@ function ExplorerEdgeComponent({
   targetX,
   targetY,
   data,
-  ...rest
+  markerStart,
+  markerEnd,
+  interactionWidth,
 }: EdgeProps) {
   const variant = (data as { variant?: string })?.variant ?? 'scene-flow';
   const weight = (data as { weight?: number })?.weight ?? 1;
@@ -30,12 +32,14 @@ function ExplorerEdgeComponent({
     <BaseEdge
       id={id}
       path={edgePath}
+      markerStart={markerStart}
+      markerEnd={markerEnd}
+      interactionWidth={interactionWidth}
       style={{
         strokeWidth,
         strokeDasharray,
         stroke,
       }}
-      {...rest}
     />
   );
 }
