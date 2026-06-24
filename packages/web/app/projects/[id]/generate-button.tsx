@@ -59,7 +59,30 @@ interface GenerateButtonProps {
   onSegmentsUpdate?: (urls: string[]) => void;
 }
 
-const ESTIMATED_DURATION_MS = 120000; // 2 minutes estimated
+/**
+ * Per-job duration estimate driving the smooth progress bar. The bar
+ * interpolates from 0 → 95 % over this window; the server's `progress.percent`
+ * takes over via `Math.max(timerProgress, actualProgress)` whenever it
+ * outpaces the timer.
+ *
+ * Old behavior was a flat 120 000 ms (2 min) regardless of script length.
+ * That worked for tiny scripts and was 4–6× too short for typical jobs — a
+ * 10-page run measured at 492 s on dev 2026-06-24, so the bar hit its
+ * 95 % cap ~70 s in and sat there for the remaining 7+ minutes (the
+ * "stuck at 95 %" report).
+ *
+ * Calibration: ~50 s/page sustained for cold-cache jobs (director + chunked
+ * TTS + mix), plus ~30 s of fixed overhead (warm-up, parse return, finalize).
+ * Floors at 1 page so we never under-estimate trivially. No upper cap — long
+ * scripts genuinely take 60+ minutes and lying to the user about that just
+ * resurfaces the same stuck-bar problem at a different number.
+ */
+export function estimateDurationMs(pageCount: number): number {
+  // `Math.max(1, NaN)` is NaN, so guard explicitly. Project rows can carry
+  // null/undefined pageCount before the upload's page-count extraction lands.
+  const pages = Number.isFinite(pageCount) ? Math.max(1, pageCount) : 1;
+  return 30_000 + pages * 45_000;
+}
 
 export default function GenerateButton({
   projectId,
@@ -246,13 +269,16 @@ export default function GenerateButton({
     setTimerProgress(0);
     setCurrentJobId(jobId);
 
-    // Update timer every 100ms for smooth progress
+    // Update timer every 100ms for smooth progress. Estimate is captured
+    // per-job from pageCount, so a 5-page and a 90-page job no longer share
+    // the same flat-2-minute fiction.
+    const estimateMs = estimateDurationMs(pageCount);
     timerIntervalRef.current = setInterval(() => {
       if (startTimeRef.current) {
         const elapsed = Date.now() - startTimeRef.current;
         setElapsedTime(elapsed);
         // Timer progress caps at 95% - actual completion comes from job status
-        setTimerProgress(Math.min(95, (elapsed / ESTIMATED_DURATION_MS) * 100));
+        setTimerProgress(Math.min(95, (elapsed / estimateMs) * 100));
       }
     }, 100);
 
@@ -269,7 +295,7 @@ export default function GenerateButton({
     // Initial polls
     pollJobStatus(jobId);
     pollQueuePosition(jobId);
-  }, [pollJobStatus, pollQueuePosition]);
+  }, [pollJobStatus, pollQueuePosition, pageCount]);
 
   const handleGenerate = async () => {
     setLoading(true);
