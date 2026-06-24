@@ -35,6 +35,9 @@ vi.mock('../tools/voice-search.js', () => ({
 vi.mock('../prompts/voice-assignment-prompt.js', () => ({
   VOICE_ASSIGNMENT_SYSTEM_PROMPT: 'Assign voices.',
   buildVoiceAssignmentUserMessage: vi.fn(() => 'user message'),
+  buildVoiceAssignmentFromSampleUserMessage: vi.fn(
+    (manifest: unknown, sample: string) => `sample user message with ${sample.length} chars`,
+  ),
 }));
 
 vi.mock('../../lib/json-repair.js', async (importOriginal) => {
@@ -280,5 +283,97 @@ describe('VoiceAssignmentAgent model selection', () => {
     // Must NOT be the previous Sonnet/gpt-4.1 default, must be a Haiku-family model.
     expect(callArgs.model).toMatch(/haiku/i);
     expect(callArgs.model).not.toMatch(/sonnet|gpt-4/i);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Phase B: sample-driven voice assignment
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('VoiceAssignmentAgent — assignFromSample (Phase B)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns validated VoiceMap when given a stitched sample', async () => {
+    const voiceMapJson = JSON.stringify(makeValidVoiceMap());
+    vi.mocked(runAgentLoop).mockResolvedValue(voiceMapJson);
+    vi.mocked(parseJSONSafely).mockReturnValue({
+      success: true,
+      data: makeValidVoiceMap(),
+    });
+
+    const agent = new VoiceAssignmentAgent();
+    const result = await agent.assignFromSample({
+      manifest: MANIFEST,
+      stitchedSampleText: 'JOHN: Hello.\nNARRATOR: Welcome.',
+    });
+
+    expect(result.project_id).toBe(PROJECT_ID);
+    expect(Object.keys(result.assignments).sort()).toEqual(['JOHN', 'NARRATOR']);
+  });
+
+  it('uses the sample-aware prompt builder, not the manifest-only one', async () => {
+    // Critical: if a future refactor silently routes sample mode through
+    // the manifest-only path, the LLM stops seeing dialogue context and
+    // Phase B's quality advantage evaporates. Test pins the builder.
+    const { buildVoiceAssignmentFromSampleUserMessage, buildVoiceAssignmentUserMessage } =
+      await import('../prompts/voice-assignment-prompt.js');
+
+    vi.mocked(runAgentLoop).mockResolvedValue(JSON.stringify(makeValidVoiceMap()));
+    vi.mocked(parseJSONSafely).mockReturnValue({
+      success: true,
+      data: makeValidVoiceMap(),
+    });
+
+    const agent = new VoiceAssignmentAgent();
+    await agent.assignFromSample({
+      manifest: MANIFEST,
+      stitchedSampleText: 'JOHN: Hello.',
+    });
+
+    expect(buildVoiceAssignmentFromSampleUserMessage).toHaveBeenCalledTimes(1);
+    expect(buildVoiceAssignmentUserMessage).not.toHaveBeenCalled();
+  });
+
+  it('uses the same Haiku-family model as the manifest-only path', async () => {
+    vi.mocked(runAgentLoop).mockResolvedValue(JSON.stringify(makeValidVoiceMap()));
+    vi.mocked(parseJSONSafely).mockReturnValue({
+      success: true,
+      data: makeValidVoiceMap(),
+    });
+
+    const agent = new VoiceAssignmentAgent();
+    await agent.assignFromSample({
+      manifest: MANIFEST,
+      stitchedSampleText: 'JOHN: Hello.',
+    });
+
+    const callArgs = vi.mocked(runAgentLoop).mock.calls[0][1];
+    expect(callArgs.model).toMatch(/haiku/i);
+  });
+
+  it('falls through to parseAndValidate (repair path) on malformed agent output', async () => {
+    vi.mocked(runAgentLoop).mockResolvedValue('not json');
+    vi.mocked(parseJSONSafely).mockReturnValue({ success: false, error: 'parse failed' });
+    vi.mocked(structureTextAsJSON).mockResolvedValue(makeValidVoiceMapLLM());
+
+    const agent = new VoiceAssignmentAgent();
+    const result = await agent.assignFromSample({
+      manifest: MANIFEST,
+      stitchedSampleText: 'JOHN: Hello.',
+    });
+
+    expect(result.project_id).toBe(PROJECT_ID);
+    expect(result.assignments.JOHN).toBeTruthy();
+  });
+
+  it('throws (with a clear sample-mode-tagged message) when the agent loop itself fails', async () => {
+    vi.mocked(runAgentLoop).mockRejectedValue(new Error('LLM down'));
+    const agent = new VoiceAssignmentAgent();
+    await expect(
+      agent.assignFromSample({
+        manifest: MANIFEST,
+        stitchedSampleText: 'JOHN: Hello.',
+      }),
+    ).rejects.toThrow(/VoiceAssignmentAgent \(sample mode\) failed/);
   });
 });

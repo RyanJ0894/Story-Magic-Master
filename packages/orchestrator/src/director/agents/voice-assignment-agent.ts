@@ -16,6 +16,7 @@ import { log } from '../../lib/logger.js';
 import {
   VOICE_ASSIGNMENT_SYSTEM_PROMPT,
   buildVoiceAssignmentUserMessage,
+  buildVoiceAssignmentFromSampleUserMessage,
 } from '../prompts/voice-assignment-prompt.js';
 import { createVoiceTools } from '../tools/voice-search.js';
 import {
@@ -68,6 +69,7 @@ export class VoiceAssignmentAgent {
     log.info('[VoiceAssignment] starting', {
       model: this.model,
       characterCount: manifest.characters.length,
+      mode: 'manifest-only',
     });
 
     // Scoped tools: each invocation gets its own used-voice Set (concurrent-safe)
@@ -114,6 +116,92 @@ export class VoiceAssignmentAgent {
     log.info('[VoiceAssignment] agent loop complete', {
       elapsedSec,
       rawLength: rawText.length,
+    });
+
+    return this.parseAndValidate(rawText, manifest.project_id);
+  }
+
+  /**
+   * Phase B: assign voices from a stitched dialogue sample.
+   *
+   * Same tool-loop machinery as `assign()`, but the user message includes
+   * real dialogue context — the model picks voices based on actual speech
+   * patterns rather than on derived character descriptions.
+   *
+   * Wire-in is gated by the `DIRECTOR_VOICE_FROM_SAMPLE` feature flag in
+   * `director-agent.ts`; this method is callable directly today for tests
+   * and dev experimentation but does not run in the live pipeline unless
+   * the flag is on.
+   *
+   * Cost shape: input is ~6× larger (manifest ~5K tokens → manifest +
+   * stitched sample ~25–35K tokens) so the call is ~$0.05–0.08 cheaper-tier
+   * cost increase per run. Quality unlock is what justifies the trade.
+   */
+  async assignFromSample(input: {
+    manifest: CharacterManifest;
+    stitchedSampleText: string;
+  }): Promise<VoiceMap> {
+    const { manifest, stitchedSampleText } = input;
+    const start = Date.now();
+
+    log.info('[VoiceAssignment] starting', {
+      model: this.model,
+      characterCount: manifest.characters.length,
+      mode: 'sample-driven',
+      sampleChars: stitchedSampleText.length,
+    });
+
+    const {
+      searchVoicesTool,
+      getVoiceByIdTool,
+      listVoiceLabelsTool,
+      commitVoiceTool,
+      resetUsedVoices,
+    } = createVoiceTools();
+    resetUsedVoices();
+
+    const tools = {
+      search_voices: searchVoicesTool,
+      get_voice: getVoiceByIdTool,
+      list_voice_labels: listVoiceLabelsTool,
+      commit_voice: commitVoiceTool,
+    };
+
+    const userMessage = buildVoiceAssignmentFromSampleUserMessage(
+      manifest,
+      stitchedSampleText,
+    );
+
+    const scaledMaxIterations = Math.max(
+      this.maxIterations,
+      manifest.characters.length * 5,
+    );
+
+    let rawText: string;
+    try {
+      rawText = await runAgentLoop(userMessage, {
+        model: this.model,
+        systemPrompt: VOICE_ASSIGNMENT_SYSTEM_PROMPT,
+        tools,
+        maxIterations: scaledMaxIterations,
+        maxTokens: 8192,
+        temperature: 0.3,
+      });
+    } catch (err) {
+      log.error(
+        '[VoiceAssignment] sample-driven agent loop failed',
+        err instanceof Error ? err : undefined,
+      );
+      throw new Error(
+        `VoiceAssignmentAgent (sample mode) failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    const elapsedSec = Math.round((Date.now() - start) / 1000);
+    log.info('[VoiceAssignment] sample-driven agent loop complete', {
+      elapsedSec,
+      rawLength: rawText.length,
+      mode: 'sample-driven',
     });
 
     return this.parseAndValidate(rawText, manifest.project_id);

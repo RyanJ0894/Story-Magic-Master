@@ -171,6 +171,9 @@ export class DirectorAgent {
       });
 
       // ── Pass 2: Assign voices (skipped if cachedVoiceMap provided) ─────────
+      // Phase B: when DIRECTOR_VOICE_FROM_SAMPLE=true, build the stitched
+      // dialogue sample and feed it to VoiceAssignmentAgent.assignFromSample.
+      // Default OFF so this PR is safe to merge ahead of dev validation.
       let voiceMap: import('../../schemas/voice-map.js').VoiceMap;
       if (this.cachedVoiceMap) {
         voiceMap = this.cachedVoiceMap;
@@ -182,10 +185,39 @@ export class DirectorAgent {
           model: this.model,
           maxIterations: this.maxIterations,
         });
-        voiceMap = await voiceAssigner.assign({ manifest });
+        const useSampleVoice = process.env.DIRECTOR_VOICE_FROM_SAMPLE === 'true';
+        if (useSampleVoice) {
+          try {
+            const { buildCharacterIndex } = await import('../sampling/character-index.js');
+            const { stitchIntroSample } = await import('../sampling/intro-stitcher.js');
+            const charIndex = buildCharacterIndex(input.script_text);
+            const sample = stitchIntroSample(input.script_text, charIndex);
+            log.info('[DirectorAgent] Phase B: using sample-driven voice assignment', {
+              sampleChars: sample.stitchedChars,
+              originalChars: sample.originalChars,
+              charactersCovered: sample.charactersCovered.length,
+              charactersMissing: sample.charactersMissing.length,
+              indexConfidence: charIndex.confidence.toFixed(2),
+            });
+            voiceMap = await voiceAssigner.assignFromSample({
+              manifest,
+              stitchedSampleText: sample.text,
+            });
+          } catch (sampleErr) {
+            // Defense: any failure in the sample path falls back to the
+            // manifest-only path. We never let Phase B regress availability.
+            log.warn('[DirectorAgent] Phase B sample path failed, falling back to manifest-only', {
+              error: sampleErr instanceof Error ? sampleErr.message : String(sampleErr),
+            });
+            voiceMap = await voiceAssigner.assign({ manifest });
+          }
+        } else {
+          voiceMap = await voiceAssigner.assign({ manifest });
+        }
         this.lastVoiceMap = voiceMap;
         log.info('[DirectorAgent] Pass 2 complete', {
           assignmentCount: Object.keys(voiceMap.assignments).length,
+          mode: useSampleVoice ? 'sample-driven' : 'manifest-only',
         });
       }
 

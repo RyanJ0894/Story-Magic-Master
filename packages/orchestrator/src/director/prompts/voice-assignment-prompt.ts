@@ -104,3 +104,41 @@ ${JSON.stringify(manifest, null, 2)}
 
 Process every character listed above, then output the VoiceMap JSON.`;
 }
+
+/**
+ * Build the user message for sample-driven voice assignment (Phase B).
+ *
+ * Unlike the manifest-only path, this feeds the LLM actual screenplay
+ * dialogue context — every character's first ~2 pages of speech, stitched
+ * with dedup so two characters introduced on the same page share one slice.
+ *
+ * The model can now make voice picks based on real speech patterns
+ * (verbosity, formality, rhythm, emotional register) instead of derived
+ * abstract descriptions like "GRUFF SAILOR, 60s, weather-beaten" — which
+ * is the quality unlock the architecture proposal called out.
+ */
+export function buildVoiceAssignmentFromSampleUserMessage(
+  manifest: CharacterManifest,
+  stitchedSampleText: string,
+): string {
+  return `Assign a unique voice to every character in the following manifest.
+Follow the process in the system prompt: search, verify, assign, repeat.
+
+You are given two artifacts:
+
+1. **CHARACTER MANIFEST** — the canonical list of characters to cast.
+2. **SCREENPLAY INTRODUCTIONS** — deduplicated excerpts from the screenplay
+   covering each character's first ~2 pages of dialogue context. Use these
+   to inform voice choice: pay attention to verbosity, formality, rhythm,
+   emotional register, and any explicit tonal cues in the action lines.
+
+CHARACTER MANIFEST:
+${JSON.stringify(manifest, null, 2)}
+
+SCREENPLAY INTRODUCTIONS:
+${stitchedSampleText}
+
+Process every character in the manifest. Base each voice pick primarily on
+the introductions above; fall back to manifest description only when a
+character has very little dialogue in the introductions. Output the VoiceMap JSON.`;
+}
