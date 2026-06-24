@@ -747,7 +747,8 @@ describe('mixScene', () => {
       // Provide mock RMS data so the envelope is not empty.
       execaMock.mockImplementation((_bin: string, args: string[]) => {
         if (args && args.includes('format=duration')) {
-          return Promise.resolve({ stdout: '10.0', stderr: '' });
+          return Promise.resolve({ stdout: '45.0', stderr: '' });
+          // PR β: 45 s (was 10 s) — passes the 30 s short-scene gate so advanced ducking actually runs.
         }
         // RMS analysis call uses astats filter
         if (
@@ -804,7 +805,8 @@ describe('mixScene', () => {
 
       execaMock.mockImplementation((_bin: string, args: string[]) => {
         if (args && args.includes('format=duration')) {
-          return Promise.resolve({ stdout: '10.0', stderr: '' });
+          return Promise.resolve({ stdout: '45.0', stderr: '' });
+          // PR β: 45 s (was 10 s) — passes the 30 s short-scene gate so advanced ducking actually runs.
         }
         // RMS analysis throws error - caught internally by analyzeRMSEnvelope
         if (
@@ -846,6 +848,78 @@ describe('mixScene', () => {
       // analyzeRMSEnvelope returns a fallback 1-point envelope on error,
       // which is still valid for the adaptive ducking path
       expect(manifest.filters).toContain('music_adaptive_ducking');
+    });
+
+    // PR β (2026-06-23): skip the astats analysis pass entirely on scenes
+    // shorter than 30 s. The full filter-graph pass at 50 ms hop costs
+    // ~5–15 s per call (or more on the longer timeouts in #394) and the
+    // perceptual difference vs. sidechain on a < 30 s clip is nil. If
+    // the guard ever regresses, short-scene wallclock immediately balloons.
+    it('does NOT run astats on scenes shorter than 30 s, even when use_advanced_ducking=true', async () => {
+      const { mixScene } = await import('./mixer.js');
+
+      // ffprobe returns 10 s → triggers the short-scene early-exit.
+      execaMock.mockImplementation((_bin: string, args: string[]) => {
+        if (args && args.includes('format=duration')) {
+          return Promise.resolve({ stdout: '10.0', stderr: '' });
+        }
+        if (args && args.includes('-f') && args.includes('null')) {
+          return Promise.resolve({
+            stdout: '',
+            stderr: '{"input_i":"-18","input_tp":"-3","input_lra":"7","input_thresh":"-28","target_offset":"0.5","output_i":"-16","output_tp":"-1.4","output_lra":"7"}',
+          });
+        }
+        return Promise.resolve({ stdout: '', stderr: '' });
+      });
+
+      await mixScene(baseMixOptions({
+        inputs: { dialogue: '/audio/dialogue.wav', music: '/audio/music.mp3' },
+        mixParams: { use_advanced_ducking: true },
+      }));
+
+      // No execa call should have the astats filter. Sidechain fallback
+      // (set in the mix filter_complex) covers ducking on short scenes.
+      const astatsCall = execaMock.mock.calls.find((call: unknown[]) => {
+        const args = call[1] as string[] | undefined;
+        return Array.isArray(args) && args.some(
+          (a) => typeof a === 'string' && a.includes('astats'),
+        );
+      });
+      expect(astatsCall).toBeUndefined();
+    });
+
+    it('DOES run astats on scenes at/above 30 s when use_advanced_ducking=true', async () => {
+      const { mixScene } = await import('./mixer.js');
+
+      // ffprobe returns 45 s → over the threshold → astats SHOULD run.
+      execaMock.mockImplementation((_bin: string, args: string[]) => {
+        if (args && args.includes('format=duration')) {
+          return Promise.resolve({ stdout: '45.0', stderr: '' });
+        }
+        if (args && args.some((a: string) => typeof a === 'string' && a.includes('astats'))) {
+          return Promise.resolve({ stdout: '', stderr: 'lavfi.astats.Overall.RMS_level=-30' });
+        }
+        if (args && args.includes('-f') && args.includes('null')) {
+          return Promise.resolve({
+            stdout: '',
+            stderr: '{"input_i":"-18","input_tp":"-3","input_lra":"7","input_thresh":"-28","target_offset":"0.5","output_i":"-16","output_tp":"-1.4","output_lra":"7"}',
+          });
+        }
+        return Promise.resolve({ stdout: '', stderr: '' });
+      });
+
+      await mixScene(baseMixOptions({
+        inputs: { dialogue: '/audio/dialogue.wav', music: '/audio/music.mp3' },
+        mixParams: { use_advanced_ducking: true },
+      }));
+
+      const astatsCall = execaMock.mock.calls.find((call: unknown[]) => {
+        const args = call[1] as string[] | undefined;
+        return Array.isArray(args) && args.some(
+          (a) => typeof a === 'string' && a.includes('astats'),
+        );
+      });
+      expect(astatsCall).toBeDefined();
     });
 
     it('should fall back to sidechain when duck curve is too complex', async () => {
@@ -902,7 +976,8 @@ describe('mixScene', () => {
 
       execaMock.mockImplementation((_bin: string, args: string[]) => {
         if (args && args.includes('format=duration')) {
-          return Promise.resolve({ stdout: '10.0', stderr: '' });
+          return Promise.resolve({ stdout: '45.0', stderr: '' });
+          // PR β: 45 s (was 10 s) — passes the 30 s short-scene gate so advanced ducking actually runs.
         }
         if (
           args &&
