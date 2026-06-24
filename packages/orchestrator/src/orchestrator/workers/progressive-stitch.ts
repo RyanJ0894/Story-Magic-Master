@@ -113,7 +113,9 @@ async function processScene(
   // 6. Mix scene
   log.debug('Mixing scene audio', { sceneId: scene_id });
   // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
-  const sceneOutput = path.join(projectDir, `scene-${safeSceneId}.m4a`);
+  // PR α (2026-06-23): see pipeline.ts — per-scene file is now PCM WAV.
+  // AAC is generated exactly once in finalConcatenation.
+  const sceneOutput = path.join(projectDir, `scene-${safeSceneId}.wav`);
   // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
   const tempWav = path.join(scenesDir, `temp-${safeSceneId}.wav`);
   const mixParams = getDefaultMixParams(scene.mix as Record<string, unknown>);

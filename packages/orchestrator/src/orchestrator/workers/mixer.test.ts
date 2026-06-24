@@ -1197,7 +1197,14 @@ describe('mixScene', () => {
       expect(manifest.scene_id).toBe('scene_042');
     });
 
-    it('should record LUFS measurement in manifest after full mix', async () => {
+    // PR α (2026-06-23): the per-scene post-loudnorm verification pass was
+    // dropped. The manifest now records the TARGET values (what loudnorm
+    // was asked to hit) rather than re-measured output values. Saves a
+    // full ffmpeg decode pass per scene (~5–10s) without losing data —
+    // loudnorm either hit the targets or the previous pass would have
+    // failed. If we ever need true post-mix audit values, run it
+    // out-of-band on the final episode rather than every scene.
+    it('records the target loudness values on the manifest (no re-measurement)', async () => {
       const { mixScene } = await import('./mixer.js');
       const options = baseMixOptions({
         inputs: {
@@ -1206,7 +1213,9 @@ describe('mixScene', () => {
         },
       });
 
-      // Ensure the final measurement call returns parseable data
+      // Mock loudnorm measurement pass + main mix. The KEY assertion below
+      // ignores any `output_i` / `output_tp` the mock returns — proves we
+      // no longer parse the post-mix verification stream.
       execaMock.mockImplementation((_bin: string, args: string[]) => {
         if (args && args.includes('format=duration')) {
           return Promise.resolve({ stdout: '10.0', stderr: '' });
@@ -1214,7 +1223,7 @@ describe('mixScene', () => {
         if (args && args.includes('-f') && args.includes('null')) {
           return Promise.resolve({
             stdout: '',
-            stderr: '{ "input_i": "-18.5", "input_tp": "-3.2", "input_lra": "7.1", "input_thresh": "-28.5", "target_offset": "0.5", "output_i": "-16.0", "output_tp": "-1.4", "output_lra": "7.0" }',
+            stderr: '{ "input_i": "-18.5", "input_tp": "-3.2", "input_lra": "7.1", "input_thresh": "-28.5", "target_offset": "0.5", "output_i": "-999.0", "output_tp": "-999.0", "output_lra": "-999.0" }',
           });
         }
         return Promise.resolve({ stdout: '', stderr: '' });
@@ -1222,9 +1231,59 @@ describe('mixScene', () => {
 
       const manifest = await mixScene(options);
 
-      expect(manifest.lufs_i).toBe(-16.0);
-      expect(manifest.true_peak_db).toBe(-1.4);
-      expect(manifest.lra).toBe(7.0);
+      // Target defaults are I=-16, TP=-1.5, LRA=8 in mixScene. Even though
+      // the mock returns `-999` for the output_* fields, we ignore them
+      // because the verification pass no longer runs.
+      expect(manifest.lufs_i).toBe(-16);
+      expect(manifest.true_peak_db).toBe(-1.5);
+      expect(manifest.lra).toBe(8);
+    });
+
+    // PR α codec-selection regression guard: scene files are .wav now, so
+    // loudnormTwoPass must encode with pcm_s16le. The final episode file
+    // (.m4a) stays AAC. If anyone hardcodes a codec back in any of the
+    // three loudnorm execa calls, this lights up before the prod regression
+    // (double-encode + lossy hop reintroduced + final concat slower).
+    it('codecArgsForOutPath picks PCM for .wav and AAC for .m4a', async () => {
+      const { codecArgsForOutPath } = await import('./mixer.js');
+      expect(codecArgsForOutPath('/tmp/scene-001.wav')).toEqual(['-c:a', 'pcm_s16le']);
+      expect(codecArgsForOutPath('/tmp/scene-001.WAV')).toEqual(['-c:a', 'pcm_s16le']);
+      expect(codecArgsForOutPath('/tmp/episode.m4a')).toEqual(['-c:a', 'aac', '-b:a', '256k']);
+      // Default fallback — anything we don't recognize stays AAC for
+      // backward compatibility with callers passing explicit AAC targets.
+      expect(codecArgsForOutPath('/tmp/preview.unknown')).toEqual(['-c:a', 'aac', '-b:a', '256k']);
+    });
+
+    // PR α regression guard for the call-count contract: no execa call
+    // should be made post-loudnormTwoPass that re-runs the loudnorm filter
+    // in measurement mode on the OUTPUT file. The signature of the dropped
+    // call was: `-i <outFinal> -af loudnorm=...:print_format=json -f null -`.
+    // If this test goes red, the per-scene verification pass crept back in.
+    it('does NOT run a post-loudnorm verification pass on the output file', async () => {
+      const { mixScene } = await import('./mixer.js');
+      const options = baseMixOptions({
+        inputs: { dialogue: '/audio/dialogue.wav', music: '/audio/music.mp3' },
+      });
+
+      // Default mock from beforeEach returns loudnorm JSON for any `-f null` call.
+      await mixScene(options);
+
+      // The verification pass was identifiable by:
+      //   - reading the OUTPUT file (inputPath ends with outFinal name),
+      //   - WITH `print_format=json` in the -af arg.
+      // The (still-correct) measurement pass inside loudnormTwoPass reads
+      // the OUTWAV file instead. So no execa call should hit outFinal +
+      // print_format=json simultaneously.
+      const verificationLikeCall = execaMock.mock.calls.find((call: unknown[]) => {
+        const args = call[1] as string[] | undefined;
+        if (!Array.isArray(args)) return false;
+        const iIdx = args.indexOf('-i');
+        const inputArg = iIdx >= 0 ? args[iIdx + 1] : '';
+        const afIdx = args.indexOf('-af');
+        const afArg = afIdx >= 0 ? args[afIdx + 1] : '';
+        return inputArg === options.outFinal && afArg.includes('print_format=json');
+      });
+      expect(verificationLikeCall).toBeUndefined();
     });
   });
 

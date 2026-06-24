@@ -251,7 +251,12 @@ export async function orchestrate(
 
     log.generation(director.project_id, 'mix-start', { sceneId: scene.scene_id });
     // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
-    const sceneOutput = path.join(projectDir, `scene-${safeSceneId}.m4a`);
+    // PR α (2026-06-23): per-scene file is now PCM WAV. Eliminates the
+    // double-encode/decode hop where scenes were encoded to AAC here and
+    // then immediately decoded back at final concat. AAC is generated
+    // exactly once, in finalConcatenation. acrossfade is codec-agnostic
+    // on input so finalConcatenation handles WAV inputs natively.
+    const sceneOutput = path.join(projectDir, `scene-${safeSceneId}.wav`);
 
     // Prepare dialogue by concatenating stems
     // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
