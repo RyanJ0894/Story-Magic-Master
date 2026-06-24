@@ -1323,6 +1323,34 @@ model SceneRender {
   @@map("scene_renders")
 }
 
+/// Cross-project per-scene cache of DirectorAgent parse output (migration 0043).
+///
+/// Director is the ~330 s tentpole on a cold 10-page generation. Same script
+/// uploaded to a new project re-runs the full parse from scratch. This cache
+/// keys on `contentHash = sha256(sceneText + '|' + model)` so identical
+/// scene text + model produces the same lookup.
+///
+/// Lookup is ALL-OR-NOTHING per script: the orchestrator hashes every scene
+/// block and only skips DirectorAgent if every hash hits. Partial misses still
+/// run the full director (no quality risk from splicing context-aware output),
+/// but persist results here so the next run gets a full hit.
+///
+/// TTL: rows older than 30 days on `lastHitAt` are pruned by a separate cron
+/// job. Including model in the hash means a director-model upgrade naturally
+/// orphans old entries without any keying change.
+model DirectorSceneCache {
+  contentHash String   @id @map("content_hash")
+  model       String
+  sceneJson   Json     @map("scene_json")
+  charCount   Int      @map("char_count")
+  hitCount    Int      @default(0) @map("hit_count")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  lastHitAt   DateTime @default(now()) @map("last_hit_at") @db.Timestamptz
+
+  @@index([lastHitAt], map: "director_scene_cache_last_hit_at_idx")
+  @@map("director_scene_cache")
+}
+
 model VoiceMap {
   projectId  String @map("project_id") @db.Uuid
   character  String
