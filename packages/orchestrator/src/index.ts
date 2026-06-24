@@ -13,6 +13,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
+// Bump undici's global headers/body timeouts BEFORE any AI SDK provider
+// captures its fetch reference. Default 300_000 ms kills Sonnet director
+// calls on 100+ page scripts that take >5 min to start streaming —
+// surfaced as "Cannot connect to API: Headers Timeout Error". Must run
+// before lib/llm-client.ts (loaded transitively below) is imported.
+import './lib/undici-dispatcher.js';
+
 // Validate environment variables
 import { validateEnv, printEnvSummary, getOutputDir } from './lib/env.js';
 validateEnv();
