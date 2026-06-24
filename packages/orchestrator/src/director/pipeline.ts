@@ -14,6 +14,7 @@ import { prisma } from '../lib/prisma.js';
 import { VoiceMapSchema, type VoiceMap } from '../schemas/voice-map.js';
 import { buildDirectorNotesBlock, type DirectorNotes } from './utils/sanitize-director-notes.js';
 import { extractScriptContext, formatScriptContext } from './utils/script-context.js';
+import { lookupCachedDirectorJson, persistDirectorJson } from './director-scene-cache.js';
 import type {
   DirectorJSON,
   SceneAudioJSON,
@@ -132,12 +133,40 @@ export async function processScript(
     }
   }
 
-  // Phase 1: Run DirectorAgent
-  // Agent now returns validated DirectorJSON (Zod-validated at boundary)
+  // Phase 1: Run DirectorAgent (or assemble from cross-project scene cache)
+  //
+  // The scene cache short-circuits Phase 1 entirely when every scene's
+  // content hash already exists from a prior parse — typically the same
+  // script being uploaded to a fresh project, or a known demo script.
+  // Same-project re-runs hit the existing `project.directorJson` cache
+  // upstream in processor.ts; this cache is for the cross-project case.
+  //
+  // Lookup is all-or-nothing: a partial miss falls through to a normal
+  // DirectorAgent run (no quality risk from splicing context-aware output),
+  // and the run's output gets persisted so the next attempt hits fully.
   log.info('Pipeline Phase 1: Running DirectorAgent');
-  let directorJson = await directorAgent.process({ ...input, script_text: effectiveScriptText });
+  const cacheModelKey = options.directorModel ?? 'default';
+  let directorJson: DirectorJSON;
+  const cached = await lookupCachedDirectorJson(
+    input.project_id,
+    effectiveScriptText,
+    cacheModelKey,
+  );
+  if (cached) {
+    // Validator + auto-correct in Phase 2 still runs against cached data,
+    // so any malformed entry is caught and repaired through the existing
+    // safety net rather than poisoning the downstream pipeline.
+    directorJson = { ...cached, project_id: input.project_id };
+  } else {
+    directorJson = await directorAgent.process({ ...input, script_text: effectiveScriptText });
+    // Fire-and-forget — persist failures are non-fatal and never block.
+    void persistDirectorJson(effectiveScriptText, cacheModelKey, directorJson);
+  }
 
-  // Persist the VoiceMap produced (or used) so subsequent runs skip Pass 2
+  // Persist the VoiceMap produced (or used) so subsequent runs skip Pass 2.
+  // On a cache hit `directorAgent.lastVoiceMap` is undefined; we leave the
+  // project's existing cachedVoiceMap untouched (no overwrite from a
+  // cross-project parse).
   const voiceMapToSave = directorAgent.lastVoiceMap ?? cachedVoiceMap;
   if (voiceMapToSave) {
     await saveVoiceMap(input.project_id, voiceMapToSave);
