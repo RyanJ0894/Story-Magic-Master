@@ -725,9 +725,30 @@ export async function mixScene(options: MixOptions): Promise<MixManifest> {
     manifest.filters.push('ambience_looped');
   }
 
+  // PR β (2026-06-23): short-scene early-exit for advanced ducking.
+  //
+  // analyzeRMSEnvelope runs a full astats pass at 50 ms hop over the
+  // concatenated dialogue. For multi-minute scenes that's worth it
+  // (the duck curve genuinely improves the mix). For scenes < 30 s,
+  // the sidechain compression fallback that's already in the catch
+  // path produces a near-indistinguishable result at zero cost — the
+  // dialogue is too short to expose the difference and the astats
+  // pass alone burns ~5–15 s per call (or more under the longer
+  // timeouts in #394 / Peter's rewrite). Skip the entire branch.
+  const SHORT_SCENE_DUCKING_THRESHOLD_SEC = 30;
+  const skipDuckingDueToShortScene =
+    use_advanced_ducking && sceneDuration < SHORT_SCENE_DUCKING_THRESHOLD_SEC;
+  if (skipDuckingDueToShortScene) {
+    log.info('Skipping advanced ducking on short scene; sidechain will handle it', {
+      sceneId: scene_id,
+      sceneDurationSec: parseFloat(sceneDuration.toFixed(2)),
+      thresholdSec: SHORT_SCENE_DUCKING_THRESHOLD_SEC,
+    });
+  }
+
   // Analyze dialogue for advanced ducking
   let duckCurve: DuckCurvePoint[] | null = null;
-  if (use_advanced_ducking) {
+  if (use_advanced_ducking && !skipDuckingDueToShortScene) {
     log.info('Analyzing dialogue for advanced ducking', { resolutionMs: 50 });
     try {
       // Allow at least 60s; scale up by 1s per 5s of audio (20× real-time floor) for long scenes on constrained CPUs.
