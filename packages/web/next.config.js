@@ -38,6 +38,17 @@ const nextConfig = {
     // Standard before considering a plan upgrade.
     // https://nextjs.org/docs/app/guides/memory-usage
     webpackMemoryOptimizations: true,
+    // 2026-06-25 (PR #420): run webpack compilation in a separate Node.js
+    // worker so peak memory is bounded by the worker's heap, not the main
+    // process's. Next 14.1+ enables this automatically when there's NO
+    // custom webpack config; we have one (config.ignoreWarnings + dev
+    // watchOptions) so we have to opt in explicitly. The custom config is
+    // minimal — small ignoreWarnings array + dev-only watchOptions — and
+    // doesn't depend on any inter-pass shared state, so worker isolation
+    // should be safe. If Sentry's webpack plugin clashes the build will
+    // fail with a clear error and we can flip this back to false.
+    // Community reports ~15-30% peak memory reduction.
+    webpackBuildWorker: true,
     // Also disable server-side source maps. Sentry already disables CLIENT
     // source map upload via hideSourceMaps + disableSourceMapUpload (see
     // sentryConfig below), but the SSR pass can still emit them by default.
