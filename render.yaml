@@ -24,7 +24,14 @@ services:
     name: story-magic-web
     runtime: node
     region: oregon
-    plan: standard
+    # 2026-06-25: upgraded standard (2GB) → pro (4GB). Five config-only
+    # OOM mitigations exhausted (#416 NODE_OPTIONS, #418 ts skip, #419
+    # webpackMemoryOptimizations + source-map skip, #420 webpackBuildWorker)
+    # before reaching the plan. Build dies at ~1.85 GB on Standard's
+    # 2 GB physical RAM ceiling regardless of V8 heap setting. +$60/mo
+    # recurring; only this web service upgraded — orchestrator + worker
+    # stay on standard (they don't run `next build`).
+    plan: pro
     branch: main
     autoDeploy: true
     numInstances: 1
