@@ -334,6 +334,12 @@ export async function strictRateLimitMiddleware(
 ): Promise<void> {
   if (process.env.RATE_LIMIT_DISABLED === 'true') return next();
 
+  // Internal service-to-service calls (web → orchestrator via service key) are
+  // exempt. The rate limit guards against end-user abuse; the web worker already
+  // serializes chunks. Without this, all users share one bucket on Render's
+  // single egress IP and starve each other.
+  if (req.user?.role === 'service') return next();
+
   const identifier = req.user?.id || req.ip || 'anonymous';
   const decision = await evaluateLimit(identifier, 'strict');
   applyHeaders(res, 'strict', decision);

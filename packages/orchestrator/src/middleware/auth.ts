@@ -163,6 +163,7 @@ export function serviceAuthMiddleware(
 
   if (serviceKey === expectedKey) {
     log.info('Service auth verified');
+    req.user = { id: 'service:web', role: 'service' };
     return next();
   }
 
