@@ -77,6 +77,30 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+/**
+ * Parse a `Retry-After` header into milliseconds. RFC 7231 allows two forms:
+ *   - delta-seconds:   `Retry-After: 60`
+ *   - HTTP-date:       `Retry-After: Wed, 21 Oct 2026 07:28:00 GMT`
+ * We don't expect the date form from our orchestrator (it returns seconds via
+ * express-rate-limit), but we handle both so a misbehaving upstream can't
+ * silently fall through to the default backoff. Returns null when missing or
+ * unparseable.
+ */
+function parseRetryAfterMs(value: string | null): number | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  // Numeric (seconds) form.
+  if (/^\d+$/.test(trimmed)) {
+    return parseInt(trimmed, 10) * 1000;
+  }
+  // HTTP-date form.
+  const ts = Date.parse(trimmed);
+  if (!Number.isNaN(ts)) {
+    return Math.max(0, ts - Date.now());
+  }
+  return null;
+}
+
 function isRetryableError(error: unknown): boolean {
   if (error instanceof TypeError) {
     // Network errors (DNS, connection refused, etc.)
@@ -109,10 +133,20 @@ export async function orchestratorFetch(
     method = 'GET',
     body,
     timeoutMs = 30_000,
-    retries = 2,
+    // 2026-06-25: 2 retries with 1s/2s backoff couldn't outlast a 60-second
+    // Retry-After from the orchestrator's strict rate limit (job 3a9db72b
+    // chunks 6+7 both 429'd). Bumped to 4 retries; the Retry-After parser
+    // below also short-circuits exponential backoff when the server has
+    // already named a wait time.
+    retries = 4,
     retryBaseDelayMs = 1_000,
     headers = {},
   } = options;
+
+  // Cap on how long we'll honor a single Retry-After header. Beyond this
+  // it's faster to surface the failure to the caller than to block. Matches
+  // the typical orchestrator strict-limit window (60s) with headroom.
+  const RETRY_AFTER_CAP_MS = 90_000;
 
   const baseUrl = getOrchestratorUrl();
   const url = `${baseUrl}${path}`;
@@ -165,20 +199,20 @@ export async function orchestratorFetch(
       lastError = new Error(`Orchestrator returned HTTP ${response.status}`);
 
       if (attempt < maxAttempts) {
-        let delay = retryBaseDelayMs * Math.pow(2, attempt - 1);
-        if (response.status === 429) {
-          const retryAfterHeader = response.headers.get('Retry-After');
-          if (retryAfterHeader) {
-            const retryAfterSec = parseInt(retryAfterHeader, 10);
-            if (!isNaN(retryAfterSec) && retryAfterSec > 0) {
-              delay = Math.min(retryAfterSec * 1000, 120_000);
-            }
-          }
-        }
+        // Honor the server's Retry-After header when present (orchestrator's
+        // rate-limit middleware sets it). Falls back to exponential backoff
+        // otherwise. The cap keeps a misconfigured upstream from parking
+        // a request for hours.
+        const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
+        const expoDelay = retryBaseDelayMs * Math.pow(2, attempt - 1);
+        const delay = retryAfterMs !== null
+          ? Math.min(Math.max(retryAfterMs, expoDelay), RETRY_AFTER_CAP_MS)
+          : expoDelay;
         log.warn(`[orchestratorFetch] Retryable HTTP ${response.status} from ${path}, retrying in ${delay}ms`, {
           attempt,
           maxAttempts,
           status: response.status,
+          retryAfterFromServer: retryAfterMs,
         });
         await sleep(delay);
         continue;

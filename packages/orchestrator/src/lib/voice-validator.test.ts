@@ -51,12 +51,28 @@ describe('probeVoice', () => {
     expect(r).toEqual({ voiceId: 'v1', ok: true, status: 200 });
   });
 
-  it('classifies 500 as server_degraded', async () => {
+  it('classifies persistent 500 as server_degraded after retries exhausted', async () => {
+    // probeVoice retries 5xx twice before classifying. Force a persistent 500
+    // across all attempts.
     mockFetch.mockResolvedValue(fakeResponse(500, 'internal_server_error'));
     const r = await probeVoice('v1', 'k');
     expect(r.ok).toBe(false);
     expect(r.status).toBe(500);
     expect(r.reason).toBe('server_degraded');
+    // Three attempts total: the initial probe + 2 retries.
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('recovers from a transient 5xx via retry — first attempt 500, second 200', async () => {
+    // Regression test for the 2026-06-25 bug. Ryan's job had a single
+    // transient ElevenLabs 500 on a one-shot probe; we now retry first.
+    mockFetch
+      .mockResolvedValueOnce(fakeResponse(503, 'transient'))
+      .mockResolvedValueOnce(fakeResponse(200));
+    const r = await probeVoice('v1', 'k');
+    expect(r.ok).toBe(true);
+    expect(r.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it('classifies 403 as revoked', async () => {
@@ -110,7 +126,12 @@ describe('probeVoices', () => {
 });
 
 describe('preFlightVoices — auto-deactivation rules', () => {
-  it('auto-deactivates server_degraded (500) voices', async () => {
+  it('does NOT auto-deactivate persistent server_degraded (5xx) voices', async () => {
+    // 2026-06-25: server_degraded was previously in the deactivate list.
+    // One transient ElevenLabs 500 in Ryan's job 3a9db72b permanently nuked
+    // a paid clone voice. The fix retries inside probeVoice AND removes
+    // server_degraded from the deactivate list — so even when a persistent
+    // 5xx flows through, the catalog entry is left intact for the next run.
     mockFetch.mockImplementation(async (url: string) => {
       if (url.includes('bad-server')) return fakeResponse(500, 'internal_server_error');
       return fakeResponse(200);
@@ -120,11 +141,8 @@ describe('preFlightVoices — auto-deactivation rules', () => {
     expect(r.valid).toEqual(['good']);
     expect(r.broken.length).toBe(1);
     expect(r.broken[0].reason).toBe('server_degraded');
-    expect(r.deactivated).toBe(1);
-    expect(mockPrismaUpdate).toHaveBeenCalledWith({
-      where: { voiceId: 'bad-server' },
-      data: { isActive: false },
-    });
+    expect(r.deactivated).toBe(0);
+    expect(mockPrismaUpdate).not.toHaveBeenCalled();
   });
 
   it('auto-deactivates revoked (403) voices', async () => {
@@ -199,15 +217,23 @@ describe('preFlightVoices — auto-deactivation rules', () => {
       expect(mockPrismaUpdate).not.toHaveBeenCalled();
     });
 
-    it('STILL deactivates when only 1-of-3 fail with 500 (per-voice degradation)', async () => {
+    it('does NOT deactivate even when only 1-of-3 fails with 500 (2026-06-25 policy)', async () => {
+      // Was Peter's incident-guard test — used to expect deactivation when
+      // failure rate was 33%, under the 50% platform-incident threshold.
+      // After the 2026-06-25 server_degraded fix, 5xx is NEVER auto-
+      // deactivated regardless of failure rate. The broken result still
+      // surfaces (caller can choose to substitute), but the catalog entry
+      // stays intact.
       mockFetch.mockImplementation(async (url: string) => {
         if (url.includes('bad')) return fakeResponse(500, 'internal_server_error');
         return fakeResponse(200);
       });
       const r = await preFlightVoices(['good1', 'good2', 'bad']);
       expect(r.broken.length).toBe(1);
-      expect(r.deactivated).toBe(1);
+      expect(r.broken[0].reason).toBe('server_degraded');
+      expect(r.deactivated).toBe(0);
       expect(r.abortedDeactivation).toBeFalsy();
+      expect(mockPrismaUpdate).not.toHaveBeenCalled();
     });
 
     it('still deactivates 403 / 404 voices even during a 5xx-storm', async () => {
