@@ -7,7 +7,7 @@ import { prisma } from '../lib/prisma.js';
 import { checkAIProviders } from '../lib/ai-health.js';
 import { selectDirectorModel } from '../lib/select-director-model.js';
 import { setProjectScope } from '../lib/sentry.js';
-import { preFlightVoices, extractVoiceIds } from '../lib/voice-validator.js';
+import { preFlightVoices, extractVoiceIds, pickVoiceSubstitutes, applyVoiceSubstitutions } from '../lib/voice-validator.js';
 import { generateRequestId, runWithRequestContext } from '../lib/request-context.js';
 
 const router = Router();
@@ -193,31 +193,34 @@ async function handleOrchestrate(req: Request, res: Response): Promise<void> {
           status: b.status,
           reason: b.reason,
         }));
-        log.warn('Voice pre-flight found broken voices', {
+        log.warn('Voice pre-flight found broken voices — attempting substitution', {
           projectId: project_id,
           broken: brokenSummary,
           deactivated: outcome.deactivated,
         });
-        // Only hard-fail for permanently gone voices (revoked/not_found). A
-        // server_degraded (ElevenLabs 500) is transient — the per-TTS retry
-        // logic handles it. Failing the whole chunk on a brief upstream 500
-        // was masking the real rate-limit issue and cascading into job failure.
-        const hardBroken = outcome.broken.filter(
-          (b) => b.reason === 'revoked' || b.reason === 'not_found',
-        );
-        if (hardBroken.length > 0) {
+        const brokenIds = outcome.broken.map((b) => b.voiceId);
+        const substitutionMap = await pickVoiceSubstitutes(brokenIds);
+        const unsubstituted = brokenIds.filter((id) => !substitutionMap.has(id));
+        if (unsubstituted.length > 0) {
+          // Couldn't find catalog replacements — hard-fail with a clear message.
           res.status(422).json({
             status: 'error',
             project_id,
             message:
-              'Pre-flight voice check failed: one or more assigned voices are unavailable from ElevenLabs. ' +
-              'These voices have been deactivated in the catalog. Re-running the director step will pick replacements.',
+              'Pre-flight voice check failed: one or more assigned voices are unavailable and no ' +
+              'catalog substitute could be found. Re-running the director step will pick replacements.',
             warnings: brokenSummary.map(
               (b) => `voice ${b.voiceId} returned ${b.status} (${b.reason})`,
             ),
           } as OrchestrateResponse);
           return;
         }
+        const patchedLines = applyVoiceSubstitutions(directorJSON.scenes, substitutionMap);
+        log.warn('Voice pre-flight: substituted broken voices, continuing generation', {
+          projectId: project_id,
+          substitutions: [...substitutionMap.entries()].map(([from, to]) => ({ from, to })),
+          patchedLines,
+        });
       }
     } catch (err) {
       // Pre-flight is best-effort. Network blip, ElevenLabs probe-endpoint

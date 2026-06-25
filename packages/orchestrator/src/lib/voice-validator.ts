@@ -243,6 +243,67 @@ export async function preFlightVoices(voiceIds: string[]): Promise<PreFlightOutc
 }
 
 /**
+ * For each broken voice ID, find an active catalog substitute of the same
+ * gender where possible. Returns a map of brokenId → substituteId.
+ * Returns an empty map if the catalog has no active voices at all.
+ */
+export async function pickVoiceSubstitutes(
+  brokenVoiceIds: string[],
+): Promise<Map<string, string>> {
+  if (brokenVoiceIds.length === 0) return new Map();
+
+  const [brokenEntries, activeVoices] = await Promise.all([
+    prisma.voiceCatalogEntry.findMany({
+      where: { voiceId: { in: brokenVoiceIds } },
+      select: { voiceId: true, gender: true },
+    }),
+    prisma.voiceCatalogEntry.findMany({
+      where: { isActive: true, voiceId: { notIn: brokenVoiceIds } },
+      select: { voiceId: true, gender: true },
+    }),
+  ]);
+
+  if (activeVoices.length === 0) {
+    log.warn('[voice-validator] no active substitutes available', { brokenVoiceIds });
+    return new Map();
+  }
+
+  const brokenGender = new Map(brokenEntries.map((e) => [e.voiceId, e.gender]));
+  const substitutionMap = new Map<string, string>();
+
+  for (const voiceId of brokenVoiceIds) {
+    const gender = brokenGender.get(voiceId);
+    const alreadyUsed = new Set(substitutionMap.values());
+    const candidate =
+      (gender
+        ? activeVoices.find((v) => v.gender === gender && !alreadyUsed.has(v.voiceId))
+        : undefined) ?? activeVoices.find((v) => !alreadyUsed.has(v.voiceId));
+    if (candidate) substitutionMap.set(voiceId, candidate.voiceId);
+  }
+
+  return substitutionMap;
+}
+
+/**
+ * Patch voice_key fields in scenes in-place, swapping broken IDs for
+ * substitutes from the provided map. Returns the number of lines patched.
+ */
+export function applyVoiceSubstitutions(
+  scenes: Array<{ dialogue?: Array<{ voice_key?: string }> }>,
+  substitutionMap: Map<string, string>,
+): number {
+  if (substitutionMap.size === 0) return 0;
+  let patched = 0;
+  for (const scene of scenes) {
+    for (const line of scene.dialogue ?? []) {
+      const sub = line.voice_key ? substitutionMap.get(line.voice_key) : undefined;
+      if (sub) { line.voice_key = sub; patched++; }
+    }
+  }
+  return patched;
+}
+
+/**
  * Extract unique voice IDs from a director-output scene array. Skips lines
  * without a voice_key. Used by the pre-flight wire-up to learn what to probe.
  */
