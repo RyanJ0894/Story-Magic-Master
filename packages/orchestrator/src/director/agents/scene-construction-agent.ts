@@ -95,19 +95,66 @@ export class SceneConstructionAgent {
    */
   async construct(input: SceneConstructionInput): Promise<Scene[]> {
     const start = Date.now();
-    const chunks = chunkScript(input.script_text, this.scenesPerChunk);
+
+    // Phase D-3: when DIRECTOR_PASS3_ADAPTIVE_CHUNKS=true, pick the chunk
+    // size dynamically from script density before chunking. Otherwise use
+    // the static this.scenesPerChunk from env / constructor (current behavior).
+    let effectiveScenesPerChunk = this.scenesPerChunk;
+    if (process.env.DIRECTOR_PASS3_ADAPTIVE_CHUNKS === 'true') {
+      try {
+        const { pickChunkSize } = await import('../sampling/adaptive-chunk-sizer.js');
+        const env = getEnv();
+        const adaptive = pickChunkSize(input.script_text, {
+          maxOutputTokens: env.SCENE_CONSTRUCTION_MAX_TOKENS,
+          fallbackScenesPerChunk: this.scenesPerChunk,
+        });
+        effectiveScenesPerChunk = adaptive.scenesPerChunk;
+        log.info('[SceneConstruction] Phase D-3 adaptive chunk size', {
+          original: this.scenesPerChunk,
+          adaptive: adaptive.scenesPerChunk,
+          ...adaptive.reasoning,
+        });
+      } catch (sizerErr) {
+        log.warn('[SceneConstruction] Phase D-3 adaptive sizer failed, falling back to static', {
+          error: sizerErr instanceof Error ? sizerErr.message : String(sizerErr),
+        });
+      }
+    }
+
+    const chunks = chunkScript(input.script_text, effectiveScenesPerChunk);
 
     log.info('[SceneConstruction] starting', {
       model: this.model,
       chunkCount: chunks.length,
-      scenesPerChunk: this.scenesPerChunk,
+      scenesPerChunk: effectiveScenesPerChunk,
+      adaptiveMode: process.env.DIRECTOR_PASS3_ADAPTIVE_CHUNKS === 'true',
     });
+
+    // Phase D-2 (cue pre-tagging) needs the script's CharacterIndex once,
+    // then per-chunk we splice tags for the cues whose offsets fall inside.
+    // Computed once outside the parallel loop so we don't re-derive it per
+    // chunk. Gated by the same DIRECTOR_PASS3_ADAPTIVE_CHUNKS flag because
+    // the tagged text only helps when paired with the trimmed prompt.
+    const adaptiveMode = process.env.DIRECTOR_PASS3_ADAPTIVE_CHUNKS === 'true';
+    let characterIndex: import('../sampling/character-index.js').CharacterIndex | null = null;
+    if (adaptiveMode) {
+      try {
+        const { buildCharacterIndex } = await import('../sampling/character-index.js');
+        characterIndex = buildCharacterIndex(input.script_text);
+      } catch (idxErr) {
+        log.warn('[SceneConstruction] Phase D-2 character index build failed, tagging disabled', {
+          error: idxErr instanceof Error ? idxErr.message : String(idxErr),
+        });
+      }
+    }
 
     // Dispatch chunks with bounded parallelism — avoids saturating Claude's
     // concurrent-request quota on dense scripts that produce 6+ chunks.
     const limit = pLimit(MAX_CONCURRENT_CHUNKS);
     const results = await Promise.allSettled(
-      chunks.map((chunk) => limit(() => this.constructChunk(chunk, input.voice_map)))
+      chunks.map((chunk) =>
+        limit(() => this.constructChunk(chunk, input.voice_map, input.script_text, characterIndex)),
+      ),
     );
 
     // Collect successful results in order
@@ -147,7 +194,12 @@ export class SceneConstructionAgent {
 
   // ─────────────────────────────────────────────────────────────────────────
 
-  private async constructChunk(chunk: ScriptChunk, voiceMap: VoiceMap): Promise<Scene[]> {
+  private async constructChunk(
+    chunk: ScriptChunk,
+    voiceMap: VoiceMap,
+    scriptText?: string,
+    characterIndex?: import('../sampling/character-index.js').CharacterIndex | null,
+  ): Promise<Scene[]> {
     const chunkStart = Date.now();
 
     log.info('[SceneConstruction] constructing chunk', {
@@ -157,13 +209,58 @@ export class SceneConstructionAgent {
       textLength: chunk.text.length,
     });
 
-    const systemPrompt = buildSceneConstructionSystemPrompt(voiceMap, chunk.start_scene_num);
-    const userMessage = buildSceneConstructionUserMessage(chunk.text);
+    // Phase D-2: when a CharacterIndex is provided (adaptive mode), tag
+    // character cues with [SPEAKER: NAME] annotations. The tightened
+    // prompt below tells the LLM to use the annotation as the source of
+    // truth for speaker attribution.
+    let chunkTextForLlm = chunk.text;
+    let cueTagCount = 0;
+    if (characterIndex && scriptText) {
+      try {
+        const { tagChunkWithCues } = await import('../sampling/cue-tagger.js');
+        // Find this chunk's start offset in the original script. chunkScript
+        // doesn't expose it, so we re-derive by searching. This is O(N) per
+        // chunk but happens once per chunk — negligible compared to the LLM call.
+        const chunkStartOffset = scriptText.indexOf(chunk.text);
+        if (chunkStartOffset >= 0) {
+          const tagged = tagChunkWithCues(chunk.text, chunkStartOffset, characterIndex);
+          chunkTextForLlm = tagged.taggedText;
+          cueTagCount = tagged.tagCount;
+        }
+      } catch (tagErr) {
+        log.warn('[SceneConstruction] Phase D-2 cue tagging failed, using raw chunk', {
+          error: tagErr instanceof Error ? tagErr.message : String(tagErr),
+        });
+      }
+    }
+
+    const useCueAnnotations = cueTagCount > 0;
+    const systemPrompt = buildSceneConstructionSystemPrompt(
+      voiceMap,
+      chunk.start_scene_num,
+      useCueAnnotations,
+    );
+    const userMessage = buildSceneConstructionUserMessage(chunkTextForLlm);
 
     let output: z.infer<typeof ChunkOutputSchema>;
 
     try {
       const { SCENE_CONSTRUCTION_MAX_TOKENS } = getEnv();
+      // Phase D-4: project output size before the call so we see near-cap
+      // chunks BEFORE they fail. ~0.09 output tokens per char of input.
+      const projectedOutputTokens = Math.round(chunkTextForLlm.length * 0.09);
+      const headroomPct = SCENE_CONSTRUCTION_MAX_TOKENS > 0
+        ? Math.round(((SCENE_CONSTRUCTION_MAX_TOKENS - projectedOutputTokens) / SCENE_CONSTRUCTION_MAX_TOKENS) * 100)
+        : 0;
+      log.info('[SceneConstruction] chunk projection', {
+        chunk_index: chunk.chunk_index,
+        inputChars: chunkTextForLlm.length,
+        projectedOutputTokens,
+        maxOutputTokens: SCENE_CONSTRUCTION_MAX_TOKENS,
+        headroomPct,
+        useCueAnnotations,
+        cueTagCount,
+      });
       output = await generateStructuredOutput(userMessage, {
         model: this.model,
         schema: ChunkOutputSchema,

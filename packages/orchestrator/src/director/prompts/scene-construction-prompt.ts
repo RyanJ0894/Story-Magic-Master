@@ -12,18 +12,43 @@ import { SCRIPT_ABBREVIATIONS } from './director-prompt.js';
  * Build the system prompt for one chunk.
  * The VoiceMap is embedded as a readable lookup table so the model can
  * resolve voice_key values without any tool calls.
+ *
+ * Phase D-1: when `useCueAnnotations` is true, the chunk text contains
+ * pre-inserted `[SPEAKER: NAME]` annotations from Phase D-2's cue tagger.
+ * The system prompt then tells the LLM to use those annotations as the
+ * source of truth for speaker attribution, which saves it the work of
+ * detecting cue lines itself.
  */
 export function buildSceneConstructionSystemPrompt(
   voiceMap: VoiceMap,
-  startSceneNum: number
+  startSceneNum: number,
+  useCueAnnotations = false,
 ): string {
   const voiceTable = buildVoiceTable(voiceMap);
+  const cueAnnotationBlock = useCueAnnotations
+    ? `
+
+## CUE ANNOTATIONS (Phase D-2)
+
+The screenplay text below contains pre-inserted \`[SPEAKER: NAME]\` annotations
+above every character cue. Use these as the AUTHORITATIVE source of speaker
+attribution — every dialogue line directly following a \`[SPEAKER: NAME]\`
+annotation should be attributed to that character.
+
+- Do NOT emit \`[SPEAKER: ...]\` text inside any dialogue field.
+- Do NOT re-detect or second-guess the annotated speaker.
+- Action / description lines (with no preceding annotation) are NARRATOR.
+
+This makes speaker attribution deterministic and frees you to focus on
+dialogue cleanup, mood, intensity, and scene metadata.
+`
+    : '';
 
   return `You are a screenplay-to-audio conversion specialist.
 Parse the screenplay chunk into structured scene JSON.
 
 ${SCRIPT_ABBREVIATIONS}
-
+${cueAnnotationBlock}
 ## VOICE LOOKUP TABLE (use these voice IDs — do NOT invent or search)
 
 ${voiceTable}
