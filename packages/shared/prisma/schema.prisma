@@ -198,11 +198,15 @@ model Job {
   firstAudioUrl       String?   @map("first_audio_url")
 
   // Relations
-  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user         Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobLogs      JobLog[]
-  audioOutputs AudioOutput[]
-  humanReview  HumanReview?
+  project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user               Profile             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobLogs            JobLog[]
+  audioOutputs       AudioOutput[]
+  humanReview        HumanReview?
+  // DT-35-H-1 (migration 0045): back-relation pair for CreditTransaction.job.
+  // CreditTransaction.jobId is the FK side; this `creditTransactions[]` collection
+  // is required by Prisma's bidirectional-relation rule. No new DB column.
+  creditTransactions CreditTransaction[]
 
   @@index([projectId])
   @@index([userId])
