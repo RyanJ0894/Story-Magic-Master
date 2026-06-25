@@ -91,6 +91,13 @@ const nextConfig = {
   productionBrowserSourceMaps: false,
   // ESLint runs in CI — skip during next build (avoids devDep missing in production)
   eslint: { ignoreDuringBuilds: true },
+  // 2026-06-25: skip typecheck during `next build` to shave memory pressure
+  // on Render's 2 GB Standard plan (OOM at ~1.85 GB on commits 1899ea8,
+  // 5c7564f, bbd3995, d73098e). Typecheck runs separately in CI via
+  // `pnpm --filter @story-magic/web typecheck`, so we're not skipping the
+  // safety net — just deduping it out of the build path. Typical savings:
+  // ~150-300 MB during the SSR compile pass.
+  typescript: { ignoreBuildErrors: true },
   // Security headers (CSP is handled in middleware.ts to avoid duplicate headers)
   async headers() {
     return [
