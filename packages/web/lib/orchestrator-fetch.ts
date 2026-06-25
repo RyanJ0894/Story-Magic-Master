@@ -165,7 +165,16 @@ export async function orchestratorFetch(
       lastError = new Error(`Orchestrator returned HTTP ${response.status}`);
 
       if (attempt < maxAttempts) {
-        const delay = retryBaseDelayMs * Math.pow(2, attempt - 1);
+        let delay = retryBaseDelayMs * Math.pow(2, attempt - 1);
+        if (response.status === 429) {
+          const retryAfterHeader = response.headers.get('Retry-After');
+          if (retryAfterHeader) {
+            const retryAfterSec = parseInt(retryAfterHeader, 10);
+            if (!isNaN(retryAfterSec) && retryAfterSec > 0) {
+              delay = Math.min(retryAfterSec * 1000, 120_000);
+            }
+          }
+        }
         log.warn(`[orchestratorFetch] Retryable HTTP ${response.status} from ${path}, retrying in ${delay}ms`, {
           attempt,
           maxAttempts,
