@@ -28,6 +28,48 @@ const optionalUrl = z.preprocess(emptyToUndefined, z.string().url().optional());
 const optionalTrueFalse = z.preprocess(emptyToUndefined, z.enum(['true', 'false']).optional());
 const optionalLogLevel = z.preprocess(emptyToUndefined, z.enum(['debug', 'info', 'warn', 'error']).optional());
 
+/**
+ * Strict positive-integer env var with a default.
+ *
+ * Catches the parseInt-silently-returns-NaN class of bug. Before this
+ * helper, `z.string().optional().transform((v) => v ? parseInt(v, 10) : N)`
+ * would accept any non-numeric string by silently producing NaN and
+ * letting downstream code work erratically — NaN propagates through
+ * arithmetic and comparisons in surprising ways.
+ *
+ * Rejects:
+ *   - non-digit characters in the value ("10abc", "abc", "1.5")
+ *   - non-positive integers ("0", "-5")
+ *
+ * Accepts:
+ *   - undefined / empty string → returns the default
+ *   - positive integer string → returns the parsed integer
+ *
+ * Augmenting PR for #407 (see docs/ROADMAP-2026-06-24_sampling-architecture.md).
+ */
+export function positiveIntEnv(name: string, defaultValue: number) {
+  return z.string().optional().transform((raw, ctx): number => {
+    if (raw === undefined || raw === '') return defaultValue;
+    const trimmed = raw.trim();
+    if (!/^[0-9]+$/.test(trimmed)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${name}="${raw}" is not a non-negative integer`,
+      });
+      return z.NEVER;
+    }
+    const n = parseInt(trimmed, 10);
+    if (!Number.isFinite(n) || n <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${name}="${raw}" must be a positive integer`,
+      });
+      return z.NEVER;
+    }
+    return n;
+  });
+}
+
 // =============================================================================
 // Environment Schema
 // =============================================================================
@@ -91,18 +133,18 @@ const envSchema = z.object({
 
   // Script size limits (pre-flight guards against LLM context overflow)
   // Defaults: 150 pages / 75_000 chars. Both limits trigger a 400 before any LLM call.
-  MAX_SCRIPT_PAGES: z.string().optional().transform((v) => (v ? parseInt(v, 10) : 150)),
-  MAX_SCRIPT_CHARS: z.string().optional().transform((v) => (v ? parseInt(v, 10) : 75_000)),
+  MAX_SCRIPT_PAGES: positiveIntEnv('MAX_SCRIPT_PAGES', 150),
+  MAX_SCRIPT_CHARS: positiveIntEnv('MAX_SCRIPT_CHARS', 75_000),
 
   // Scene construction tuning (Pass 3 of the director pipeline)
   // SCENES_PER_CHUNK: how many screenplay scenes per LLM chunk. Smaller = safer
   // output budgets but more API calls. Default 10 keeps chunk output well under
   // 32K tokens even for dialogue-dense scenes.
-  SCENES_PER_CHUNK: z.string().optional().transform((v) => (v ? parseInt(v, 10) : 10)),
+  SCENES_PER_CHUNK: positiveIntEnv('SCENES_PER_CHUNK', 10),
   // SCENE_CONSTRUCTION_MAX_TOKENS: output token cap per chunk. Sonnet 4.6 supports
   // up to 64K; 32K gives dense 10-scene chunks a 2-3x safety margin over typical
   // output size (~8-12K tokens) while staying well within the non-streaming limit.
-  SCENE_CONSTRUCTION_MAX_TOKENS: z.string().optional().transform((v) => (v ? parseInt(v, 10) : 32768)),
+  SCENE_CONSTRUCTION_MAX_TOKENS: positiveIntEnv('SCENE_CONSTRUCTION_MAX_TOKENS', 32768),
 
   // Feature Flags
   AUTH_DISABLED: optionalTrueFalse,

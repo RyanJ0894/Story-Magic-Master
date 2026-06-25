@@ -310,3 +310,125 @@ describe('printEnvSummary', () => {
     expect(combined).toContain('4000');
   });
 });
+
+// =============================================================================
+// positiveIntEnv (augmenting #407)
+// =============================================================================
+//
+// Peter's #407 moved SCENES_PER_CHUNK + SCENE_CONSTRUCTION_MAX_TOKENS to env
+// vars but kept the pre-existing `parseInt(v, 10)` pattern that silently
+// returns NaN on bad input. This helper catches the bug class. Tests pin the
+// contract so a future refactor can't silently regress to the lenient pattern.
+//
+// Bug we're guarding against:
+//   SCENES_PER_CHUNK=abc
+//   → parseInt returns NaN
+//   → this.scenesPerChunk = NaN
+//   → chunkScript(text, NaN) splits into 0 chunks or hangs
+//   → director silently fails with no log naming the cause
+//
+// Now: SCENES_PER_CHUNK=abc throws at boot via validateEnv with a clear
+// message that names the offending env var.
+
+describe('positiveIntEnv', () => {
+  it('returns the default when the env var is unset', async () => {
+    const { z } = await import('zod');
+    const { positiveIntEnv } = await import('./env.js');
+    const schema = z.object({ N: positiveIntEnv('N', 42) });
+    expect(schema.parse({}).N).toBe(42);
+  });
+
+  it('returns the default when the env var is empty', async () => {
+    const { z } = await import('zod');
+    const { positiveIntEnv } = await import('./env.js');
+    const schema = z.object({ N: positiveIntEnv('N', 42) });
+    expect(schema.parse({ N: '' }).N).toBe(42);
+  });
+
+  it('parses valid positive integer strings', async () => {
+    const { z } = await import('zod');
+    const { positiveIntEnv } = await import('./env.js');
+    const schema = z.object({ N: positiveIntEnv('N', 1) });
+    expect(schema.parse({ N: '10' }).N).toBe(10);
+    expect(schema.parse({ N: '32768' }).N).toBe(32_768);
+    expect(schema.parse({ N: '1' }).N).toBe(1);
+  });
+
+  it('tolerates surrounding whitespace', async () => {
+    const { z } = await import('zod');
+    const { positiveIntEnv } = await import('./env.js');
+    const schema = z.object({ N: positiveIntEnv('N', 1) });
+    expect(schema.parse({ N: '  10  ' }).N).toBe(10);
+  });
+
+  it('rejects non-numeric strings (the silent-NaN bug class)', async () => {
+    const { z } = await import('zod');
+    const { positiveIntEnv } = await import('./env.js');
+    const schema = z.object({ N: positiveIntEnv('N', 1) });
+    expect(() => schema.parse({ N: 'abc' })).toThrow(/not a non-negative integer/);
+    expect(() => schema.parse({ N: '10abc' })).toThrow(/not a non-negative integer/);
+    expect(() => schema.parse({ N: 'abc10' })).toThrow(/not a non-negative integer/);
+  });
+
+  it('rejects decimal strings (parseInt would silently truncate them)', async () => {
+    const { z } = await import('zod');
+    const { positiveIntEnv } = await import('./env.js');
+    const schema = z.object({ N: positiveIntEnv('N', 1) });
+    // parseInt('1.5', 10) === 1 — that's the silent-truncation bug.
+    expect(() => schema.parse({ N: '1.5' })).toThrow(/not a non-negative integer/);
+    expect(() => schema.parse({ N: '0.5' })).toThrow(/not a non-negative integer/);
+  });
+
+  it('rejects zero (must be a positive integer)', async () => {
+    const { z } = await import('zod');
+    const { positiveIntEnv } = await import('./env.js');
+    const schema = z.object({ N: positiveIntEnv('N', 1) });
+    expect(() => schema.parse({ N: '0' })).toThrow(/must be a positive integer/);
+  });
+
+  it('rejects negative numbers via the regex check', async () => {
+    const { z } = await import('zod');
+    const { positiveIntEnv } = await import('./env.js');
+    const schema = z.object({ N: positiveIntEnv('N', 1) });
+    expect(() => schema.parse({ N: '-5' })).toThrow(/not a non-negative integer/);
+    expect(() => schema.parse({ N: '-1' })).toThrow(/not a non-negative integer/);
+  });
+
+  it('names the env var in the error so operators can find it', async () => {
+    const { z } = await import('zod');
+    const { positiveIntEnv } = await import('./env.js');
+    const schema = z.object({
+      MY_CUSTOM_VAR: positiveIntEnv('MY_CUSTOM_VAR', 1),
+    });
+    try {
+      schema.parse({ MY_CUSTOM_VAR: 'oops' });
+      throw new Error('expected throw');
+    } catch (err) {
+      expect(String(err)).toContain('MY_CUSTOM_VAR');
+      expect(String(err)).toContain('oops');
+    }
+  });
+
+  it('SCENES_PER_CHUNK uses the helper and defaults to 10 (pinning #407 contract)', async () => {
+    const env = await freshEnv({});
+    expect(env.getEnv().SCENES_PER_CHUNK).toBe(10);
+  });
+
+  it('SCENE_CONSTRUCTION_MAX_TOKENS uses the helper and defaults to 32768 (pinning #407 contract)', async () => {
+    const env = await freshEnv({});
+    expect(env.getEnv().SCENE_CONSTRUCTION_MAX_TOKENS).toBe(32_768);
+  });
+
+  it('SCENES_PER_CHUNK=abc now fails loudly at boot instead of silently producing NaN', async () => {
+    // Before this patch, SCENES_PER_CHUNK=abc passed through env validation
+    // as NaN. Pin the new strict behavior: validateEnv throws with the var
+    // name in the error.
+    const env = await freshEnv({ SCENES_PER_CHUNK: 'abc' });
+    expect(() => env.validateEnv()).toThrow();
+  });
+
+  it('SCENE_CONSTRUCTION_MAX_TOKENS=1.5 now fails loudly at boot', async () => {
+    const env = await freshEnv({ SCENE_CONSTRUCTION_MAX_TOKENS: '1.5' });
+    expect(() => env.validateEnv()).toThrow();
+  });
+});
