@@ -197,12 +197,15 @@ export async function preFlightVoices(voiceIds: string[]): Promise<PreFlightOutc
     abortedDeactivation = true;
   }
 
-  // Auto-deactivate permanently-broken voices. Transient failures (429 rate
-  // limit, 500 server_degraded, network errors) are NOT deactivated — they
-  // recover on the next pre-flight. Platform-incident detection above can
-  // skip this entirely.
+  // Auto-deactivate broken voices. Transient failures (429 rate limit,
+  // network errors) are NOT deactivated — they recover on their own.
+  // server_degraded (5xx) IS deactivated so the catalog stays clean and the
+  // director picks a substitute on the next parse; but see orchestrate.ts
+  // which does NOT hard-fail the current chunk on server_degraded — it warns
+  // and proceeds so the per-TTS retry logic gets a chance to recover first.
+  // Platform-incident detection above can skip deactivation entirely.
   let deactivated = 0;
-  const deactivateReasons: VoiceValidationResult['reason'][] = ['revoked', 'not_found'];
+  const deactivateReasons: VoiceValidationResult['reason'][] = ['revoked', 'server_degraded', 'not_found'];
   if (!abortedDeactivation) {
     for (const b of broken.filter((r) => r.reason && deactivateReasons.includes(r.reason))) {
       try {
