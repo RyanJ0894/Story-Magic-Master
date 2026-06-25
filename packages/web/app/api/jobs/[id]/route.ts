@@ -74,5 +74,11 @@ export const GET = withAuth(async (_request, { userId, prisma, params }) => {
     audio_url: job.status === 'completed'
       ? ((job.result as Record<string, unknown>)?.audio_urls as string[] | undefined)?.[0] ?? null
       : null,
+    // 2026-06-25: retry telemetry so the client can keep polling when a job
+    // transitions failed → queued → processing via the retry path. Without
+    // these fields the GenerateButton's poll loop saw status='failed', stopped
+    // polling, and missed the eventual completion (Peter, 2026-06-24 report).
+    retry_count: job.retryCount,
+    max_retries: job.maxRetries,
   });
 }, { rateLimit: 'loose' });

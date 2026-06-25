@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { isRetryImminent } from '@/lib/generation/job-status';
 import { Loader2, Sparkles, RefreshCw, Clock, CheckCircle, XCircle } from 'lucide-react';
 
 interface JobProgress {
@@ -30,6 +31,10 @@ interface JobStatus {
   firstAudioUrl?: string | null;
   segments?: Array<{ index: number; status: string; audioUrl: string | null }> | null;
   audio_url?: string | null;
+  // 2026-06-25: retry telemetry. When status='failed' AND retry_count < max_retries,
+  // a worker retry is imminent — keep polling instead of showing a terminal error.
+  retry_count?: number;
+  max_retries?: number;
 }
 
 interface QueuePosition {
@@ -213,7 +218,22 @@ export default function GenerateButton({
         }
       }
 
-      // Check if job is complete or failed
+      // Check if job is complete or failed.
+      //
+      // 2026-06-25: distinguish "failed but retry imminent" from "terminally
+      // failed". The worker writes status='failed' on every chunk-failure
+      // throw, then failJob() in the SQL proc transitions to 'queued' with
+      // retryCount+1 if retries remain. Before this branch, the UI saw the
+      // brief 'failed' state and stopped polling, missing the retry's
+      // eventual completion. Decision logic lives in `isRetryImminent` so
+      // it can be unit-tested without React.
+      if (isRetryImminent(data)) {
+        // Stay quiet but keep polling. The worker will flip the row back to
+        // 'queued' within ~30s and we'll catch the subsequent 'processing'
+        // → 'completed' (or final 'failed') transition naturally.
+        return;
+      }
+
       if (data.status === 'completed') {
         if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
         if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);

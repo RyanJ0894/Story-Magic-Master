@@ -700,20 +700,40 @@ export async function processGenerationJob(
     }
 
     // A-003 (2026-06-15): partial-audio detection. When the chunked loop
-    // skipped 1+ failed chunks but at least one succeeded, surface the
-    // partial-success state to Sentry as a warning and to the job log so
-    // Ryan can see in the UI that the generation completed but missed
-    // material. The job still flows to status='completed' below — partial
-    // audio is better than no audio for a 90-page script where one chunk
-    // hit a transient ElevenLabs blip.
+    // skipped 1+ failed chunks but at least one succeeded, the original
+    // design flowed through to status='completed' on the theory that
+    // partial audio is better than no audio for a 90-page script where
+    // one chunk hit a transient ElevenLabs blip.
+    //
+    // 2026-06-25 follow-up: that policy under-served the failure case
+    // Peter caught — a 72-page run produced audio for only ~14% of
+    // chunks (8 segments, 6 failed at the undici timeout) and the UI
+    // still reported "completed" with audio that ended at page 17 of 72.
+    //
+    // New rule:
+    //   - majority failed (failedSegmentCount > chunks.length / 2) →
+    //     mark as FAILED. Don't silently ship 14% of a feature.
+    //   - minority failed → continue to 'completed' with the warning
+    //     logged (the original partial-better-than-nothing case).
+    //
+    // Configurable via PARTIAL_FAIL_RATIO env (default 0.5) so we can
+    // tune in production without a redeploy if real-world data shows
+    // a different threshold serves users better.
     const failedSegmentCount = segmentStatuses.filter((s) => s.status === 'failed').length;
     if (failedSegmentCount > 0) {
       const partialMsg = `Partial audio: ${chunks.length - failedSegmentCount}/${chunks.length} segments succeeded`;
+      const failRatio = failedSegmentCount / chunks.length;
+      const failThreshold = parseFloat(process.env.PARTIAL_FAIL_RATIO ?? '0.5');
+      const shouldFail = Number.isFinite(failThreshold) && failRatio > failThreshold;
+
       log.warn(`[PIPELINE] ${partialMsg}`, {
         jobId: jobId.slice(0, 8),
         failedSegmentCount,
         chunksAttempted: chunks.length,
         failedIndexes: segmentStatuses.map((s, i) => (s.status === 'failed' ? i : null)).filter((i): i is number => i !== null),
+        failRatio: failRatio.toFixed(2),
+        failThreshold,
+        decision: shouldFail ? 'fail' : 'complete-with-warning',
       });
       await logJobEvent(jobId, projectId, 'warn', 'generating_audio', partialMsg, {
         failedSegmentCount,
@@ -727,8 +747,19 @@ export async function processGenerationJob(
           projectId,
           failedSegmentCount,
           chunksAttempted: chunks.length,
+          failRatio,
         },
       });
+
+      if (shouldFail) {
+        // Throw with a message that names the partial state explicitly.
+        // The worker's failJob will trigger the standard retry path, so
+        // the user sees a retryable failure rather than a silent partial
+        // success.
+        throw new Error(
+          `Audio generation failed: only ${chunks.length - failedSegmentCount}/${chunks.length} segments succeeded (${failedSegmentCount} chunks failed). Retry recommended.`,
+        );
+      }
     }
 
     // Sprint K: stitch segment files into a single episode.m4a when chunked

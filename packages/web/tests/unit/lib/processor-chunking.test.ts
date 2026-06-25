@@ -171,6 +171,87 @@ describe('processGenerationJob — chunked generation (Sprint K)', () => {
     expect(segmentUpdates.length).toBeGreaterThanOrEqual(2);
   });
 
+  // 2026-06-25: Peter caught a 72-page run that "completed" with only 6/50
+  // segments rendered (got to page 17 of 72). The original partial-success
+  // policy was wrong for that case. New rule: if MAJORITY of chunks fail,
+  // throw instead of silently shipping a sliver of the script. Tests below
+  // pin the new boundary at >50% via PARTIAL_FAIL_RATIO (default 0.5).
+
+  it('throws when MAJORITY of chunks fail (Peter 2026-06-24 regression guard)', async () => {
+    // Make a script that produces multiple chunks, then fail all but the first.
+    // The actual chunk count depends on FIRST_CHUNK_SCENES + SCENES_PER_CHUNK
+    // arithmetic, so the assertion regex is loose on the ratio digits — what
+    // matters is that the throw fires when >50% of chunks fail.
+    const scenes = makeScenes(FIRST_CHUNK_SCENES + SCENES_PER_CHUNK * 3 + 3);
+
+    mockPrisma.job.update.mockResolvedValue({});
+    mockPrisma.job.findUnique.mockResolvedValue({ status: 'processing' });
+    mockPrisma.project.findUnique
+      .mockResolvedValueOnce({ directorJson: { scenes }, directorNotes: null })
+      .mockResolvedValueOnce({ audioOverrides: [] });
+    mockPrisma.project.update.mockResolvedValue({});
+    mockPrisma.jobLog.create.mockResolvedValue({});
+    mockPrisma.$executeRaw.mockResolvedValue(undefined);
+
+    let callCount = 0;
+    mockOrchestratorGenerate.mockImplementation(async (path: string) => {
+      if (path === '/orchestrate') {
+        callCount++;
+        // Only the first chunk succeeds; everything else fails. With 4+
+        // chunks total, 3+ failures = >50% → must throw.
+        if (callCount > 1) {
+          return { ok: false, text: async () => 'TTS timeout' };
+        }
+        return makeOrchestratorSuccess(`https://storage.example.com/audio/chunk-${callCount}.m4a`);
+      }
+      return { ok: true, json: async () => ({ director_json: { scenes } }) };
+    });
+
+    await expect(
+      processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 25),
+    ).rejects.toThrow(/\d+\/\d+ segments succeeded/i);
+  });
+
+  it('honors PARTIAL_FAIL_RATIO env override (operator can tune at runtime)', async () => {
+    // With PARTIAL_FAIL_RATIO=0.01, even a single chunk failure triggers a
+    // throw — confirms the env override path is active.
+    const prev = process.env.PARTIAL_FAIL_RATIO;
+    process.env.PARTIAL_FAIL_RATIO = '0.01';
+    try {
+      const scenes = makeScenes(FIRST_CHUNK_SCENES + SCENES_PER_CHUNK * 3 + 3);
+
+      mockPrisma.job.update.mockResolvedValue({});
+      mockPrisma.job.findUnique.mockResolvedValue({ status: 'processing' });
+      mockPrisma.project.findUnique
+        .mockResolvedValueOnce({ directorJson: { scenes }, directorNotes: null })
+        .mockResolvedValueOnce({ audioOverrides: [] });
+      mockPrisma.project.update.mockResolvedValue({});
+      mockPrisma.jobLog.create.mockResolvedValue({});
+      mockPrisma.$executeRaw.mockResolvedValue(undefined);
+
+      let callCount = 0;
+      mockOrchestratorGenerate.mockImplementation(async (path: string) => {
+        if (path === '/orchestrate') {
+          callCount++;
+          // First N-1 succeed, last fails — a tiny ratio that the default
+          // 0.5 threshold would tolerate, but our 0.01 override rejects.
+          if (callCount >= 4) {
+            return { ok: false, text: async () => 'TTS timeout' };
+          }
+          return makeOrchestratorSuccess(`https://storage.example.com/audio/chunk-${callCount}.m4a`);
+        }
+        return { ok: true, json: async () => ({ director_json: { scenes } }) };
+      });
+
+      await expect(
+        processGenerationJob(PROJECT_ID, JOB_ID, USER_ID, SCRIPT, 25),
+      ).rejects.toThrow(/\d+\/\d+ segments succeeded/i);
+    } finally {
+      if (prev === undefined) delete process.env.PARTIAL_FAIL_RATIO;
+      else process.env.PARTIAL_FAIL_RATIO = prev;
+    }
+  });
+
   it('still completes successfully when one chunk fails (partial audio)', async () => {
     const scenes = makeScenes(SCENES_PER_CHUNK + 3);
 
