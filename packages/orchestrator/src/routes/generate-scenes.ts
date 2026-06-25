@@ -52,7 +52,7 @@ async function handleGenerateScenes(req: Request, res: Response): Promise<void> 
     return;
   }
 
-  const { project_id, script_text, voice_overrides, director_notes } = parsed.data;
+  const { project_id, script_text, voice_overrides, director_notes, run_consistency_check } = parsed.data;
   setProjectScope(project_id);
 
   // Ownership check (BL-013): authenticated user must own this project.
@@ -206,7 +206,10 @@ async function handleGenerateScenes(req: Request, res: Response): Promise<void> 
     // 3. AudioDirectorAgent selects audio → Scene Audio JSON
     // 4. Validators check and auto-correct business rules
     // 5. Merge results into final Director JSON
-    const result = await processScript({ project_id, script_text, voice_overrides, director_notes }, { directorModel });
+    const result = await processScript(
+      { project_id, script_text, voice_overrides, director_notes },
+      { directorModel, runConsistencyCheck: run_consistency_check === true },
+    );
 
     const processingTime = (Date.now() - start) / 1000;
     log.info('Scene generation complete', { projectId: project_id, processingTimeSeconds: processingTime, sceneCount: result.director_json.scenes.length });

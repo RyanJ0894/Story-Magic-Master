@@ -36,6 +36,12 @@ model Profile {
   readerCode           String?   @unique @map("reader_code")
   externalId           String?   @unique @map("external_id") // Old Supabase UUID during migration
   credits              Int       @default(0)
+  // Phase E (migration 0044) — account-level opt-in to the post-generation
+  // ConsistencyVerifierAgent that spot-checks parsed scenes against the
+  // source for speaker / voice / mood / intensity drift. Per-project override
+  // lives on Project.advancedConsistencyCheckEnabled. Default false keeps
+  // free-tier cost flat; flip to true on premium tiers or on demand.
+  advancedConsistencyCheckEnabled Boolean @default(false) @map("advanced_consistency_check_enabled")
   createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -111,6 +117,12 @@ model Project {
   exchangeTagline       String?   @map("exchange_tagline")
   exchangeGenre         String?   @map("exchange_genre")
   page1PreviewUrl       String?   @map("page1_preview_url")
+  // Phase E (migration 0044) — per-project override for the consistency
+  // verifier. NULL means "inherit from Profile.advancedConsistencyCheckEnabled";
+  // explicit true/false overrides for either direction (e.g. a paid premium
+  // user turning the check off for a small experimental project, or a free
+  // user purchasing the upgrade once via Stripe).
+  advancedConsistencyCheckEnabled Boolean? @map("advanced_consistency_check_enabled")
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 

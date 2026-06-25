@@ -231,7 +231,13 @@ export async function processGenerationJob(
     // Step 2: Parse script via Director Agent (skip if a prior run already produced directorJson)
     const existingProject = await prisma.project.findUnique({
       where: { id: projectId },
-      select: { directorJson: true, directorNotes: true },
+      select: {
+        directorJson: true,
+        directorNotes: true,
+        userId: true,
+        // Phase E: per-project override for the consistency check.
+        advancedConsistencyCheckEnabled: true,
+      },
     });
 
     // Narrow Prisma's JsonValue to DirectorJson at the boundary. asDirectorJson
@@ -267,6 +273,33 @@ export async function processGenerationJob(
       if (existingProject?.directorNotes) {
         generateScenesBody.director_notes = JSON.stringify(existingProject.directorNotes);
         log.info('[PIPELINE] director notes attached');
+      }
+      // Phase E (advanced consistency check) — resolve the per-project
+      // override first, then fall back to the profile-level opt-in. NULL
+      // override means "inherit". Forward to the orchestrator only when
+      // true; the body stays clean for the common (off) path.
+      try {
+        const ownerProfile = existingProject?.userId
+          ? await prisma.profile.findUnique({
+              where: { id: existingProject.userId },
+              select: { advancedConsistencyCheckEnabled: true },
+            })
+          : null;
+        const projectOverride = (existingProject as { advancedConsistencyCheckEnabled?: boolean | null })
+          ?.advancedConsistencyCheckEnabled;
+        const consistencyEnabled =
+          projectOverride === null || projectOverride === undefined
+            ? !!ownerProfile?.advancedConsistencyCheckEnabled
+            : projectOverride;
+        if (consistencyEnabled) {
+          generateScenesBody.run_consistency_check = true;
+          log.info('[PIPELINE] Phase E consistency check enabled for this run');
+        }
+      } catch (consistencyErr) {
+        // Non-fatal: if the lookup fails we proceed without the check.
+        log.warn('[PIPELINE] Phase E consistency-check flag lookup failed (non-fatal)', {
+          error: consistencyErr instanceof Error ? consistencyErr.message : String(consistencyErr),
+        });
       }
 
       const directorResponse = await orchestratorGenerate('/generate-scenes', generateScenesBody);

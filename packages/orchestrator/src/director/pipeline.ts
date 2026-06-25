@@ -27,6 +27,18 @@ export interface PipelineOptions {
   directorModel?: string;
   audioDirectorModel?: string;
   maxIterations?: number;
+  /**
+   * Phase E: when true, run the ConsistencyVerifierAgent on a random
+   * sample of scenes after the merged DirectorJSON is produced. Caller
+   * (processor.ts) resolves whether the project / its owning profile
+   * has opted in.
+   */
+  runConsistencyCheck?: boolean;
+  /**
+   * Phase E: how many scenes to sample for the consistency check.
+   * Defaults to 5 (per design doc Phase E section).
+   */
+  consistencyCheckSampleCount?: number;
 }
 
 export interface PipelineInput {
@@ -218,6 +230,61 @@ export async function processScript(
   // Phase 5: Merge results
   log.info('Pipeline Phase 5: Merging results');
   const mergedResult = mergeDirectorAndAudio(directorJson, sceneAudioJson);
+
+  // Phase E (advanced consistency check) — runs only when the project or
+  // its owning profile has opted in. Resolution happens upstream
+  // (processor.ts) and is passed in via PipelineOptions.runConsistencyCheck.
+  //
+  // Verifier failures are surfaced as a soft signal: we log them and attach
+  // them to the validation report, but we do NOT block the pipeline from
+  // returning. Telemetry from the next 100+ jobs decides whether a repair
+  // path (E-5) is worth running automatically.
+  if (options.runConsistencyCheck) {
+    try {
+      log.info('Pipeline Phase 5b: Running ConsistencyVerifierAgent (Phase E)');
+      const { verifyBatch } = await import('./agents/consistency-verifier-agent.js');
+      const { extractSceneInfo } = await import('./utils/script-chunker.js');
+      const sceneInfos = extractSceneInfo(input.script_text);
+      const sceneSourceTexts = sceneInfos.map((s) =>
+        input.script_text.slice(s.start_index, s.end_index),
+      );
+      // Skip the verifier entirely when no VoiceMap was produced — the
+      // voice consistency check is the verifier's most valuable signal,
+      // and without a map there's nothing useful to verify against.
+      if (!voiceMapToSave) {
+        log.info('[Pipeline] Phase 5b skipped — no VoiceMap available to verify against');
+        return {
+          project_id: input.project_id,
+          director_json: mergedResult,
+          scene_audio_json: sceneAudioJson,
+          validation_report: {
+            director_validation: directorValidationReport,
+            audio_validation: audioValidationReport,
+          },
+        };
+      }
+      const batch = await verifyBatch(
+        mergedResult,
+        voiceMapToSave,
+        sceneSourceTexts,
+        {
+          sampleCount: options.consistencyCheckSampleCount ?? 5,
+          projectId: input.project_id,
+        },
+      );
+      log.info('Pipeline Phase 5b: ConsistencyVerifier complete', {
+        sampledScenes: batch.sampledIndexes.length,
+        verdicts: batch.verdicts.length,
+        failures: batch.failures.length,
+      });
+      // Future Phase E follow-up: attach batch.failures to a
+      // validation_report.consistency_check field; for now just logging.
+    } catch (verifierErr) {
+      log.warn('[Pipeline] Phase 5b ConsistencyVerifier failed (non-fatal)', {
+        error: verifierErr instanceof Error ? verifierErr.message : String(verifierErr),
+      });
+    }
+  }
 
   log.info('Pipeline complete');
 

@@ -150,6 +150,11 @@ export const GenerateScenesRequestSchema = z.object({
   voice_overrides: z.record(z.string(), z.string()).optional(),
   // Optional: pre-generation creative direction from the user
   director_notes: z.string().max(10000).optional(),
+  // Phase E: when true, run the ConsistencyVerifierAgent on a random
+  // sample of scenes after the merged DirectorJSON is produced. Resolved
+  // upstream from Profile.advanced_consistency_check_enabled +
+  // Project.advanced_consistency_check_enabled (per-project override).
+  run_consistency_check: z.boolean().optional(),
 });
 
 export type GenerateScenesRequest = z.infer<typeof GenerateScenesRequestSchema>;

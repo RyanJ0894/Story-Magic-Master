@@ -158,16 +158,100 @@ export class DirectorAgent {
 
     try {
       // ── Pass 1: Extract characters ──────────────────────────────────────
-      const extractor = new CharacterExtractionAgent({ model: this.model });
-      const manifest = await extractor.extract({
-        project_id: input.project_id,
-        script_text: input.script_text,
-      });
+      //
+      // Phase C mode switch via DIRECTOR_CHARACTER_EXTRACTION_MODE:
+      //   - 'llm'    (default): current behavior — LLM-driven extraction
+      //   - 'regex'  : skip LLM entirely; build manifest from CharacterIndex.
+      //                Falls back to LLM if Pass 0 confidence < threshold.
+      //   - 'hybrid' : run BOTH, compare, log delta. Return LLM result so
+      //                behavior is unchanged. Used to gather the comparison
+      //                telemetry that decides when to flip the default.
+      const extractionMode = (
+        process.env.DIRECTOR_CHARACTER_EXTRACTION_MODE || 'llm'
+      ).toLowerCase();
+      let manifest: import('../../schemas/character-manifest.js').CharacterManifest;
+      if (extractionMode === 'regex') {
+        try {
+          const { buildCharacterIndex, shouldFallbackToLlmExtraction } = await import(
+            '../sampling/character-index.js'
+          );
+          const { characterIndexToManifest } = await import(
+            '../sampling/manifest-converter.js'
+          );
+          const idx = buildCharacterIndex(input.script_text);
+          if (shouldFallbackToLlmExtraction(idx)) {
+            log.info('[DirectorAgent] Phase C regex mode → low confidence, falling back to LLM', {
+              confidence: idx.confidence.toFixed(2),
+              reason: idx.confidenceReason,
+            });
+            const extractor = new CharacterExtractionAgent({ model: this.model });
+            manifest = await extractor.extract({
+              project_id: input.project_id,
+              script_text: input.script_text,
+            });
+          } else {
+            manifest = characterIndexToManifest(input.project_id, idx);
+            log.info('[DirectorAgent] Phase C regex mode → skipped LLM Pass 1', {
+              characterCount: manifest.characters.length,
+              confidence: idx.confidence.toFixed(2),
+            });
+          }
+        } catch (regexErr) {
+          // Defense: any failure falls back to LLM. Never regress availability.
+          log.warn('[DirectorAgent] Phase C regex mode failed, falling back to LLM', {
+            error: regexErr instanceof Error ? regexErr.message : String(regexErr),
+          });
+          const extractor = new CharacterExtractionAgent({ model: this.model });
+          manifest = await extractor.extract({
+            project_id: input.project_id,
+            script_text: input.script_text,
+          });
+        }
+      } else if (extractionMode === 'hybrid') {
+        // Run both. Compare. Return LLM. The whole point of this mode is
+        // logging the delta so the eventual ship decision is data-driven.
+        const extractor = new CharacterExtractionAgent({ model: this.model });
+        const llmManifest = await extractor.extract({
+          project_id: input.project_id,
+          script_text: input.script_text,
+        });
+        manifest = llmManifest;
+        try {
+          const { buildCharacterIndex } = await import('../sampling/character-index.js');
+          const { characterIndexToManifest, compareManifests } = await import(
+            '../sampling/manifest-converter.js'
+          );
+          const idx = buildCharacterIndex(input.script_text);
+          const regexManifest = characterIndexToManifest(input.project_id, idx);
+          const cmp = compareManifests(regexManifest, llmManifest);
+          log.info('[DirectorAgent] Phase C hybrid: regex vs LLM comparison', {
+            confidence: idx.confidence.toFixed(2),
+            jaccard: cmp.jaccard.toFixed(3),
+            intersection: cmp.intersectionCount,
+            regexCount: cmp.regexCount,
+            llmCount: cmp.llmCount,
+            onlyInRegex: cmp.onlyInRegex.slice(0, 10),
+            onlyInLlm: cmp.onlyInLlm.slice(0, 10),
+          });
+        } catch (hybridErr) {
+          log.warn('[DirectorAgent] Phase C hybrid comparison failed (non-fatal)', {
+            error: hybridErr instanceof Error ? hybridErr.message : String(hybridErr),
+          });
+        }
+      } else {
+        // Default 'llm' mode — current behavior.
+        const extractor = new CharacterExtractionAgent({ model: this.model });
+        manifest = await extractor.extract({
+          project_id: input.project_id,
+          script_text: input.script_text,
+        });
+      }
       // Phase A telemetry: log the LLM character count alongside the
       // shadow regex count so we can compute overlap rate in queries.
       log.info('[DirectorAgent] Pass 1 complete', {
         characterCount: manifest.characters.length,
         pass1LlmCharacterCount: manifest.characters.length,
+        extractionMode,
       });
 
       // ── Pass 2: Assign voices (skipped if cachedVoiceMap provided) ─────────
