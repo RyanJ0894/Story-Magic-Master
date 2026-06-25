@@ -76,6 +76,10 @@ export default async function EnterpriseDashboardPage({
         where: { status: 'accepted', deactivatedAt: null },
         include: { user: { select: { id: true, fullName: true, email: true } } },
         orderBy: { acceptedAt: 'asc' },
+        // MAX-H-SCALE (code-review 2026-06-25): cap server-side fetch so we
+        // never load thousands of rows just to render the dashboard preview.
+        // Full list lives at /enterprise/team for accounts that exceed this.
+        take: 50,
       },
       teamShares: {
         include: {
@@ -306,7 +310,13 @@ export default async function EnterpriseDashboardPage({
                     No activity yet. Share a project with your team to start tracking engagement.
                   </p>
                 ) : (
-                  <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+                  // MAX-H-SCALE (code-review 2026-06-25): removed the
+                  // `max-h-[480px] overflow-y-auto` nested scroller. The
+                  // query takes 50, so the card grows to a predictable max
+                  // height; the page handles scrolling at the viewport
+                  // level. Avoids the dual-scrollbar UX on mobile and the
+                  // "scrollbar appears at exactly 15 items" surprise.
+                  <div className="space-y-3">
                     {team.activityLogs.map((log) => {
                       const ev = EVENT_LABELS[log.eventType] ?? { label: log.eventType, icon: '•', color: 'text-muted-foreground' };
                       const meta = log.metadata as Record<string, unknown>;
@@ -352,7 +362,11 @@ export default async function EnterpriseDashboardPage({
                     No team members yet. Invite your first member to get started.
                   </p>
                 ) : (
-                  <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
+                  // MAX-H-SCALE (code-review 2026-06-25): removed nested
+                  // scroller. Members fetch is capped at 50 server-side;
+                  // dedicated /enterprise/team page handles the full list
+                  // for accounts that exceed the preview cap.
+                  <div className="space-y-2">
                     {team.members.map((member) => (
                       <div key={member.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50">
                         <div className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center text-sm font-medium text-violet-600 dark:text-violet-400">
