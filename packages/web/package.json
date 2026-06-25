@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 22000",
-    "build": "node scripts/inject-sw-version.mjs && next build",
+    "build": "node scripts/inject-sw-version.mjs && NODE_OPTIONS='--max-old-space-size=4096' next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
