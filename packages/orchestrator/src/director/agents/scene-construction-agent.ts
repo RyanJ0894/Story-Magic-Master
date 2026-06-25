@@ -16,6 +16,7 @@
 import pLimit from 'p-limit';
 import { generateStructuredOutput } from '../../lib/llm-client.js';
 import { log } from '../../lib/logger.js';
+import { getEnv } from '../../lib/env.js';
 import {
   buildSceneConstructionSystemPrompt,
   buildSceneConstructionUserMessage,
@@ -26,9 +27,6 @@ import type { VoiceMap } from '../../schemas/voice-map.js';
 import { z } from 'zod';
 
 const DEFAULT_MODEL = process.env.DIRECTOR_MODEL || 'openai/gpt-4.1';
-const DEFAULT_SCENES_PER_CHUNK = 15;
-// 15-scene chunk outputs ~8-10K tokens of JSON; 16K provides ample headroom
-const SCENE_CONSTRUCTION_MAX_TOKENS = 16384;
 // Cap concurrent Claude calls to avoid 429s on dense scripts (6+ chunks).
 // 3 means a 90-scene script processes in 2 waves of 3 rather than 6 at once.
 const MAX_CONCURRENT_CHUNKS = 3;
@@ -84,8 +82,9 @@ export class SceneConstructionAgent {
   private scenesPerChunk: number;
 
   constructor(options: SceneConstructionOptions = {}) {
+    const env = getEnv();
     this.model = options.model || DEFAULT_MODEL;
-    this.scenesPerChunk = options.scenesPerChunk || DEFAULT_SCENES_PER_CHUNK;
+    this.scenesPerChunk = options.scenesPerChunk || env.SCENES_PER_CHUNK;
   }
 
   /**
@@ -164,6 +163,7 @@ export class SceneConstructionAgent {
     let output: z.infer<typeof ChunkOutputSchema>;
 
     try {
+      const { SCENE_CONSTRUCTION_MAX_TOKENS } = getEnv();
       output = await generateStructuredOutput(userMessage, {
         model: this.model,
         schema: ChunkOutputSchema,

@@ -94,6 +94,16 @@ const envSchema = z.object({
   MAX_SCRIPT_PAGES: z.string().optional().transform((v) => (v ? parseInt(v, 10) : 150)),
   MAX_SCRIPT_CHARS: z.string().optional().transform((v) => (v ? parseInt(v, 10) : 75_000)),
 
+  // Scene construction tuning (Pass 3 of the director pipeline)
+  // SCENES_PER_CHUNK: how many screenplay scenes per LLM chunk. Smaller = safer
+  // output budgets but more API calls. Default 10 keeps chunk output well under
+  // 32K tokens even for dialogue-dense scenes.
+  SCENES_PER_CHUNK: z.string().optional().transform((v) => (v ? parseInt(v, 10) : 10)),
+  // SCENE_CONSTRUCTION_MAX_TOKENS: output token cap per chunk. Sonnet 4.6 supports
+  // up to 64K; 32K gives dense 10-scene chunks a 2-3x safety margin over typical
+  // output size (~8-12K tokens) while staying well within the non-streaming limit.
+  SCENE_CONSTRUCTION_MAX_TOKENS: z.string().optional().transform((v) => (v ? parseInt(v, 10) : 32768)),
+
   // Feature Flags
   AUTH_DISABLED: optionalTrueFalse,
   RATE_LIMIT_DISABLED: optionalTrueFalse,

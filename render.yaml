@@ -424,6 +424,16 @@ services:
       - key: AUDIO_DIRECTOR_MODEL
         value: anthropic/claude-sonnet-4-6
 
+      # Scene construction tuning (Pass 3 director pipeline)
+      # Reduce SCENES_PER_CHUNK if chunks still hit the token cap on dense scripts.
+      # Raise SCENE_CONSTRUCTION_MAX_TOKENS (max 64K for Sonnet 4.6) if needed,
+      # but note that non-streaming requests should stay under ~16K to avoid
+      # SDK HTTP timeouts — increase only if generateStructuredOutput is streaming.
+      - key: SCENES_PER_CHUNK
+        value: "10"
+      - key: SCENE_CONSTRUCTION_MAX_TOKENS
+        value: "32768"
+
       # Sentry (set in Render dashboard)
       - key: SENTRY_DSN
         sync: false
