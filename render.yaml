@@ -185,6 +185,11 @@ services:
       - key: NEXT_PUBLIC_FF_IMPACT_PARTNERS
         value: "true"
 
+      # Real-time job sync via SSE (Postgres LISTEN/NOTIFY). Default OFF until
+      # validated in staging. Set to "true" to opt in per environment.
+      - key: NEXT_PUBLIC_REALTIME_JOB_SYNC
+        value: "false"
+
       # Email (Resend — set in Render dashboard)
       - key: RESEND_API_KEY
         sync: false
