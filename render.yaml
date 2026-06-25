@@ -24,14 +24,12 @@ services:
     name: story-magic-web
     runtime: node
     region: oregon
-    # 2026-06-25: upgraded standard (2GB) → pro (4GB). Five config-only
-    # OOM mitigations exhausted (#416 NODE_OPTIONS, #418 ts skip, #419
-    # webpackMemoryOptimizations + source-map skip, #420 webpackBuildWorker)
-    # before reaching the plan. Build dies at ~1.85 GB on Standard's
-    # 2 GB physical RAM ceiling regardless of V8 heap setting. +$60/mo
-    # recurring; only this web service upgraded — orchestrator + worker
-    # stay on standard (they don't run `next build`).
-    plan: pro
+    # 2026-06-25: tried pro (4GB) thinking the build needed >2GB RAM, but
+    # the real OOM root cause was that NODE_OPTIONS=--max-old-space-size
+    # was being stripped from the env before reaching `next build` (#422
+    # fixed by inlining it in package.json). Reverted to standard live
+    # via the dashboard the same day; this file is now back in sync.
+    plan: standard
     branch: main
     autoDeploy: true
     numInstances: 1
