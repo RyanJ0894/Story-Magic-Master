@@ -345,6 +345,11 @@ model CreditTransaction {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  // DT-35-H-1 (migration 0045): add FK to jobs(id) so cost-ledger rows can't
+  // dangle past a job delete. SetNull preserves the credit/debit history
+  // (refund + audit queries still see the row) while clearing the orphaned
+  // jobId pointer.
+  job     Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
   @@index([profileId])
   @@index([jobId])
@@ -461,9 +466,16 @@ model ContentAccessLog {
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   // Relations
-  user    Profile?     @relation(fields: [userId], references: [id])
+  // DT-36-M-1 (migration 0045): explicit onDelete: SetNull on the optional
+  // user + share back-relations. Default (RESTRICT) blocks Profile and
+  // ScriptShare deletions silently — a user with content_access_log rows
+  // could not be GDPR-deleted; a project delete could fail if any share
+  // had access logs. SetNull keeps the audit row but clears the FK so
+  // upstream deletes succeed cleanly. project FK stays Cascade (default)
+  // since access logs are scoped to projects and should follow them.
+  user    Profile?     @relation(fields: [userId], references: [id], onDelete: SetNull)
   project Project      @relation(fields: [projectId], references: [id])
-  share   ScriptShare? @relation(fields: [shareId], references: [id])
+  share   ScriptShare? @relation(fields: [shareId], references: [id], onDelete: SetNull)
 
   @@index([projectId, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])

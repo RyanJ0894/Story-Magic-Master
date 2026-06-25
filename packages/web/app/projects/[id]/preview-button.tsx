@@ -213,7 +213,7 @@ export function PreviewButton({
             <Pause className="w-3.5 h-3.5" />
             <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
               <div
-                className="h-full bg-blue-500 rounded-full transition-all duration-100"
+                className="h-full bg-primary rounded-full transition-all duration-100"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -225,7 +225,7 @@ export function PreviewButton({
             <Play className="w-3.5 h-3.5" />
             <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
               <div
-                className="h-full bg-blue-500 rounded-full"
+                className="h-full bg-primary rounded-full"
                 style={{ width: `${progress}%` }}
               />
             </div>

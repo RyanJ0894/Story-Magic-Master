@@ -102,7 +102,7 @@ export function RunSelector({
           </div>
           {currentRun && (
             <p className="text-[10px] text-muted-foreground pl-6 w-full" suppressHydrationWarning>
-              {new Date(currentRun.createdAt).toLocaleString(undefined, {
+              {new Date(currentRun.createdAt).toLocaleString('en-US', {
                 month: 'short', day: 'numeric',
                 hour: 'numeric', minute: '2-digit',
               })}
@@ -181,7 +181,7 @@ export function RunSelector({
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground truncate" suppressHydrationWarning>
-                  {new Date(run.createdAt).toLocaleString(undefined, {
+                  {new Date(run.createdAt).toLocaleString('en-US', {
                     month: 'short', day: 'numeric',
                     hour: 'numeric', minute: '2-digit',
                   })}

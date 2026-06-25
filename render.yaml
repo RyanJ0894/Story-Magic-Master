@@ -61,6 +61,16 @@ services:
         value: "22.12.0"
       - key: NODE_ENV
         value: production
+      # h3-env-source-of-truth-allowed
+      # 2026-06-25: web build was OOM-ing at ~1.9 GB heap during `next build`
+      # (commits 1899ea8 + 5c7564f both crashed with V8 mark-compact allocation
+      # failure). Node 22's auto-sized heap hits the Standard plan's 2 GB
+      # system ceiling before the build finishes — Next.js + Sentry +
+      # large client bundle. Bumping to 3072 gives the build process room
+      # without pushing the system into swap-thrash; if this still OOMs
+      # the next move is a plan upgrade (Pro = 4 GB).
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=3072
 
       # Database (Render PostgreSQL - from database reference)
       - key: DATABASE_URL

@@ -3,6 +3,43 @@
  *
  * POST /analyze - Full script analysis with all dimensions
  * POST /analyze/quick - Quick score for triage
+ *
+ * ─────────────────────────────────────────────────────────────────────
+ * STATUS: ORPHANED endpoint (code-review 2026-06-25 ANALYZE-1)
+ * ─────────────────────────────────────────────────────────────────────
+ *
+ * As of 2026-06-25 grep of the entire web package finds ZERO callers for
+ * either `/analyze` or `/analyze/quick`. The web-facing scoring feature
+ * (`packages/web/app/api/projects/[id]/score`) uses an in-process Vercel
+ * AI SDK call via `@/lib/scoring`, not this route.
+ *
+ * The route remains because:
+ *  - It implements a strictly richer analysis (multi-dimensional, with
+ *    optional dialogue-deep-dive + structural-analysis flags) than the
+ *    web's in-process scorer
+ *  - Infrastructure around it is maintained: SSE conversion (#403),
+ *    wall-clock budget guard (T3-5), Sentry project scoping, structured
+ *    output validation
+ *  - Removing would lose ~250 lines of working code for a future product
+ *    decision yet to be made (richer analysis as premium / admin tool)
+ *
+ * Revival path (when product decides to use this):
+ *  1. Add an `orchestratorGenerate('/analyze', ...)` call site in
+ *     `packages/web/lib/scoring/` or a new admin/owner-tier endpoint
+ *  2. Decide whether to replace `/api/projects/[id]/score` entirely or
+ *     keep it as a cheaper "quick score" tier
+ *  3. Wire the optional flags (`include_dialogue_deep_dive`,
+ *     `include_structural_analysis`) to a UI toggle or premium gate
+ *
+ * Retirement path (when product decides this is dead):
+ *  1. Delete `analyze.ts`, `analysis/script-score-service.ts`, and the
+ *     associated prompts/schemas
+ *  2. Remove the env vars `ANALYZE_WALLCLOCK_BUDGET_MS` and
+ *     `STORY_SCORE_MODEL` if no longer referenced
+ *  3. Drop the route registration in `src/index.ts`
+ *
+ * Leave this notice in place until that decision is made — it documents
+ * why the route exists with no inbound traffic.
  */
 
 import { Router, Request, Response } from 'express';
