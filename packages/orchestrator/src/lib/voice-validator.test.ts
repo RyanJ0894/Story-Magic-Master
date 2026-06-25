@@ -110,7 +110,7 @@ describe('probeVoices', () => {
 });
 
 describe('preFlightVoices — auto-deactivation rules', () => {
-  it('does NOT auto-deactivate server_degraded (500) — transient ElevenLabs outage', async () => {
+  it('auto-deactivates server_degraded (500) voices', async () => {
     mockFetch.mockImplementation(async (url: string) => {
       if (url.includes('bad-server')) return fakeResponse(500, 'internal_server_error');
       return fakeResponse(200);
@@ -120,8 +120,11 @@ describe('preFlightVoices — auto-deactivation rules', () => {
     expect(r.valid).toEqual(['good']);
     expect(r.broken.length).toBe(1);
     expect(r.broken[0].reason).toBe('server_degraded');
-    expect(r.deactivated).toBe(0);
-    expect(mockPrismaUpdate).not.toHaveBeenCalled();
+    expect(r.deactivated).toBe(1);
+    expect(mockPrismaUpdate).toHaveBeenCalledWith({
+      where: { voiceId: 'bad-server' },
+      data: { isActive: false },
+    });
   });
 
   it('auto-deactivates revoked (403) voices', async () => {
@@ -196,16 +199,15 @@ describe('preFlightVoices — auto-deactivation rules', () => {
       expect(mockPrismaUpdate).not.toHaveBeenCalled();
     });
 
-    it('does NOT deactivate when only 1-of-3 fail with 500 (server_degraded is always transient)', async () => {
+    it('STILL deactivates when only 1-of-3 fail with 500 (per-voice degradation)', async () => {
       mockFetch.mockImplementation(async (url: string) => {
         if (url.includes('bad')) return fakeResponse(500, 'internal_server_error');
         return fakeResponse(200);
       });
       const r = await preFlightVoices(['good1', 'good2', 'bad']);
       expect(r.broken.length).toBe(1);
-      expect(r.deactivated).toBe(0);
+      expect(r.deactivated).toBe(1);
       expect(r.abortedDeactivation).toBeFalsy();
-      expect(mockPrismaUpdate).not.toHaveBeenCalled();
     });
 
     it('still deactivates 403 / 404 voices even during a 5xx-storm', async () => {
