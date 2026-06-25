@@ -111,6 +111,13 @@ export const GET = withAuth(async (_request, { userId, prisma, params }) => {
 
   const encoder = new TextEncoder();
 
+  // Hoist `cleanup` into the outer scope so both `start()` and `cancel()`
+  // close over the same function. Earlier revision stashed it on the
+  // controller object and read it via `this` in cancel(), but those are
+  // different objects in the ReadableStreamSource init shape — the read
+  // returned undefined and disconnects silently leaked pg connections.
+  let cleanup: () => Promise<void> = async () => { /* will be replaced in start() */ };
+
   // Build a ReadableStream that holds the SSE connection. The cleanup
   // path (cancel) UNLISTENs + releases the pg client; the controller
   // closure pins the listenHandle / heartbeat / abort wiring.
@@ -138,7 +145,7 @@ export const GET = withAuth(async (_request, { userId, prisma, params }) => {
         }
       };
 
-      const cleanup = async () => {
+      cleanup = async () => {
         if (closed) return;
         closed = true;
         if (heartbeatTimer) clearInterval(heartbeatTimer);
@@ -197,26 +204,12 @@ export const GET = withAuth(async (_request, { userId, prisma, params }) => {
       // (#394, #402, #403). Keeps Render's inter-service proxy and the
       // browser EventSource alive without flooding the wire.
       heartbeatTimer = setInterval(sendHeartbeat, 25_000);
-
-      // The runtime calls `cancel` when the client disconnects. We wire
-      // cleanup here so UNLISTEN runs even on browser close / network loss.
-      // We can't reassign cancel() on the controller side; the ReadableStream
-      // constructor accepts a `cancel` callback at the top level instead.
-      // (See below: this is wired into the stream's cancel hook.)
-      //
-      // Stash cleanup on the controller-scope variables so the outer cancel
-      // hook can reach it.
-      (controller as unknown as { _sseCleanup?: () => Promise<void> })._sseCleanup = cleanup;
     },
     async cancel(reason) {
-      // Cancel may be called with a controller-like wrapper from the runtime.
-      // We don't have direct access to the previous `start` closure here, so
-      // we walk the controller for the stashed cleanup function. This is a
-      // small dance to keep the close-handlers co-located with the open ones.
-      const cleanup = (this as unknown as { _sseCleanup?: () => Promise<void> })._sseCleanup;
-      if (typeof cleanup === 'function') {
-        try { await cleanup(); } catch { /* noop */ }
-      }
+      // The runtime calls cancel() when the client disconnects. `cleanup`
+      // is the closure assigned by start() — same lexical scope, so both
+      // sides see the same function reference.
+      try { await cleanup(); } catch { /* noop */ }
       log.info('[/api/jobs/stream] client disconnected', { reason: String(reason ?? 'unknown') });
     },
   });

@@ -93,36 +93,38 @@ export async function openJobListenClient(
     throw new Error('DATABASE_URL is not set; cannot open LISTEN client');
   }
 
-  const client = new Client({ connectionString });
-  await client.connect();
-
-  // Increment AFTER successful connect — if connect throws the budget
-  // is unchanged.
+  // Increment optimistically BEFORE we await — `await client.connect()`
+  // yields the event loop, so N concurrent calls could otherwise all
+  // pass the budget check before any of them increment. Reserve the
+  // slot now; decrement in the catch block if anything fails.
   activeListenerCount += 1;
-
-  // pg client emits `notification` events for every NOTIFY received on
-  // any channel the client is currently LISTENing on. Filter by channel
-  // name as defense-in-depth (a single client only LISTENs on one channel
-  // here, but better to be explicit).
-  client.on('notification', (msg) => {
-    if (msg.channel === channel) {
-      options.onNotify();
-    }
-  });
-
-  client.on('error', (err) => {
-    if (options.onError) options.onError(err);
-  });
+  const client = new Client({ connectionString });
 
   try {
+    await client.connect();
+
+    // pg client emits `notification` events for every NOTIFY received on
+    // any channel the client is currently LISTENing on. Filter by channel
+    // name as defense-in-depth (a single client only LISTENs on one channel
+    // here, but better to be explicit).
+    client.on('notification', (msg) => {
+      if (msg.channel === channel) {
+        options.onNotify();
+      }
+    });
+
+    client.on('error', (err) => {
+      if (options.onError) options.onError(err);
+    });
+
     // Channel name is double-quoted because pg treats colons as special
     // tokens otherwise. Built from a UUID-validated jobId — no injection.
     await client.query(`LISTEN "${channel}"`);
-  } catch (listenErr) {
-    // LISTEN failed after connect — release and bubble.
-    activeListenerCount -= 1;
+  } catch (openErr) {
+    // Connect or LISTEN failed — release the reserved slot and bubble.
+    activeListenerCount = Math.max(0, activeListenerCount - 1);
     try { await client.end(); } catch { /* noop */ }
-    throw listenErr;
+    throw openErr;
   }
 
   let closed = false;

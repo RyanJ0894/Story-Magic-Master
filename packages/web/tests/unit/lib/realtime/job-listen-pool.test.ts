@@ -154,4 +154,48 @@ describe('budget exhaustion', () => {
     await handles[0].close();
     expect(listenerBudgetExhausted()).toBe(false);
   });
+
+  // Regression for the TOCTOU between the budget check and the
+  // counter increment. Previously the increment happened AFTER
+  // `await client.connect()`, so N concurrent calls could all pass
+  // the budget check before any of them incremented — blowing past
+  // the cap in production. The fix increments synchronously, before
+  // the await. This test pins that ordering.
+  it('reserves the budget slot synchronously before awaiting connect', async () => {
+    // Hold every `connect` open so we can observe the in-flight reservations.
+    // Each call to mockConnect creates its own promise; we collect all the
+    // resolvers so we can drain at the end.
+    const resolvers: Array<() => void> = [];
+    mockConnect.mockReset().mockImplementation(
+      () => new Promise<void>((resolve) => { resolvers.push(resolve); }),
+    );
+
+    // Kick off 20 concurrent opens without awaiting. With the bug, all 20
+    // would pass the budget check (which sees count=0) and only start
+    // incrementing after connect resolves — counter never reflects the
+    // in-flight reservations. With the fix, the counter reflects them
+    // immediately and the 17th+ throw budget-exhausted before connect is
+    // even attempted.
+    const attempts: Array<Promise<unknown>> = [];
+    for (let i = 0; i < 20; i++) {
+      attempts.push(
+        openJobListenClient({ jobId: `job-${i}`, onNotify: () => {} }).catch((e) => e),
+      );
+    }
+
+    // Yield once so every attempt has run its synchronous prelude
+    // (the budget check + the optimistic increment).
+    await Promise.resolve();
+
+    // Exactly 16 reservations should be in flight. 4 should have already
+    // thrown synchronously with budget-exhausted.
+    expect(getActiveListenerCount()).toBe(16);
+
+    // Drain. Release every held connect so the 16 in-flight calls finish.
+    resolvers.forEach((r) => r());
+    const results = await Promise.all(attempts);
+    const errors = results.filter((r) => r instanceof Error) as Error[];
+    expect(errors.length).toBe(4);
+    expect(errors.every((e) => /budget exhausted/.test(e.message))).toBe(true);
+  });
 });
