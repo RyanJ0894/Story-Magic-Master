@@ -114,8 +114,8 @@ const nextConfig = {
     }
     return config;
   },
-  // Reduce build memory usage on constrained environments
-  productionBrowserSourceMaps: false,
+  // (productionBrowserSourceMaps already set above at the experimental
+  // block sibling — the duplicate at this position was a saga-era oversight.)
   // ESLint runs in CI — skip during next build (avoids devDep missing in production)
   eslint: { ignoreDuringBuilds: true },
   // 2026-06-25: skip typecheck during `next build` to shave memory pressure
