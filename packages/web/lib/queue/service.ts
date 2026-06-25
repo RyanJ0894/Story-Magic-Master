@@ -10,6 +10,7 @@
 
 import { prisma } from '@/lib/db';
 import { Prisma } from '@story-magic/shared';
+import { notifyJobUpdate } from '@/lib/realtime/notify-job-update';
 import {
   Job,
   JobType,
@@ -175,7 +176,13 @@ export async function failJob(
 // =============================================================================
 
 /**
- * Update job progress
+ * Update job progress.
+ *
+ * 2026-06-25: also fires a Postgres NOTIFY on the per-job channel so any
+ * SSE handler (web side) with an open LISTEN gets a wake-up signal in
+ * under a second instead of waiting for the next 2 s poll cycle. NOTIFY
+ * is non-fatal — see `lib/realtime/notify-job-update.ts` for the silent-
+ * failure rationale.
  */
 export async function updateJobProgress(
   jobId: string,
@@ -193,6 +200,11 @@ export async function updateJobProgress(
       progress: fullProgress,
     },
   });
+
+  // Lazy import to avoid pulling pg into the bundle when no SSE listener is
+  // attached. Fire-and-forget: the NOTIFY query is a perf optimization and
+  // we never let it block the worker's progress write path.
+  void notifyJobUpdate(jobId);
 }
 
 /**

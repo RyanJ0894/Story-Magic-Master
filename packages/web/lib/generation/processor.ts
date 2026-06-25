@@ -18,6 +18,7 @@ import { dispatchWebhooks } from '@/lib/webhooks/deliver';
 import { triggerHumanReviewIfPurchased } from '@/lib/human-review/trigger';
 import { chunkScenes, segmentProgressLabel } from '@/lib/generation/chunk-script';
 import { classifyFailure } from '@/lib/generation/classify-failure';
+import { notifyJobUpdate } from '@/lib/realtime/notify-job-update';
 import { addBreadcrumb, captureMessage } from '@sentry/nextjs';
 import { Prisma } from '@story-magic/shared';
 import { asDirectorJson, type DirectorJson } from '@story-magic/shared';
@@ -126,6 +127,11 @@ async function markJobFailed(
     },
     { projectId, action: 'markJobFailed-project' },
   );
+
+  // 2026-06-25: push the terminal-failed state out via Postgres NOTIFY so
+  // any SSE listener for this job sees it within ~50 ms instead of waiting
+  // for the next 2 s poll. Non-fatal; see lib/realtime/notify-job-update.ts.
+  void notifyJobUpdate(jobId);
 
   // #174 PR β: master notification — script generation failed.
   // Fire-and-forget; can't fail the failure handler.
@@ -847,6 +853,11 @@ export async function processGenerationJob(
       },
       { jobId, projectId, action: 'markJobCompleted' },
     );
+
+    // 2026-06-25: push the terminal-completed state out via Postgres NOTIFY
+    // so any SSE listener sees the transition immediately instead of waiting
+    // for the next 2 s poll. Non-fatal; see lib/realtime/notify-job-update.ts.
+    void notifyJobUpdate(jobId);
 
     // #174 PR β: master notification — script generation completed.
     // Fire-and-forget; producer swallows errors so it can't fail the job.

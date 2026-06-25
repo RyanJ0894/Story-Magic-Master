@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { isRetryImminent } from '@/lib/generation/job-status';
+import { useJobStream } from '@/hooks/use-job-stream';
 import { Loader2, Sparkles, RefreshCw, Clock, CheckCircle, XCircle } from 'lucide-react';
 
 interface JobProgress {
@@ -108,6 +109,24 @@ export default function GenerateButton({
   const [forceFreshTts, setForceFreshTts] = useState(false);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
+
+  // 2026-06-25 Real-time job sync (flag-gated, default OFF). Subscribes to
+  // /api/jobs/[id]/stream via EventSource and overrides jobStatus on every
+  // server push. Polling continues alongside as the safety net; if SSE
+  // falls back (3 errors / 30 s), polling is the entire show.
+  // See docs/REALTIME_JOB_SYNC_2026-06-25.md for the architecture.
+  const realtimeEnabled = process.env.NEXT_PUBLIC_REALTIME_JOB_SYNC === 'true';
+  const { status: streamStatus, fellBack: streamFellBack } = useJobStream(
+    realtimeEnabled ? currentJobId : null,
+  );
+  useEffect(() => {
+    if (!realtimeEnabled || streamFellBack) return;
+    if (!streamStatus) return;
+    // The stream payload is a superset of the polling payload — same field
+    // names, same shape. Cast to JobStatus is safe (shape comes from
+    // /api/jobs/[id]/stream's serializeJobForStream).
+    setJobStatus(streamStatus as unknown as JobStatus);
+  }, [realtimeEnabled, streamFellBack, streamStatus]);
   const firstAudioFiredRef = useRef(false);
   const lastSegmentCountRef = useRef(0);
   const [queuePosition, setQueuePosition] = useState<QueuePosition | null>(null);
