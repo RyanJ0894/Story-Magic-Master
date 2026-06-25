@@ -1,3 +1,5 @@
+> **Superseded by:** [REQUIREMENTS-2026-06-25.md](REQUIREMENTS-2026-06-25.md) — Updated 2026-06-25
+
 # Story Magic — Product Requirements (incremental update 2026-06-14)
 
 **Date:** 2026-06-14
