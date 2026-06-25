@@ -372,6 +372,9 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
+      undici:
+        specifier: ^6.27.0
+        version: 6.27.0
       unpdf:
         specifier: ^1.6.2
         version: 1.6.2

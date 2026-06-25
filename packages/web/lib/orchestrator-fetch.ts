@@ -7,7 +7,20 @@
  * - Automatic service key injection
  */
 
+import { Agent, fetch as undiciFetch } from 'undici';
 import { log } from '@/lib/logger';
+
+// Node.js (undici) has a 300 s internal headersTimeout that fires independently
+// of any AbortController. For generation calls (20-min AbortController), undici's
+// 300 s deadline fires first, producing "Headers Timeout Error". We bypass this by
+// using undici's fetch directly with an agent whose timeouts exceed the AbortController.
+// Using undiciFetch also skips Next.js's cache layer — correct for dynamic calls.
+const ORCHESTRATOR_AGENT = new Agent({
+  headersTimeout: 1_500_000, // 25 min — safely above the 20-min AbortController
+  bodyTimeout: 1_500_000,
+  keepAliveTimeout: 60_000,
+  connections: 4,
+});
 
 function describeCause(error: unknown): string | undefined {
   if (!(error instanceof Error) || error.cause === undefined) return undefined;
@@ -121,12 +134,25 @@ export async function orchestratorFetch(
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-      const response = await fetch(url, {
-        method,
-        headers: fetchHeaders,
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
-      });
+      // Use the custom undici agent (with extended headersTimeout/bodyTimeout)
+      // only for long-running calls where the 20-min AbortController must be the
+      // effective deadline. Short calls (health checks, 30s posts) use globalThis.fetch
+      // so test mocks on globalThis.fetch continue to work without changes.
+      const needsLongAgent = timeoutMs > 300_000;
+      const response = needsLongAgent
+        ? (await undiciFetch(url, {
+            method,
+            headers: fetchHeaders,
+            body: body !== undefined ? JSON.stringify(body) : undefined,
+            signal: controller.signal,
+            dispatcher: ORCHESTRATOR_AGENT,
+          }) as unknown as Response)
+        : await fetch(url, {
+            method,
+            headers: fetchHeaders,
+            body: body !== undefined ? JSON.stringify(body) : undefined,
+            signal: controller.signal,
+          });
 
       clearTimeout(timeoutId);
 
