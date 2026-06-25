@@ -63,7 +63,9 @@ async function handleOrchestrate(req: Request, res: Response): Promise<void> {
   setProjectScope(project_id);
 
   // Ownership check (BL-013): authenticated user must own this project.
-  const requestingUserId = req.user?.id;
+  // Skip for internal service calls — the web worker already verified ownership
+  // before dispatching the job, and req.user.id is 'service:web' (not a real userId).
+  const requestingUserId = req.user?.role === 'service' ? undefined : req.user?.id;
   if (requestingUserId) {
     try {
       const project = await prisma.project.findUnique({
