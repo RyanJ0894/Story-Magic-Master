@@ -117,7 +117,16 @@ export default async function EnterpriseDashboardPage({
     orderBy: { createdAt: 'desc' },
   });
 
-  const memberCount = team.members.length;
+  // The members include above is capped at `take: 50` for the preview list,
+  // so `team.members.length` would silently report "50" for any team that
+  // actually has more — a worse UX than the 480px scroller we replaced.
+  // Source the headline stat from a real count query and use the loaded
+  // slice only for the list render below.
+  const memberCount = await prisma.teamMember.count({
+    where: { teamId: resolvedTeamId, status: 'accepted', deactivatedAt: null },
+  });
+  const MEMBER_PREVIEW_CAP = 50;
+  const hasMoreMembers = memberCount > team.members.length;
 
   // Aggregate project decisions
   const projectDecisions = team.teamShares.map((share) => {
@@ -386,6 +395,15 @@ export default async function EnterpriseDashboardPage({
                         </Badge>
                       </div>
                     ))}
+                    {hasMoreMembers && (
+                      <Link
+                        href="/enterprise/team"
+                        className="block text-sm text-center py-3 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Showing {team.members.length} of {memberCount} —
+                        view all on the Team page →
+                      </Link>
+                    )}
                   </div>
                 )}
               </CardContent>
