@@ -31,7 +31,23 @@ const nextConfig = {
       '@radix-ui/react-select',
       'lucide-react',
     ],
+    // 2026-06-25: Next 15+ webpack memory-optimization knob. Reduces peak
+    // build memory at the cost of slightly slower compilation. Official
+    // Next.js docs label this "low-risk" (still experimental flag only
+    // because it's recent). Adding to clear the 2 GB ceiling on Render
+    // Standard before considering a plan upgrade.
+    // https://nextjs.org/docs/app/guides/memory-usage
+    webpackMemoryOptimizations: true,
+    // Also disable server-side source maps. Sentry already disables CLIENT
+    // source map upload via hideSourceMaps + disableSourceMapUpload (see
+    // sentryConfig below), but the SSR pass can still emit them by default.
+    // Skipping them shaves another chunk of memory during the server build.
+    serverSourceMaps: false,
   },
+  // Skip browser source maps in production builds. Same rationale as
+  // serverSourceMaps above — Sentry's already configured not to upload them,
+  // and we save peak build memory by not generating them at all.
+  productionBrowserSourceMaps: false,
   // pdf-parse uses Node.js fs internals and must not be bundled by webpack —
   // when bundled it tries to open its test fixture file at runtime and crashes.
   //
