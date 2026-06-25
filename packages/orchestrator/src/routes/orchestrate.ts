@@ -196,17 +196,26 @@ async function handleOrchestrate(req: Request, res: Response): Promise<void> {
           broken: brokenSummary,
           deactivated: outcome.deactivated,
         });
-        res.status(422).json({
-          status: 'error',
-          project_id,
-          message:
-            'Pre-flight voice check failed: one or more assigned voices are unavailable from ElevenLabs. ' +
-            'These voices have been deactivated in the catalog. Re-running the director step will pick replacements.',
-          warnings: brokenSummary.map(
-            (b) => `voice ${b.voiceId} returned ${b.status} (${b.reason})`,
-          ),
-        } as OrchestrateResponse);
-        return;
+        // Only hard-fail for permanently gone voices (revoked/not_found). A
+        // server_degraded (ElevenLabs 500) is transient — the per-TTS retry
+        // logic handles it. Failing the whole chunk on a brief upstream 500
+        // was masking the real rate-limit issue and cascading into job failure.
+        const hardBroken = outcome.broken.filter(
+          (b) => b.reason === 'revoked' || b.reason === 'not_found',
+        );
+        if (hardBroken.length > 0) {
+          res.status(422).json({
+            status: 'error',
+            project_id,
+            message:
+              'Pre-flight voice check failed: one or more assigned voices are unavailable from ElevenLabs. ' +
+              'These voices have been deactivated in the catalog. Re-running the director step will pick replacements.',
+            warnings: brokenSummary.map(
+              (b) => `voice ${b.voiceId} returned ${b.status} (${b.reason})`,
+            ),
+          } as OrchestrateResponse);
+          return;
+        }
       }
     } catch (err) {
       // Pre-flight is best-effort. Network blip, ElevenLabs probe-endpoint
