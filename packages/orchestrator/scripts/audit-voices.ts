@@ -13,12 +13,20 @@
  * Usage (--apply — deactivates broken voices in the catalog):
  *   doppler run --project story-magic --config prd -- \
  *     pnpm --filter @story-magic/orchestrator exec tsx scripts/audit-voices.ts --apply
+ *
+ * Usage (--reactivate — flips isActive=false → true for voices that now
+ * probe OK; used to revive voices wrongly deactivated by a past transient
+ * 5xx from ElevenLabs, before the 2026-06-25 server_degraded fix):
+ *   doppler run --project story-magic --config prd -- \
+ *     pnpm --filter @story-magic/orchestrator exec tsx scripts/audit-voices.ts --reactivate
+ *   # add --apply to actually write the change.
  */
 
 import { PrismaClient } from '@story-magic/shared';
 import { probeVoices } from '../src/lib/voice-validator.js';
 
 const APPLY = process.argv.includes('--apply');
+const REACTIVATE = process.argv.includes('--reactivate');
 
 async function main() {
   const apiKey = process.env.ELEVENLABS_API_KEY;
@@ -29,6 +37,10 @@ async function main() {
 
   const prisma = new PrismaClient();
   try {
+    if (REACTIVATE) {
+      await runReactivate(prisma, apiKey);
+      return;
+    }
     const voices = await prisma.voiceCatalogEntry.findMany({
       where: { isActive: true },
       select: { voiceId: true, label: true, name: true },
@@ -73,9 +85,10 @@ async function main() {
     }
 
     // Only deactivate permanent-broken classes — same rule as the runtime
-    // pre-flight (revoked / server_degraded / not_found).
+    // pre-flight. Per 2026-06-25 fix, server_degraded (5xx) is treated as
+    // transient and never auto-deactivates here either.
     const eligible = broken.filter((b) =>
-      b.reason && ['revoked', 'server_degraded', 'not_found'].includes(b.reason),
+      b.reason && ['revoked', 'not_found'].includes(b.reason),
     );
     console.log(`\n=== Deactivating ${eligible.length} permanently-broken voices ===`);
     for (const b of eligible) {
@@ -93,6 +106,62 @@ async function main() {
     }
   } finally {
     await prisma.$disconnect();
+  }
+}
+
+/**
+ * Walk every isActive=false catalog entry, probe it, and flip back to
+ * isActive=true if it now responds OK. Use after a server_degraded incident
+ * to revive voices that were wrongly deactivated by the old policy. Without
+ * --apply, this is dry-run.
+ */
+async function runReactivate(prisma: PrismaClient, apiKey: string) {
+  const dead = await prisma.voiceCatalogEntry.findMany({
+    where: { isActive: false },
+    select: { voiceId: true, label: true, name: true },
+    orderBy: { label: 'asc' },
+  });
+  console.log(`Re-checking ${dead.length} deactivated voices...\n`);
+  if (dead.length === 0) return;
+
+  const start = Date.now();
+  const results = await probeVoices(dead.map((v) => v.voiceId), apiKey);
+  const elapsedSec = ((Date.now() - start) / 1000).toFixed(1);
+
+  const byId = new Map(dead.map((v) => [v.voiceId, v]));
+  const recovered = results.filter((r) => r.ok);
+  const stillBroken = results.filter((r) => !r.ok);
+
+  console.log(`\n=== Reactivate sweep summary (${elapsedSec}s) ===`);
+  console.log(`Recovered:    ${recovered.length}`);
+  console.log(`Still broken: ${stillBroken.length}`);
+
+  if (recovered.length > 0) {
+    console.log('\n=== Voices that now probe OK ===');
+    for (const r of recovered) {
+      const meta = byId.get(r.voiceId)!;
+      console.log(`  ${(meta.label || meta.name || '').padEnd(40)} ${r.voiceId}`);
+    }
+  }
+
+  if (!APPLY) {
+    console.log('\nDRY RUN. Re-run with --reactivate --apply to flip isActive back to true.');
+    return;
+  }
+
+  if (recovered.length === 0) {
+    console.log('\nNothing to reactivate.');
+    return;
+  }
+
+  console.log(`\n=== Reactivating ${recovered.length} voices ===`);
+  for (const r of recovered) {
+    await prisma.voiceCatalogEntry.update({
+      where: { voiceId: r.voiceId },
+      data: { isActive: true },
+    });
+    const meta = byId.get(r.voiceId)!;
+    console.log(`  Reactivated ${r.voiceId} (${meta.label || meta.name})`);
   }
 }
 

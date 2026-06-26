@@ -23,10 +23,19 @@ import { log } from './logger.js';
 import { prisma } from './prisma.js';
 
 const ELEVENLABS_BASE = 'https://api.elevenlabs.io';
-const PROBE_MODEL = 'eleven_turbo_v2_5';
+// Probe with the same model the production pipeline renders with. If the
+// pipeline switches model (eleven_v3 etc.), the probe must follow — otherwise
+// we'd be validating compatibility against a model that isn't even used.
+const PROBE_MODEL = process.env.ELEVENLABS_MODEL || 'eleven_turbo_v2_5';
 // One byte of dialogue — minimum charge against the account, minimum latency.
 const PROBE_TEXT = 'a';
 const PROBE_TIMEOUT_MS = 5_000;
+// 2026-06-25: Ryan's job 3a9db72b had a single voice classified server_degraded
+// from one transient ElevenLabs 500 and got permanently deactivated. Retry 5xx
+// twice with exponential backoff before classifying as broken, so genuine
+// transient blips never escalate to deactivation.
+const PROBE_5XX_RETRIES = 2;
+const PROBE_5XX_BACKOFF_BASE_MS = 750;
 // Reasonable concurrency for probing — don't hammer ElevenLabs with 137 parallel
 // requests, but a serial loop takes ~30s. Per the audit run, 4-8 concurrent is
 // fine and finishes 135 voices in ~10 seconds.
@@ -72,47 +81,69 @@ const PLATFORM_INCIDENT_FAILURE_RATE_THRESHOLD = 0.5;
  * with a classified reason. Never throws — network errors become `status: 0`.
  */
 export async function probeVoice(voiceId: string, apiKey: string): Promise<VoiceValidationResult> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+  let lastResult: VoiceValidationResult | null = null;
 
-  try {
-    const res = await fetch(
-      `${ELEVENLABS_BASE}/v1/text-to-speech/${voiceId}`,
-      {
-        method: 'POST',
-        headers: {
-          'xi-api-key': apiKey,
-          'Content-Type': 'application/json',
+  // Retry 5xx (and only 5xx) up to PROBE_5XX_RETRIES times. Other failure
+  // modes (auth/revoked/not_found/rate_limited) are not retryable here —
+  // rate_limited recovers on the next pre-flight run, the others won't
+  // change between retries within a few hundred ms.
+  for (let attempt = 0; attempt <= PROBE_5XX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+
+    try {
+      const res = await fetch(
+        `${ELEVENLABS_BASE}/v1/text-to-speech/${voiceId}`,
+        {
+          method: 'POST',
+          headers: {
+            'xi-api-key': apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text: PROBE_TEXT, model_id: PROBE_MODEL }),
+          signal: controller.signal,
         },
-        body: JSON.stringify({ text: PROBE_TEXT, model_id: PROBE_MODEL }),
-        signal: controller.signal,
-      },
-    );
+      );
 
-    if (res.ok) {
-      return { voiceId, ok: true, status: res.status };
+      if (res.ok) {
+        return { voiceId, ok: true, status: res.status };
+      }
+
+      const errorBody = (await res.text()).slice(0, 300);
+      let reason: VoiceValidationResult['reason'] = 'other';
+      if (res.status === 401 || res.status === 402) reason = 'auth';
+      else if (res.status === 403) reason = 'revoked';
+      else if (res.status === 404) reason = 'not_found';
+      else if (res.status === 429) reason = 'rate_limited';
+      else if (res.status >= 500) reason = 'server_degraded';
+
+      lastResult = { voiceId, ok: false, status: res.status, errorBody, reason };
+
+      // Only 5xx is worth retrying. Everything else short-circuits.
+      if (reason !== 'server_degraded') return lastResult;
+    } catch (err) {
+      lastResult = {
+        voiceId,
+        ok: false,
+        status: 0,
+        errorBody: `network error: ${err instanceof Error ? err.message : String(err)}`,
+        reason: 'other',
+      };
+      // Network errors aren't classified as server_degraded; don't loop on them.
+      return lastResult;
+    } finally {
+      clearTimeout(timeoutId);
     }
 
-    const errorBody = (await res.text()).slice(0, 300);
-    let reason: VoiceValidationResult['reason'] = 'other';
-    if (res.status === 401 || res.status === 402) reason = 'auth';
-    else if (res.status === 403) reason = 'revoked';
-    else if (res.status === 404) reason = 'not_found';
-    else if (res.status === 429) reason = 'rate_limited';
-    else if (res.status >= 500) reason = 'server_degraded';
-
-    return { voiceId, ok: false, status: res.status, errorBody, reason };
-  } catch (err) {
-    return {
-      voiceId,
-      ok: false,
-      status: 0,
-      errorBody: `network error: ${err instanceof Error ? err.message : String(err)}`,
-      reason: 'other',
-    };
-  } finally {
-    clearTimeout(timeoutId);
+    // 5xx and we still have retries — back off and try again.
+    if (attempt < PROBE_5XX_RETRIES) {
+      const backoff = PROBE_5XX_BACKOFF_BASE_MS * Math.pow(2, attempt);
+      await new Promise((r) => setTimeout(r, backoff));
+    }
   }
+
+  // All retries exhausted and we're still seeing 5xx.
+  return lastResult!;
 }
 
 /**
@@ -197,15 +228,20 @@ export async function preFlightVoices(voiceIds: string[]): Promise<PreFlightOutc
     abortedDeactivation = true;
   }
 
-  // Auto-deactivate broken voices. Transient failures (429 rate limit,
-  // network errors) are NOT deactivated — they recover on their own.
-  // server_degraded (5xx) IS deactivated so the catalog stays clean and the
-  // director picks a substitute on the next parse; but see orchestrate.ts
-  // which does NOT hard-fail the current chunk on server_degraded — it warns
-  // and proceeds so the per-TTS retry logic gets a chance to recover first.
-  // Platform-incident detection above can skip deactivation entirely.
+  // Auto-deactivate permanently-broken voices. Transient failures (429 rate
+  // limit, 0 network error, AND 5xx server_degraded) are NOT deactivated —
+  // they recover on the next pre-flight. Platform-incident detection above
+  // can skip this entirely.
+  //
+  // 2026-06-25: server_degraded was previously in this list. A single transient
+  // ElevenLabs 500 in Ryan's job 3a9db72b nuked a paid clone voice; the >50%
+  // platform-incident guard didn't catch it (3-voice job, 1 bad probe = 33%
+  // failure rate). probeVoice now retries 5xx twice before classifying as
+  // broken, AND server_degraded survives that to no longer trigger
+  // auto-deactivation. Only revoked (403) and not_found (404) — true
+  // permanent signals — flip isActive=false here.
   let deactivated = 0;
-  const deactivateReasons: VoiceValidationResult['reason'][] = ['revoked', 'server_degraded', 'not_found'];
+  const deactivateReasons: VoiceValidationResult['reason'][] = ['revoked', 'not_found'];
   if (!abortedDeactivation) {
     for (const b of broken.filter((r) => r.reason && deactivateReasons.includes(r.reason))) {
       try {

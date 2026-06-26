@@ -326,6 +326,16 @@ export async function rateLimitMiddleware(
 
 /**
  * Strict rate limit (3 req/min) for expensive operations (audio generation).
+ *
+ * 2026-06-25: Internal service-to-service traffic (web → orchestrator,
+ * authenticated via SERVICE_SECRET_KEY) bypasses the strict limit. Reason:
+ * `serviceAuthMiddleware` validates the shared secret but does not set
+ * `req.user`, so internal calls were falling through to `req.ip` — which on
+ * Render is the web service's single egress IP. Every user on the platform
+ * effectively shared one 3/min bucket on /orchestrate. Ryan's 50-scene job
+ * (job 3a9db72b) hit this at chunks 6–7. The whole point of the strict
+ * limit is to stop external abuse; trusted internal callers should be
+ * capacity-managed by the queue + DB pool, not by a 3/min anti-DDOS cap.
  */
 export async function strictRateLimitMiddleware(
   req: Request,
@@ -334,11 +344,13 @@ export async function strictRateLimitMiddleware(
 ): Promise<void> {
   if (process.env.RATE_LIMIT_DISABLED === 'true') return next();
 
-  // Internal service-to-service calls (web → orchestrator via service key) are
-  // exempt. The rate limit guards against end-user abuse; the web worker already
-  // serializes chunks. Without this, all users share one bucket on Render's
-  // single egress IP and starve each other.
-  if (req.user?.role === 'service') return next();
+  // Trusted internal traffic — the shared secret is server-only and never
+  // reaches a browser. Compare against the expected secret if configured;
+  // if SERVICE_SECRET_KEY is unset, the bypass is inert.
+  const expected = process.env.SERVICE_SECRET_KEY;
+  if (expected && req.headers['x-service-key'] === expected) {
+    return next();
+  }
 
   const identifier = req.user?.id || req.ip || 'anonymous';
   const decision = await evaluateLimit(identifier, 'strict');
